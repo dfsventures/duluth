@@ -1,0 +1,209 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ─── Enums ────────────────────────────────────────────────
+
+enum UserRole {
+  FOUNDER
+  ADMIN
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum MembershipRole {
+  OWNER
+  MEMBER
+  VIEWER
+}
+
+enum UpdateStatus {
+  DRAFT
+  SENT
+}
+
+// ─── User ─────────────────────────────────────────────────
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  passwordHash  String?
+  role          UserRole   @default(FOUNDER)
+  status        UserStatus @default(PENDING)
+  approvalToken String?    @unique
+  tokenExpiresAt DateTime?
+  googleId      String?    @unique
+  image         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  memberships UserCompanyMembership[]
+  updates     Update[]
+  documents   Document[]
+  comments    Comment[]
+  companies   Company[]                @relation("CreatedCompanies")
+
+  @@map("users")
+}
+
+// ─── Company ──────────────────────────────────────────────
+
+model Company {
+  id           String  @id @default(cuid())
+  name         String
+  logo         String? // S3 key or URL
+  description  String?
+  website      String?
+  sector       String?
+  geography    String?
+  fundingStage String?
+
+  createdById String
+  createdBy   User   @relation("CreatedCompanies", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships       UserCompanyMembership[]
+  updates           Update[]
+  metricDefinitions MetricDefinition[]
+  documents         Document[]
+
+  @@map("companies")
+}
+
+// ─── User <-> Company ─────────────────────────────────────
+
+model UserCompanyMembership {
+  id        String         @id @default(cuid())
+  userId    String
+  companyId String
+  role      MembershipRole @default(MEMBER)
+  createdAt DateTime       @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@map("user_company_memberships")
+}
+
+// ─── Update ───────────────────────────────────────────────
+
+model Update {
+  id        String       @id @default(cuid())
+  companyId String
+  createdById String
+  period    String       // e.g. "2025-Q1", "2025-01"
+  title     String
+  body      String       @db.Text // rich text / markdown
+  status    UpdateStatus @default(DRAFT)
+  sentAt    DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id])
+  comments  Comment[]
+  documents Document[]
+  metricValues MetricValue[]
+  aiChunks  AIChunk[]
+
+  @@map("updates")
+}
+
+// ─── Metrics ──────────────────────────────────────────────
+
+model MetricDefinition {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String   // e.g. "MRR", "Active Users"
+  unit      String?  // e.g. "USD", "count", "%"
+  createdAt DateTime @default(now())
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  values  MetricValue[]
+
+  @@unique([companyId, name])
+  @@map("metric_definitions")
+}
+
+model MetricValue {
+  id                 String   @id @default(cuid())
+  metricDefinitionId String
+  value              Decimal
+  date               DateTime // the date this metric is for
+  updateId           String?  // optionally linked to an update
+  createdAt          DateTime @default(now())
+
+  metricDefinition MetricDefinition @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
+  update           Update?          @relation(fields: [updateId], references: [id], onDelete: SetNull)
+
+  @@map("metric_values")
+}
+
+// ─── Documents ────────────────────────────────────────────
+
+model Document {
+  id           String   @id @default(cuid())
+  companyId    String
+  updateId     String?  // optionally linked to an update
+  uploadedById String
+  name         String
+  s3Key        String
+  mimeType     String?
+  size         Int?     // bytes
+  isInternal   Boolean  @default(false) // admin-only docs
+  createdAt    DateTime @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  update     Update? @relation(fields: [updateId], references: [id], onDelete: SetNull)
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+  aiChunks   AIChunk[]
+
+  @@map("documents")
+}
+
+// ─── Comments ─────────────────────────────────────────────
+
+model Comment {
+  id        String   @id @default(cuid())
+  updateId  String
+  authorId  String
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  update Update @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@map("comments")
+}
+
+// ─── AI Indexing ──────────────────────────────────────────
+
+model AIChunk {
+  id         String   @id @default(cuid())
+  updateId   String?
+  documentId String?
+  content    String   @db.Text
+  embedding  Unsupported("vector(1536)")?
+  createdAt  DateTime @default(now())
+
+  update   Update?   @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("ai_chunks")
+}

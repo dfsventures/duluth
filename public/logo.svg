@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" fill="none">
+  <circle cx="12" cy="20" r="10" fill="#3BBFA0"/>
+  <circle cx="28" cy="20" r="8" fill="#5BAED6" opacity="0.9"/>
+  <circle cx="40" cy="20" r="6" fill="#A8D8EA" opacity="0.8"/>
+  <circle cx="50" cy="20" r="4" fill="#C5E4F0" opacity="0.7"/>
+  <text x="60" y="26" font-family="Inter, sans-serif" font-size="16" font-weight="600" fill="#1A1A2E">DFS Lab</text>
+</svg>
