@@ -1,24 +1,13 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { authConfig } from "@/lib/auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
+  ...authConfig,
   providers: [
-    // Google OAuth — only for @dfslab.net admin accounts
-    // Only registered if credentials are configured
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? [Google({
-          clientId: process.env.GOOGLE_CLIENT_ID,
-          clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        })]
-      : []),
-    // Email/password — for founders
+    // Override Credentials provider with full DB authorize logic
     Credentials({
       name: "Email",
       credentials: {
@@ -48,16 +37,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
       },
     }),
+    // Re-spread Google from authConfig if configured
+    ...authConfig.providers.filter((p) => (p as any).id === "google"),
   ],
   callbacks: {
     async signIn({ user, account }) {
-      // Google sign-in: only allow @dfslab.net emails
       if (account?.provider === "google") {
         const email = user.email;
-        if (!email || !email.endsWith("@dfslab.net")) {
-          return false;
-        }
-        // Auto-create admin user on first Google login
+        if (!email || !email.endsWith("@dfslab.net")) return false;
+
         const existing = await db.user.findUnique({ where: { email } });
         if (!existing) {
           await db.user.create({
@@ -79,9 +67,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user, account }) {
+    async jwt({ token, user }) {
       if (user) {
-        // On sign-in, fetch the DB user to get role/status
         const dbUser = await db.user.findUnique({
           where: { email: user.email! },
         });
