@@ -5,9 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
-  Plus,
-  Pencil,
-  BarChart3,
   Building2,
   FileText,
   Clock,
@@ -142,12 +139,6 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}.`}
-        action={
-          <Button onClick={() => router.push("/updates/new")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Update
-          </Button>
-        }
       />
 
       {/* Summary cards */}
@@ -203,28 +194,6 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Quick actions */}
-      <div className="mb-8 flex flex-wrap gap-3">
-        <Button onClick={() => router.push("/updates/new")}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Update
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => router.push("/company/profile")}
-        >
-          <Pencil className="mr-2 h-4 w-4" />
-          Edit Profile
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() => router.push("/company/metrics")}
-        >
-          <BarChart3 className="mr-2 h-4 w-4" />
-          View Metrics
-        </Button>
-      </div>
-
       {/* Recent updates */}
       <div>
         <h2 className="mb-4 text-lg font-semibold">Recent Updates</h2>
@@ -232,15 +201,7 @@ export default function DashboardPage() {
           <EmptyState
             icon={<FileText className="h-8 w-8" />}
             title="No updates yet"
-            description="Create your first update to share progress with Molly."
-            action={
-              <Button
-                variant="secondary"
-                onClick={() => router.push("/updates/new")}
-              >
-                Create Update
-              </Button>
-            }
+            description="Head to Updates in the sidebar to create your first update."
           />
         ) : (
           <div className="space-y-2">

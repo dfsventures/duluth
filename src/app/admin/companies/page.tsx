@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import {
   Building2,
   Plus,
@@ -12,6 +11,9 @@ import {
   Users,
   Clock,
   AlertCircle,
+  Upload,
+  X,
+  CheckCircle2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -32,30 +34,105 @@ interface Company {
   lastUpdate: string | null;
 }
 
+interface ImportResult {
+  created: number;
+  skipped: number;
+  errors: string[];
+}
+
 export default function AdminCompaniesPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  async function fetchCompanies() {
+    try {
+      const res = await fetch("/api/admin/companies");
+      if (!res.ok) throw new Error("Failed to load companies");
+      const data = await res.json();
+      setCompanies(data.data ?? data ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    async function fetchCompanies() {
-      try {
-        const res = await fetch("/api/admin/companies");
-        if (!res.ok) throw new Error("Failed to load companies");
-        const data = await res.json();
-        setCompanies(data.data ?? data ?? []);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchCompanies();
   }, []);
+
+  function parseCSV(text: string): { name: string; website: string | null }[] {
+    // Strip BOM if present
+    const cleaned = text.replace(/^\uFEFF/, "");
+    const lines = cleaned.split(/\r?\n/).filter((l) => l.trim());
+    if (lines.length < 2) return [];
+
+    // Parse header to find name and url/website columns
+    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
+    const nameIdx = headers.findIndex((h) => h === "name" || h === "company name" || h === "company");
+    const urlIdx = headers.findIndex((h) => h === "url" || h === "website" || h === "website url");
+
+    if (nameIdx === -1) return [];
+
+    const rows: { name: string; website: string | null }[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
+      const name = cols[nameIdx]?.trim();
+      if (!name) continue;
+      const website = urlIdx !== -1 ? cols[urlIdx]?.trim() || null : null;
+      rows.push({ name, website });
+    }
+    return rows;
+  }
+
+  async function handleCSVFile(file: File) {
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+
+    try {
+      const text = await file.text();
+      const companies = parseCSV(text);
+
+      if (companies.length === 0) {
+        setImportError(
+          'No valid rows found. CSV must have a "name" column (and optionally a "url" column).'
+        );
+        return;
+      }
+
+      const res = await fetch("/api/admin/companies/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companies }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "Import failed");
+      }
+
+      const result: ImportResult = await res.json();
+      setImportResult(result);
+
+      if (result.created > 0) {
+        await fetchCompanies();
+      }
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   if (loading) {
     return (
@@ -96,12 +173,70 @@ export default function AdminCompaniesPage() {
         title="Companies"
         description="Manage all portfolio companies."
         action={
-          <Button onClick={() => router.push("/admin/companies/new")}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Company
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              disabled={importing}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {importing ? "Importing..." : "Import CSV"}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleCSVFile(file);
+              }}
+            />
+            <Button onClick={() => router.push("/admin/companies/new")}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Company
+            </Button>
+          </div>
         }
       />
+
+      {/* Import result banner */}
+      {importResult && (
+        <div className="mb-6 flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex-1">
+            <span className="font-medium">Import complete.</span>{" "}
+            {importResult.created} company{importResult.created !== 1 ? "s" : ""} created
+            {importResult.skipped > 0 && `, ${importResult.skipped} skipped (already exist)`}.
+            {importResult.errors.length > 0 && (
+              <ul className="mt-1 list-disc pl-4 text-red-600">
+                {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+          </div>
+          <button onClick={() => setImportResult(null)}>
+            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+          </button>
+        </div>
+      )}
+
+      {importError && (
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{importError}</span>
+          <button onClick={() => setImportError(null)}>
+            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+          </button>
+        </div>
+      )}
+
+      {/* CSV format hint */}
+      <div className="mb-6 rounded-md border border-dashed px-4 py-3 text-sm text-muted-foreground">
+        <span className="font-medium">CSV format:</span> Include a{" "}
+        <code className="rounded bg-muted px-1 text-xs">name</code> column and optionally a{" "}
+        <code className="rounded bg-muted px-1 text-xs">url</code> column. Founders can fill in
+        remaining details after gaining access.
+      </div>
 
       {/* Search */}
       <div className="mb-6">
@@ -116,12 +251,18 @@ export default function AdminCompaniesPage() {
         <EmptyState
           icon={<Building2 className="h-10 w-10" />}
           title="No companies yet"
-          description="Add your first portfolio company to get started."
+          description="Add your first portfolio company manually or import from a CSV."
           action={
-            <Button onClick={() => router.push("/admin/companies/new")}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Company
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="mr-2 h-4 w-4" />
+                Import CSV
+              </Button>
+              <Button onClick={() => router.push("/admin/companies/new")}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Company
+              </Button>
+            </div>
           }
         />
       ) : filteredCompanies.length === 0 ? (
