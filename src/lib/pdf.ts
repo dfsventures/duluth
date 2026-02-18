@@ -46,10 +46,8 @@ export async function generateUpdateHTML(updateId: string): Promise<string | nul
     </table>`
     : "";
 
-  const bodyHtml = update.body
-    .split("\n")
-    .map((line) => (line.trim() ? `<p style="margin: 0 0 12px 0; line-height: 1.6;">${escapeHtml(line)}</p>` : ""))
-    .join("");
+  // Body is rich HTML from the Tiptap editor — use it directly
+  const bodyHtml = update.body ?? "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -68,7 +66,33 @@ export async function generateUpdateHTML(updateId: string): Promise<string | nul
       max-width: 700px;
       margin: 0 auto;
       padding: 40px 24px;
+      line-height: 1.6;
+      font-size: 15px;
     }
+    /* Prose styles for Tiptap rich HTML content */
+    .prose p { margin: 0 0 12px 0; }
+    .prose h2 { font-size: 20px; font-weight: 600; margin: 24px 0 12px 0; }
+    .prose h3 { font-size: 17px; font-weight: 600; margin: 20px 0 10px 0; }
+    .prose h4 { font-size: 15px; font-weight: 600; margin: 16px 0 8px 0; }
+    .prose ul { margin: 0 0 12px 0; padding-left: 24px; list-style-type: disc; }
+    .prose ol { margin: 0 0 12px 0; padding-left: 24px; list-style-type: decimal; }
+    .prose li { margin: 4px 0; }
+    .prose strong { font-weight: 600; }
+    .prose em { font-style: italic; }
+    .prose u { text-decoration: underline; }
+    .prose s { text-decoration: line-through; }
+    .prose a { color: #3BBFA0; text-decoration: underline; }
+    .prose blockquote {
+      border-left: 3px solid #3BBFA0;
+      margin: 16px 0;
+      padding: 8px 16px;
+      color: #64748B;
+      font-style: italic;
+    }
+    .prose hr { border: none; border-top: 1px solid #E2E8F0; margin: 24px 0; }
+    .prose img { max-width: 100%; height: auto; border-radius: 4px; margin: 12px 0; }
+    .prose pre { background: #F1F5F9; border-radius: 4px; padding: 12px 16px; overflow-x: auto; }
+    .prose code { background: #F1F5F9; border-radius: 3px; padding: 2px 5px; font-size: 13px; }
   </style>
 </head>
 <body>
@@ -97,7 +121,7 @@ export async function generateUpdateHTML(updateId: string): Promise<string | nul
   ${metricsTable ? `<h3 style="margin: 30px 0 10px 0; font-size: 16px; font-weight: 600; color: #3BBFA0;">Key Metrics</h3>${metricsTable}` : ""}
 
   <!-- Update Body -->
-  <div style="margin-top: 20px;">
+  <div class="prose" style="margin-top: 20px;">
     ${bodyHtml}
   </div>
 
