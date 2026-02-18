@@ -242,13 +242,16 @@ export default function UpdateDetailPage() {
           <CardTitle>Update Content</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="prose prose-sm max-w-none whitespace-pre-wrap text-sm leading-relaxed">
-            {update.body || (
-              <span className="text-muted-foreground italic">
-                No content provided.
-              </span>
-            )}
-          </div>
+          {update.body ? (
+            <div
+              className="prose prose-sm max-w-none text-sm leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: update.body }}
+            />
+          ) : (
+            <span className="text-sm text-muted-foreground italic">
+              No content provided.
+            </span>
+          )}
         </CardContent>
       </Card>
 

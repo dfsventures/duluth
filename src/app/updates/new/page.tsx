@@ -21,6 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { RichEditor } from "@/components/ui/rich-editor";
 import { formatDate, formatPeriod } from "@/lib/utils";
 
 interface Update {
@@ -284,14 +285,15 @@ export default function NewUpdatePage() {
             />
           </div>
 
-          <Textarea
-            id="body"
-            label="Update Body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Share your progress, challenges, and plans..."
-            rows={8}
-          />
+          <div className="space-y-1">
+            <label className="label">Update Body</label>
+            <RichEditor
+              value={body}
+              onChange={setBody}
+              placeholder="Share your progress, challenges, and plans..."
+              companyId={companyId ?? undefined}
+            />
+          </div>
 
           {/* Metric inputs */}
           {metrics.length > 0 && (

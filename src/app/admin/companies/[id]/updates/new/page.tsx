@@ -15,8 +15,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { RichEditor } from "@/components/ui/rich-editor";
 
 interface MetricDefinition {
   id: string;
@@ -204,14 +204,15 @@ export default function AdminCreateUpdatePage() {
             />
           </div>
 
-          <Textarea
-            id="body"
-            label="Update Body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Share progress, challenges, and plans..."
-            rows={8}
-          />
+          <div className="space-y-1">
+            <label className="label">Update Body</label>
+            <RichEditor
+              value={body}
+              onChange={setBody}
+              placeholder="Share progress, challenges, and plans..."
+              companyId={companyId}
+            />
+          </div>
 
           {/* Metric inputs */}
           {metrics.length > 0 && (
