@@ -13,14 +13,25 @@ import {
   CheckCircle2,
   ArrowLeft,
   Paperclip,
+  Pencil,
+  X,
+  Save,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { RichEditor } from "@/components/ui/rich-editor";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPeriod } from "@/lib/utils";
+
+interface MetricDefinition {
+  id: string;
+  name: string;
+  unit: string | null;
+}
 
 interface UpdateDetail {
   id: string;
@@ -31,6 +42,7 @@ interface UpdateDetail {
   sentAt: string | null;
   createdAt: string;
   updatedAt: string;
+  companyId: string;
   metricValues?: {
     id: string;
     value: number;
@@ -70,10 +82,16 @@ export default function UpdateDetailPage() {
   const [update, setUpdate] = useState<UpdateDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editPeriod, setEditPeriod] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editMetrics, setEditMetrics] = useState<Record<string, string>>({});
+  const [metricDefs, setMetricDefs] = useState<MetricDefinition[]>([]);
 
   // Comment form
   const [newComment, setNewComment] = useState("");
@@ -88,7 +106,8 @@ export default function UpdateDetailPage() {
       const res = await fetch(`/api/updates/${updateId}`);
       if (!res.ok) throw new Error("Failed to load update");
       const data = await res.json();
-      setUpdate(data.data ?? data);
+      const u = data.data ?? data;
+      setUpdate(u);
     } catch {
       setMessage({ type: "error", text: "Failed to load update." });
     } finally {
@@ -96,22 +115,97 @@ export default function UpdateDetailPage() {
     }
   }
 
+  async function enterEditMode() {
+    if (!update) return;
+    setEditTitle(update.title);
+    setEditPeriod(update.period);
+    setEditBody(update.body ?? "");
+
+    // Pre-fill existing metric values
+    const existing: Record<string, string> = {};
+    update.metricValues?.forEach((mv) => {
+      existing[mv.metricDefinition.id] = String(mv.value);
+    });
+    setEditMetrics(existing);
+
+    // Load all metric definitions for this company
+    if (update.companyId && metricDefs.length === 0) {
+      const res = await fetch(`/api/companies/${update.companyId}/metrics`);
+      if (res.ok) {
+        const data = await res.json();
+        setMetricDefs(data.data ?? data ?? []);
+      }
+    }
+
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setEditing(false);
+    setMessage(null);
+  }
+
+  async function handleSaveEdit() {
+    if (!update) return;
+    if (!editTitle.trim() || !editPeriod.trim()) {
+      setMessage({ type: "error", text: "Title and period are required." });
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+
+    try {
+      const metricValues = Object.entries(editMetrics)
+        .filter(([, v]) => v.trim() !== "")
+        .map(([metricDefinitionId, value]) => ({
+          metricDefinitionId,
+          value: parseFloat(value),
+          date: new Date().toISOString(),
+        }));
+
+      const res = await fetch(`/api/updates/${updateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editTitle.trim(),
+          period: editPeriod.trim(),
+          body: editBody,
+          metricValues,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to save");
+      }
+
+      setEditing(false);
+      setMessage({ type: "success", text: "Update saved." });
+      await loadUpdate();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to save.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleSendToDFS() {
     setSending(true);
     setMessage(null);
-
     try {
       const res = await fetch(`/api/updates/${updateId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "SENT" }),
       });
-
       if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error ?? "Failed to send update");
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to send update");
       }
-
       setMessage({ type: "success", text: "Update sent to Molly." });
       await loadUpdate();
     } catch (err) {
@@ -127,22 +221,18 @@ export default function UpdateDetailPage() {
   async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!newComment.trim()) return;
-
     setPostingComment(true);
     setMessage(null);
-
     try {
       const res = await fetch(`/api/updates/${updateId}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: newComment.trim() }),
       });
-
       if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error ?? "Failed to add comment");
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to add comment");
       }
-
       setNewComment("");
       await loadUpdate();
     } catch (err) {
@@ -172,11 +262,7 @@ export default function UpdateDetailPage() {
         <p className="text-sm text-muted-foreground">
           This update could not be found or you don&apos;t have access.
         </p>
-        <Button
-          variant="secondary"
-          className="mt-4"
-          onClick={() => router.push("/updates/new")}
-        >
+        <Button variant="secondary" className="mt-4" onClick={() => router.push("/updates/new")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Updates
         </Button>
@@ -187,21 +273,33 @@ export default function UpdateDetailPage() {
   return (
     <AppShell>
       <PageHeader
-        title={update.title}
-        description={`${formatPeriod(update.period)} \u00B7 Created ${formatDate(update.createdAt)}`}
+        title={editing ? "Edit Update" : update.title}
+        description={
+          editing
+            ? "Make changes to your draft below."
+            : `${formatPeriod(update.period)} · Created ${formatDate(update.createdAt)}`
+        }
         action={
           <div className="flex items-center gap-3">
-            <Badge
-              variant={update.status === "SENT" ? "success" : "warning"}
-            >
+            <Badge variant={update.status === "SENT" ? "success" : "warning"}>
               {update.status === "SENT" ? "Sent" : "Draft"}
             </Badge>
-            <Link href={`/updates/${updateId}/download`}>
-              <Button variant="secondary" size="sm">
-                <Download className="mr-2 h-4 w-4" />
-                Download PDF
-              </Button>
-            </Link>
+            {!editing && (
+              <>
+                {update.status === "DRAFT" && (
+                  <Button variant="secondary" size="sm" onClick={enterEditMode}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit
+                  </Button>
+                )}
+                <Link href={`/updates/${updateId}/download`}>
+                  <Button variant="secondary" size="sm">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download PDF
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         }
       />
@@ -214,17 +312,13 @@ export default function UpdateDetailPage() {
               : "border-red-200 bg-red-50 text-red-700"
           }`}
         >
-          {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
+          {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
           {message.text}
         </div>
       )}
 
-      {/* Send to Molly if draft */}
-      {update.status === "DRAFT" && (
+      {/* Send banner (view mode only) */}
+      {!editing && update.status === "DRAFT" && (
         <div className="mb-6 flex items-center justify-between rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3">
           <p className="text-sm text-yellow-800">
             This update is still a draft. Send it when ready.
@@ -236,169 +330,219 @@ export default function UpdateDetailPage() {
         </div>
       )}
 
-      {/* Update body */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Update Content</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {update.body ? (
-            <div
-              className="prose prose-sm max-w-none text-sm leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: update.body }}
-            />
-          ) : (
-            <span className="text-sm text-muted-foreground italic">
-              No content provided.
-            </span>
-          )}
-        </CardContent>
-      </Card>
+      {/* ── EDIT MODE ─────────────────────────────────── */}
+      {editing ? (
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Input
+                  id="edit-period"
+                  label="Period"
+                  value={editPeriod}
+                  onChange={(e) => setEditPeriod(e.target.value)}
+                  placeholder="e.g. 2025-Q1"
+                />
+                <Input
+                  id="edit-title"
+                  label="Title"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Q1 2025 Update"
+                />
+              </div>
 
-      {/* Metric values */}
-      {update.metricValues && update.metricValues.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Metrics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 font-medium">Metric</th>
-                  <th className="pb-2 font-medium">Value</th>
-                  <th className="pb-2 font-medium">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {update.metricValues.map((mv) => (
-                  <tr key={mv.id} className="border-b last:border-0">
-                    <td className="py-2 font-medium">
-                      {mv.metricDefinition.name}
-                    </td>
-                    <td className="py-2">
-                      {mv.value}
-                      {mv.metricDefinition.unit
-                        ? ` ${mv.metricDefinition.unit}`
-                        : ""}
-                    </td>
-                    <td className="py-2">{formatDate(mv.date)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      )}
+              <div className="space-y-1">
+                <label className="label">Update Body</label>
+                <RichEditor
+                  value={editBody}
+                  onChange={setEditBody}
+                  placeholder="Share your progress, challenges, and plans..."
+                  companyId={update.companyId}
+                />
+              </div>
 
-      {/* Attached documents */}
-      {update.documents && update.documents.length > 0 && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Paperclip className="h-4 w-4" />
-              Attachments
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2">
-              {update.documents.map((doc) => (
-                <li
-                  key={doc.id}
-                  className="flex items-center gap-3 rounded-md border px-3 py-2"
-                >
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{doc.name}</p>
-                    {doc.size && (
-                      <p className="text-xs text-muted-foreground">
-                        {(doc.size / 1024).toFixed(1)} KB
-                      </p>
-                    )}
+              {metricDefs.length > 0 && (
+                <div>
+                  <p className="mb-3 text-sm font-medium">Metric Values</p>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {metricDefs.map((m) => (
+                      <Input
+                        key={m.id}
+                        id={`edit-metric-${m.id}`}
+                        label={`${m.name}${m.unit ? ` (${m.unit})` : ""}`}
+                        type="number"
+                        step="any"
+                        value={editMetrics[m.id] ?? ""}
+                        onChange={(e) =>
+                          setEditMetrics((prev) => ({ ...prev, [m.id]: e.target.value }))
+                        }
+                        placeholder="Enter value"
+                      />
+                    ))}
                   </div>
-                </li>
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Comments */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Comments
-            {update.comments && update.comments.length > 0 && (
-              <span className="text-sm font-normal text-muted-foreground">
-                ({update.comments.length})
-              </span>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Comment list */}
-          {update.comments && update.comments.length > 0 ? (
-            <div className="mb-6 space-y-4">
-              {update.comments.map((comment) => (
-                <div
-                  key={comment.id}
-                  className="rounded-md border bg-muted/30 px-4 py-3"
-                >
-                  <div className="mb-1 flex items-center gap-2">
-                    <span className="text-sm font-medium">
-                      {comment.author.name ?? comment.author.email}
-                    </span>
-                    {comment.author.role === "ADMIN" && (
-                      <Badge variant="info">Molly</Badge>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {formatDate(comment.createdAt)}
-                    </span>
-                  </div>
-                  <p className="whitespace-pre-wrap text-sm">{comment.body}</p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mb-6 text-sm text-muted-foreground">
-              No comments yet.
-            </p>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={cancelEdit} disabled={saving}>
+              <X className="mr-2 h-4 w-4" />
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={saving}>
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        /* ── VIEW MODE ─────────────────────────────────── */
+        <>
+          {/* Update body */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Update Content</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {update.body ? (
+                <div
+                  className="prose prose-sm max-w-none text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: update.body }}
+                />
+              ) : (
+                <span className="text-sm italic text-muted-foreground">
+                  No content provided.
+                </span>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Metric values */}
+          {update.metricValues && update.metricValues.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Metrics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b text-left text-muted-foreground">
+                      <th className="pb-2 font-medium">Metric</th>
+                      <th className="pb-2 font-medium">Value</th>
+                      <th className="pb-2 font-medium">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {update.metricValues.map((mv) => (
+                      <tr key={mv.id} className="border-b last:border-0">
+                        <td className="py-2 font-medium">{mv.metricDefinition.name}</td>
+                        <td className="py-2">
+                          {mv.value}
+                          {mv.metricDefinition.unit ? ` ${mv.metricDefinition.unit}` : ""}
+                        </td>
+                        <td className="py-2">{formatDate(mv.date)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Add comment form */}
-          <form onSubmit={handleAddComment}>
-            <Textarea
-              id="newComment"
-              label="Add a Comment"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Write your comment..."
-              rows={3}
-            />
-            <div className="mt-3 flex justify-end">
-              <Button
-                type="submit"
-                size="sm"
-                disabled={postingComment || !newComment.trim()}
-              >
-                {postingComment ? "Posting..." : "Post Comment"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+          {/* Attachments */}
+          {update.documents && update.documents.length > 0 && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Paperclip className="h-4 w-4" />
+                  Attachments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-2">
+                  {update.documents.map((doc) => (
+                    <li key={doc.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">{doc.name}</p>
+                        {doc.size && (
+                          <p className="text-xs text-muted-foreground">
+                            {(doc.size / 1024).toFixed(1)} KB
+                          </p>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Back link */}
-      <div className="mt-6">
-        <Button
-          variant="ghost"
-          onClick={() => router.push("/updates/new")}
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Updates
-        </Button>
-      </div>
+          {/* Comments */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                Comments
+                {update.comments && update.comments.length > 0 && (
+                  <span className="text-sm font-normal text-muted-foreground">
+                    ({update.comments.length})
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {update.comments && update.comments.length > 0 ? (
+                <div className="mb-6 space-y-4">
+                  {update.comments.map((comment) => (
+                    <div key={comment.id} className="rounded-md border bg-muted/30 px-4 py-3">
+                      <div className="mb-1 flex items-center gap-2">
+                        <span className="text-sm font-medium">
+                          {comment.author.name ?? comment.author.email}
+                        </span>
+                        {comment.author.role === "ADMIN" && (
+                          <Badge variant="info">Molly</Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(comment.createdAt)}
+                        </span>
+                      </div>
+                      <p className="whitespace-pre-wrap text-sm">{comment.body}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mb-6 text-sm text-muted-foreground">No comments yet.</p>
+              )}
+
+              <form onSubmit={handleAddComment}>
+                <Textarea
+                  id="newComment"
+                  label="Add a Comment"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  placeholder="Write your comment..."
+                  rows={3}
+                />
+                <div className="mt-3 flex justify-end">
+                  <Button type="submit" size="sm" disabled={postingComment || !newComment.trim()}>
+                    {postingComment ? "Posting..." : "Post Comment"}
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <div className="mt-6">
+            <Button variant="ghost" onClick={() => router.push("/updates/new")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Updates
+            </Button>
+          </div>
+        </>
+      )}
     </AppShell>
   );
 }
