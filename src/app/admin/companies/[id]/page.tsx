@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
 import {
   Building2,
   FileText,
@@ -23,16 +22,19 @@ import {
   TrendingDown,
   Minus,
   ExternalLink,
+  Trash2,
+  Download,
+  X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate, daysSince } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 const SECTORS = [
   "Fintech",
@@ -75,7 +77,9 @@ interface MetricDefinition {
 interface Document {
   id: string;
   name: string;
-  type: string | null;
+  mimeType: string | null;
+  size: number | null;
+  isInternal: boolean;
   createdAt: string;
   uploadedBy: string | null;
 }
@@ -92,7 +96,6 @@ type Tab = "updates" | "metrics" | "documents" | "members";
 export default function AdminCompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
   const companyId = params.id as string;
 
   const [company, setCompany] = useState<Company | null>(null);
@@ -104,7 +107,7 @@ export default function AdminCompanyDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("updates");
 
-  // Edit mode
+  // Company edit mode
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Company | null>(null);
   const [saving, setSaving] = useState(false);
@@ -112,6 +115,18 @@ export default function AdminCompanyDetailPage() {
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  // Metric add form
+  const [showAddMetric, setShowAddMetric] = useState(false);
+  const [newMetricName, setNewMetricName] = useState("");
+  const [newMetricUnit, setNewMetricUnit] = useState("");
+  const [addingMetric, setAddingMetric] = useState(false);
+  const [deletingMetricId, setDeletingMetricId] = useState<string | null>(null);
+
+  // Document upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadInternal, setUploadInternal] = useState(false);
 
   const loadCompany = useCallback(async () => {
     try {
@@ -140,7 +155,7 @@ export default function AdminCompanyDetailPage() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      const res = await fetch(`/api/companies/${companyId}/metrics`);
+      const res = await fetch(`/api/companies/${companyId}/metrics/history`);
       if (res.ok) {
         const data = await res.json();
         setMetrics(data.data ?? data ?? []);
@@ -190,10 +205,8 @@ export default function AdminCompanyDetailPage() {
 
   async function handleSaveEdit() {
     if (!editForm) return;
-
     setSaving(true);
     setMessage(null);
-
     try {
       const res = await fetch(`/api/companies/${companyId}`, {
         method: "PATCH",
@@ -207,12 +220,10 @@ export default function AdminCompanyDetailPage() {
           fundingStage: editForm.fundingStage,
         }),
       });
-
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         throw new Error(errData?.error ?? "Failed to save");
       }
-
       setCompany(editForm);
       setEditing(false);
       setMessage({ type: "success", text: "Company profile updated." });
@@ -223,6 +234,116 @@ export default function AdminCompanyDetailPage() {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleAddMetric() {
+    if (!newMetricName.trim()) return;
+    setAddingMetric(true);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/metrics`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newMetricName.trim(),
+          unit: newMetricUnit.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "Failed to add metric");
+      }
+      setNewMetricName("");
+      setNewMetricUnit("");
+      setShowAddMetric(false);
+      await loadMetrics();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to add metric.",
+      });
+    } finally {
+      setAddingMetric(false);
+    }
+  }
+
+  async function handleDeleteMetric(metricId: string) {
+    setDeletingMetricId(metricId);
+    try {
+      const res = await fetch(
+        `/api/companies/${companyId}/metrics/definitions/${metricId}`,
+        { method: "DELETE" }
+      );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "Failed to delete metric");
+      }
+      setMetrics((prev) => prev.filter((m) => m.id !== metricId));
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to delete metric.",
+      });
+    } finally {
+      setDeletingMetricId(null);
+    }
+  }
+
+  async function handleFileUpload(file: File) {
+    setUploading(true);
+    try {
+      // Step 1: Get presigned upload URL and create document record
+      const initRes = await fetch(`/api/documents/upload`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          name: file.name,
+          mimeType: file.type || "application/octet-stream",
+          isInternal: uploadInternal,
+        }),
+      });
+      if (!initRes.ok) {
+        const errData = await initRes.json().catch(() => null);
+        throw new Error(errData?.error ?? "Failed to initiate upload");
+      }
+      const { uploadUrl } = await initRes.json();
+
+      // Step 2: PUT file directly to R2/S3
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("Upload to storage failed");
+
+      await loadDocuments();
+      setMessage({ type: "success", text: `"${file.name}" uploaded successfully.` });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Upload failed.",
+      });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDownload(docId: string, docName: string) {
+    try {
+      const res = await fetch(`/api/documents/${docId}`);
+      if (!res.ok) throw new Error("Failed to get download link");
+      const data = await res.json();
+      const a = document.createElement("a");
+      a.href = data.downloadUrl;
+      a.download = docName;
+      a.click();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Download failed.",
+      });
     }
   }
 
@@ -240,6 +361,13 @@ export default function AdminCompanyDetailPage() {
     if (trend === "up") return <TrendingUp className="h-4 w-4 text-green-600" />;
     if (trend === "down") return <TrendingDown className="h-4 w-4 text-red-600" />;
     return <Minus className="h-4 w-4 text-muted-foreground" />;
+  }
+
+  function formatFileSize(bytes: number | null) {
+    if (!bytes) return "";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   if (loading) {
@@ -307,7 +435,10 @@ export default function AdminCompanyDetailPage() {
           ) : (
             <AlertCircle className="h-4 w-4" />
           )}
-          {message.text}
+          <span className="flex-1">{message.text}</span>
+          <button onClick={() => setMessage(null)}>
+            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+          </button>
         </div>
       )}
 
@@ -487,7 +618,7 @@ export default function AdminCompanyDetailPage() {
         ))}
       </div>
 
-      {/* Tab content */}
+      {/* Updates tab */}
       {activeTab === "updates" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
@@ -551,14 +682,72 @@ export default function AdminCompanyDetailPage() {
         </div>
       )}
 
+      {/* Metrics tab */}
       {activeTab === "metrics" && (
         <div>
-          <h3 className="mb-4 font-semibold">Metrics</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">Metrics</h3>
+            {!showAddMetric && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowAddMetric(true)}
+              >
+                <Plus className="mr-2 h-3.5 w-3.5" />
+                Add Metric
+              </Button>
+            )}
+          </div>
+
+          {showAddMetric && (
+            <Card className="mb-4">
+              <CardContent className="pt-4">
+                <p className="mb-3 text-sm font-medium">New Metric Definition</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Input
+                    id="metric-name"
+                    label="Name"
+                    value={newMetricName}
+                    onChange={(e) => setNewMetricName(e.target.value)}
+                    placeholder="e.g. MRR, Active Users"
+                  />
+                  <Input
+                    id="metric-unit"
+                    label="Unit (optional)"
+                    value={newMetricUnit}
+                    onChange={(e) => setNewMetricUnit(e.target.value)}
+                    placeholder="e.g. USD, %, count"
+                  />
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setShowAddMetric(false);
+                      setNewMetricName("");
+                      setNewMetricUnit("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={addingMetric || !newMetricName.trim()}
+                    onClick={handleAddMetric}
+                  >
+                    {addingMetric ? "Adding..." : "Add Metric"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {metrics.length === 0 ? (
             <EmptyState
               icon={<BarChart3 className="h-8 w-8" />}
               title="No metrics defined"
-              description="No metric definitions have been set up for this company."
+              description="Add metric definitions to track key performance indicators."
             />
           ) : (
             <div className="space-y-4">
@@ -567,8 +756,7 @@ export default function AdminCompanyDetailPage() {
                   (a, b) =>
                     new Date(b.date).getTime() - new Date(a.date).getTime()
                 );
-                const latestValue =
-                  sortedValues.length > 0 ? sortedValues[0] : null;
+                const latestValue = sortedValues.length > 0 ? sortedValues[0] : null;
                 const trend = getTrend(metric.values ?? []);
 
                 return (
@@ -583,13 +771,22 @@ export default function AdminCompanyDetailPage() {
                             </span>
                           )}
                         </CardTitle>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                           {latestValue && (
                             <span className="text-lg font-semibold">
                               {latestValue.value}
+                              {metric.unit ? ` ${metric.unit}` : ""}
                             </span>
                           )}
                           <TrendIcon trend={trend} />
+                          <button
+                            onClick={() => handleDeleteMetric(metric.id)}
+                            disabled={deletingMetricId === metric.id}
+                            className="text-muted-foreground hover:text-destructive disabled:opacity-40"
+                            title="Delete metric"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
                     </CardHeader>
@@ -599,20 +796,13 @@ export default function AdminCompanyDetailPage() {
                           <thead>
                             <tr className="border-b text-left text-muted-foreground">
                               <th className="pb-2 font-medium">Date</th>
-                              <th className="pb-2 text-right font-medium">
-                                Value
-                              </th>
+                              <th className="pb-2 text-right font-medium">Value</th>
                             </tr>
                           </thead>
                           <tbody>
                             {sortedValues.map((v, i) => (
-                              <tr
-                                key={i}
-                                className="border-b last:border-0"
-                              >
-                                <td className="py-2">
-                                  {formatDate(v.date)}
-                                </td>
+                              <tr key={i} className="border-b last:border-0">
+                                <td className="py-2">{formatDate(v.date)}</td>
                                 <td className="py-2 text-right font-medium">
                                   {v.value}
                                   {metric.unit ? ` ${metric.unit}` : ""}
@@ -631,14 +821,40 @@ export default function AdminCompanyDetailPage() {
         </div>
       )}
 
+      {/* Documents tab */}
       {activeTab === "documents" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold">Documents</h3>
-            <Button variant="secondary" size="sm" disabled>
-              <Upload className="mr-2 h-3.5 w-3.5" />
-              Upload Document
-            </Button>
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={uploadInternal}
+                  onChange={(e) => setUploadInternal(e.target.checked)}
+                  className="h-3.5 w-3.5"
+                />
+                Internal only
+              </label>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="mr-2 h-3.5 w-3.5" />
+                {uploading ? "Uploading..." : "Upload Document"}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleFileUpload(file);
+                }}
+              />
+            </div>
           </div>
           {documents.length === 0 ? (
             <EmptyState
@@ -655,7 +871,9 @@ export default function AdminCompanyDetailPage() {
                       <th className="px-4 py-3 font-medium">Name</th>
                       <th className="px-4 py-3 font-medium">Date</th>
                       <th className="px-4 py-3 font-medium">Uploaded By</th>
-                      <th className="px-4 py-3 font-medium">Type</th>
+                      <th className="px-4 py-3 font-medium">Size</th>
+                      <th className="px-4 py-3 font-medium">Visibility</th>
+                      <th className="px-4 py-3"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -676,10 +894,22 @@ export default function AdminCompanyDetailPage() {
                         <td className="px-4 py-3 text-muted-foreground">
                           {doc.uploadedBy ?? "Unknown"}
                         </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatFileSize(doc.size)}
+                        </td>
                         <td className="px-4 py-3">
-                          <Badge variant="neutral">
-                            {doc.type ?? "Unknown"}
+                          <Badge variant={doc.isInternal ? "warning" : "neutral"}>
+                            {doc.isInternal ? "Internal" : "Shared"}
                           </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleDownload(doc.id, doc.name)}
+                            className="text-muted-foreground hover:text-primary"
+                            title="Download"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -691,6 +921,7 @@ export default function AdminCompanyDetailPage() {
         </div>
       )}
 
+      {/* Members tab */}
       {activeTab === "members" && (
         <div>
           <h3 className="mb-4 font-semibold">Members</h3>
