@@ -33,5 +33,18 @@ export const authConfig: NextAuthConfig = {
       // Simple check — detailed routing is handled in middleware logic
       return !!auth?.user;
     },
+    async jwt({ token }) {
+      // token already has id/role/status set by the full auth.ts jwt callback
+      return token;
+    },
+    async session({ session, token }) {
+      // Ensure role and status flow through to middleware via req.auth
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.role = token.role as "ADMIN" | "FOUNDER";
+        session.user.status = token.status as "PENDING" | "APPROVED" | "REJECTED";
+      }
+      return session;
+    },
   },
 };

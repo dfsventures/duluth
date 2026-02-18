@@ -33,8 +33,16 @@ const adminNav = [
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { data: session } = useSession();
-  const isAdmin = session?.user?.role === "ADMIN";
+  const { data: session, status } = useSession();
+
+  // Derive role from session when loaded, fall back to path prefix to avoid
+  // rendering the wrong nav during the loading flash (and hydration mismatch).
+  const isAdminPath = pathname.startsWith("/admin");
+  const isAdmin =
+    status === "authenticated"
+      ? session?.user?.role === "ADMIN"
+      : isAdminPath;
+
   const nav = isAdmin ? adminNav : founderNav;
 
   return (
@@ -51,8 +59,11 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
           {nav.map((item) => {
-            const isActive =
-              pathname === item.href || pathname.startsWith(item.href + "/");
+            // Exact match for root paths like /admin to avoid matching /admin/companies etc.
+          const isActive =
+            item.href === "/admin" || item.href === "/dashboard"
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <li key={item.href}>
                 <Link
