@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { sendNewSignupNotification } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +12,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       return NextResponse.json(
@@ -22,7 +20,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if user already exists
     const existing = await db.user.findUnique({
       where: { email: email.toLowerCase() },
     });
@@ -34,24 +31,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Create pending user
-    await db.user.create({
-      data: {
-        email: email.toLowerCase(),
-        name,
-        role: "FOUNDER",
-        status: "PENDING",
-        companies: {
-          create: {
-            name: companyName,
-          },
+    // Create user, company, and membership in a transaction
+    await db.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: email.toLowerCase(),
+          name,
+          role: "FOUNDER",
+          status: "PENDING",
         },
-      },
+      });
+
+      const company = await tx.company.create({
+        data: {
+          name: companyName,
+          createdById: user.id,
+        },
+      });
+
+      await tx.userCompanyMembership.create({
+        data: {
+          userId: user.id,
+          companyId: company.id,
+          role: "OWNER",
+        },
+      });
     });
 
     // Notify admins (don't fail the request if email fails)
     try {
-      await sendNewSignupNotification(email, name);
+      if (process.env.RESEND_API_KEY) {
+        const { sendNewSignupNotification } = await import("@/lib/email");
+        await sendNewSignupNotification(email, name);
+      }
     } catch (emailError) {
       console.error("Failed to send signup notification email:", emailError);
     }

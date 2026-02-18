@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
-import { sendRejectionEmail } from "@/lib/email";
 
 export async function POST(
   _request: Request,
@@ -42,9 +41,12 @@ export async function POST(
       },
     });
 
-    // Send rejection email (non-blocking, with error handling)
+    // Send rejection email (non-blocking, only if email is configured)
     try {
-      await sendRejectionEmail(user.email);
+      if (process.env.RESEND_API_KEY) {
+        const { sendRejectionEmail } = await import("@/lib/email");
+        await sendRejectionEmail(user.email);
+      }
     } catch (emailError) {
       console.error("Failed to send rejection email:", emailError);
     }

@@ -3,8 +3,8 @@ import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 
 export const metadata: Metadata = {
-  title: "DFS Lab Portfolio",
-  description: "DFS Lab portfolio management platform",
+  title: "Molly Portfolio",
+  description: "Molly portfolio management platform",
 };
 
 export default function RootLayout({

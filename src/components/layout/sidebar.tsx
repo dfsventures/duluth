@@ -42,8 +42,8 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-5">
         <Link href={isAdmin ? "/admin" : "/dashboard"} className="flex items-center gap-2">
-          <img src="/logo.svg" alt="DFS Lab" className="h-8" />
-          <span className="font-semibold text-foreground">DFS Lab</span>
+          <img src="/logo.png" alt="Molly" className="h-8" />
+          <span className="font-semibold text-foreground">Molly</span>
         </Link>
       </div>
 

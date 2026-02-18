@@ -47,8 +47,8 @@ export default function SignupPage() {
         {/* Logo */}
         <div className="flex justify-center">
           <Image
-            src="/logo.svg"
-            alt="DFS Lab"
+            src="/logo.png"
+            alt="Molly"
             width={160}
             height={48}
             priority
@@ -77,7 +77,7 @@ export default function SignupPage() {
                 Request Submitted
               </h2>
               <p className="text-sm text-muted-foreground">
-                Your request has been submitted. The DFS Lab team will review
+                Your request has been submitted. The Molly team will review
                 your application and you will receive an email once your account
                 is approved.
               </p>

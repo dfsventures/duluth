@@ -1,24 +1,24 @@
-# DFS Lab Portfolio Platform
+# Molly Portfolio Platform
 
-A web application for DFS Lab to manage portfolio company updates, metrics, and documents — and for portfolio company founders to submit investor updates.
+A web application for Molly to manage portfolio company updates, metrics, and documents — and for portfolio company founders to submit investor updates.
 
 ## Overview
 
 **Two user groups:**
 
-- **Portfolio company founders** sign up with their company email, get approved by DFS Lab, then use the platform to maintain their company profile, track key metrics, and send investor updates.
-- **DFS Lab admins** log in with their `@dfslab.net` Google accounts to review the full portfolio — approving sign-ups, tracking update cadence, viewing metrics trends, and querying everything through an AI chatbot.
+- **Portfolio company founders** sign up with their company email, get approved by Molly, then use the platform to maintain their company profile, track key metrics, and send investor updates.
+- **Molly admins** log in with their `@dfslab.net` Google accounts to review the full portfolio — approving sign-ups, tracking update cadence, viewing metrics trends, and querying everything through an AI chatbot.
 
 ## Key Features
 
 ### For Founders
-- Sign up and get approved by DFS Lab
+- Sign up and get approved by Molly
 - Set up company profile (name, logo, sector, geography, funding stage)
 - Define and track key metrics (MRR, active users, revenue, etc.)
 - Create investor updates with narrative text, metric snapshots, and file attachments
 - Download a formatted version of each update to share with other investors
 
-### For DFS Lab Admins
+### For Molly Admins
 - Approve or reject founder sign-up requests
 - Global dashboard showing update cadence across all portfolio companies
 - Company detail pages with full update history, metrics trends, and documents
@@ -91,4 +91,4 @@ Recommended stack for ~100 portfolio companies at **$25–75/month**:
 
 ## License
 
-Private — DFS Lab internal use.
+Private — Molly internal use.

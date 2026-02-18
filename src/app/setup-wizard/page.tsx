@@ -187,7 +187,7 @@ export default function SetupWizardPage() {
     <AppShell>
       <PageHeader
         title="Setup Your Account"
-        description="Complete these steps to start using the DFS Lab platform."
+        description="Complete these steps to start using the Molly platform."
       />
 
       {/* Step indicator */}

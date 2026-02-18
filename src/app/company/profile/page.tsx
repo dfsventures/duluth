@@ -148,7 +148,7 @@ export default function CompanyProfilePage() {
     <AppShell>
       <PageHeader
         title="Company Profile"
-        description="Manage your company information visible to the DFS Lab team."
+        description="Manage your company information visible to the Molly team."
       />
 
       {message && (

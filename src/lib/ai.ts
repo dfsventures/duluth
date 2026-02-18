@@ -148,8 +148,8 @@ export async function chatWithAI(
   }
 
   // Build the messages for OpenAI
-  const systemMessage = `You are an AI assistant for DFS Lab, a venture capital fund that manages a portfolio of companies.
-You help the DFS Lab team analyze their portfolio companies' updates, metrics, and documents.
+  const systemMessage = `You are an AI assistant for Molly, a venture capital fund that manages a portfolio of companies.
+You help the Molly team analyze their portfolio companies' updates, metrics, and documents.
 Answer questions based on the provided context. Be specific and cite which company or update you're referencing.
 If you don't have enough information to answer, say so clearly.
 

@@ -115,7 +115,7 @@ export default function DashboardPage() {
       <AppShell>
         <PageHeader
           title="Dashboard"
-          description="Welcome to the DFS Lab portfolio platform."
+          description="Welcome to the Molly portfolio platform."
         />
         <EmptyState
           icon={<Building2 className="h-10 w-10" />}
@@ -232,7 +232,7 @@ export default function DashboardPage() {
           <EmptyState
             icon={<FileText className="h-8 w-8" />}
             title="No updates yet"
-            description="Create your first update to share progress with DFS Lab."
+            description="Create your first update to share progress with Molly."
             action={
               <Button
                 variant="secondary"

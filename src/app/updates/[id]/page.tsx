@@ -112,7 +112,7 @@ export default function UpdateDetailPage() {
         throw new Error(errData?.error ?? "Failed to send update");
       }
 
-      setMessage({ type: "success", text: "Update sent to DFS Lab." });
+      setMessage({ type: "success", text: "Update sent to Molly." });
       await loadUpdate();
     } catch (err) {
       setMessage({
@@ -223,7 +223,7 @@ export default function UpdateDetailPage() {
         </div>
       )}
 
-      {/* Send to DFS Lab if draft */}
+      {/* Send to Molly if draft */}
       {update.status === "DRAFT" && (
         <div className="mb-6 flex items-center justify-between rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3">
           <p className="text-sm text-yellow-800">
@@ -231,7 +231,7 @@ export default function UpdateDetailPage() {
           </p>
           <Button size="sm" disabled={sending} onClick={handleSendToDFS}>
             <Send className="mr-2 h-4 w-4" />
-            {sending ? "Sending..." : "Send to DFS Lab"}
+            {sending ? "Sending..." : "Send to Molly"}
           </Button>
         </div>
       )}
@@ -347,7 +347,7 @@ export default function UpdateDetailPage() {
                       {comment.author.name ?? comment.author.email}
                     </span>
                     {comment.author.role === "ADMIN" && (
-                      <Badge variant="info">DFS Lab</Badge>
+                      <Badge variant="info">Molly</Badge>
                     )}
                     <span className="text-xs text-muted-foreground">
                       {formatDate(comment.createdAt)}

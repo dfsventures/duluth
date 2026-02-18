@@ -143,7 +143,7 @@ export default function NewUpdatePage() {
         type: "success",
         text:
           status === "SENT"
-            ? "Update sent to DFS Lab successfully."
+            ? "Update sent to Molly successfully."
             : "Update saved as draft.",
       });
 
@@ -201,7 +201,7 @@ export default function NewUpdatePage() {
     <AppShell>
       <PageHeader
         title="Updates"
-        description="Create and manage portfolio updates for DFS Lab."
+        description="Create and manage portfolio updates for Molly."
       />
 
       {message && (
@@ -346,7 +346,7 @@ export default function NewUpdatePage() {
               onClick={() => handleSubmit("SENT")}
             >
               <Send className="mr-2 h-4 w-4" />
-              {submitting ? "Sending..." : "Send to DFS Lab"}
+              {submitting ? "Sending..." : "Send to Molly"}
             </Button>
           </div>
         </CardContent>

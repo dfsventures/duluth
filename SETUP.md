@@ -1,4 +1,4 @@
-# DFS Lab Portfolio Platform — Setup Guide
+# Molly Portfolio Platform — Setup Guide
 
 This guide walks you through getting the platform running from scratch.
 
@@ -56,7 +56,7 @@ Set `NEXTAUTH_URL=http://localhost:3000` for local development.
 
 ### Google OAuth (required for admin login)
 
-This lets DFS Lab team members sign in with their `@dfslab.net` Google accounts.
+This lets Molly team members sign in with their `@dfslab.net` Google accounts.
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
 2. Create a new project (or use an existing one).

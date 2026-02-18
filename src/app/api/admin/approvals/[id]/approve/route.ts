@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
-import { sendApprovalEmail } from "@/lib/email";
 import { randomUUID } from "crypto";
 
 export async function POST(
@@ -49,9 +48,12 @@ export async function POST(
       },
     });
 
-    // Send approval email (non-blocking, with error handling)
+    // Send approval email (non-blocking, only if email is configured)
     try {
-      await sendApprovalEmail(user.email, approvalToken);
+      if (process.env.RESEND_API_KEY) {
+        const { sendApprovalEmail } = await import("@/lib/email");
+        await sendApprovalEmail(user.email, approvalToken);
+      }
     } catch (emailError) {
       console.error("Failed to send approval email:", emailError);
     }

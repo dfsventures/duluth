@@ -8,7 +8,7 @@ export default auth((req) => {
   const userStatus = req.auth?.user?.status;
 
   // Public routes — always accessible
-  const publicPaths = ["/login", "/signup", "/set-password", "/api/auth"];
+  const publicPaths = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev"];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
 
@@ -38,6 +38,6 @@ export default auth((req) => {
 export const config = {
   matcher: [
     // Match all paths except static files and Next.js internals
-    "/((?!_next/static|_next/image|favicon.ico|logo.svg).*)",
+    "/((?!_next/static|_next/image|favicon.ico|logo.svg|logo.png).*)",
   ],
 };

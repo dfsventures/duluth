@@ -1,8 +1,9 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Use a placeholder key if not configured — actual sends will fail gracefully
+const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
-const FROM = process.env.EMAIL_FROM || "DFS Lab <noreply@dfslab.net>";
+const FROM = process.env.EMAIL_FROM || "Molly <noreply@dfslab.net>";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 export async function sendApprovalEmail(email: string, token: string) {
@@ -11,10 +12,10 @@ export async function sendApprovalEmail(email: string, token: string) {
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: "Your DFS Lab account has been approved",
+    subject: "Your Molly account has been approved",
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1A1A2E;">Welcome to DFS Lab</h2>
+        <h2 style="color: #1A1A2E;">Welcome to Molly</h2>
         <p>Your account has been approved. Click the link below to set your password and get started.</p>
         <a href="${link}" style="display: inline-block; background: #3BBFA0; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; margin: 16px 0;">
           Set Your Password
@@ -29,10 +30,10 @@ export async function sendRejectionEmail(email: string) {
   await resend.emails.send({
     from: FROM,
     to: email,
-    subject: "DFS Lab account request update",
+    subject: "Molly account request update",
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #1A1A2E;">DFS Lab</h2>
+        <h2 style="color: #1A1A2E;">Molly</h2>
         <p>Thank you for your interest. Unfortunately, your account request was not approved at this time.</p>
         <p>If you believe this is an error, please contact us at <a href="mailto:support@dfslab.net">support@dfslab.net</a>.</p>
       </div>

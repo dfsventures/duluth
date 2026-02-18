@@ -61,8 +61,8 @@ function SetPasswordForm() {
         <div className="w-full max-w-md space-y-8">
           <div className="flex justify-center">
             <Image
-              src="/logo.svg"
-              alt="DFS Lab"
+              src="/logo.png"
+              alt="Molly"
               width={160}
               height={48}
               priority
@@ -109,8 +109,8 @@ function SetPasswordForm() {
         {/* Logo */}
         <div className="flex justify-center">
           <Image
-            src="/logo.svg"
-            alt="DFS Lab"
+            src="/logo.png"
+            alt="Molly"
             width={160}
             height={48}
             priority
@@ -122,7 +122,7 @@ function SetPasswordForm() {
             Set Your Password
           </h2>
           <p className="mb-6 text-sm text-muted-foreground">
-            Create a password for your DFS Lab account.
+            Create a password for your Molly account.
           </p>
 
           {error && (

@@ -46,8 +46,8 @@ function LoginForm() {
         {/* Logo */}
         <div className="flex justify-center">
           <Image
-            src="/logo.svg"
-            alt="DFS Lab"
+            src="/logo.png"
+            alt="Molly"
             width={160}
             height={48}
             priority
@@ -104,10 +104,10 @@ function LoginForm() {
           </p>
         </div>
 
-        {/* DFS Lab Team */}
+        {/* Molly Team */}
         <div className="card">
           <h2 className="mb-4 text-lg font-semibold text-foreground">
-            DFS Lab Team
+            Molly Team
           </h2>
           <Button
             type="button"
