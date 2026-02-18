@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate } from "@/lib/utils";
+import { formatDate, daysSince } from "@/lib/utils";
 
 interface Company {
   id: string;
@@ -31,13 +31,21 @@ interface Company {
   geography: string | null;
   fundingStage: string | null;
   memberCount: number;
-  lastUpdate: string | null;
+  lastUpdateDate: string | null;
 }
 
 interface ImportResult {
   created: number;
   skipped: number;
   errors: string[];
+}
+
+function getUpdateStatus(lastUpdateDate: string | null) {
+  if (!lastUpdateDate) return { label: "No updates", variant: "danger" as const };
+  const days = daysSince(lastUpdateDate);
+  if (days > 90) return { label: "Overdue", variant: "danger" as const };
+  if (days > 30) return { label: "Aging", variant: "warning" as const };
+  return { label: "Current", variant: "success" as const };
 }
 
 export default function AdminCompaniesPage() {
@@ -52,7 +60,7 @@ export default function AdminCompaniesPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
-  async function fetchCompanies() {
+  const fetchCompanies = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/companies");
       if (!res.ok) throw new Error("Failed to load companies");
@@ -63,22 +71,26 @@ export default function AdminCompaniesPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     fetchCompanies();
-  }, []);
+  }, [fetchCompanies]);
 
   function parseCSV(text: string): { name: string; website: string | null }[] {
-    // Strip BOM if present
     const cleaned = text.replace(/^\uFEFF/, "");
     const lines = cleaned.split(/\r?\n/).filter((l) => l.trim());
     if (lines.length < 2) return [];
 
-    // Parse header to find name and url/website columns
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
-    const nameIdx = headers.findIndex((h) => h === "name" || h === "company name" || h === "company");
-    const urlIdx = headers.findIndex((h) => h === "url" || h === "website" || h === "website url");
+    const headers = lines[0]
+      .split(",")
+      .map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
+    const nameIdx = headers.findIndex(
+      (h) => h === "name" || h === "company name" || h === "company"
+    );
+    const urlIdx = headers.findIndex(
+      (h) => h === "url" || h === "website" || h === "website url"
+    );
 
     if (nameIdx === -1) return [];
 
@@ -100,11 +112,11 @@ export default function AdminCompaniesPage() {
 
     try {
       const text = await file.text();
-      const companies = parseCSV(text);
+      const rows = parseCSV(text);
 
-      if (companies.length === 0) {
+      if (rows.length === 0) {
         setImportError(
-          'No valid rows found. CSV must have a "name" column (and optionally a "url" column).'
+          'No valid rows found. CSV must have a "name" column and optionally a "url" column.'
         );
         return;
       }
@@ -112,7 +124,7 @@ export default function AdminCompaniesPage() {
       const res = await fetch("/api/admin/companies/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companies }),
+        body: JSON.stringify({ companies: rows }),
       });
 
       if (!res.ok) {
@@ -150,12 +162,7 @@ export default function AdminCompaniesPage() {
         <div className="flex flex-col items-center justify-center py-20">
           <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
           <p className="text-sm text-destructive">{error}</p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="mt-4"
-            onClick={() => window.location.reload()}
-          >
+          <Button variant="secondary" size="sm" className="mt-4" onClick={() => window.location.reload()}>
             Retry
           </Button>
         </div>
@@ -200,7 +207,7 @@ export default function AdminCompaniesPage() {
         }
       />
 
-      {/* Import result banner */}
+      {/* Import result */}
       {importResult && (
         <div className="mb-6 flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -231,12 +238,12 @@ export default function AdminCompaniesPage() {
       )}
 
       {/* CSV format hint */}
-      <div className="mb-6 rounded-md border border-dashed px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-medium">CSV format:</span> Include a{" "}
-        <code className="rounded bg-muted px-1 text-xs">name</code> column and optionally a{" "}
-        <code className="rounded bg-muted px-1 text-xs">url</code> column. Founders can fill in
+      <p className="mb-6 text-sm text-muted-foreground">
+        To bulk import, upload a CSV with a{" "}
+        <code className="rounded bg-muted px-1 text-xs">name</code> column and optional{" "}
+        <code className="rounded bg-muted px-1 text-xs">url</code> column. Founders fill in
         remaining details after gaining access.
-      </div>
+      </p>
 
       {/* Search */}
       <div className="mb-6">
@@ -273,56 +280,58 @@ export default function AdminCompaniesPage() {
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredCompanies.map((company) => (
-            <Link
-              key={company.id}
-              href={`/admin/companies/${company.id}`}
-              className="block"
-            >
-              <Card className="h-full transition-colors hover:bg-muted/50">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    {company.name}
-                  </CardTitle>
-                  {company.sector && (
-                    <CardDescription>
-                      <Badge variant="neutral">{company.sector}</Badge>
-                    </CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    {company.geography && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3.5 w-3.5" />
-                        <span>{company.geography}</span>
-                      </div>
-                    )}
-                    {company.fundingStage && (
-                      <div className="flex items-center gap-2">
-                        <Badge variant="info">{company.fundingStage}</Badge>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Users className="h-3.5 w-3.5" />
-                      <span>
-                        {company.memberCount} member{company.memberCount === 1 ? "" : "s"}
-                      </span>
+          {filteredCompanies.map((company) => {
+            const status = getUpdateStatus(company.lastUpdateDate);
+            return (
+              <Link key={company.id} href={`/admin/companies/${company.id}`} className="block">
+                <Card className="h-full transition-colors hover:bg-muted/50">
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        {company.name}
+                      </CardTitle>
+                      <Badge variant={status.variant}>{status.label}</Badge>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>
-                        {company.lastUpdate
-                          ? `Last update: ${formatDate(company.lastUpdate)}`
-                          : "No updates yet"}
-                      </span>
+                    {company.sector && (
+                      <CardDescription>
+                        <Badge variant="neutral">{company.sector}</Badge>
+                      </CardDescription>
+                    )}
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      {company.geography && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5" />
+                          <span>{company.geography}</span>
+                        </div>
+                      )}
+                      {company.fundingStage && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="info">{company.fundingStage}</Badge>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3.5 w-3.5" />
+                        <span>
+                          {company.memberCount} member{company.memberCount === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>
+                          {company.lastUpdateDate
+                            ? `Last update: ${formatDate(company.lastUpdateDate)}`
+                            : "No updates yet"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </AppShell>
