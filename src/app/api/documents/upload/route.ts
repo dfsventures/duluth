@@ -8,7 +8,7 @@ import { randomUUID } from "crypto";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { companyId, name, mimeType, updateId, isInternal } = body;
+    const { companyId, name, mimeType, updateId, isInternal, docType } = body;
 
     if (!companyId || typeof companyId !== "string") {
       return NextResponse.json(
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
         s3Key,
         mimeType,
         isInternal: isInternal ?? false,
+        docType: docType ?? null,
       },
     });
 

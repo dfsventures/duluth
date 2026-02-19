@@ -9,17 +9,40 @@ import {
   FileText,
   AlertTriangle,
   AlertCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+interface OverdueCompany {
+  id: string;
+  name: string;
+  sector: string | null;
+  daysSinceUpdate: number | null;
+}
 
 interface DashboardData {
   totalCompanies: number;
   pendingApprovals: number;
   updatesThisMonth: number;
   companiesOverdue: number;
+  noMetricsCount: number;
+  overdueCompanies: OverdueCompany[];
+  updatesByMonth: { month: string; count: number }[];
+  sectorBreakdown: { sector: string; count: number }[];
 }
 
 export default function AdminDashboardPage() {
@@ -27,6 +50,7 @@ export default function AdminDashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showOverdue, setShowOverdue] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -34,12 +58,7 @@ export default function AdminDashboardPage() {
         const res = await fetch("/api/admin/dashboard");
         if (!res.ok) throw new Error("Failed to load dashboard data");
         const data = await res.json();
-        setDashboard({
-          totalCompanies: data.totalCompanies ?? 0,
-          pendingApprovals: data.pendingApprovals ?? 0,
-          updatesThisMonth: data.updatesThisMonth ?? 0,
-          companiesOverdue: data.companiesOverdue ?? 0,
-        });
+        setDashboard(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
       } finally {
@@ -79,6 +98,8 @@ export default function AdminDashboardPage() {
     );
   }
 
+  const d = dashboard!;
+
   return (
     <AppShell>
       <PageHeader
@@ -86,6 +107,7 @@ export default function AdminDashboardPage() {
         description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}. Here's your portfolio overview.`}
       />
 
+      {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
@@ -95,7 +117,7 @@ export default function AdminDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">{dashboard?.totalCompanies ?? 0}</p>
+            <p className="text-2xl font-semibold">{d.totalCompanies}</p>
           </CardContent>
         </Card>
 
@@ -107,8 +129,8 @@ export default function AdminDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">{dashboard?.pendingApprovals ?? 0}</p>
-            {(dashboard?.pendingApprovals ?? 0) > 0 && (
+            <p className="text-2xl font-semibold">{d.pendingApprovals}</p>
+            {d.pendingApprovals > 0 && (
               <Link href="/admin/approvals" className="text-sm text-primary hover:underline">
                 Review now
               </Link>
@@ -124,7 +146,7 @@ export default function AdminDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">{dashboard?.updatesThisMonth ?? 0}</p>
+            <p className="text-2xl font-semibold">{d.updatesThisMonth}</p>
           </CardContent>
         </Card>
 
@@ -136,11 +158,136 @@ export default function AdminDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">{dashboard?.companiesOverdue ?? 0}</p>
-            <p className="text-xs text-muted-foreground">No update in 90+ days</p>
+            <p className="text-2xl font-semibold">{d.companiesOverdue}</p>
+            <p className="text-xs text-muted-foreground">No update in 30+ days</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Second row: chart + sector breakdown */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        {/* Updates per month bar chart */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Updates Published — Last 6 Months</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {d.updatesByMonth.every((m) => m.count === 0) ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No published updates yet.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={d.updatesByMonth} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    formatter={(v) => [v, "Updates"]}
+                    contentStyle={{
+                      fontSize: 12,
+                      borderRadius: "6px",
+                      border: "1px solid hsl(var(--border))",
+                      background: "hsl(var(--background))",
+                      color: "hsl(var(--foreground))",
+                    }}
+                  />
+                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Sector breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Portfolio by Sector</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {d.sectorBreakdown.length === 0 ? (
+              <p className="py-4 text-sm text-muted-foreground">No sectors assigned.</p>
+            ) : (
+              <ul className="space-y-2">
+                {d.sectorBreakdown.map(({ sector, count }) => (
+                  <li key={sector} className="flex items-center justify-between text-sm">
+                    <span className="truncate text-muted-foreground">{sector}</span>
+                    <Badge variant="neutral">{count}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Overdue companies */}
+      {d.overdueCompanies.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <button
+              className="flex w-full items-center justify-between text-left"
+              onClick={() => setShowOverdue((v) => !v)}
+            >
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                Companies Needing Attention
+                <Badge variant="warning">{d.overdueCompanies.length}</Badge>
+              </CardTitle>
+              {showOverdue ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+          </CardHeader>
+          {showOverdue && (
+            <CardContent>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 font-medium">Company</th>
+                    <th className="pb-2 font-medium">Sector</th>
+                    <th className="pb-2 font-medium">Days Since Update</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.overdueCompanies.map((c) => (
+                    <tr key={c.id} className="border-b last:border-0">
+                      <td className="py-2">
+                        <Link
+                          href={`/admin/companies/${c.id}`}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {c.name}
+                        </Link>
+                      </td>
+                      <td className="py-2 text-muted-foreground">{c.sector ?? "—"}</td>
+                      <td className="py-2">
+                        {c.daysSinceUpdate !== null ? (
+                          <span className={c.daysSinceUpdate > 60 ? "font-semibold text-destructive" : "text-amber-600"}>
+                            {c.daysSinceUpdate}d
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Never</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          )}
+        </Card>
+      )}
     </AppShell>
   );
 }

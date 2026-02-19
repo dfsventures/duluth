@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -12,8 +12,18 @@ export async function GET(
     const { error } = await requireCompanyAccess(id);
     if (error) return error;
 
+    const { searchParams } = new URL(request.url);
+    const docType = searchParams.get("docType");
+    const search = searchParams.get("search");
+    const archived = searchParams.get("archived") === "true";
+
     const documents = await db.document.findMany({
-      where: { companyId: id },
+      where: {
+        companyId: id,
+        archivedAt: archived ? { not: null } : null,
+        ...(docType ? { docType } : {}),
+        ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -21,6 +31,8 @@ export async function GET(
         mimeType: true,
         size: true,
         isInternal: true,
+        docType: true,
+        archivedAt: true,
         createdAt: true,
         uploadedBy: {
           select: { name: true, email: true },
@@ -34,6 +46,8 @@ export async function GET(
       mimeType: doc.mimeType,
       size: doc.size,
       isInternal: doc.isInternal,
+      docType: doc.docType,
+      archivedAt: doc.archivedAt,
       createdAt: doc.createdAt,
       uploadedBy: doc.uploadedBy?.name ?? doc.uploadedBy?.email ?? null,
     }));

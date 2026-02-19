@@ -8,75 +8,108 @@ export async function GET() {
     const { error } = await requireAdmin();
     if (error) return error;
 
-    // Get the start of the current month
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    // Run queries in parallel for performance
-    const [
-      totalCompanies,
-      pendingApprovals,
-      updatesThisMonth,
-      companies,
-    ] = await Promise.all([
-      db.company.count(),
-      db.user.count({ where: { status: "PENDING" } }),
-      db.update.count({
-        where: {
-          createdAt: { gte: startOfMonth },
-        },
-      }),
-      db.company.findMany({
-        orderBy: { name: "asc" },
-        include: {
-          updates: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
-            select: { createdAt: true },
-          },
-        },
-      }),
-    ]);
-
-    // Calculate overdue companies and format the response
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Build last-6-months date boundaries
+    const sixMonthsData: { month: string; start: Date; end: Date }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 1);
+      const month = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+      sixMonthsData.push({ month, start, end });
+    }
+
+    const [totalCompanies, pendingApprovals, updatesThisMonth, companies, allSentUpdates, companiesWithMetrics] =
+      await Promise.all([
+        db.company.count(),
+        db.user.count({ where: { status: "PENDING" } }),
+        db.update.count({ where: { createdAt: { gte: startOfMonth } } }),
+        db.company.findMany({
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            sector: true,
+            geography: true,
+            fundingStage: true,
+            updates: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+              select: { createdAt: true, status: true },
+            },
+          },
+        }),
+        // For updates-per-month: fetch SENT updates from last 6 months
+        db.update.findMany({
+          where: {
+            status: "SENT",
+            sentAt: { gte: sixMonthsData[0].start },
+          },
+          select: { sentAt: true },
+        }),
+        // Companies with at least one metric definition
+        db.metricDefinition.findMany({
+          select: { companyId: true },
+          distinct: ["companyId"],
+        }),
+      ]);
+
+    // Build overdue list and sector breakdown
     let companiesOverdue = 0;
+    const overdueList: { id: string; name: string; sector: string | null; daysSinceUpdate: number | null }[] = [];
+    const sectorMap: Record<string, number> = {};
 
     const companiesData = companies.map((c) => {
-      const lastUpdateDate = c.updates[0]?.createdAt || null;
+      const lastUpdateDate = c.updates[0]?.createdAt ?? null;
       const daysSinceUpdate = lastUpdateDate
-        ? Math.floor(
-            (Date.now() - new Date(lastUpdateDate).getTime()) /
-              (1000 * 60 * 60 * 24)
-          )
+        ? Math.floor((Date.now() - new Date(lastUpdateDate).getTime()) / (1000 * 60 * 60 * 24))
         : null;
 
-      if (!lastUpdateDate || new Date(lastUpdateDate) < thirtyDaysAgo) {
+      const isOverdue = !lastUpdateDate || new Date(lastUpdateDate) < thirtyDaysAgo;
+      if (isOverdue) {
         companiesOverdue++;
+        overdueList.push({ id: c.id, name: c.name, sector: c.sector, daysSinceUpdate });
       }
 
-      return {
-        id: c.id,
-        name: c.name,
-        sector: c.sector,
-        geography: c.geography,
-        lastUpdateDate,
-        daysSinceUpdate,
-      };
+      const sector = c.sector ?? "Uncategorized";
+      sectorMap[sector] = (sectorMap[sector] ?? 0) + 1;
+
+      return { id: c.id, name: c.name, sector: c.sector, geography: c.geography, lastUpdateDate, daysSinceUpdate };
     });
+
+    // Updates per month (last 6 months)
+    const updatesByMonth = sixMonthsData.map(({ month, start, end }) => ({
+      month,
+      count: allSentUpdates.filter((u) => {
+        const d = u.sentAt ? new Date(u.sentAt) : null;
+        return d && d >= start && d < end;
+      }).length,
+    }));
+
+    // Sector breakdown (sorted by count desc)
+    const sectorBreakdown = Object.entries(sectorMap)
+      .map(([sector, count]) => ({ sector, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const companiesWithMetricsSet = new Set(companiesWithMetrics.map((m) => m.companyId));
+    const noMetricsCount = companies.filter((c) => !companiesWithMetricsSet.has(c.id)).length;
 
     return NextResponse.json({
       totalCompanies,
       pendingApprovals,
       updatesThisMonth,
       companiesOverdue,
+      noMetricsCount,
+      overdueCompanies: overdueList,
+      updatesByMonth,
+      sectorBreakdown,
       companies: companiesData,
     });
   } catch (err) {
     console.error("GET /api/admin/dashboard error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

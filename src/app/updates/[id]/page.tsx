@@ -26,6 +26,7 @@ import { RichEditor } from "@/components/ui/rich-editor";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPeriod } from "@/lib/utils";
+import { DOC_TYPES } from "@/lib/constants";
 
 interface MetricDefinition {
   id: string;
@@ -59,6 +60,7 @@ interface UpdateDetail {
     s3Key: string;
     mimeType: string | null;
     size: number | null;
+    docType: string | null;
   }[];
   comments?: {
     id: string;
@@ -480,7 +482,14 @@ export default function UpdateDetailPage() {
                     <li key={doc.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
                       <FileText className="h-4 w-4 text-muted-foreground" />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{doc.name}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-medium">{doc.name}</p>
+                          {doc.docType && (
+                            <Badge variant="neutral">
+                              {DOC_TYPES.find((t) => t.value === doc.docType)?.label ?? doc.docType}
+                            </Badge>
+                          )}
+                        </div>
                         {doc.size && (
                           <p className="text-xs text-muted-foreground">
                             {(doc.size / 1024).toFixed(1)} KB

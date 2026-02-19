@@ -57,6 +57,7 @@ export async function GET(
             mimeType: true,
             size: true,
             isInternal: true,
+            docType: true,
             createdAt: true,
           },
         },

@@ -5,7 +5,6 @@ import { useSession } from "next-auth/react";
 import {
   Plus,
   BarChart3,
-  Trash2,
   AlertCircle,
   CheckCircle2,
 } from "lucide-react";
@@ -15,28 +14,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { MetricChart } from "@/components/ui/metric-chart";
 import { formatDate } from "@/lib/utils";
 
-interface MetricDefinition {
+interface MetricWithValues {
   id: string;
   name: string;
   unit: string | null;
-}
-
-interface MetricValue {
-  id: string;
-  metricDefinitionId: string;
-  value: number;
-  date: string;
+  values: { id: string; value: number; date: string }[];
 }
 
 export default function MetricsPage() {
   const { data: session } = useSession();
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
-  const [metricValues, setMetricValues] = useState<
-    Record<string, MetricValue[]>
-  >({});
+  const [metrics, setMetrics] = useState<MetricWithValues[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -69,7 +60,6 @@ export default function MetricsPage() {
 
         const cId = companies[0].id;
         setCompanyId(cId);
-
         await loadMetrics(cId);
       } catch {
         setMessage({ type: "error", text: "Failed to load data." });
@@ -82,26 +72,10 @@ export default function MetricsPage() {
   }, []);
 
   async function loadMetrics(cId: string) {
-    const metricsRes = await fetch(`/api/companies/${cId}/metrics`);
-    if (!metricsRes.ok) return;
-    const metricsData = await metricsRes.json();
-    const defs: MetricDefinition[] = metricsData.data ?? metricsData ?? [];
-    setMetrics(defs);
-
-    // Load history for all metrics
-    const historyRes = await fetch(`/api/companies/${cId}/metrics/history`);
-    if (historyRes.ok) {
-      const historyData = await historyRes.json();
-      const history = historyData.data ?? historyData ?? [];
-
-      const grouped: Record<string, MetricValue[]> = {};
-      for (const val of history) {
-        const defId = val.metricDefinitionId;
-        if (!grouped[defId]) grouped[defId] = [];
-        grouped[defId].push(val);
-      }
-      setMetricValues(grouped);
-    }
+    const res = await fetch(`/api/companies/${cId}/metrics/history`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setMetrics(data.data ?? data ?? []);
   }
 
   async function handleAddMetric(e: React.FormEvent) {
@@ -239,7 +213,7 @@ export default function MetricsPage() {
         </div>
       )}
 
-      {/* Section 1: Add new metric definition */}
+      {/* Define a new metric */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>Define a New Metric</CardTitle>
@@ -273,7 +247,7 @@ export default function MetricsPage() {
         </CardContent>
       </Card>
 
-      {/* Section 2: Your Metrics */}
+      {/* Metrics list */}
       <div>
         <h2 className="mb-4 text-lg font-semibold">Your Metrics</h2>
 
@@ -286,11 +260,7 @@ export default function MetricsPage() {
         ) : (
           <div className="space-y-6">
             {metrics.map((metric) => {
-              const values = metricValues[metric.id] ?? [];
-              const formData = valueForms[metric.id] ?? {
-                date: "",
-                value: "",
-              };
+              const formData = valueForms[metric.id] ?? { date: "", value: "" };
 
               return (
                 <Card key={metric.id}>
@@ -305,8 +275,20 @@ export default function MetricsPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
+                    {/* Chart */}
+                    <div className="mb-4">
+                      <MetricChart
+                        name={metric.name}
+                        unit={metric.unit}
+                        values={metric.values.map((v) => ({
+                          date: v.date,
+                          value: Number(v.value),
+                        }))}
+                      />
+                    </div>
+
                     {/* Add value form */}
-                    <div className="mb-4 flex items-end gap-3 border-b pb-4">
+                    <div className="mb-4 flex items-end gap-3 border-t pt-4">
                       <div className="w-44">
                         <Input
                           id={`date-${metric.id}`}
@@ -326,7 +308,11 @@ export default function MetricsPage() {
                           step="any"
                           value={formData.value}
                           onChange={(e) =>
-                            updateValueForm(metric.id, "value", e.target.value)
+                            updateValueForm(
+                              metric.id,
+                              "value",
+                              e.target.value
+                            )
                           }
                           placeholder="0"
                         />
@@ -341,18 +327,12 @@ export default function MetricsPage() {
                         }
                         onClick={() => handleAddValue(metric.id)}
                       >
-                        {addingValue === metric.id
-                          ? "Adding..."
-                          : "Add Value"}
+                        {addingValue === metric.id ? "Adding..." : "Add Value"}
                       </Button>
                     </div>
 
-                    {/* Recent values */}
-                    {values.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No values recorded yet.
-                      </p>
-                    ) : (
+                    {/* Recent values table */}
+                    {metric.values.length > 0 && (
                       <div>
                         <p className="mb-2 text-sm font-medium text-muted-foreground">
                           Recent Values
@@ -365,13 +345,11 @@ export default function MetricsPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {values.slice(0, 10).map((v) => (
+                            {metric.values.slice(0, 10).map((v) => (
                               <tr key={v.id} className="border-b last:border-0">
+                                <td className="py-2">{formatDate(v.date)}</td>
                                 <td className="py-2">
-                                  {formatDate(v.date)}
-                                </td>
-                                <td className="py-2">
-                                  {v.value}
+                                  {Number(v.value).toLocaleString()}
                                   {metric.unit ? ` ${metric.unit}` : ""}
                                 </td>
                               </tr>

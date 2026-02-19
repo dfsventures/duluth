@@ -167,8 +167,10 @@ model Document {
   s3Key        String
   mimeType     String?
   size         Int?     // bytes
-  isInternal   Boolean  @default(false) // admin-only docs
-  createdAt    DateTime @default(now())
+  isInternal   Boolean   @default(false) // admin-only docs
+  docType      String?   // "pitch_deck" | "financials" | "legal" | "product" | "other"
+  archivedAt   DateTime? // null = active, set = archived
+  createdAt    DateTime  @default(now())
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   update     Update? @relation(fields: [updateId], references: [id], onDelete: SetNull)

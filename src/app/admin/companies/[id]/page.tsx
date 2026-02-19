@@ -25,6 +25,9 @@ import {
   Trash2,
   Download,
   X,
+  Search,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -36,6 +39,8 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
+import { MetricChart } from "@/components/ui/metric-chart";
+import { DOC_TYPES } from "@/lib/constants";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -71,6 +76,8 @@ interface Document {
   mimeType: string | null;
   size: number | null;
   isInternal: boolean;
+  docType: string | null;
+  archivedAt: string | null;
   createdAt: string;
   uploadedBy: string | null;
 }
@@ -128,6 +135,11 @@ export default function AdminCompanyDetailPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadInternal, setUploadInternal] = useState(false);
+  const [uploadDocType, setUploadDocType] = useState<string>("");
+  const [docSearch, setDocSearch] = useState("");
+  const [docTypeFilter, setDocTypeFilter] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [archivingDocId, setArchivingDocId] = useState<string | null>(null);
 
   const loadCompany = useCallback(async () => {
     try {
@@ -166,9 +178,13 @@ export default function AdminCompanyDetailPage() {
     }
   }, [companyId]);
 
-  const loadDocuments = useCallback(async () => {
+  const loadDocuments = useCallback(async (opts?: { search?: string; docType?: string; archived?: boolean }) => {
     try {
-      const res = await fetch(`/api/companies/${companyId}/documents`);
+      const params = new URLSearchParams();
+      if (opts?.search) params.set("search", opts.search);
+      if (opts?.docType) params.set("docType", opts.docType);
+      if (opts?.archived) params.set("archived", "true");
+      const res = await fetch(`/api/companies/${companyId}/documents?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setDocuments(data.data ?? data ?? []);
@@ -375,6 +391,7 @@ export default function AdminCompanyDetailPage() {
           name: file.name,
           mimeType: file.type || "application/octet-stream",
           isInternal: uploadInternal,
+          docType: uploadDocType || null,
         }),
       });
       if (!initRes.ok) {
@@ -391,7 +408,7 @@ export default function AdminCompanyDetailPage() {
       });
       if (!putRes.ok) throw new Error("Upload to storage failed");
 
-      await loadDocuments();
+      await loadDocuments({ search: docSearch, docType: docTypeFilter, archived: showArchived });
       setMessage({ type: "success", text: `"${file.name}" uploaded successfully.` });
     } catch (err) {
       setMessage({
@@ -418,6 +435,26 @@ export default function AdminCompanyDetailPage() {
         type: "error",
         text: err instanceof Error ? err.message : "Download failed.",
       });
+    }
+  }
+
+  async function handleArchiveDoc(docId: string, archive: boolean) {
+    setArchivingDocId(docId);
+    try {
+      const res = await fetch(`/api/documents/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archive }),
+      });
+      if (!res.ok) throw new Error("Failed to update document");
+      await loadDocuments({ search: docSearch, docType: docTypeFilter, archived: showArchived });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to update document.",
+      });
+    } finally {
+      setArchivingDocId(null);
     }
   }
 
@@ -886,9 +923,17 @@ export default function AdminCompanyDetailPage() {
                         </div>
                       </div>
                     </CardHeader>
-                    {sortedValues.length > 0 && (
-                      <CardContent>
-                        <table className="w-full text-sm">
+                    <CardContent>
+                      <MetricChart
+                        name={metric.name}
+                        unit={metric.unit}
+                        values={sortedValues.map((v) => ({
+                          date: v.date,
+                          value: Number(v.value),
+                        }))}
+                      />
+                      {sortedValues.length > 0 && (
+                        <table className="mt-4 w-full text-sm">
                           <thead>
                             <tr className="border-b text-left text-muted-foreground">
                               <th className="pb-2 font-medium">Date</th>
@@ -900,15 +945,15 @@ export default function AdminCompanyDetailPage() {
                               <tr key={i} className="border-b last:border-0">
                                 <td className="py-2">{formatDate(v.date)}</td>
                                 <td className="py-2 text-right font-medium">
-                                  {v.value}
+                                  {Number(v.value).toLocaleString()}
                                   {metric.unit ? ` ${metric.unit}` : ""}
                                 </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                      </CardContent>
-                    )}
+                      )}
+                    </CardContent>
                   </Card>
                 );
               })}
@@ -920,43 +965,99 @@ export default function AdminCompanyDetailPage() {
       {/* Documents tab */}
       {activeTab === "documents" && (
         <div>
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold">Documents</h3>
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          {/* Upload controls */}
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div className="flex-1">
+              <p className="mb-1 text-sm font-medium">Upload Document</p>
+              <div className="flex items-center gap-2">
+                <select
+                  value={uploadDocType}
+                  onChange={(e) => setUploadDocType(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">No type</option>
+                  {DOC_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={uploadInternal}
+                    onChange={(e) => setUploadInternal(e.target.checked)}
+                    className="h-3.5 w-3.5"
+                  />
+                  Internal only
+                </label>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={uploading}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="mr-2 h-3.5 w-3.5" />
+                  {uploading ? "Uploading..." : "Upload"}
+                </Button>
                 <input
-                  type="checkbox"
-                  checked={uploadInternal}
-                  onChange={(e) => setUploadInternal(e.target.checked)}
-                  className="h-3.5 w-3.5"
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload(file);
+                  }}
                 />
-                Internal only
-              </label>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={uploading}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="mr-2 h-3.5 w-3.5" />
-                {uploading ? "Uploading..." : "Upload Document"}
-              </Button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
-                }}
-              />
+              </div>
             </div>
           </div>
+
+          {/* Filter bar */}
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[160px]">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search documents..."
+                value={docSearch}
+                onChange={(e) => {
+                  setDocSearch(e.target.value);
+                  loadDocuments({ search: e.target.value, docType: docTypeFilter, archived: showArchived });
+                }}
+                className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm"
+              />
+            </div>
+            <select
+              value={docTypeFilter}
+              onChange={(e) => {
+                setDocTypeFilter(e.target.value);
+                loadDocuments({ search: docSearch, docType: e.target.value, archived: showArchived });
+              }}
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+            >
+              <option value="">All types</option>
+              {DOC_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>{t.label}</option>
+              ))}
+            </select>
+            <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => {
+                  setShowArchived(e.target.checked);
+                  loadDocuments({ search: docSearch, docType: docTypeFilter, archived: e.target.checked });
+                }}
+                className="h-3.5 w-3.5"
+              />
+              Show archived
+            </label>
+          </div>
+
           {documents.length === 0 ? (
             <EmptyState
               icon={<FolderOpen className="h-8 w-8" />}
               title="No documents"
-              description="No documents have been uploaded for this company."
+              description={showArchived ? "No archived documents." : "No documents have been uploaded for this company."}
             />
           ) : (
             <Card>
@@ -965,6 +1066,7 @@ export default function AdminCompanyDetailPage() {
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="px-4 py-3 font-medium">Name</th>
+                      <th className="px-4 py-3 font-medium">Type</th>
                       <th className="px-4 py-3 font-medium">Date</th>
                       <th className="px-4 py-3 font-medium">Uploaded By</th>
                       <th className="px-4 py-3 font-medium">Size</th>
@@ -976,13 +1078,22 @@ export default function AdminCompanyDetailPage() {
                     {documents.map((doc) => (
                       <tr
                         key={doc.id}
-                        className="border-b last:border-0 hover:bg-muted/50"
+                        className={`border-b last:border-0 hover:bg-muted/50 ${doc.archivedAt ? "opacity-60" : ""}`}
                       >
                         <td className="px-4 py-3 font-medium">
                           <div className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-muted-foreground" />
                             {doc.name}
                           </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {doc.docType ? (
+                            <Badge variant="neutral">
+                              {DOC_TYPES.find((t) => t.value === doc.docType)?.label ?? doc.docType}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
                           {formatDate(doc.createdAt)}
@@ -999,13 +1110,27 @@ export default function AdminCompanyDetailPage() {
                           </Badge>
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleDownload(doc.id, doc.name)}
-                            className="text-muted-foreground hover:text-primary"
-                            title="Download"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleDownload(doc.id, doc.name)}
+                              className="text-muted-foreground hover:text-primary"
+                              title="Download"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleArchiveDoc(doc.id, !doc.archivedAt)}
+                              disabled={archivingDocId === doc.id}
+                              className="text-muted-foreground hover:text-amber-600 disabled:opacity-40"
+                              title={doc.archivedAt ? "Unarchive" : "Archive"}
+                            >
+                              {doc.archivedAt ? (
+                                <ArchiveRestore className="h-4 w-4" />
+                              ) : (
+                                <Archive className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
