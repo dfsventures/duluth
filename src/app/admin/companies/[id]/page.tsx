@@ -123,6 +123,16 @@ export default function AdminCompanyDetailPage() {
   const [addingMetric, setAddingMetric] = useState(false);
   const [deletingMetricId, setDeletingMetricId] = useState<string | null>(null);
 
+  // Member management
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [addMemberEmail, setAddMemberEmail] = useState("");
+  const [addingMember, setAddingMember] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+
+  // Company deletion
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   // Document upload
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -289,6 +299,79 @@ export default function AdminCompanyDetailPage() {
     }
   }
 
+  async function handleAddMember() {
+    if (!addMemberEmail.trim()) return;
+    setAddingMember(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: addMemberEmail.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to add member");
+      setMembers((prev) => {
+        if (prev.find((m) => m.id === data.id)) return prev;
+        return [...prev, data];
+      });
+      setAddMemberEmail("");
+      setShowAddMember(false);
+      setMessage({ type: "success", text: `${data.email} added as a member.` });
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to add member.",
+      });
+    } finally {
+      setAddingMember(false);
+    }
+  }
+
+  async function handleRemoveMember(userId: string) {
+    setRemovingMemberId(userId);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/members`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to remove member");
+      }
+      setMembers((prev) => prev.filter((m) => m.id !== userId));
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to remove member.",
+      });
+    } finally {
+      setRemovingMemberId(null);
+    }
+  }
+
+  async function handleDeleteCompany() {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/companies/${companyId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to delete company");
+      }
+      router.push("/admin/companies");
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to delete company.",
+      });
+      setConfirmDelete(false);
+      setDeleting(false);
+    }
+  }
+
   async function handleFileUpload(file: File) {
     setUploading(true);
     try {
@@ -415,10 +498,42 @@ export default function AdminCompanyDetailPage() {
         title={company.name}
         description="Company detail view"
         action={
-          <Button variant="ghost" onClick={() => router.push("/admin/companies")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Companies
-          </Button>
+          <div className="flex items-center gap-2">
+            {confirmDelete ? (
+              <>
+                <span className="text-sm text-muted-foreground">Delete this company?</span>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={deleting}
+                  onClick={handleDeleteCompany}
+                >
+                  {deleting ? "Deleting..." : "Confirm Delete"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={deleting}
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                Delete
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => router.push("/admin/companies")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+          </div>
         }
       />
 
@@ -924,12 +1039,66 @@ export default function AdminCompanyDetailPage() {
       {/* Members tab */}
       {activeTab === "members" && (
         <div>
-          <h3 className="mb-4 font-semibold">Members</h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">Members</h3>
+            {!showAddMember && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setShowAddMember(true)}
+              >
+                <Plus className="mr-2 h-3.5 w-3.5" />
+                Add Member
+              </Button>
+            )}
+          </div>
+
+          {showAddMember && (
+            <Card className="mb-4">
+              <CardContent className="pt-4">
+                <p className="mb-3 text-sm font-medium">Add member by email</p>
+                <div className="flex gap-2">
+                  <Input
+                    id="member-email"
+                    label=""
+                    type="email"
+                    placeholder="founder@example.com"
+                    value={addMemberEmail}
+                    onChange={(e) => setAddMemberEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAddMember();
+                    }}
+                    className="flex-1"
+                  />
+                </div>
+                <div className="mt-3 flex justify-end gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setShowAddMember(false);
+                      setAddMemberEmail("");
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={addingMember || !addMemberEmail.trim()}
+                    onClick={handleAddMember}
+                  >
+                    {addingMember ? "Adding..." : "Add Member"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {members.length === 0 ? (
             <EmptyState
               icon={<Users className="h-8 w-8" />}
               title="No members"
-              description="No users are associated with this company."
+              description="No users are associated with this company. Add a member by their email address."
             />
           ) : (
             <div className="space-y-2">
@@ -950,11 +1119,19 @@ export default function AdminCompanyDetailPage() {
                         </p>
                       </div>
                     </div>
-                    <Badge
-                      variant={member.role === "ADMIN" ? "info" : "neutral"}
-                    >
-                      {member.role === "ADMIN" ? "Admin" : "Founder"}
-                    </Badge>
+                    <div className="flex items-center gap-3">
+                      <Badge variant={member.role === "ADMIN" ? "info" : "neutral"}>
+                        {member.role === "ADMIN" ? "Admin" : "Founder"}
+                      </Badge>
+                      <button
+                        onClick={() => handleRemoveMember(member.id)}
+                        disabled={removingMemberId === member.id}
+                        className="text-muted-foreground hover:text-destructive disabled:opacity-40"
+                        title="Remove member"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}

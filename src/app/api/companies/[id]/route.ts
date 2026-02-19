@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireCompanyAccess } from "@/lib/auth-guard";
+import { requireCompanyAccess, requireAdmin } from "@/lib/auth-guard";
 
 export async function GET(
   _request: Request,
@@ -115,6 +115,31 @@ export async function PATCH(
     return NextResponse.json(company);
   } catch (err) {
     console.error("PATCH /api/companies/[id] error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { error } = await requireAdmin();
+    if (error) return error;
+
+    const existing = await db.company.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Company not found" }, { status: 404 });
+    }
+
+    await db.company.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /api/companies/[id] error:", err);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
