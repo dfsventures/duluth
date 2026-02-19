@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { BarChart3, FileText, Link2 } from "lucide-react";
 import { AdminLoginButton } from "@/components/ui/admin-login-button";
@@ -16,7 +17,8 @@ export default async function HomePage() {
     <div className="flex min-h-screen flex-col bg-background">
       {/* Nav */}
       <header className="flex items-center justify-between px-6 py-4 sm:px-10">
-        <span className="text-lg font-semibold tracking-tight text-foreground">
+        <span className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
+          <Image src="/logo.png" alt="" width={28} height={28} priority />
           Molly
         </span>
         <div className="flex items-center gap-4">

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -45,8 +46,9 @@ export default function SignupPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted px-4">
       {/* Back to home */}
       <div className="mb-6 w-full max-w-md">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Molly
+        <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+          <Image src="/logo.png" alt="" width={22} height={22} />
+          Molly
         </Link>
       </div>
 
