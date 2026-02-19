@@ -21,10 +21,13 @@ This document is the source of truth for existing platform features and planned 
 ## Existing Features
 
 ### Authentication & Access
+- **Public homepage** (`/`) — hero with headline, feature highlights, dual CTAs (Apply / Sign In), Admin Login button; authenticated users auto-redirect to their dashboard
 - Email/password login + Google OAuth (restricted to @dfslab.net for admins)
 - Founder signup → admin approval → set-password email flow
 - Middleware-enforced role-based routing (Founder → `/dashboard`, Admin → `/admin`)
 - Email notifications: approval, rejection, new signup alert
+- Login page: founder-focused with Google OAuth demoted to DFS Lab team section
+- Signup page: reframed as an application form with expectation-setting copy
 
 ### Founder Features
 - **Dashboard** — company summary, update history, days-since-last-update, onboarding prompt
