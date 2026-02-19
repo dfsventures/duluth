@@ -49,11 +49,12 @@ model User {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
-  memberships UserCompanyMembership[]
-  updates     Update[]
-  documents   Document[]
-  comments    Comment[]
-  companies   Company[]                @relation("CreatedCompanies")
+  memberships    UserCompanyMembership[]
+  updates        Update[]
+  documents      Document[]
+  comments       Comment[]
+  companies      Company[]                @relation("CreatedCompanies")
+  shareableLinks ShareableLink[]          @relation("CreatedLinks")
 
   @@map("users")
 }
@@ -80,6 +81,7 @@ model Company {
   updates           Update[]
   metricDefinitions MetricDefinition[]
   documents         Document[]
+  shareableLinks    ShareableLinkCompany[]
 
   @@map("companies")
 }
@@ -190,6 +192,48 @@ model Comment {
   author User   @relation(fields: [authorId], references: [id])
 
   @@map("comments")
+}
+
+// ─── Shareable Investor Links ─────────────────────────────
+
+model ShareableLink {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  label       String?
+  createdById String
+  periodStart DateTime
+  periodEnd   DateTime
+  expiresAt   DateTime? // null = never expires
+  createdAt   DateTime  @default(now())
+
+  createdBy User                   @relation("CreatedLinks", fields: [createdById], references: [id])
+  companies ShareableLinkCompany[]
+  views     ShareableLinkView[]
+
+  @@map("shareable_links")
+}
+
+model ShareableLinkCompany {
+  id        String @id @default(cuid())
+  linkId    String
+  companyId String
+
+  link    ShareableLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([linkId, companyId])
+  @@map("shareable_link_companies")
+}
+
+model ShareableLinkView {
+  id       String   @id @default(cuid())
+  linkId   String
+  email    String
+  viewedAt DateTime @default(now())
+
+  link ShareableLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@map("shareable_link_views")
 }
 
 // ─── AI Indexing ──────────────────────────────────────────

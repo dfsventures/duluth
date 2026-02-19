@@ -9,12 +9,11 @@ import {
   Building2,
   FileText,
   BarChart3,
-  Users,
-  MessageSquare,
   Bot,
   LogOut,
   ChevronRight,
   Shield,
+  Link2,
 } from "lucide-react";
 
 const founderNav = [
@@ -22,12 +21,14 @@ const founderNav = [
   { label: "Company Profile", href: "/company/profile", icon: Building2 },
   { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
   { label: "Updates", href: "/updates/new", icon: FileText },
+  { label: "Investor Links", href: "/links", icon: Link2 },
 ];
 
 const adminNav = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Approvals", href: "/admin/approvals", icon: Shield },
   { label: "Companies", href: "/admin/companies", icon: Building2 },
+  { label: "Investor Links", href: "/admin/links", icon: Link2 },
   { label: "AI Chat", href: "/admin/chat", icon: Bot },
 ];
 
@@ -35,8 +36,6 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session, status } = useSession();
 
-  // Derive role from session when loaded, fall back to path prefix to avoid
-  // rendering the wrong nav during the loading flash (and hydration mismatch).
   const isAdminPath = pathname.startsWith("/admin");
   const isAdmin =
     status === "authenticated"
@@ -59,11 +58,10 @@ export function Sidebar() {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-1">
           {nav.map((item) => {
-            // Exact match for root paths like /admin to avoid matching /admin/companies etc.
-          const isActive =
-            item.href === "/admin" || item.href === "/dashboard"
-              ? pathname === item.href
-              : pathname === item.href || pathname.startsWith(item.href + "/");
+            const isActive =
+              item.href === "/admin" || item.href === "/dashboard"
+                ? pathname === item.href
+                : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <li key={item.href}>
                 <Link
