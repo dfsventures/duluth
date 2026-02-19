@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { BarChart3, FileText, Link2 } from "lucide-react";
+import { AdminLoginButton } from "@/components/ui/admin-login-button";
 
 export default async function HomePage() {
   const session = await auth();
@@ -25,15 +26,7 @@ export default async function HomePage() {
           >
             Sign In
           </Link>
-          <form action="/api/auth/signin/google" method="POST">
-            <input type="hidden" name="callbackUrl" value="/admin" />
-            <button
-              type="submit"
-              className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:border-foreground hover:text-foreground transition-colors"
-            >
-              Admin Login
-            </button>
-          </form>
+          <AdminLoginButton className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:border-foreground hover:text-foreground transition-colors" />
         </div>
       </header>
 
@@ -111,12 +104,7 @@ export default async function HomePage() {
       {/* Footer */}
       <footer className="border-t px-6 py-5 text-center text-xs text-muted-foreground">
         © {new Date().getFullYear()} DFS Lab &mdash;{" "}
-        <form className="inline" action="/api/auth/signin/google" method="POST">
-          <input type="hidden" name="callbackUrl" value="/admin" />
-          <button type="submit" className="hover:text-foreground underline underline-offset-2">
-            Admin Login
-          </button>
-        </form>
+        <AdminLoginButton className="hover:text-foreground underline underline-offset-2" />
       </footer>
     </div>
   );
