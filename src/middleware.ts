@@ -11,7 +11,7 @@ export default auth((req) => {
   const userStatus = req.auth?.user?.status;
 
   // Public routes — always accessible
-  const publicPaths = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share"];
+  const publicPaths = ["/", "/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share"];
   const isPublic = publicPaths.some((p) => pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
 

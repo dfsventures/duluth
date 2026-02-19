@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -42,115 +42,95 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
-      <div className="w-full max-w-md space-y-8">
-        {/* Logo */}
-        <div className="flex justify-center">
-          <Image
-            src="/logo.png"
-            alt="Molly"
-            width={160}
-            height={48}
-            priority
-          />
-        </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted px-4">
+      {/* Back to home */}
+      <div className="mb-6 w-full max-w-md">
+        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
+          ← Molly
+        </Link>
+      </div>
 
-        <div className="card">
-          {submitted ? (
-            <div className="space-y-4 text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-50">
-                <svg
-                  className="h-6 w-6 text-primary"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={2}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 12.75l6 6 9-13.5"
-                  />
-                </svg>
-              </div>
-              <h2 className="text-lg font-semibold text-foreground">
-                Request Submitted
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Your request has been submitted. The Molly team will review
-                your application and you will receive an email once your account
-                is approved.
-              </p>
-              <Link
-                href="/login"
-                className="inline-block text-sm font-medium text-primary hover:text-primary-500"
-              >
-                Back to login
-              </Link>
-            </div>
-          ) : (
-            <>
-              <h2 className="mb-2 text-lg font-semibold text-foreground">
-                Request Access
-              </h2>
-              <p className="mb-6 text-sm text-muted-foreground">
-                Submit your details to request a founder account.
-              </p>
-
-              {error && (
-                <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {error}
+      <div className="w-full max-w-md">
+        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <div className="h-1 w-full bg-primary" />
+          <div className="px-8 py-8">
+            {submitted ? (
+              <div className="space-y-4 py-4 text-center">
+                <div className="flex justify-center">
+                  <CheckCircle2 className="h-12 w-12 text-primary" />
                 </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <Input
-                  id="name"
-                  label="Full Name"
-                  type="text"
-                  placeholder="Jane Doe"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-                <Input
-                  id="email"
-                  label="Email"
-                  type="email"
-                  placeholder="you@company.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-                <Input
-                  id="companyName"
-                  label="Company Name"
-                  type="text"
-                  placeholder="Your startup"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  required
-                />
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loading}
-                >
-                  {loading ? "Submitting..." : "Submit Request"}
-                </Button>
-              </form>
-
-              <p className="mt-4 text-center text-sm text-muted-foreground">
-                Already have an account?{" "}
+                <h2 className="text-xl font-semibold text-foreground">
+                  Application received
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Thanks for applying. The DFS Lab team will review your request
+                  and email you within a few days once your account is approved.
+                </p>
                 <Link
                   href="/login"
-                  className="font-medium text-primary hover:text-primary-500"
+                  className="inline-block text-sm font-medium text-primary hover:text-primary-600"
                 >
-                  Sign in
+                  Back to Sign In →
                 </Link>
-              </p>
-            </>
-          )}
+              </div>
+            ) : (
+              <>
+                <h1 className="mb-1 text-xl font-semibold text-foreground">
+                  Apply for Access
+                </h1>
+                <p className="mb-6 text-sm text-muted-foreground">
+                  Tell us about yourself and your company. We&apos;ll review your
+                  application and be in touch within a few days.
+                </p>
+
+                {error && (
+                  <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {error}
+                  </div>
+                )}
+
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <Input
+                    id="name"
+                    label="Full Name"
+                    type="text"
+                    placeholder="Jane Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                  <Input
+                    id="email"
+                    label="Email"
+                    type="email"
+                    placeholder="you@company.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <Input
+                    id="companyName"
+                    label="Company Name"
+                    type="text"
+                    placeholder="Your startup"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    required
+                  />
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Submitting..." : "Submit Application"}
+                  </Button>
+                </form>
+
+                <p className="mt-5 text-center text-sm text-muted-foreground">
+                  Already have an account?{" "}
+                  <Link href="/login" className="font-medium text-primary hover:text-primary-600">
+                    Sign in →
+                  </Link>
+                </p>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
