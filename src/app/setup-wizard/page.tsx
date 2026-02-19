@@ -16,22 +16,13 @@ import {
   Upload,
 } from "lucide-react";
 import { normalizeUrl } from "@/lib/utils";
+import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-
-const SECTORS = [
-  "Fintech",
-  "Agritech",
-  "Healthtech",
-  "Logistics",
-  "Education",
-  "E-commerce",
-  "Other",
-];
 
 const STEPS = [
   { label: "Company Profile", icon: Building2 },
@@ -283,24 +274,12 @@ export default function SetupWizardPage() {
               placeholder="yourcompany.com"
             />
 
-            <div className="space-y-1">
-              <label htmlFor="companySector" className="label">
-                Sector
-              </label>
-              <select
-                id="companySector"
-                value={companySector}
-                onChange={(e) => setCompanySector(e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select a sector</option>
-                {SECTORS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SectorCombobox
+              id="companySector"
+              label="Sector"
+              value={companySector}
+              onChange={setCompanySector}
+            />
 
             <Input
               id="companyGeography"

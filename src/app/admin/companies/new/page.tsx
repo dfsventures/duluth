@@ -12,22 +12,13 @@ import {
   UserPlus,
 } from "lucide-react";
 import { normalizeUrl } from "@/lib/utils";
+import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-
-const SECTORS = [
-  "Fintech",
-  "Agritech",
-  "Healthtech",
-  "Logistics",
-  "Education",
-  "E-commerce",
-  "Other",
-];
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -184,24 +175,13 @@ export default function NewCompanyPage() {
               placeholder="example.com"
             />
 
-            <div className="space-y-1">
-              <label htmlFor="sector" className="label">
-                Sector
-              </label>
-              <select
-                id="sector"
-                value={sector}
-                onChange={(e) => setSector(e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select a sector</option>
-                {SECTORS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <SectorCombobox
+              id="sector"
+              label="Sector"
+              value={sector}
+              onChange={setSector}
+              isAdmin
+            />
 
             <Input
               id="geography"

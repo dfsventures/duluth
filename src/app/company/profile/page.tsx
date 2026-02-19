@@ -22,16 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { normalizeUrl } from "@/lib/utils";
-
-const SECTORS = [
-  "Fintech",
-  "Agritech",
-  "Healthtech",
-  "Logistics",
-  "Education",
-  "E-commerce",
-  "Other",
-];
+import { SectorCombobox } from "@/components/ui/sector-combobox";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -338,24 +329,12 @@ export default function CompanyProfilePage() {
                 placeholder="yourcompany.com"
               />
 
-              <div className="space-y-1">
-                <label htmlFor="sector" className="label">
-                  Sector
-                </label>
-                <select
-                  id="sector"
-                  value={form.sector}
-                  onChange={(e) => updateField("sector", e.target.value)}
-                  className="input-field"
-                >
-                  <option value="">Select a sector</option>
-                  {SECTORS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SectorCombobox
+                id="sector"
+                label="Sector"
+                value={form.sector}
+                onChange={(v) => updateField("sector", v)}
+              />
 
               <Input
                 id="geography"

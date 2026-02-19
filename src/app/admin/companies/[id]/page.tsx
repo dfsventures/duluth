@@ -35,16 +35,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, normalizeUrl } from "@/lib/utils";
-
-const SECTORS = [
-  "Fintech",
-  "Agritech",
-  "Healthtech",
-  "Logistics",
-  "Education",
-  "E-commerce",
-  "Other",
-];
+import { SectorCombobox } from "@/components/ui/sector-combobox";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -616,24 +607,13 @@ export default function AdminCompanyDetailPage() {
                 onChange={(e) => updateEditField("website", e.target.value)}
                 placeholder="example.com"
               />
-              <div className="space-y-1">
-                <label htmlFor="edit-sector" className="label">
-                  Sector
-                </label>
-                <select
-                  id="edit-sector"
-                  value={editForm.sector ?? ""}
-                  onChange={(e) => updateEditField("sector", e.target.value)}
-                  className="input-field"
-                >
-                  <option value="">Select a sector</option>
-                  {SECTORS.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <SectorCombobox
+                id="edit-sector"
+                label="Sector"
+                value={editForm.sector ?? ""}
+                onChange={(v) => updateEditField("sector", v || null)}
+                isAdmin
+              />
               <Input
                 id="edit-geography"
                 label="Geography"

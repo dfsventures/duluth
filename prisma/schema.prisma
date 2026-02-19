@@ -194,6 +194,16 @@ model Comment {
   @@map("comments")
 }
 
+// ─── Sectors ──────────────────────────────────────────────
+
+model Sector {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("sectors")
+}
+
 // ─── Shareable Investor Links ─────────────────────────────
 
 model ShareableLink {
