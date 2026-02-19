@@ -31,7 +31,7 @@ This document is the source of truth for existing platform features and planned 
 - **Setup Wizard** — 3-step onboarding: company profile → metric definitions → document upload
 - **Company Profile** — name, description, website, sector, geography, funding stage, logo
 - **Dynamic Sectors** — user-created sectors; admins can rename/delete
-- **Metrics** — define custom metrics with units; record values over time; history table
+- **Metrics** — define custom metrics with units; record values over time; history table; line chart per metric
 - **Updates** — rich text editor, period + title, per-update metric values, file attachments
   - Save as Draft or Publish with inline confirmation
   - Email sent to team@dfslab.net on publish (includes metrics table + full body)
@@ -44,12 +44,20 @@ This document is the source of truth for existing platform features and planned 
   - Revoke links
 
 ### Admin Features
-- **Dashboard** — total companies, pending approvals, updates this month, overdue companies (>90 days)
+- **Dashboard** — KPI cards (total companies, pending approvals, updates this month, overdue companies); 6-month published updates bar chart; sector breakdown; collapsible overdue companies table with days-since color coding
 - **Approvals** — approve/reject signups with email notifications
 - **Company Management** — grid view, search, add company, bulk CSV import
-- **Company Detail** — full editable profile; view company updates; manage members
+- **Company Detail** — full editable profile; view company updates; manage members; metric charts + history; document management with type tagging, search, filtering, and archive
 - **Investor Links** — multi-company link creation; full view log; revoke
 - **AI Chat** — conversational AI over portfolio data (updates + documents); markdown + source attribution
+
+### Document Management
+- Upload documents linked to a company or specific update
+- Document types: Pitch Deck, Financials, Legal, Product / Demo, Other
+- Filter by type, search by name, toggle archived documents
+- Archive / unarchive without permanent deletion
+- Internal-only flag for admin-visible documents
+- Document type badge shown on update detail attachments
 
 ---
 
@@ -57,13 +65,10 @@ This document is the source of truth for existing platform features and planned 
 
 ### High Priority
 
-| Feature | Description | Benefits |
-|---------|-------------|----------|
-| **Update Reminders** | Automated emails to founders when updates are due. Admins configure per-company frequency and see upcoming deadlines. | Prevents overdue companies proactively instead of just tracking them after the fact. |
-| **Metric Visualization** | Line/bar charts showing metric trends over time per company. Period-over-period growth rates. | Metrics are recorded but never visualized — table stakes for a modern portfolio platform. |
-| **Portfolio Health Dashboard** | Drillable admin view: submission rates by sector/stage, metric completion rates, companies trending downward. | Gives DFS Lab the visibility needed to intervene early and validate investment theses. |
-| **Founder Team Management** | Invite multiple team members per company (Owner, Editor, Viewer). No shared credentials. | Most portfolio companies have multiple contributors. Reduces friction and improves update quality. |
-| **Document Organization** | Filter/search documents by type (deck, financials, demo). AI-powered tagging. Archive support. | Flat document list doesn't scale. Essential for due diligence as volume grows. |
+| Feature | Description | Benefits | Status |
+|---------|-------------|----------|--------|
+| **Update Reminders** | Automated emails to founders when updates are due. Admins configure per-company frequency and see upcoming deadlines. | Prevents overdue companies proactively instead of just tracking them after the fact. | Pending |
+| **Founder Team Management** | Invite multiple team members per company (Owner, Editor, Viewer). No shared credentials. | Most portfolio companies have multiple contributors. Reduces friction and improves update quality. | Pending |
 
 ### Medium Priority
 
@@ -92,6 +97,5 @@ This document is the source of truth for existing platform features and planned 
 
 ## Notes
 
-- **Biggest gaps right now:** metrics have no visualization, founders receive no reminders, and comments don't close the feedback loop. Addressing these three would meaningfully improve data quality and founder engagement.
 - Shipped features should be moved from the roadmap into the "Existing Features" section above.
 - Priority tiers should be revisited quarterly or after each major release.
