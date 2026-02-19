@@ -2,14 +2,26 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { Save, AlertCircle, CheckCircle2, Upload } from "lucide-react";
+import {
+  Save,
+  AlertCircle,
+  CheckCircle2,
+  Upload,
+  Pencil,
+  Globe,
+  MapPin,
+  ExternalLink,
+  Building2,
+  X,
+} from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { normalizeUrl } from "@/lib/utils";
 
 const SECTORS = [
   "Fintech",
@@ -34,7 +46,6 @@ interface CompanyFormData {
 
 export default function CompanyProfilePage() {
   const router = useRouter();
-  const { data: session } = useSession();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [form, setForm] = useState<CompanyFormData>({
     name: "",
@@ -46,6 +57,8 @@ export default function CompanyProfilePage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editSnapshot, setEditSnapshot] = useState<CompanyFormData | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -95,11 +108,26 @@ export default function CompanyProfilePage() {
     setMessage(null);
   }
 
+  function startEditing() {
+    setEditSnapshot({ ...form });
+    setEditing(true);
+    setMessage(null);
+  }
+
+  function cancelEditing() {
+    if (editSnapshot) setForm(editSnapshot);
+    setEditing(false);
+    setMessage(null);
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
 
     if (!companyId) {
-      setMessage({ type: "error", text: "No company found. Please complete the setup wizard first." });
+      setMessage({
+        type: "error",
+        text: "No company found. Please complete the setup wizard first.",
+      });
       return;
     }
 
@@ -111,11 +139,13 @@ export default function CompanyProfilePage() {
     setSaving(true);
     setMessage(null);
 
+    const website = normalizeUrl(form.website);
+
     try {
       const res = await fetch(`/api/companies/${companyId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, website }),
       });
 
       if (!res.ok) {
@@ -123,6 +153,8 @@ export default function CompanyProfilePage() {
         throw new Error(errData?.error ?? "Failed to save");
       }
 
+      setForm((prev) => ({ ...prev, website }));
+      setEditing(false);
       setMessage({ type: "success", text: "Company profile saved successfully." });
     } catch (err) {
       setMessage({
@@ -160,127 +192,216 @@ export default function CompanyProfilePage() {
           }`}
         >
           {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4" />
+            <CheckCircle2 className="h-4 w-4 shrink-0" />
           ) : (
-            <AlertCircle className="h-4 w-4" />
+            <AlertCircle className="h-4 w-4 shrink-0" />
           )}
-          {message.text}
+          <span className="flex-1">{message.text}</span>
+          <button onClick={() => setMessage(null)}>
+            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+          </button>
         </div>
       )}
 
-      <form onSubmit={handleSave} className="space-y-6">
-        {/* Logo upload */}
+      {!editing ? (
+        /* ── View mode ── */
         <Card>
           <CardHeader>
-            <CardTitle>Company Logo</CardTitle>
+            <div className="flex items-start justify-between">
+              <CardTitle className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                {form.name || "Your Company"}
+              </CardTitle>
+              <Button variant="secondary" size="sm" onClick={startEditing}>
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                Edit
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-4">
-              <div className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted">
-                <Upload className="h-6 w-6 text-muted-foreground" />
+            {!companyId ? (
+              <p className="text-sm text-muted-foreground">
+                Your company profile hasn&apos;t been set up yet.{" "}
+                <button
+                  onClick={() => router.push("/setup-wizard")}
+                  className="font-medium text-primary hover:underline"
+                >
+                  Complete setup
+                </button>
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {form.description && (
+                  <p className="text-sm text-muted-foreground">
+                    {form.description}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-4 text-sm">
+                  {form.sector && (
+                    <Badge variant="neutral">{form.sector}</Badge>
+                  )}
+                  {form.geography && (
+                    <div className="flex items-center gap-1.5 text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {form.geography}
+                    </div>
+                  )}
+                  {form.fundingStage && (
+                    <Badge variant="info">{form.fundingStage}</Badge>
+                  )}
+                  {form.website && (
+                    <a
+                      href={form.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-primary hover:underline"
+                    >
+                      <Globe className="h-3.5 w-3.5" />
+                      Website
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  )}
+                </div>
+                {!form.description &&
+                  !form.sector &&
+                  !form.geography &&
+                  !form.fundingStage &&
+                  !form.website && (
+                    <p className="text-sm text-muted-foreground">
+                      No details filled in yet. Click Edit to complete your
+                      profile.
+                    </p>
+                  )}
               </div>
-              <div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary-500"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  PNG, JPG, or SVG. Max 2MB.
-                </p>
-              </div>
-            </div>
+            )}
           </CardContent>
         </Card>
+      ) : (
+        /* ── Edit mode ── */
+        <form onSubmit={handleSave} className="space-y-6">
+          {/* Logo upload */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Company Logo</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted">
+                  <Upload className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary-500"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    PNG, JPG, or SVG. Max 2MB.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Company details */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Company Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input
-              id="name"
-              label="Company Name"
-              value={form.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              placeholder="Your company name"
-              required
-            />
+          {/* Company details */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Company Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Input
+                id="name"
+                label="Company Name"
+                value={form.name}
+                onChange={(e) => updateField("name", e.target.value)}
+                placeholder="Your company name"
+                required
+              />
 
-            <Textarea
-              id="description"
-              label="Description"
-              value={form.description}
-              onChange={(e) => updateField("description", e.target.value)}
-              placeholder="Briefly describe what your company does..."
-              rows={4}
-            />
+              <Textarea
+                id="description"
+                label="Description"
+                value={form.description}
+                onChange={(e) => updateField("description", e.target.value)}
+                placeholder="Briefly describe what your company does..."
+                rows={4}
+              />
 
-            <Input
-              id="website"
-              label="Website"
-              type="url"
-              value={form.website}
-              onChange={(e) => updateField("website", e.target.value)}
-              placeholder="https://yourcompany.com"
-            />
+              <Input
+                id="website"
+                label="Website"
+                type="text"
+                value={form.website}
+                onChange={(e) => updateField("website", e.target.value)}
+                placeholder="yourcompany.com"
+              />
 
-            <div className="space-y-1">
-              <label htmlFor="sector" className="label">
-                Sector
-              </label>
-              <select
-                id="sector"
-                value={form.sector}
-                onChange={(e) => updateField("sector", e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select a sector</option>
-                {SECTORS.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <div className="space-y-1">
+                <label htmlFor="sector" className="label">
+                  Sector
+                </label>
+                <select
+                  id="sector"
+                  value={form.sector}
+                  onChange={(e) => updateField("sector", e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Select a sector</option>
+                  {SECTORS.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <Input
-              id="geography"
-              label="Geography"
-              value={form.geography}
-              onChange={(e) => updateField("geography", e.target.value)}
-              placeholder="e.g. Kenya, West Africa, Pan-African"
-            />
+              <Input
+                id="geography"
+                label="Geography"
+                value={form.geography}
+                onChange={(e) => updateField("geography", e.target.value)}
+                placeholder="e.g. Kenya, West Africa, Pan-African"
+              />
 
-            <div className="space-y-1">
-              <label htmlFor="fundingStage" className="label">
-                Funding Stage
-              </label>
-              <select
-                id="fundingStage"
-                value={form.fundingStage}
-                onChange={(e) => updateField("fundingStage", e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select a stage</option>
-                {FUNDING_STAGES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="space-y-1">
+                <label htmlFor="fundingStage" className="label">
+                  Funding Stage
+                </label>
+                <select
+                  id="fundingStage"
+                  value={form.fundingStage}
+                  onChange={(e) => updateField("fundingStage", e.target.value)}
+                  className="input-field"
+                >
+                  <option value="">Select a stage</option>
+                  {FUNDING_STAGES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </CardContent>
+          </Card>
 
-        <div className="flex justify-end">
-          <Button type="submit" disabled={saving}>
-            <Save className="mr-2 h-4 w-4" />
-            {saving ? "Saving..." : "Save Profile"}
-          </Button>
-        </div>
-      </form>
+          <div className="flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={cancelEditing}
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={saving}>
+              <Save className="mr-2 h-4 w-4" />
+              {saving ? "Saving..." : "Save Profile"}
+            </Button>
+          </div>
+        </form>
+      )}
     </AppShell>
   );
 }

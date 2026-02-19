@@ -34,7 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate } from "@/lib/utils";
+import { formatDate, normalizeUrl } from "@/lib/utils";
 
 const SECTORS = [
   "Fintech",
@@ -224,7 +224,7 @@ export default function AdminCompanyDetailPage() {
         body: JSON.stringify({
           name: editForm.name,
           description: editForm.description,
-          website: editForm.website,
+          website: normalizeUrl(editForm.website ?? ""),
           sector: editForm.sector,
           geography: editForm.geography,
           fundingStage: editForm.fundingStage,
@@ -611,9 +611,10 @@ export default function AdminCompanyDetailPage() {
               <Input
                 id="edit-website"
                 label="Website"
-                type="url"
+                type="text"
                 value={editForm.website ?? ""}
                 onChange={(e) => updateEditField("website", e.target.value)}
+                placeholder="example.com"
               />
               <div className="space-y-1">
                 <label htmlFor="edit-sector" className="label">

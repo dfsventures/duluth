@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   UserPlus,
 } from "lucide-react";
+import { normalizeUrl } from "@/lib/utils";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -68,7 +69,7 @@ export default function NewCompanyPage() {
       const payload: Record<string, unknown> = {
         name: name.trim(),
         description: description.trim(),
-        website: website.trim(),
+        website: normalizeUrl(website),
         sector,
         geography: geography.trim(),
         fundingStage,
@@ -177,10 +178,10 @@ export default function NewCompanyPage() {
             <Input
               id="website"
               label="Website"
-              type="url"
+              type="text"
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
-              placeholder="https://example.com"
+              placeholder="example.com"
             />
 
             <div className="space-y-1">

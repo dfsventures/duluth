@@ -35,3 +35,11 @@ export function daysSince(date: Date | string): number {
   const now = new Date();
   return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
 }
+
+/** Prepend https:// if no protocol is present. Returns empty string for blank input. */
+export function normalizeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) return trimmed;
+  return `https://${trimmed}`;
+}

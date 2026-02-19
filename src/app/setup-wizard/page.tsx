@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Upload,
 } from "lucide-react";
+import { normalizeUrl } from "@/lib/utils";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -103,7 +104,7 @@ export default function SetupWizardPage() {
           body: JSON.stringify({
             name: companyName.trim(),
             description: companyDescription.trim() || null,
-            website: companyWebsite.trim() || null,
+            website: normalizeUrl(companyWebsite) || null,
             sector: companySector || null,
             geography: companyGeography.trim() || null,
           }),
@@ -276,10 +277,10 @@ export default function SetupWizardPage() {
             <Input
               id="companyWebsite"
               label="Website"
-              type="url"
+              type="text"
               value={companyWebsite}
               onChange={(e) => setCompanyWebsite(e.target.value)}
-              placeholder="https://yourcompany.com"
+              placeholder="yourcompany.com"
             />
 
             <div className="space-y-1">
