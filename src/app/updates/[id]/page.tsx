@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
-  Send,
+  Globe,
   Download,
   FileText,
   MessageSquare,
@@ -82,6 +82,7 @@ export default function UpdateDetailPage() {
   const [update, setUpdate] = useState<UpdateDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -206,7 +207,8 @@ export default function UpdateDetailPage() {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? "Failed to send update");
       }
-      setMessage({ type: "success", text: "Update sent to Molly." });
+      setMessage({ type: "success", text: "Update published. The DFS Lab team has been notified." });
+      setConfirmPublish(false);
       await loadUpdate();
     } catch (err) {
       setMessage({
@@ -282,7 +284,7 @@ export default function UpdateDetailPage() {
         action={
           <div className="flex items-center gap-3">
             <Badge variant={update.status === "SENT" ? "success" : "warning"}>
-              {update.status === "SENT" ? "Sent" : "Draft"}
+              {update.status === "SENT" ? "Published" : "Draft"}
             </Badge>
             {!editing && (
               <>
@@ -317,16 +319,28 @@ export default function UpdateDetailPage() {
         </div>
       )}
 
-      {/* Send banner (view mode only) */}
+      {/* Publish banner (view mode only) */}
       {!editing && update.status === "DRAFT" && (
         <div className="mb-6 flex items-center justify-between rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3">
           <p className="text-sm text-yellow-800">
-            This update is still a draft. Send it when ready.
+            This update is still a draft. Publish it when ready.
           </p>
-          <Button size="sm" disabled={sending} onClick={handleSendToDFS}>
-            <Send className="mr-2 h-4 w-4" />
-            {sending ? "Sending..." : "Send to Molly"}
-          </Button>
+          {confirmPublish ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-yellow-800">Publish and notify the DFS Lab team?</span>
+              <Button variant="secondary" size="sm" disabled={sending} onClick={() => setConfirmPublish(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={sending} onClick={handleSendToDFS}>
+                {sending ? "Publishing..." : "Confirm Publish"}
+              </Button>
+            </div>
+          ) : (
+            <Button size="sm" disabled={sending} onClick={() => setConfirmPublish(true)}>
+              <Globe className="mr-2 h-4 w-4" />
+              Publish
+            </Button>
+          )}
         </div>
       )}
 

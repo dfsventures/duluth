@@ -41,6 +41,69 @@ export async function sendRejectionEmail(email: string) {
   });
 }
 
+export async function sendUpdatePublishedEmail(opts: {
+  companyName: string;
+  companyId: string;
+  updateId: string;
+  title: string;
+  period: string;
+  body: string;
+  metrics?: { name: string; unit: string | null; value: number }[];
+}) {
+  const adminLink = `${BASE_URL}/admin/companies/${opts.companyId}`;
+
+  const metricsHtml =
+    opts.metrics && opts.metrics.length > 0
+      ? `<table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
+          <thead>
+            <tr style="border-bottom: 2px solid #E2E8F0;">
+              <th style="text-align: left; padding: 8px 12px; font-size: 12px; color: #64748B; text-transform: uppercase;">Metric</th>
+              <th style="text-align: right; padding: 8px 12px; font-size: 12px; color: #64748B; text-transform: uppercase;">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${opts.metrics
+              .map(
+                (m) => `<tr style="border-bottom: 1px solid #F1F5F9;">
+                  <td style="padding: 8px 12px; font-size: 14px;">${m.name}</td>
+                  <td style="padding: 8px 12px; font-size: 14px; font-weight: 600; text-align: right;">
+                    ${Number(m.value).toLocaleString()}${m.unit ? ` ${m.unit}` : ""}
+                  </td>
+                </tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>`
+      : "";
+
+  await resend.emails.send({
+    from: FROM,
+    to: "team@dfslab.net",
+    subject: `[${opts.companyName}] ${opts.title} — ${opts.period}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 680px; margin: 0 auto; color: #1A1A2E;">
+        <div style="border-bottom: 3px solid #3BBFA0; padding-bottom: 16px; margin-bottom: 24px;">
+          <p style="margin: 0 0 4px; font-size: 12px; color: #64748B; text-transform: uppercase; letter-spacing: 0.05em;">Portfolio Update</p>
+          <h1 style="margin: 0 0 4px; font-size: 22px;">${opts.companyName}</h1>
+          <p style="margin: 0; font-size: 15px; color: #475569;">${opts.title} &middot; ${opts.period}</p>
+        </div>
+
+        ${metricsHtml}
+
+        <div style="font-size: 15px; line-height: 1.6; color: #334155;">
+          ${opts.body}
+        </div>
+
+        <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #E2E8F0;">
+          <a href="${adminLink}" style="display: inline-block; background: #3BBFA0; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 500;">
+            View in Dashboard
+          </a>
+        </div>
+      </div>
+    `,
+  });
+}
+
 export async function sendNewSignupNotification(founderEmail: string, founderName: string | null) {
   // Notify admins about new sign-up
   await resend.emails.send({

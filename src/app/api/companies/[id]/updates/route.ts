@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
+import { sendUpdatePublishedEmail } from "@/lib/email";
 
 type TransactionClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
@@ -132,6 +133,33 @@ export async function POST(
         },
       },
     });
+
+    // Send email if published immediately
+    if (updateStatus === "SENT" && fullUpdate) {
+      try {
+        const company = await db.company.findUnique({
+          where: { id },
+          select: { name: true },
+        });
+        if (company) {
+          await sendUpdatePublishedEmail({
+            companyName: company.name,
+            companyId: id,
+            updateId: fullUpdate.id,
+            title: fullUpdate.title,
+            period: fullUpdate.period,
+            body: fullUpdate.body,
+            metrics: fullUpdate.metricValues.map((mv) => ({
+              name: mv.metricDefinition.name,
+              unit: mv.metricDefinition.unit,
+              value: Number(mv.value),
+            })),
+          });
+        }
+      } catch (emailErr) {
+        console.error("Failed to send publish email:", emailErr);
+      }
+    }
 
     return NextResponse.json(fullUpdate, { status: 201 });
   } catch (err) {

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   Plus,
-  Send,
+  Globe,
   Save,
   FileText,
   AlertCircle,
@@ -46,6 +46,7 @@ export default function NewUpdatePage() {
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -113,11 +114,12 @@ export default function NewUpdatePage() {
 
     try {
       // Build metric values array
-      const metricValues = Object.entries(metricInputs)
+      const metrics = Object.entries(metricInputs)
         .filter(([, val]) => val.trim() !== "")
         .map(([metricDefinitionId, value]) => ({
           metricDefinitionId,
           value: parseFloat(value),
+          date: new Date().toISOString(),
         }));
 
       const res = await fetch(`/api/companies/${companyId}/updates`, {
@@ -128,7 +130,7 @@ export default function NewUpdatePage() {
           title: title.trim(),
           body: body.trim(),
           status,
-          metricValues,
+          metrics,
         }),
       });
 
@@ -144,9 +146,10 @@ export default function NewUpdatePage() {
         type: "success",
         text:
           status === "SENT"
-            ? "Update sent to Molly successfully."
+            ? "Update published. The DFS Lab team has been notified."
             : "Update saved as draft.",
       });
+      setConfirmPublish(false);
 
       // Reset form
       setPeriod("");
@@ -247,7 +250,7 @@ export default function NewUpdatePage() {
                         update.status === "SENT" ? "success" : "warning"
                       }
                     >
-                      {update.status === "SENT" ? "Sent" : "Draft"}
+                      {update.status === "SENT" ? "Published" : "Draft"}
                     </Badge>
                   </CardContent>
                 </Card>
@@ -334,22 +337,47 @@ export default function NewUpdatePage() {
           </div>
 
           {/* Action buttons */}
-          <div className="flex justify-end gap-3 border-t pt-4">
-            <Button
-              variant="secondary"
-              disabled={submitting}
-              onClick={() => handleSubmit("DRAFT")}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {submitting ? "Saving..." : "Save as Draft"}
-            </Button>
-            <Button
-              disabled={submitting}
-              onClick={() => handleSubmit("SENT")}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              {submitting ? "Sending..." : "Send to Molly"}
-            </Button>
+          <div className="flex items-center justify-end gap-3 border-t pt-4">
+            {confirmPublish ? (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  Publish and notify the DFS Lab team?
+                </span>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={submitting}
+                  onClick={() => setConfirmPublish(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={submitting}
+                  onClick={() => handleSubmit("SENT")}
+                >
+                  {submitting ? "Publishing..." : "Confirm Publish"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  variant="secondary"
+                  disabled={submitting}
+                  onClick={() => handleSubmit("DRAFT")}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {submitting ? "Saving..." : "Save as Draft"}
+                </Button>
+                <Button
+                  disabled={submitting}
+                  onClick={() => setConfirmPublish(true)}
+                >
+                  <Globe className="mr-2 h-4 w-4" />
+                  Publish
+                </Button>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

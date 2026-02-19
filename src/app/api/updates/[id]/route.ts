@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
+import { sendUpdatePublishedEmail } from "@/lib/email";
 
 export async function GET(
   _request: Request,
@@ -142,6 +143,39 @@ export async function PATCH(
 
       return result;
     });
+
+    // Send email if this PATCH just published the update
+    const justPublished = body.status === "SENT" && existing.status !== "SENT";
+    if (justPublished) {
+      try {
+        const full = await db.update.findUnique({
+          where: { id },
+          include: {
+            company: { select: { id: true, name: true } },
+            metricValues: {
+              include: { metricDefinition: { select: { name: true, unit: true } } },
+            },
+          },
+        });
+        if (full) {
+          await sendUpdatePublishedEmail({
+            companyName: full.company.name,
+            companyId: full.company.id,
+            updateId: full.id,
+            title: full.title,
+            period: full.period,
+            body: full.body,
+            metrics: full.metricValues.map((mv) => ({
+              name: mv.metricDefinition.name,
+              unit: mv.metricDefinition.unit,
+              value: Number(mv.value),
+            })),
+          });
+        }
+      } catch (emailErr) {
+        console.error("Failed to send publish email:", emailErr);
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (err) {
