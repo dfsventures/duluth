@@ -16,7 +16,9 @@ A web application for Molly to manage portfolio company updates, metrics, and do
 - Set up company profile (name, logo, sector, geography, funding stage)
 - Define and track key metrics (MRR, active users, revenue, etc.)
 - Create investor updates with narrative text, metric snapshots, and file attachments
-- Download a formatted version of each update to share with other investors
+- Publish updates with a confirmation step — DFS Lab is notified by email on publish
+- Generate shareable read-only links for investors with configurable expiry (7 days to never)
+- Download a formatted PDF of each update
 
 ### For Molly Admins
 - Approve or reject founder sign-up requests
@@ -24,6 +26,7 @@ A web application for Molly to manage portfolio company updates, metrics, and do
 - Company detail pages with full update history, metrics trends, and documents
 - Create companies and backfill updates before founders join the platform
 - Comment on updates to communicate with founders
+- Create shareable LP links covering one or multiple portfolio companies for a given period
 - AI chatbot that searches across all portfolio data and answers questions using OpenAI
 
 ## Tech Stack
@@ -91,4 +94,4 @@ Recommended stack for ~100 portfolio companies at **$25–75/month**:
 
 ## License
 
-Private — Molly internal use.
+MIT — free to use, fork, and modify. See [LICENSE](./LICENSE) for details.
