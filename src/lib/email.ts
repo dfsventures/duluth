@@ -4,6 +4,7 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
 const FROM = process.env.EMAIL_FROM || "Molly <noreply@dfslab.net>";
+const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfslab.net";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 // ---------------------------------------------------------------------------
@@ -138,7 +139,7 @@ export async function sendUpdatePublishedEmail(opts: {
 
   await resend.emails.send({
     from: FROM,
-    to: "team@dfslab.net",
+    to: TEAM_EMAIL,
     subject: `[${opts.companyName}] ${opts.title} — ${opts.period}`,
     html: emailWrapper(`
       <p style="margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #3BBFA0; text-transform: uppercase; letter-spacing: 0.08em;">Portfolio Update</p>
@@ -164,7 +165,7 @@ export async function sendNewSignupNotification(founderEmail: string, founderNam
 
   await resend.emails.send({
     from: FROM,
-    to: "team@dfslab.net",
+    to: TEAM_EMAIL,
     subject: `New access request: ${displayName}`,
     html: emailWrapper(`
       <p style="margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #3BBFA0; text-transform: uppercase; letter-spacing: 0.08em;">New Application</p>
