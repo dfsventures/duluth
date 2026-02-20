@@ -1,6 +1,5 @@
 import { Resend } from "resend";
 
-// Use a placeholder key if not configured — actual sends will fail gracefully
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
 const FROM = process.env.EMAIL_FROM || "Molly <noreply@dfslab.net>";
@@ -8,8 +7,17 @@ const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfslab.net";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 // ---------------------------------------------------------------------------
-// Shared HTML wrapper
+// Shared helpers
 // ---------------------------------------------------------------------------
+
+/** Throws if Resend returned an error, so callers surface the real reason. */
+function assertSent(result: { data: unknown; error: unknown }, context: string) {
+  if (result.error) {
+    console.error(`Resend error [${context}]:`, result.error);
+    throw new Error(`Email delivery failed (${context}): ${JSON.stringify(result.error)}`);
+  }
+}
+
 function emailWrapper(content: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -67,7 +75,7 @@ function primaryButton(href: string, label: string): string {
 export async function sendApprovalEmail(email: string, token: string) {
   const link = `${BASE_URL}/set-password?token=${token}`;
 
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: FROM,
     to: email,
     subject: "You're approved — set up your Molly account",
@@ -86,10 +94,11 @@ export async function sendApprovalEmail(email: string, token: string) {
       </p>
     `),
   });
+  assertSent(result, "approval");
 }
 
 export async function sendRejectionEmail(email: string) {
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: FROM,
     to: email,
     subject: "Update on your Molly access request",
@@ -100,6 +109,7 @@ export async function sendRejectionEmail(email: string) {
       <p style="margin: 0; color: #64748B;">— The DFS Lab Team</p>
     `),
   });
+  assertSent(result, "rejection");
 }
 
 export async function sendUpdatePublishedEmail(opts: {
@@ -137,7 +147,7 @@ export async function sendUpdatePublishedEmail(opts: {
         </table>`
       : "";
 
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: FROM,
     to: TEAM_EMAIL,
     subject: `[${opts.companyName}] ${opts.title} — ${opts.period}`,
@@ -157,16 +167,16 @@ export async function sendUpdatePublishedEmail(opts: {
       </div>
     `),
   });
+  assertSent(result, "update-published");
 }
 
 export async function sendNewSignupNotification(founderEmail: string, founderName: string | null) {
   const approvalsLink = `${BASE_URL}/admin/approvals`;
-  const displayName = founderName || founderEmail;
 
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: FROM,
     to: TEAM_EMAIL,
-    subject: `New access request: ${displayName}`,
+    subject: `New access request: ${founderName || founderEmail}`,
     html: emailWrapper(`
       <p style="margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #3BBFA0; text-transform: uppercase; letter-spacing: 0.08em;">New Application</p>
       <h1 style="margin: 0 0 20px; font-size: 22px; font-weight: 700; color: #0F172A;">Someone applied for access</h1>
@@ -190,17 +200,19 @@ export async function sendNewSignupNotification(founderEmail: string, founderNam
       ${primaryButton(approvalsLink, "Review Application →")}
     `),
   });
+  assertSent(result, "new-signup");
 }
 
 export async function sendTestEmail(toEmail: string) {
-  await resend.emails.send({
+  const result = await resend.emails.send({
     from: FROM,
     to: toEmail,
     subject: "Molly email configuration test",
     html: emailWrapper(`
       <h1 style="margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #0F172A;">Email is working!</h1>
-      <p style="margin: 0 0 16px;">If you're reading this, your Molly email configuration is set up correctly. Transactional emails (approvals, rejections, update notifications) will be delivered successfully.</p>
-      <p style="margin: 0; color: #64748B;">Sent from: <strong>${FROM}</strong></p>
+      <p style="margin: 0 0 16px;">If you're reading this, your Molly email configuration is set up correctly. Transactional emails (approvals, rejections, and update notifications) will be delivered successfully.</p>
+      <p style="margin: 0; color: #64748B; font-size: 13px;">Sent from: <strong>${FROM}</strong></p>
     `),
   });
+  assertSent(result, "test");
 }

@@ -18,7 +18,7 @@ export async function POST() {
 
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json(
-        { error: "RESEND_API_KEY is not configured. Add it to your .env.local file." },
+        { error: "RESEND_API_KEY is not set. Add it to your environment variables." },
         { status: 400 }
       );
     }
@@ -27,7 +27,8 @@ export async function POST() {
 
     return NextResponse.json({ success: true, sentTo: email });
   } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("POST /api/admin/test-email error:", err);
-    return NextResponse.json({ error: "Failed to send test email. Check your Resend configuration." }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
