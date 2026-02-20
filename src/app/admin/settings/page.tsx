@@ -1,4 +1,5 @@
 import { Mail } from "lucide-react";
+import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmailSettingsPanel } from "./email-settings-panel";
 
@@ -8,6 +9,7 @@ export default function SettingsPage() {
   const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfslab.net>";
 
   return (
+    <AppShell>
     <div className="max-w-2xl">
       <PageHeader
         title="Settings"
@@ -44,5 +46,6 @@ export default function SettingsPage() {
         <EmailSettingsPanel hasApiKey={hasApiKey} emailFrom={emailFrom} />
       </section>
     </div>
+    </AppShell>
   );
 }
