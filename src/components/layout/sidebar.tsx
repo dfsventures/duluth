@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Shield,
   Link2,
+  Settings,
 } from "lucide-react";
 
 const founderNav = [
@@ -30,6 +31,7 @@ const adminNav = [
   { label: "Companies", href: "/admin/companies", icon: Building2 },
   { label: "Investor Links", href: "/admin/links", icon: Link2 },
   { label: "AI Chat", href: "/admin/chat", icon: Bot },
+  { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
 export function Sidebar() {
