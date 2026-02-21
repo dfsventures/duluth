@@ -22,12 +22,17 @@ export async function GET() {
       sixMonthsData.push({ month, start, end });
     }
 
+    const approvedCompanyFilter = {
+      NOT: { createdBy: { status: "PENDING", approvalToken: null } },
+    } as const;
+
     const [totalCompanies, pendingApprovals, updatesThisMonth, companies, allSentUpdates, companiesWithMetrics] =
       await Promise.all([
-        db.company.count(),
-        db.user.count({ where: { status: "PENDING" } }),
+        db.company.count({ where: approvedCompanyFilter }),
+        db.user.count({ where: { status: "PENDING", approvalToken: null } }),
         db.update.count({ where: { createdAt: { gte: startOfMonth } } }),
         db.company.findMany({
+          where: approvedCompanyFilter,
           orderBy: { name: "asc" },
           select: {
             id: true,
