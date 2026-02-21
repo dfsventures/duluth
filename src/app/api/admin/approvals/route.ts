@@ -9,7 +9,7 @@ export async function GET() {
     if (error) return error;
 
     const pendingUsers = await db.user.findMany({
-      where: { status: "PENDING" },
+      where: { status: "PENDING", approvalToken: null },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
