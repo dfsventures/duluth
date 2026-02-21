@@ -3,6 +3,41 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 
+const GRACE_PERIOD_DAYS = 30;
+const MIN_UPDATES_FOR_CADENCE = 3;
+const CADENCE_LOOKBACK = 5;
+
+function isCompanyOverdue(company: {
+  createdAt: Date;
+  publishedUpdates: { sentAt: Date | null }[];
+}): boolean {
+  const now = Date.now();
+  const ageMs = now - company.createdAt.getTime();
+  const ageInDays = ageMs / (1000 * 60 * 60 * 24);
+
+  // Rule 1: grace period — never flag a new company
+  if (ageInDays < GRACE_PERIOD_DAYS) return false;
+
+  const dates = company.publishedUpdates
+    .map((u) => u.sentAt)
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => b.getTime() - a.getTime()); // most recent first
+
+  // Rule 2: past grace period but fewer than 3 published updates → flag
+  if (dates.length < MIN_UPDATES_FOR_CADENCE) return true;
+
+  // Rule 3: calculate cadence from last 5 published updates
+  const recent = dates.slice(0, CADENCE_LOOKBACK);
+  let totalGapMs = 0;
+  for (let i = 0; i < recent.length - 1; i++) {
+    totalGapMs += recent[i].getTime() - recent[i + 1].getTime();
+  }
+  const avgGapMs = totalGapMs / (recent.length - 1);
+  const timeSinceLastMs = now - recent[0].getTime();
+
+  return timeSinceLastMs > avgGapMs;
+}
+
 export async function GET() {
   try {
     const { error } = await requireAdmin();
@@ -10,7 +45,6 @@ export async function GET() {
 
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // Build last-6-months date boundaries
     const sixMonthsData: { month: string; start: Date; end: Date }[] = [];
@@ -40,10 +74,12 @@ export async function GET() {
             sector: true,
             geography: true,
             fundingStage: true,
+            createdAt: true,
             updates: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
-              select: { createdAt: true, status: true },
+              where: { status: "SENT" },
+              orderBy: { sentAt: "desc" },
+              take: CADENCE_LOOKBACK,
+              select: { sentAt: true },
             },
           },
         }),
@@ -68,13 +104,14 @@ export async function GET() {
     const sectorMap: Record<string, number> = {};
 
     const companiesData = companies.map((c) => {
-      const lastUpdateDate = c.updates[0]?.createdAt ?? null;
-      const daysSinceUpdate = lastUpdateDate
-        ? Math.floor((Date.now() - new Date(lastUpdateDate).getTime()) / (1000 * 60 * 60 * 24))
+      const publishedUpdates = c.updates.map((u) => ({ sentAt: u.sentAt }));
+      const lastSentAt = publishedUpdates[0]?.sentAt ?? null;
+      const daysSinceUpdate = lastSentAt
+        ? Math.floor((Date.now() - new Date(lastSentAt).getTime()) / (1000 * 60 * 60 * 24))
         : null;
 
-      const isOverdue = !lastUpdateDate || new Date(lastUpdateDate) < thirtyDaysAgo;
-      if (isOverdue) {
+      const overdue = isCompanyOverdue({ createdAt: c.createdAt, publishedUpdates });
+      if (overdue) {
         companiesOverdue++;
         overdueList.push({ id: c.id, name: c.name, sector: c.sector, daysSinceUpdate });
       }
@@ -82,7 +119,7 @@ export async function GET() {
       const sector = c.sector ?? "Uncategorized";
       sectorMap[sector] = (sectorMap[sector] ?? 0) + 1;
 
-      return { id: c.id, name: c.name, sector: c.sector, geography: c.geography, lastUpdateDate, daysSinceUpdate };
+      return { id: c.id, name: c.name, sector: c.sector, geography: c.geography, lastUpdateDate: lastSentAt, daysSinceUpdate };
     });
 
     // Updates per month (last 6 months)
