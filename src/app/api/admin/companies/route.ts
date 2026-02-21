@@ -9,6 +9,11 @@ export async function GET() {
     if (error) return error;
 
     const companies = await db.company.findMany({
+      where: {
+        NOT: {
+          createdBy: { status: "PENDING", approvalToken: null },
+        },
+      },
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
