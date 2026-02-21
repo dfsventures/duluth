@@ -159,7 +159,7 @@ export default function AdminDashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">{d.companiesOverdue}</p>
-            <p className="text-xs text-muted-foreground">No update in 30+ days</p>
+            <p className="text-xs text-muted-foreground">Behind on updates</p>
           </CardContent>
         </Card>
       </div>
