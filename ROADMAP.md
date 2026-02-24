@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-02-19_
+_Last updated: 2026-02-24_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -25,9 +25,10 @@ This document is the source of truth for existing platform features and planned 
 - Email/password login + Google OAuth (restricted to @dfslab.net for admins)
 - Founder signup → admin approval → set-password email flow
 - Middleware-enforced role-based routing (Founder → `/dashboard`, Admin → `/admin`)
-- Email notifications: approval, rejection, new signup alert
+- **Transactional emails** — overhauled email templates (approval, rejection, new signup notification, update published) with shared HTML wrapper featuring teal accent bar, Molly header, branded CTA buttons, and consistent footer; proper error handling on Resend API responses
 - Login page: founder-focused with Google OAuth demoted to DFS Lab team section
 - Signup page: reframed as an application form with expectation-setting copy
+- **Approved founders excluded from pending approvals** — only users awaiting password setup appear in the queue
 
 ### Founder Features
 - **Dashboard** — company summary, update history, days-since-last-update, onboarding prompt
@@ -47,10 +48,13 @@ This document is the source of truth for existing platform features and planned 
   - Revoke links
 
 ### Admin Features
-- **Dashboard** — KPI cards (total companies, pending approvals, updates this month, overdue companies); 6-month published updates bar chart; sector breakdown; collapsible overdue companies table with days-since color coding
+- **Dashboard** — KPI cards (total companies, pending approvals, updates this month, "Behind on updates" companies); 6-month published updates bar chart; sector breakdown; collapsible overdue companies table with days-since color coding
+  - **Smart "needing attention" detection** — cadence-based logic: grace period for companies < 30 days old; flagged if 30+ days old with < 3 published updates; for 3+ updates, flagged only if time since last update exceeds average gap from last 5 updates
+  - **Unapproved companies filtered** — companies from pending (not yet approved) founders no longer appear in admin list or dashboard stats
 - **Approvals** — approve/reject signups with email notifications
 - **Company Management** — grid view, search, add company, bulk CSV import
 - **Company Detail** — full editable profile; view company updates; manage members; metric charts + history; document management with type tagging, search, filtering, and archive
+- **Settings** (`/admin/settings`) — email trigger overview, FROM address display, RESEND_API_KEY configuration check, "Send Test Email" button with live success/error feedback
 - **Investor Links** — multi-company link creation; full view log; revoke
 - **AI Chat** — conversational AI over portfolio data (updates + documents); markdown + source attribution
 
