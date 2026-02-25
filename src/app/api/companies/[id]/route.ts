@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess, requireAdmin } from "@/lib/auth-guard";
+import { auth } from "@/lib/auth";
 
 export async function GET(
   _request: Request,
@@ -82,6 +83,7 @@ export async function PATCH(
     const { error } = await requireCompanyAccess(id);
     if (error) return error;
 
+    const session = await auth();
     const body = await request.json();
     const allowedFields = [
       "name",
@@ -98,6 +100,15 @@ export async function PATCH(
       if (body[field] !== undefined) {
         data[field] = body[field];
       }
+    }
+
+    // Only admins can configure reminder settings
+    if (
+      body.reminderFrequencyDays !== undefined &&
+      session?.user?.role === "ADMIN"
+    ) {
+      data.reminderFrequencyDays =
+        body.reminderFrequencyDays === null ? null : Number(body.reminderFrequencyDays);
     }
 
     if (Object.keys(data).length === 0) {

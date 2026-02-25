@@ -203,6 +203,33 @@ export async function sendNewSignupNotification(founderEmail: string, founderNam
   assertSent(result, "new-signup");
 }
 
+export async function sendUpdateReminderEmail(opts: {
+  toEmail: string;
+  founderName: string | null;
+  companyName: string;
+  daysSinceLastUpdate: number;
+}) {
+  const dashboardLink = `${BASE_URL}/dashboard`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    to: opts.toEmail,
+    subject: `Time for a ${opts.companyName} update`,
+    html: emailWrapper(`
+      <h1 style="margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #0F172A;">Time for an update!</h1>
+      <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${opts.founderName.split(" ")[0]}` : ""},</p>
+      <p style="margin: 0 0 24px;">It's been <strong>${opts.daysSinceLastUpdate} day${opts.daysSinceLastUpdate === 1 ? "" : "s"}</strong> since <strong>${opts.companyName}</strong> submitted an update. Keeping your portfolio page current helps DFS Lab support you better — and takes less time than you think.</p>
+
+      ${primaryButton(dashboardLink, "Submit an Update →")}
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: #94A3B8;">
+        You're receiving this because DFS Lab has configured update reminders for ${opts.companyName}. Reply to this email if you have any questions.
+      </p>
+    `),
+  });
+  assertSent(result, "update-reminder");
+}
+
 export async function sendTestEmail(toEmail: string) {
   const result = await resend.emails.send({
     from: FROM,

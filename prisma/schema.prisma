@@ -71,6 +71,9 @@ model Company {
   geography    String?
   fundingStage String?
 
+  reminderFrequencyDays Int?      // null = disabled; 7, 14, 30, or 90
+  lastReminderSentAt    DateTime? // tracks cooldown between reminders
+
   createdById String
   createdBy   User   @relation("CreatedCompanies", fields: [createdById], references: [id])
 

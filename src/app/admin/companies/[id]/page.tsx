@@ -28,6 +28,7 @@ import {
   Search,
   Archive,
   ArchiveRestore,
+  Bell,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -44,6 +45,14 @@ import { DOC_TYPES } from "@/lib/constants";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
+const REMINDER_OPTIONS = [
+  { label: "Disabled", value: null },
+  { label: "Weekly", value: 7 },
+  { label: "Bi-weekly", value: 14 },
+  { label: "Monthly", value: 30 },
+  { label: "Quarterly", value: 90 },
+] as const;
+
 interface Company {
   id: string;
   name: string;
@@ -53,6 +62,8 @@ interface Company {
   sector: string | null;
   geography: string | null;
   fundingStage: string | null;
+  reminderFrequencyDays: number | null;
+  lastReminderSentAt: string | null;
 }
 
 interface Update {
@@ -216,7 +227,7 @@ export default function AdminCompanyDetailPage() {
     fetchAll();
   }, [loadCompany, loadUpdates, loadMetrics, loadDocuments, loadMembers]);
 
-  function updateEditField(field: keyof Company, value: string | null) {
+  function updateEditField(field: keyof Company, value: string | number | null) {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
   }
 
@@ -235,6 +246,7 @@ export default function AdminCompanyDetailPage() {
           sector: editForm.sector,
           geography: editForm.geography,
           fundingStage: editForm.fundingStage,
+          reminderFrequencyDays: editForm.reminderFrequencyDays,
         }),
       });
       if (!res.ok) {
@@ -675,6 +687,31 @@ export default function AdminCompanyDetailPage() {
                   ))}
                 </select>
               </div>
+              <div className="space-y-1">
+                <label htmlFor="edit-reminderFrequency" className="label">
+                  Update Reminder Frequency
+                </label>
+                <select
+                  id="edit-reminderFrequency"
+                  value={editForm.reminderFrequencyDays ?? ""}
+                  onChange={(e) =>
+                    updateEditField(
+                      "reminderFrequencyDays",
+                      e.target.value === "" ? null : Number(e.target.value)
+                    )
+                  }
+                  className="input-field"
+                >
+                  {REMINDER_OPTIONS.map((o) => (
+                    <option key={String(o.value)} value={o.value ?? ""}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  Founders will receive an email reminder when they haven&apos;t submitted an update within this window.
+                </p>
+              </div>
               <div className="flex justify-end gap-3 border-t pt-4">
                 <Button
                   variant="secondary"
@@ -726,6 +763,31 @@ export default function AdminCompanyDetailPage() {
                     Website
                     <ExternalLink className="h-3 w-3" />
                   </a>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Bell className="h-3.5 w-3.5" />
+                {company.reminderFrequencyDays ? (
+                  <>
+                    Reminders:{" "}
+                    <span className="font-medium text-foreground">
+                      {REMINDER_OPTIONS.find((o) => o.value === company.reminderFrequencyDays)?.label ?? `Every ${company.reminderFrequencyDays}d`}
+                    </span>
+                    {company.lastReminderSentAt ? (
+                      <span className="ml-1">
+                        &middot; Last sent{" "}
+                        {Math.floor(
+                          (Date.now() - new Date(company.lastReminderSentAt).getTime()) /
+                            86_400_000
+                        )}
+                        d ago
+                      </span>
+                    ) : (
+                      <span className="ml-1">&middot; Never sent</span>
+                    )}
+                  </>
+                ) : (
+                  <span>Reminders: Off</span>
                 )}
               </div>
             </div>
