@@ -230,6 +230,57 @@ export async function sendUpdateReminderEmail(opts: {
   assertSent(result, "update-reminder");
 }
 
+export async function sendTeamInviteEmail(opts: {
+  toEmail: string;
+  inviterName: string | null;
+  companyName: string;
+  token: string;
+}) {
+  const link = `${BASE_URL}/set-password?token=${opts.token}`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    to: opts.toEmail,
+    subject: `${opts.companyName} invited you to join Molly`,
+    html: emailWrapper(`
+      <h1 style="margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #0F172A;">You've been invited!</h1>
+      <p style="margin: 0 0 24px; color: #64748B;">${opts.inviterName ?? "A teammate"} has invited you to join <strong>${opts.companyName}</strong> on Molly. Click the button below to set up your account.</p>
+
+      <p>${primaryButton(link, "Set Up Your Account →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: #94A3B8;">
+        This link expires in <strong>48 hours</strong>. If you weren't expecting this invitation, you can safely ignore this email.
+      </p>
+      <p style="margin: 4px 0 0; font-size: 13px; color: #94A3B8;">
+        Having trouble? Copy and paste this URL into your browser:<br>
+        <span style="color: #3BBFA0; word-break: break-all;">${link}</span>
+      </p>
+    `),
+  });
+  assertSent(result, "team-invite");
+}
+
+export async function sendMemberAddedEmail(opts: {
+  toEmail: string;
+  inviterName: string | null;
+  companyName: string;
+}) {
+  const dashboardLink = `${BASE_URL}/dashboard`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    to: opts.toEmail,
+    subject: `You've been added to ${opts.companyName} on Molly`,
+    html: emailWrapper(`
+      <h1 style="margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #0F172A;">You've been added to a company</h1>
+      <p style="margin: 0 0 24px; color: #64748B;">${opts.inviterName ?? "A teammate"} added you to <strong>${opts.companyName}</strong> on Molly.</p>
+
+      <p>${primaryButton(dashboardLink, "Go to Dashboard →")}</p>
+    `),
+  });
+  assertSent(result, "member-added");
+}
+
 export async function sendTestEmail(toEmail: string) {
   const result = await resend.emails.send({
     from: FROM,

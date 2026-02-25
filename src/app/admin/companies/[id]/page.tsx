@@ -94,10 +94,12 @@ interface Document {
 }
 
 interface Member {
-  id: string;
+  membershipId: string;
+  userId: string;
   name: string | null;
   email: string;
-  role: string;
+  userRole: string;
+  membershipRole: "OWNER" | "MEMBER" | "VIEWER";
 }
 
 type Tab = "updates" | "metrics" | "documents" | "members";
@@ -137,6 +139,7 @@ export default function AdminCompanyDetailPage() {
   const [addMemberEmail, setAddMemberEmail] = useState("");
   const [addingMember, setAddingMember] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
+  const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   // Company deletion
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -331,7 +334,7 @@ export default function AdminCompanyDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Failed to add member");
       setMembers((prev) => {
-        if (prev.find((m) => m.id === data.id)) return prev;
+        if (prev.find((m) => m.userId === data.userId)) return prev;
         return [...prev, data];
       });
       setAddMemberEmail("");
@@ -359,7 +362,7 @@ export default function AdminCompanyDetailPage() {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "Failed to remove member");
       }
-      setMembers((prev) => prev.filter((m) => m.id !== userId));
+      setMembers((prev) => prev.filter((m) => m.userId !== userId));
     } catch (err) {
       setMessage({
         type: "error",
@@ -367,6 +370,29 @@ export default function AdminCompanyDetailPage() {
       });
     } finally {
       setRemovingMemberId(null);
+    }
+  }
+
+  async function handleMemberRoleChange(userId: string, role: "OWNER" | "MEMBER" | "VIEWER") {
+    setUpdatingRoleId(userId);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/members`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, role }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update role");
+      setMembers((prev) =>
+        prev.map((m) => (m.userId === userId ? { ...m, membershipRole: data.membershipRole } : m))
+      );
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to update role.",
+      });
+    } finally {
+      setUpdatingRoleId(null);
     }
   }
 
@@ -1271,7 +1297,7 @@ export default function AdminCompanyDetailPage() {
           ) : (
             <div className="space-y-2">
               {members.map((member) => (
-                <Card key={member.id}>
+                <Card key={member.membershipId}>
                   <CardContent className="flex items-center justify-between py-3">
                     <div className="flex items-center gap-3">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
@@ -1288,12 +1314,30 @@ export default function AdminCompanyDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge variant={member.role === "ADMIN" ? "info" : "neutral"}>
-                        {member.role === "ADMIN" ? "Admin" : "Founder"}
+                      <Badge variant={member.userRole === "ADMIN" ? "info" : "neutral"}>
+                        {member.userRole === "ADMIN" ? "Admin" : "Founder"}
                       </Badge>
+                      {/* Membership role select (admins can set OWNER/MEMBER/VIEWER) */}
+                      {member.userRole !== "ADMIN" && (
+                        <select
+                          value={member.membershipRole}
+                          disabled={updatingRoleId === member.userId}
+                          onChange={(e) =>
+                            handleMemberRoleChange(
+                              member.userId,
+                              e.target.value as "OWNER" | "MEMBER" | "VIEWER"
+                            )
+                          }
+                          className="rounded-md border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                        >
+                          <option value="OWNER">Owner</option>
+                          <option value="MEMBER">Editor</option>
+                          <option value="VIEWER">Viewer</option>
+                        </select>
+                      )}
                       <button
-                        onClick={() => handleRemoveMember(member.id)}
-                        disabled={removingMemberId === member.id}
+                        onClick={() => handleRemoveMember(member.userId)}
+                        disabled={removingMemberId === member.userId}
                         className="text-muted-foreground hover:text-destructive disabled:opacity-40"
                         title="Remove member"
                       >

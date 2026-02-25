@@ -15,6 +15,7 @@ import {
   Shield,
   Link2,
   Settings,
+  Users,
 } from "lucide-react";
 
 const founderNav = [
@@ -23,6 +24,7 @@ const founderNav = [
   { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
   { label: "Updates", href: "/updates/new", icon: FileText },
   { label: "Investor Links", href: "/links", icon: Link2 },
+  { label: "Team", href: "/team", icon: Users },
 ];
 
 const adminNav = [
