@@ -326,10 +326,10 @@ export default function AdminCompanyDetailPage() {
     setAddingMember(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/companies/${companyId}/members`, {
+      const res = await fetch(`/api/companies/${companyId}/members/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: addMemberEmail.trim() }),
+        body: JSON.stringify({ email: addMemberEmail.trim(), role: "MEMBER" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error ?? "Failed to add member");

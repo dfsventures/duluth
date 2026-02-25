@@ -5,6 +5,13 @@ import { requireCompanyAccess } from "@/lib/auth-guard";
 import { sendTeamInviteEmail, sendMemberAddedEmail } from "@/lib/email";
 import crypto from "crypto";
 
+function generateToken() {
+  return {
+    token: crypto.randomBytes(32).toString("hex"),
+    tokenExpiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+  };
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -15,7 +22,7 @@ export async function POST(
     if (error) return error;
 
     // Must be admin or OWNER of this company
-    let callerIsAdmin = user.role === "ADMIN";
+    const callerIsAdmin = user.role === "ADMIN";
     if (!callerIsAdmin) {
       const callerMembership = await db.userCompanyMembership.findUnique({
         where: { userId_companyId: { userId: user.id, companyId: id } },
@@ -47,25 +54,104 @@ export async function POST(
     const existingUser = await db.user.findUnique({ where: { email } });
 
     if (existingUser) {
-      // Pending = no passwordHash set (invite already sent but not accepted)
-      if (!existingUser.passwordHash && existingUser.status === "APPROVED" && existingUser.approvalToken) {
+      // PENDING: applied through normal signup — don't bypass admin approval queue
+      if (existingUser.status === "PENDING") {
         return NextResponse.json(
-          { error: "An invitation for this email is already pending" },
+          { error: "This email has a pending account application — an admin must approve it first" },
           { status: 409 }
         );
       }
 
-      if (existingUser.status !== "APPROVED") {
-        return NextResponse.json(
-          { error: "An invitation for this email is already pending" },
-          { status: 409 }
-        );
+      // REJECTED: founder is vouching for them — re-approve and invite
+      if (existingUser.status === "REJECTED") {
+        const { token, tokenExpiresAt } = generateToken();
+        await db.user.update({
+          where: { id: existingUser.id },
+          data: { status: "APPROVED", approvalToken: token, tokenExpiresAt },
+        });
+
+        const existingMembership = await db.userCompanyMembership.findUnique({
+          where: { userId_companyId: { userId: existingUser.id, companyId: id } },
+        });
+        const membership =
+          existingMembership ??
+          (await db.userCompanyMembership.create({
+            data: { userId: existingUser.id, companyId: id, role: role as "MEMBER" | "VIEWER" },
+          }));
+
+        sendTeamInviteEmail({
+          toEmail: existingUser.email,
+          inviterName: user.name ?? null,
+          companyName: company.name,
+          token,
+        }).catch((err) => console.error("Failed to send team-invite email:", err));
+
+        return NextResponse.json({
+          membershipId: membership.id,
+          userId: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          userRole: existingUser.role,
+          membershipRole: membership.role,
+        });
       }
 
-      // Check if already a member
+      // APPROVED — from here on status is APPROVED
+      // Check membership up front so all sub-cases below can use it
       const existingMembership = await db.userCompanyMembership.findUnique({
         where: { userId_companyId: { userId: existingUser.id, companyId: id } },
       });
+
+      if (!existingUser.passwordHash) {
+        // Account exists but password was never set — either a pending invite or an
+        // edge case where the token was cleared without the user finishing setup.
+        if (existingMembership) {
+          return NextResponse.json(
+            { error: "User is already a member of this company" },
+            { status: 409 }
+          );
+        }
+
+        const tokenExpired =
+          !existingUser.tokenExpiresAt || existingUser.tokenExpiresAt < new Date();
+
+        let activeToken: string;
+
+        if (existingUser.approvalToken && !tokenExpired) {
+          // Valid token — reuse it (no need to regenerate)
+          activeToken = existingUser.approvalToken;
+        } else {
+          // Expired or missing token — regenerate so they can complete setup
+          const { token, tokenExpiresAt } = generateToken();
+          await db.user.update({
+            where: { id: existingUser.id },
+            data: { approvalToken: token, tokenExpiresAt },
+          });
+          activeToken = token;
+        }
+
+        const membership = await db.userCompanyMembership.create({
+          data: { userId: existingUser.id, companyId: id, role: role as "MEMBER" | "VIEWER" },
+        });
+
+        sendTeamInviteEmail({
+          toEmail: existingUser.email,
+          inviterName: user.name ?? null,
+          companyName: company.name,
+          token: activeToken,
+        }).catch((err) => console.error("Failed to send team-invite email:", err));
+
+        return NextResponse.json({
+          membershipId: membership.id,
+          userId: existingUser.id,
+          name: existingUser.name,
+          email: existingUser.email,
+          userRole: existingUser.role,
+          membershipRole: membership.role,
+        });
+      }
+
+      // Fully active user (has password)
       if (existingMembership) {
         return NextResponse.json(
           { error: "User is already a member of this company" },
@@ -73,12 +159,10 @@ export async function POST(
         );
       }
 
-      // Add existing approved user
       const membership = await db.userCompanyMembership.create({
         data: { userId: existingUser.id, companyId: id, role: role as "MEMBER" | "VIEWER" },
       });
 
-      // Send notification email (best-effort)
       sendMemberAddedEmail({
         toEmail: existingUser.email,
         inviterName: user.name ?? null,
@@ -95,9 +179,8 @@ export async function POST(
       });
     }
 
-    // New user — create account (APPROVED, no password yet) + membership
-    const token = crypto.randomBytes(32).toString("hex");
-    const tokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    // No user found — create account (APPROVED, no password yet) + membership
+    const { token, tokenExpiresAt } = generateToken();
 
     const newUser = await db.user.create({
       data: {
@@ -112,7 +195,6 @@ export async function POST(
       data: { userId: newUser.id, companyId: id, role: role as "MEMBER" | "VIEWER" },
     });
 
-    // Send invite email (best-effort)
     sendTeamInviteEmail({
       toEmail: email,
       inviterName: user.name ?? null,
