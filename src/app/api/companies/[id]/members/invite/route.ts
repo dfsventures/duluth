@@ -81,7 +81,7 @@ export async function POST(
       // Send notification email (best-effort)
       sendMemberAddedEmail({
         toEmail: existingUser.email,
-        inviterName: user.name,
+        inviterName: user.name ?? null,
         companyName: company.name,
       }).catch((err) => console.error("Failed to send member-added email:", err));
 
@@ -115,7 +115,7 @@ export async function POST(
     // Send invite email (best-effort)
     sendTeamInviteEmail({
       toEmail: email,
-      inviterName: user.name,
+      inviterName: user.name ?? null,
       companyName: company.name,
       token,
     }).catch((err) => console.error("Failed to send team-invite email:", err));
