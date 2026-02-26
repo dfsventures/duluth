@@ -38,17 +38,22 @@ interface Update {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [company, setCompany] = useState<Company | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+
     async function fetchData() {
       try {
         const res = await fetch("/api/companies");
-        if (!res.ok) throw new Error("Failed to load company data");
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error ?? `Server error (${res.status})`);
+        }
         const data = await res.json();
 
         const companies = data.data ?? data;
@@ -76,9 +81,9 @@ export default function DashboardPage() {
     }
 
     fetchData();
-  }, []);
+  }, [sessionStatus]);
 
-  if (loading) {
+  if (sessionStatus === "loading" || loading) {
     return (
       <AppShell>
         <div className="flex items-center justify-center py-20">
