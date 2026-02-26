@@ -5,6 +5,9 @@ import { SessionProvider } from "next-auth/react";
 export const metadata: Metadata = {
   title: "Molly — DFS Lab Portfolio Platform",
   description: "Submit updates, track metrics, and share progress with your investors.",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
