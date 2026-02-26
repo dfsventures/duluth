@@ -15,11 +15,11 @@ export async function POST(request: Request) {
 
     const history = Array.isArray(body.history) ? body.history : [];
 
-    // Check if OpenAI is configured
-    if (!process.env.OPENAI_API_KEY) {
+    // Check if Anthropic is configured
+    if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({
         response:
-          "AI chat is not yet configured. Please set your OPENAI_API_KEY environment variable to enable this feature.",
+          "AI chat is not yet configured. Please set your ANTHROPIC_API_KEY environment variable to enable this feature.",
         sources: [],
       });
     }

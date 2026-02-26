@@ -1,7 +1,9 @@
 import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 /**
  * Generate an embedding for a piece of text using OpenAI.
@@ -147,7 +149,6 @@ export async function chatWithAI(
     }
   }
 
-  // Build the messages for OpenAI
   const systemMessage = `You are an AI assistant for Molly, a venture capital fund that manages a portfolio of companies.
 You help the Molly team analyze their portfolio companies' updates, metrics, and documents.
 Answer questions based on the provided context. Be specific and cite which company or update you're referencing.
@@ -156,20 +157,20 @@ If you don't have enough information to answer, say so clearly.
 Context from portfolio data:
 ${context || "No relevant context found."}`;
 
-  const messages: OpenAI.ChatCompletionMessageParam[] = [
-    { role: "system", content: systemMessage },
-    ...history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
-    { role: "user", content: message },
-  ];
-
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    messages,
-    temperature: 0.3,
+  const completion = await anthropic.messages.create({
+    model: "claude-haiku-4-5-20251001",
     max_tokens: 1000,
+    system: systemMessage,
+    messages: [
+      ...history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
+      { role: "user", content: message },
+    ],
   });
 
-  const response = completion.choices[0]?.message?.content || "I couldn't generate a response.";
+  const response =
+    completion.content[0]?.type === "text"
+      ? completion.content[0].text
+      : "I couldn't generate a response.";
 
   return { response, sources };
 }
