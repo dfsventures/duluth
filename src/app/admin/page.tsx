@@ -46,17 +46,22 @@ interface DashboardData {
 }
 
 export default function AdminDashboardPage() {
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showOverdue, setShowOverdue] = useState(false);
 
   useEffect(() => {
+    if (sessionStatus !== "authenticated") return;
+
     async function fetchData() {
       try {
         const res = await fetch("/api/admin/dashboard");
-        if (!res.ok) throw new Error("Failed to load dashboard data");
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error ?? `Server error (${res.status})`);
+        }
         const data = await res.json();
         setDashboard(data);
       } catch (err) {
@@ -67,9 +72,9 @@ export default function AdminDashboardPage() {
     }
 
     fetchData();
-  }, []);
+  }, [sessionStatus]);
 
-  if (loading) {
+  if (sessionStatus === "loading" || loading) {
     return (
       <AppShell>
         <div className="flex items-center justify-center py-20">
