@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-02-24_
+_Last updated: 2026-02-26_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -46,6 +46,12 @@ This document is the source of truth for existing platform features and planned 
   - Email gate on first visit; silent re-tracking via localStorage
   - View log with email + timestamp
   - Revoke links
+- **Team Management** (`/team`) — OWNER founders can invite teammates by email (MEMBER/VIEWER roles)
+  - New users get an account automatically (APPROVED + set-password link, 48hr expiry); no admin review queue
+  - Existing users get a notification email and are added immediately
+  - Handles edge cases: re-invites rejected users, regenerates expired tokens, detects duplicates
+  - Role change (Editor ↔ Viewer) and remove member in-page
+  - Admins can also add members from the company detail page (same invite flow)
 
 ### Admin Features
 - **Dashboard** — KPI cards (total companies, pending approvals, updates this month, "Behind on updates" companies); 6-month published updates bar chart; sector breakdown; collapsible overdue companies table with days-since color coding
@@ -55,8 +61,13 @@ This document is the source of truth for existing platform features and planned 
 - **Company Management** — grid view, search, add company, bulk CSV import
 - **Company Detail** — full editable profile; view company updates; manage members; metric charts + history; document management with type tagging, search, filtering, and archive
 - **Settings** (`/admin/settings`) — email trigger overview, FROM address display, RESEND_API_KEY configuration check, "Send Test Email" button with live success/error feedback
+- **Update Reminders** — Vercel Cron job (daily, 9am UTC) sends reminder emails to founders when updates are overdue
+  - Per-company frequency: weekly / bi-weekly / monthly / quarterly / disabled
+  - Cooldown via `lastReminderSentAt` prevents repeat emails within the configured window
+  - Emails all OWNER + MEMBER founders on the company; secured by `CRON_SECRET`
 - **Investor Links** — multi-company link creation; full view log; revoke
 - **AI Chat** — conversational AI over portfolio data (updates + documents); markdown + source attribution
+- **Company member management** — add members by email from company detail page; new users created automatically via invite flow; membership role dropdown (Owner/Editor/Viewer) per founder member
 
 ### Document Management
 - Upload documents linked to a company or specific update
@@ -72,17 +83,15 @@ This document is the source of truth for existing platform features and planned 
 
 ### High Priority
 
-| Feature | Description | Benefits | Status |
-|---------|-------------|----------|--------|
-| **Update Reminders** | Automated emails to founders when updates are due. Admins configure per-company frequency and see upcoming deadlines. | Prevents overdue companies proactively instead of just tracking them after the fact. | Pending |
-| **Founder Team Management** | Invite multiple team members per company (Owner, Editor, Viewer). No shared credentials. | Most portfolio companies have multiple contributors. Reduces friction and improves update quality. | Pending |
+| Feature | Description | Benefits |
+|---------|-------------|----------|
+| **Comment Threading + Notifications** | Threaded replies, @mentions, resolution status. Founders get email alerts on admin feedback. | Turns one-way updates into a coaching feedback loop. |
+| **Update Templates** | Admin-created templates with pre-filled sections and metric guidance. | Reduces founder cognitive load; improves update consistency and completeness. |
 
 ### Medium Priority
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
-| **Comment Threading + Notifications** | Threaded replies, @mentions, resolution status. Founders get email alerts on admin feedback. | Turns one-way updates into a coaching feedback loop. |
-| **Update Templates** | Admin-created templates with pre-filled sections and metric guidance. | Reduces founder cognitive load; improves update consistency and completeness. |
 | **Metrics Benchmarking** | Anonymized peer comparison (e.g., "Your MRR growth is above portfolio median"). | Motivates founders; surfaces outliers for admin attention. |
 | **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
 | **Bulk LP Report Link** | Admin creates a single link covering the full portfolio for a period. | Current multi-company links require manual selection. Essential for LP meetings. |

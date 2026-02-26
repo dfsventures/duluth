@@ -19,15 +19,18 @@ A web application for Molly to manage portfolio company updates, metrics, and do
 - Publish updates with a confirmation step — DFS Lab is notified by email on publish
 - Generate shareable read-only links for investors with configurable expiry (7 days to never)
 - Download a formatted PDF of each update
+- Invite teammates by email (Owner, Editor, Viewer roles) — new users get an account automatically
+- Manage team access: change roles, remove members
 
 ### For Molly Admins
 - Approve or reject founder sign-up requests
 - Global dashboard showing update cadence across all portfolio companies
 - Company detail pages with full update history, metrics trends, and documents
-- Create companies and backfill updates before founders join the platform
+- Create companies and add members by email — new users are created and invited automatically
 - Comment on updates to communicate with founders
 - Create shareable LP links covering one or multiple portfolio companies for a given period
 - AI chatbot that searches across all portfolio data and answers questions using OpenAI
+- Configure per-company update reminder frequency (weekly, bi-weekly, monthly, quarterly)
 
 ## Tech Stack
 
