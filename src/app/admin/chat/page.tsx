@@ -65,7 +65,8 @@ export default function AdminChatPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmed,
-          history: updatedMessages.map((m) => ({
+          // Pass only previous messages as history — chatWithAI appends the current message itself
+          history: messages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
