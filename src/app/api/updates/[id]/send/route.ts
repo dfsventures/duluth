@@ -37,6 +37,13 @@ export async function POST(
       },
     });
 
+    // Index for AI search (best-effort, don't block the response)
+    if (process.env.OPENAI_API_KEY) {
+      import("@/lib/ai")
+        .then(({ indexUpdate }) => indexUpdate(id))
+        .catch((err) => console.error("Failed to index update for AI:", err));
+    }
+
     return NextResponse.json(updated);
   } catch (err) {
     console.error("POST /api/updates/[id]/send error:", err);

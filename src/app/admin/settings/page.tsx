@@ -1,10 +1,12 @@
-import { Mail, Bell } from "lucide-react";
+import { Mail, Bell, Bot } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmailSettingsPanel } from "./email-settings-panel";
+import { AISettingsPanel } from "./ai-settings-panel";
 
 export default function SettingsPage() {
   const hasApiKey = !!process.env.RESEND_API_KEY;
+  const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
   const teamEmail = process.env.TEAM_EMAIL || "joseph@dfslab.net";
   const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfslab.net>";
 
@@ -80,6 +82,19 @@ export default function SettingsPage() {
             )}
           </p>
         </div>
+      </section>
+      <section className="mt-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
+            <Bot className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">AI</h2>
+            <p className="text-xs text-muted-foreground">Semantic search and chat powered by OpenAI + Claude</p>
+          </div>
+        </div>
+
+        <AISettingsPanel hasOpenAIKey={hasOpenAIKey} />
       </section>
     </div>
     </AppShell>
