@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,6 @@ import { Input } from "@/components/ui/input";
 
 function SetPasswordForm() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const token = searchParams.get("token");
 
   const [password, setPassword] = useState("");
@@ -47,7 +47,12 @@ function SetPasswordForm() {
         return;
       }
 
-      router.push("/login");
+      // Auto sign-in with the credentials they just set
+      await signIn("credentials", {
+        email: data.email,
+        password,
+        callbackUrl: "/dashboard",
+      });
     } catch {
       setError("Network error. Please try again.");
     } finally {
