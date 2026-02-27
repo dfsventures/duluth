@@ -17,7 +17,9 @@ export default auth((req) => {
 
   // Must be logged in for everything else
   if (!isLoggedIn) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    const loginUrl = new URL("/login", req.url);
+    loginUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search);
+    return NextResponse.redirect(loginUrl);
   }
 
   // Founders must be approved (unless accessing setup wizard)

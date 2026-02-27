@@ -20,6 +20,7 @@ const GoogleIcon = () => (
 function LoginForm() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
+  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,7 +36,7 @@ function LoginForm() {
   async function handleCredentialsLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    await signIn("credentials", { email, password, callbackUrl: "/dashboard" });
+    await signIn("credentials", { email, password, callbackUrl });
     setLoading(false);
   }
 
@@ -107,7 +108,7 @@ function LoginForm() {
               type="button"
               variant="secondary"
               className="w-full"
-              onClick={() => signIn("google", { callbackUrl: "/admin" })}
+              onClick={() => signIn("google", { callbackUrl: callbackUrl.startsWith("/admin") ? callbackUrl : "/admin" })}
             >
               <GoogleIcon />
               Sign in with Google

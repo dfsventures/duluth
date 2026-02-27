@@ -36,7 +36,12 @@ const adminNav = [
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
 
@@ -49,7 +54,16 @@ export function Sidebar() {
   const nav = isAdmin ? adminNav : founderNav;
 
   return (
-    <aside className="flex h-screen w-60 flex-col border-r bg-white">
+    <aside
+      className={cn(
+        "flex h-screen w-60 shrink-0 flex-col border-r bg-white",
+        // Mobile: fixed overlay, toggled via open prop
+        "fixed inset-y-0 left-0 z-40 transition-transform duration-200",
+        open ? "translate-x-0" : "-translate-x-full",
+        // Desktop: always visible, static position
+        "md:relative md:translate-x-0"
+      )}
+    >
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-5">
         <Link href={isAdmin ? "/admin" : "/dashboard"} className="flex items-center gap-2">
@@ -70,6 +84,7 @@ export function Sidebar() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={onClose}
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     isActive
