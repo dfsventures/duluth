@@ -4,9 +4,11 @@ import { requireAdmin } from "@/lib/auth-guard";
 
 export async function POST(request: Request) {
   try {
+    console.log("[chat] step 1: requireAdmin");
     const { error } = await requireAdmin();
     if (error) return error;
 
+    console.log("[chat] step 2: parse body");
     const body = await request.json();
 
     if (!body.message || typeof body.message !== "string") {
@@ -24,13 +26,18 @@ export async function POST(request: Request) {
       });
     }
 
+    console.log("[chat] step 3: import ai module");
     const { chatWithAI } = await import("@/lib/ai");
+
+    console.log("[chat] step 4: call chatWithAI, history length:", history.length);
     const result = await chatWithAI(body.message, history);
 
+    console.log("[chat] step 5: success");
     return NextResponse.json(result);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("POST /api/ai/chat error:", msg);
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error("POST /api/ai/chat error:", msg, "\nStack:", stack);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
