@@ -80,7 +80,7 @@ export default function AdminChatPage() {
       const data = await res.json();
       const assistantMessage: ChatMessage = {
         role: "assistant",
-        content: data.message ?? data.content ?? "",
+        content: data.response ?? "",
         sources: data.sources ?? [],
       };
 
