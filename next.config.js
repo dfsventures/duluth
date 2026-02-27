@@ -1,6 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["@anthropic-ai/sdk", "openai"],
+  experimental: {
+    serverComponentsExternalPackages: ["@anthropic-ai/sdk", "openai", "bcryptjs"],
+  },
   images: {
     remotePatterns: [
       {
