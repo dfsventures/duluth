@@ -259,6 +259,15 @@ export default function UpdateDetailPage() {
     );
   }
 
+  const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+  const sentAgeMs = update?.sentAt ? Date.now() - new Date(update.sentAt).getTime() : Infinity;
+  const isEditablePublished = update?.status === "SENT" && sentAgeMs < THREE_DAYS_MS;
+  const canEdit = update?.status === "DRAFT" || isEditablePublished;
+  // Hours remaining to edit a published update (shown as a hint)
+  const editHoursLeft = isEditablePublished
+    ? Math.max(0, Math.ceil((THREE_DAYS_MS - sentAgeMs) / (60 * 60 * 1000)))
+    : 0;
+
   if (!update) {
     return (
       <AppShell>
@@ -280,7 +289,9 @@ export default function UpdateDetailPage() {
         title={editing ? "Edit Update" : update.title}
         description={
           editing
-            ? "Make changes to your draft below."
+            ? isEditablePublished
+              ? `Editing a published update · ${editHoursLeft}h left to make changes`
+              : "Make changes to your draft below."
             : `${formatPeriod(update.period)} · Created ${formatDate(update.createdAt)}`
         }
         action={
@@ -290,7 +301,7 @@ export default function UpdateDetailPage() {
             </Badge>
             {!editing && (
               <>
-                {update.status === "DRAFT" && (
+                {canEdit && (
                   <Button variant="secondary" size="sm" onClick={enterEditMode}>
                     <Pencil className="mr-2 h-4 w-4" />
                     Edit

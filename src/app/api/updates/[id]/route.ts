@@ -95,7 +95,7 @@ export async function PATCH(
 
     const existing = await db.update.findUnique({
       where: { id },
-      select: { companyId: true, status: true },
+      select: { companyId: true, status: true, sentAt: true },
     });
 
     if (!existing) {
@@ -104,6 +104,18 @@ export async function PATCH(
 
     const { error } = await requireCompanyAccess(existing.companyId);
     if (error) return error;
+
+    // Published updates are editable for 3 days after sentAt
+    if (existing.status === "SENT") {
+      const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+      const sentAt = existing.sentAt ? existing.sentAt.getTime() : 0;
+      if (Date.now() - sentAt > THREE_DAYS_MS) {
+        return NextResponse.json(
+          { error: "Published updates can only be edited within 3 days of publishing." },
+          { status: 403 }
+        );
+      }
+    }
 
     const body = await request.json();
     const data: Record<string, unknown> = {};
