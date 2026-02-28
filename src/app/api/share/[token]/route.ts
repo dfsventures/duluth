@@ -27,6 +27,7 @@ export async function GET(
             },
           },
         },
+        selectedUpdates: { select: { updateId: true } },
       },
     });
 
@@ -39,66 +40,67 @@ export async function GET(
       return NextResponse.json({ error: "This link has expired" }, { status: 410 });
     }
 
-    // Fetch updates and metrics for each company within the period.
-    // periodEnd is stored as midnight UTC (e.g. 2024-02-28T00:00:00Z), so
-    // extend it to end-of-day so updates published anytime on that date are included.
     const companyIds = link.companies.map((c) => c.companyId);
-    const periodEndInclusive = new Date(link.periodEnd);
-    periodEndInclusive.setUTCHours(23, 59, 59, 999);
-
-    const [updates, metricValues] = await Promise.all([
-      db.update.findMany({
-        where: {
-          companyId: { in: companyIds },
-          status: "SENT",
-          sentAt: {
-            gte: link.periodStart,
-            lte: periodEndInclusive,
-          },
-        },
-        select: {
-          id: true,
-          companyId: true,
-          title: true,
-          period: true,
-          body: true,
-          sentAt: true,
-          createdAt: true,
-          company: { select: { id: true, name: true } },
-          metricValues: {
-            select: {
-              id: true,
-              value: true,
-              date: true,
-              metricDefinition: { select: { name: true, unit: true } },
-            },
-          },
-        },
-        orderBy: { sentAt: "desc" },
-      }),
-      db.metricValue.findMany({
-        where: {
-          metricDefinition: { companyId: { in: companyIds } },
-          date: {
-            gte: link.periodStart,
-            lte: link.periodEnd,
-          },
-        },
+    const updateSelect = {
+      id: true,
+      companyId: true,
+      title: true,
+      period: true,
+      body: true,
+      sentAt: true,
+      createdAt: true,
+      company: { select: { id: true, name: true } },
+      metricValues: {
         select: {
           id: true,
           value: true,
           date: true,
-          metricDefinition: {
-            select: {
-              name: true,
-              unit: true,
-              companyId: true,
-            },
-          },
+          metricDefinition: { select: { name: true, unit: true } },
         },
-        orderBy: { date: "desc" },
-      }),
-    ]);
+      },
+    } as const;
+
+    let updates;
+    if (link.selectedUpdates.length > 0) {
+      // New-style link: fetch the explicitly selected updates
+      updates = await db.update.findMany({
+        where: { id: { in: link.selectedUpdates.map((u) => u.updateId) } },
+        select: updateSelect,
+        orderBy: { sentAt: "desc" },
+      });
+    } else {
+      // Legacy link: filter by company + period range
+      const periodEndInclusive = new Date(link.periodEnd!);
+      periodEndInclusive.setUTCHours(23, 59, 59, 999);
+      updates = await db.update.findMany({
+        where: {
+          companyId: { in: companyIds },
+          status: "SENT",
+          sentAt: { gte: link.periodStart!, lte: periodEndInclusive },
+        },
+        select: updateSelect,
+        orderBy: { sentAt: "desc" },
+      });
+    }
+
+    // Metric summary: latest value per metric across the relevant companies
+    const metricDateFilter = link.selectedUpdates.length > 0
+      ? {} // no date filter for explicit-update links — show all metrics
+      : { date: { gte: link.periodStart!, lte: link.periodEnd! } };
+
+    const metricValues = await db.metricValue.findMany({
+      where: {
+        metricDefinition: { companyId: { in: companyIds } },
+        ...metricDateFilter,
+      },
+      select: {
+        id: true,
+        value: true,
+        date: true,
+        metricDefinition: { select: { name: true, unit: true, companyId: true } },
+      },
+      orderBy: { date: "desc" },
+    });
 
     // Build per-company metric summary (latest value per metric in range)
     const metricsByCompany: Record<string, { name: string; unit: string | null; value: number; date: string }[]> = {};

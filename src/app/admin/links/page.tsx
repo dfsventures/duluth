@@ -12,7 +12,6 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  Building2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -31,20 +30,23 @@ const EXPIRY_OPTIONS = [
   { label: "Never", days: null },
 ];
 
-interface Company {
+interface PublishedUpdate {
   id: string;
-  name: string;
+  title: string;
+  period: string;
+  sentAt: string | null;
+  company: { id: string; name: string };
 }
 
 interface LinkItem {
   id: string;
   token: string;
   label: string | null;
-  periodStart: string;
-  periodEnd: string;
+  periodStart: string | null;
+  periodEnd: string | null;
   expiresAt: string | null;
   createdAt: string;
-  companies: { company: Company }[];
+  companies: { company: { id: string; name: string } }[];
   _count: { views: number };
 }
 
@@ -67,17 +69,15 @@ function shareUrl(token: string): string {
 
 export default function AdminLinksPage() {
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [publishedUpdates, setPublishedUpdates] = useState<PublishedUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [label, setLabel] = useState("");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
   const [expiryDays, setExpiryDays] = useState<number | null>(30);
-  const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
+  const [selectedUpdateIds, setSelectedUpdateIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
 
   const [expandedViews, setExpandedViews] = useState<string | null>(null);
@@ -88,17 +88,17 @@ export default function AdminLinksPage() {
 
   const loadData = useCallback(async () => {
     try {
-      const [linksRes, companiesRes] = await Promise.all([
+      const [linksRes, updatesRes] = await Promise.all([
         fetch("/api/links"),
-        fetch("/api/companies"),
+        fetch("/api/admin/updates"),
       ]);
       if (!linksRes.ok) throw new Error("Failed to load links");
-      const [linksData, companiesData] = await Promise.all([
+      const [linksData, updatesData] = await Promise.all([
         linksRes.json(),
-        companiesRes.json(),
+        updatesRes.json(),
       ]);
       setLinks(linksData);
-      setCompanies(companiesData.data ?? companiesData);
+      setPublishedUpdates(updatesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -108,20 +108,16 @@ export default function AdminLinksPage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  function toggleCompany(id: string) {
-    setSelectedCompanyIds((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+  function toggleUpdate(id: string) {
+    setSelectedUpdateIds((prev) =>
+      prev.includes(id) ? prev.filter((u) => u !== id) : [...prev, id]
     );
   }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (selectedCompanyIds.length === 0) {
-      setMessage({ type: "error", text: "Select at least one company." });
-      return;
-    }
-    if (!periodStart || !periodEnd) {
-      setMessage({ type: "error", text: "Period start and end are required." });
+    if (selectedUpdateIds.length === 0) {
+      setMessage({ type: "error", text: "Select at least one update." });
       return;
     }
 
@@ -137,9 +133,7 @@ export default function AdminLinksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           label: label.trim() || null,
-          companyIds: selectedCompanyIds,
-          periodStart,
-          periodEnd,
+          updateIds: selectedUpdateIds,
           expiresAt,
         }),
       });
@@ -150,10 +144,8 @@ export default function AdminLinksPage() {
       }
 
       setLabel("");
-      setPeriodStart("");
-      setPeriodEnd("");
       setExpiryDays(30);
-      setSelectedCompanyIds([]);
+      setSelectedUpdateIds([]);
       setShowForm(false);
       setMessage({ type: "success", text: "Investor link created." });
       await loadData();
@@ -197,6 +189,16 @@ export default function AdminLinksPage() {
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   }
+
+  // Group updates by company for display in the picker
+  const updatesByCompany = publishedUpdates.reduce<Record<string, { company: PublishedUpdate["company"]; updates: PublishedUpdate[] }>>(
+    (acc, u) => {
+      if (!acc[u.company.id]) acc[u.company.id] = { company: u.company, updates: [] };
+      acc[u.company.id].updates.push(u);
+      return acc;
+    },
+    {}
+  );
 
   if (loading) {
     return (
@@ -251,52 +253,48 @@ export default function AdminLinksPage() {
                 placeholder="e.g. Q1 2025 LP Update"
               />
 
-              <div className="space-y-1">
-                <label className="label">Companies</label>
-                <div className="flex flex-wrap gap-2">
-                  {companies.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => toggleCompany(c.id)}
-                      className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-                        selectedCompanyIds.includes(c.id)
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-white text-muted-foreground hover:border-primary hover:text-foreground"
-                      }`}
-                    >
-                      <Building2 className="h-3.5 w-3.5" />
-                      {c.name}
-                    </button>
-                  ))}
-                </div>
-                {selectedCompanyIds.length > 0 && (
-                  <p className="text-xs text-muted-foreground">{selectedCompanyIds.length} selected</p>
+              <div className="space-y-2">
+                <label className="label">Updates to include</label>
+                {publishedUpdates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No published updates yet.</p>
+                ) : (
+                  <div className="max-h-72 overflow-y-auto rounded-md border divide-y">
+                    {Object.values(updatesByCompany).map(({ company, updates }) => (
+                      <div key={company.id}>
+                        <div className="px-3 py-1.5 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                          {company.name}
+                        </div>
+                        {updates.map((u) => (
+                          <label
+                            key={u.id}
+                            className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors ${
+                              selectedUpdateIds.includes(u.id) ? "bg-primary/5" : ""
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedUpdateIds.includes(u.id)}
+                              onChange={() => toggleUpdate(u.id)}
+                              className="h-4 w-4 rounded border-border accent-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium">{u.title}</span>
+                              <span className="ml-2 text-xs text-muted-foreground">{u.period}</span>
+                            </div>
+                            {u.sentAt && (
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {new Date(u.sentAt).toLocaleDateString()}
+                              </span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </div>
-
-              <div className="space-y-1">
-                <div className="grid grid-cols-2 gap-4">
-                  <Input
-                    id="periodStart"
-                    label="Period Start"
-                    type="date"
-                    value={periodStart}
-                    onChange={(e) => setPeriodStart(e.target.value)}
-                    required
-                  />
-                  <Input
-                    id="periodEnd"
-                    label="Period End"
-                    type="date"
-                    value={periodEnd}
-                    onChange={(e) => setPeriodEnd(e.target.value)}
-                    required
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Only updates <strong>sent</strong> within this date range will appear in the link. Make sure the range covers the actual send dates of the updates you want to include.
-                </p>
+                {selectedUpdateIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{selectedUpdateIds.length} update{selectedUpdateIds.length !== 1 ? "s" : ""} selected</p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -320,10 +318,10 @@ export default function AdminLinksPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={creating || selectedCompanyIds.length === 0}>
+                <Button type="submit" size="sm" disabled={creating || selectedUpdateIds.length === 0}>
                   {creating ? "Creating..." : "Create Link"}
                 </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="secondary" size="sm" onClick={() => { setShowForm(false); setSelectedUpdateIds([]); }}>
                   Cancel
                 </Button>
               </div>
@@ -361,8 +359,6 @@ export default function AdminLinksPage() {
                         ))}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(link.periodStart).toLocaleDateString()} – {new Date(link.periodEnd).toLocaleDateString()}
-                        {" · "}
                         {expiryLabel(link.expiresAt)}
                         {" · "}
                         Created {formatDate(link.createdAt)}

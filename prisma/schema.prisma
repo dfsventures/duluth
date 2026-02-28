@@ -125,6 +125,7 @@ model Update {
   documents Document[]
   metricValues MetricValue[]
   aiChunks  AIChunk[]
+  shareableLinkSelections ShareableLinkUpdate[]
 
   @@map("updates")
 }
@@ -216,16 +217,29 @@ model ShareableLink {
   token       String    @unique
   label       String?
   createdById String
-  periodStart DateTime
-  periodEnd   DateTime
+  periodStart DateTime? // null for links using explicit update selection
+  periodEnd   DateTime? // null for links using explicit update selection
   expiresAt   DateTime? // null = never expires
   createdAt   DateTime  @default(now())
 
-  createdBy User                   @relation("CreatedLinks", fields: [createdById], references: [id])
-  companies ShareableLinkCompany[]
-  views     ShareableLinkView[]
+  createdBy       User                   @relation("CreatedLinks", fields: [createdById], references: [id])
+  companies       ShareableLinkCompany[]
+  views           ShareableLinkView[]
+  selectedUpdates ShareableLinkUpdate[]
 
   @@map("shareable_links")
+}
+
+model ShareableLinkUpdate {
+  id       String @id @default(cuid())
+  linkId   String
+  updateId String
+
+  link   ShareableLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  update Update        @relation(fields: [updateId], references: [id], onDelete: Cascade)
+
+  @@unique([linkId, updateId])
+  @@map("shareable_link_updates")
 }
 
 model ShareableLinkCompany {

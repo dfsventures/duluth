@@ -36,24 +36,44 @@ export async function POST(request: Request) {
     if (error) return error;
 
     const body = await request.json();
-    const { label, companyIds, periodStart, periodEnd, expiresAt } = body;
+    const { label, updateIds, expiresAt } = body;
 
-    if (!companyIds || !Array.isArray(companyIds) || companyIds.length === 0) {
-      return NextResponse.json({ error: "At least one company is required" }, { status: 400 });
-    }
-    if (!periodStart || !periodEnd) {
-      return NextResponse.json({ error: "Period start and end are required" }, { status: 400 });
+    if (!updateIds || !Array.isArray(updateIds) || updateIds.length === 0) {
+      return NextResponse.json({ error: "At least one update is required" }, { status: 400 });
     }
 
-    // Founders can only link their own companies
+    // Fetch selected updates — must all be published (SENT)
+    const selectedUpdates = await db.update.findMany({
+      where: { id: { in: updateIds }, status: "SENT" },
+      include: { company: { select: { id: true } } },
+      orderBy: { sentAt: "asc" },
+    });
+
+    if (selectedUpdates.length !== updateIds.length) {
+      return NextResponse.json(
+        { error: "Some updates were not found or are not published" },
+        { status: 400 }
+      );
+    }
+
+    // Founders can only share updates for their own companies
+    const companyIds = [...new Set(selectedUpdates.map((u) => u.company.id))];
     if (user!.role !== "ADMIN") {
       const memberships = await db.userCompanyMembership.findMany({
         where: { userId: user!.id, companyId: { in: companyIds } },
       });
       if (memberships.length !== companyIds.length) {
-        return NextResponse.json({ error: "You don't have access to one or more selected companies" }, { status: 403 });
+        return NextResponse.json(
+          { error: "You don't have access to one or more selected companies" },
+          { status: 403 }
+        );
       }
     }
+
+    // Derive period from min/max sentAt of selected updates
+    const sentDates = selectedUpdates.map((u) => u.sentAt).filter(Boolean) as Date[];
+    const periodStart = sentDates.length > 0 ? sentDates[0] : new Date();
+    const periodEnd = sentDates.length > 0 ? sentDates[sentDates.length - 1] : new Date();
 
     const token = crypto.randomBytes(24).toString("hex");
 
@@ -62,11 +82,14 @@ export async function POST(request: Request) {
         token,
         label: label?.trim() || null,
         createdById: user!.id,
-        periodStart: new Date(periodStart),
-        periodEnd: new Date(periodEnd),
+        periodStart,
+        periodEnd,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         companies: {
           create: companyIds.map((id: string) => ({ companyId: id })),
+        },
+        selectedUpdates: {
+          create: updateIds.map((id: string) => ({ updateId: id })),
         },
       },
       include: {
