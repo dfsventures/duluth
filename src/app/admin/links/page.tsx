@@ -275,23 +275,28 @@ export default function AdminLinksPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  id="periodStart"
-                  label="Period Start"
-                  type="date"
-                  value={periodStart}
-                  onChange={(e) => setPeriodStart(e.target.value)}
-                  required
-                />
-                <Input
-                  id="periodEnd"
-                  label="Period End"
-                  type="date"
-                  value={periodEnd}
-                  onChange={(e) => setPeriodEnd(e.target.value)}
-                  required
-                />
+              <div className="space-y-1">
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    id="periodStart"
+                    label="Period Start"
+                    type="date"
+                    value={periodStart}
+                    onChange={(e) => setPeriodStart(e.target.value)}
+                    required
+                  />
+                  <Input
+                    id="periodEnd"
+                    label="Period End"
+                    type="date"
+                    value={periodEnd}
+                    onChange={(e) => setPeriodEnd(e.target.value)}
+                    required
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Only updates <strong>sent</strong> within this date range will appear in the link. Make sure the range covers the actual send dates of the updates you want to include.
+                </p>
               </div>
 
               <div className="space-y-1">

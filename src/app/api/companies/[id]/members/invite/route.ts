@@ -163,10 +163,21 @@ export async function POST(
         data: { userId: existingUser.id, companyId: id, role: role as "MEMBER" | "VIEWER" },
       });
 
+      // Generate a fresh token so the email has a direct set-password link.
+      // This lets recipients access the platform without needing to know their
+      // existing credentials — clicking the link sets (or resets) their password
+      // and signs them in automatically.
+      const { token: memberToken, tokenExpiresAt: memberTokenExpiresAt } = generateToken();
+      await db.user.update({
+        where: { id: existingUser.id },
+        data: { approvalToken: memberToken, tokenExpiresAt: memberTokenExpiresAt },
+      });
+
       sendMemberAddedEmail({
         toEmail: existingUser.email,
         inviterName: user.name ?? null,
         companyName: company.name,
+        token: memberToken,
       }).catch((err) => console.error("Failed to send member-added email:", err));
 
       return NextResponse.json({
