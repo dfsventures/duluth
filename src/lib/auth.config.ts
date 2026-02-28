@@ -29,10 +29,6 @@ export const authConfig: NextAuthConfig = {
     }),
   ],
   callbacks: {
-    authorized({ auth }) {
-      // Simple check — detailed routing is handled in middleware logic
-      return !!auth?.user;
-    },
     async jwt({ token }) {
       // token already has id/role/status set by the full auth.ts jwt callback
       return token;
