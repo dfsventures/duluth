@@ -265,7 +265,7 @@ export async function sendMemberAddedEmail(opts: {
   inviterName: string | null;
   companyName: string;
 }) {
-  const dashboardLink = `${BASE_URL}/dashboard`;
+  const loginLink = `${BASE_URL}/login?callbackUrl=%2Fdashboard`;
 
   const result = await resend.emails.send({
     from: FROM,
@@ -273,9 +273,15 @@ export async function sendMemberAddedEmail(opts: {
     subject: `You've been added to ${opts.companyName} on Molly`,
     html: emailWrapper(`
       <h1 style="margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #0F172A;">You've been added to a company</h1>
-      <p style="margin: 0 0 24px; color: #64748B;">${opts.inviterName ?? "A teammate"} added you to <strong>${opts.companyName}</strong> on Molly.</p>
+      <p style="margin: 0 0 16px; color: #64748B;">${opts.inviterName ?? "A teammate"} added you to <strong>${opts.companyName}</strong> on Molly.</p>
+      <p style="margin: 0 0 24px; color: #64748B;">Sign in with <strong>${opts.toEmail}</strong> to access your dashboard.</p>
 
-      <p>${primaryButton(dashboardLink, "Go to Dashboard →")}</p>
+      <p>${primaryButton(loginLink, "Sign in to Molly →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: #94A3B8;">
+        Having trouble? Copy and paste this URL into your browser:<br>
+        <span style="color: #3BBFA0; word-break: break-all;">${loginLink}</span>
+      </p>
     `),
   });
   assertSent(result, "member-added");
