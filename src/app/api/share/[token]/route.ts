@@ -39,8 +39,12 @@ export async function GET(
       return NextResponse.json({ error: "This link has expired" }, { status: 410 });
     }
 
-    // Fetch updates and metrics for each company within the period
+    // Fetch updates and metrics for each company within the period.
+    // periodEnd is stored as midnight UTC (e.g. 2024-02-28T00:00:00Z), so
+    // extend it to end-of-day so updates published anytime on that date are included.
     const companyIds = link.companies.map((c) => c.companyId);
+    const periodEndInclusive = new Date(link.periodEnd);
+    periodEndInclusive.setUTCHours(23, 59, 59, 999);
 
     const [updates, metricValues] = await Promise.all([
       db.update.findMany({
@@ -49,7 +53,7 @@ export async function GET(
           status: "SENT",
           sentAt: {
             gte: link.periodStart,
-            lte: link.periodEnd,
+            lte: periodEndInclusive,
           },
         },
         select: {
