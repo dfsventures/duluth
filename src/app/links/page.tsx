@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   AlertCircle,
   X,
-  Calendar,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -31,20 +30,24 @@ const EXPIRY_OPTIONS = [
   { label: "Never", days: null },
 ];
 
-interface Company {
+interface PublishedUpdate {
   id: string;
-  name: string;
+  title: string;
+  period: string;
+  sentAt: string | null;
+  status: string;
+  company: { id: string; name: string };
 }
 
 interface LinkItem {
   id: string;
   token: string;
   label: string | null;
-  periodStart: string;
-  periodEnd: string;
+  periodStart: string | null;
+  periodEnd: string | null;
   expiresAt: string | null;
   createdAt: string;
-  companies: { company: Company }[];
+  companies: { company: { id: string; name: string } }[];
   _count: { views: number };
 }
 
@@ -67,16 +70,15 @@ function shareUrl(token: string): string {
 
 export default function FounderLinksPage() {
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [publishedUpdates, setPublishedUpdates] = useState<PublishedUpdate[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const [showForm, setShowForm] = useState(false);
   const [label, setLabel] = useState("");
-  const [periodStart, setPeriodStart] = useState("");
-  const [periodEnd, setPeriodEnd] = useState("");
   const [expiryDays, setExpiryDays] = useState<number | null>(30);
+  const [selectedUpdateIds, setSelectedUpdateIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
 
   const [expandedViews, setExpandedViews] = useState<string | null>(null);
@@ -85,7 +87,7 @@ export default function FounderLinksPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const loadLinks = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
       const [linksRes, companiesRes] = await Promise.all([
         fetch("/api/links"),
@@ -97,7 +99,21 @@ export default function FounderLinksPage() {
         companiesRes.json(),
       ]);
       setLinks(linksData);
-      setCompanies(companiesData.data ?? companiesData);
+
+      // Fetch published updates for each company
+      const companies: { id: string; name: string }[] = companiesData.data ?? companiesData;
+      const updatesResults = await Promise.all(
+        companies.map((c) =>
+          fetch(`/api/companies/${c.id}/updates`)
+            .then((r) => r.ok ? r.json() : [])
+            .then((updates: (PublishedUpdate & { status: string })[]) =>
+              updates
+                .filter((u) => u.status === "SENT")
+                .map((u) => ({ ...u, company: { id: c.id, name: c.name } }))
+            )
+        )
+      );
+      setPublishedUpdates(updatesResults.flat());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -105,16 +121,18 @@ export default function FounderLinksPage() {
     }
   }, []);
 
-  useEffect(() => { loadLinks(); }, [loadLinks]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  function toggleUpdate(id: string) {
+    setSelectedUpdateIds((prev) =>
+      prev.includes(id) ? prev.filter((u) => u !== id) : [...prev, id]
+    );
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!periodStart || !periodEnd) {
-      setMessage({ type: "error", text: "Period start and end are required." });
-      return;
-    }
-    if (companies.length === 0) {
-      setMessage({ type: "error", text: "No company found. Complete setup first." });
+    if (selectedUpdateIds.length === 0) {
+      setMessage({ type: "error", text: "Select at least one update." });
       return;
     }
 
@@ -130,9 +148,7 @@ export default function FounderLinksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           label: label.trim() || null,
-          companyIds: [companies[0].id],
-          periodStart,
-          periodEnd,
+          updateIds: selectedUpdateIds,
           expiresAt,
         }),
       });
@@ -143,12 +159,11 @@ export default function FounderLinksPage() {
       }
 
       setLabel("");
-      setPeriodStart("");
-      setPeriodEnd("");
       setExpiryDays(30);
+      setSelectedUpdateIds([]);
       setShowForm(false);
       setMessage({ type: "success", text: "Investor link created." });
-      await loadLinks();
+      await loadData();
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to create" });
     } finally {
@@ -243,23 +258,41 @@ export default function FounderLinksPage() {
                 placeholder="e.g. Q1 2025 LP Update"
               />
 
-              <div className="grid grid-cols-2 gap-4">
-                <Input
-                  id="periodStart"
-                  label="Period Start"
-                  type="date"
-                  value={periodStart}
-                  onChange={(e) => setPeriodStart(e.target.value)}
-                  required
-                />
-                <Input
-                  id="periodEnd"
-                  label="Period End"
-                  type="date"
-                  value={periodEnd}
-                  onChange={(e) => setPeriodEnd(e.target.value)}
-                  required
-                />
+              <div className="space-y-2">
+                <label className="label">Updates to include</label>
+                {publishedUpdates.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No published updates yet.</p>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto rounded-md border divide-y">
+                    {publishedUpdates.map((u) => (
+                      <label
+                        key={u.id}
+                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors ${
+                          selectedUpdateIds.includes(u.id) ? "bg-primary/5" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedUpdateIds.includes(u.id)}
+                          onChange={() => toggleUpdate(u.id)}
+                          className="h-4 w-4 rounded border-border accent-primary"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium">{u.title}</span>
+                          <span className="ml-2 text-xs text-muted-foreground">{u.period}</span>
+                        </div>
+                        {u.sentAt && (
+                          <span className="text-xs text-muted-foreground shrink-0">
+                            {new Date(u.sentAt).toLocaleDateString()}
+                          </span>
+                        )}
+                      </label>
+                    ))}
+                  </div>
+                )}
+                {selectedUpdateIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{selectedUpdateIds.length} update{selectedUpdateIds.length !== 1 ? "s" : ""} selected</p>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -283,10 +316,10 @@ export default function FounderLinksPage() {
               </div>
 
               <div className="flex gap-2">
-                <Button type="submit" size="sm" disabled={creating}>
+                <Button type="submit" size="sm" disabled={creating || selectedUpdateIds.length === 0}>
                   {creating ? "Creating..." : "Create Link"}
                 </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="secondary" size="sm" onClick={() => { setShowForm(false); setSelectedUpdateIds([]); }}>
                   Cancel
                 </Button>
               </div>
@@ -317,31 +350,20 @@ export default function FounderLinksPage() {
                         {expired && <Badge variant="neutral">Expired</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(link.periodStart).toLocaleDateString()} – {new Date(link.periodEnd).toLocaleDateString()}
-                        {" · "}
                         {expiryLabel(link.expiresAt)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                        {" · "}
                         Created {formatDate(link.createdAt)}
                       </p>
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => loadViews(link.id)}
-                      >
+                      <Button variant="secondary" size="sm" onClick={() => loadViews(link.id)}>
                         <Eye className="mr-1.5 h-3.5 w-3.5" />
                         {link._count.views} {link._count.views === 1 ? "view" : "views"}
                         {expandedViews === link.id ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />}
                       </Button>
 
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => copyLink(link.token, link.id)}
-                      >
+                      <Button variant="secondary" size="sm" onClick={() => copyLink(link.token, link.id)}>
                         {copiedId === link.id ? (
                           <><CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-green-600" />Copied</>
                         ) : (
