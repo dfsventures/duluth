@@ -47,12 +47,22 @@ function SetPasswordForm() {
         return;
       }
 
-      // Auto sign-in with the credentials they just set
-      await signIn("credentials", {
+      // Auto sign-in with the credentials they just set.
+      // Use redirect:false so next-auth doesn't route through the /login page
+      // before reaching /dashboard. Then do a hard navigation so the session
+      // cookie is included in the very first request to /dashboard.
+      const result = await signIn("credentials", {
         email: data.email,
         password,
-        callbackUrl: "/dashboard",
+        redirect: false,
       });
+
+      if (result?.error) {
+        setError("Your password was saved but sign-in failed. Please go to the login page.");
+        return;
+      }
+
+      window.location.href = "/dashboard";
     } catch {
       setError("Network error. Please try again.");
     } finally {
