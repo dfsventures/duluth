@@ -4,8 +4,9 @@ import { sendUpdateReminderEmail } from "@/lib/email";
 
 export async function POST(req: NextRequest) {
   // Verify the request is from Vercel Cron (or a manual test with the secret)
+  const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

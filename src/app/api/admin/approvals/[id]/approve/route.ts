@@ -44,8 +44,6 @@ export async function POST(
         name: true,
         role: true,
         status: true,
-        approvalToken: true,
-        tokenExpiresAt: true,
       },
     });
 
