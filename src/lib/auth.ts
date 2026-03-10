@@ -77,6 +77,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.role = dbUser.role;
           token.status = dbUser.status;
         }
+      } else if (!token.role || !token.status) {
+        // Hydrate missing fields for sessions created before role/status were added to the token
+        const dbUser = await db.user.findUnique({
+          where: { id: token.id as string },
+        });
+        if (dbUser) {
+          token.role = dbUser.role;
+          token.status = dbUser.status;
+        }
       }
       return token;
     },
