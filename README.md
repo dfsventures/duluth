@@ -1,6 +1,6 @@
 # Molly Portfolio Platform
 
-A web application for Molly to manage portfolio company updates, metrics, and documents — and for portfolio company founders to submit investor updates.
+A web application to manage portfolio company updates, metrics, and documents — and for portfolio company founders to submit investor updates.
 
 ## Overview
 
