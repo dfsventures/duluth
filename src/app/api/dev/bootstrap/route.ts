@@ -20,12 +20,12 @@ export async function POST() {
     const passwordHash = await bcrypt.hash(DEV_ADMIN_PASSWORD, 10);
     await db.user.upsert({
       where: { email: DEV_ADMIN_EMAIL },
-      update: { passwordHash, status: "APPROVED", role: "ADMIN" },
+      update: { passwordHash, status: "APPROVED", roles: ["ADMIN"] },
       create: {
         email: DEV_ADMIN_EMAIL,
         name: "Dev Admin",
         passwordHash,
-        role: "ADMIN",
+        roles: ["ADMIN"],
         status: "APPROVED",
       },
     });

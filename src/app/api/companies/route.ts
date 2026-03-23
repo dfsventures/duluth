@@ -113,7 +113,7 @@ export async function POST(request: Request) {
               data: {
                 email: userEmail,
                 name: userName || null,
-                role: "FOUNDER",
+                roles: ["FOUNDER"],
                 status: "PENDING",
               },
             });

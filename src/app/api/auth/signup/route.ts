@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         data: {
           email: email.toLowerCase(),
           name,
-          role: "FOUNDER",
+          roles: ["FOUNDER"],
           status: "PENDING",
         },
       });
