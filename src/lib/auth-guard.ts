@@ -17,7 +17,7 @@ export async function requireAuth(requiredRole?: UserRole) {
     return { user: null, error: NextResponse.json({ error: "Account not approved" }, { status: 403 }) };
   }
 
-  if (requiredRole && session.user.role !== requiredRole) {
+  if (requiredRole && !session.user.roles.includes(requiredRole)) {
     return { user: null, error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
@@ -39,7 +39,7 @@ export async function requireCompanyAccess(companyId: string) {
   if (error) return { user: null, error };
 
   // Admins can access any company
-  if (user!.role === "ADMIN") return { user: user!, error: null };
+  if (user!.roles.includes("ADMIN")) return { user: user!, error: null };
 
   // Founders must be a member of the company
   const { db } = await import("@/lib/db");

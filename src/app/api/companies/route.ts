@@ -10,7 +10,7 @@ export async function GET() {
     const { user, error } = await requireAuth();
     if (error) return error;
 
-    if (user!.role === "ADMIN") {
+    if (user!.roles.includes("ADMIN")) {
       const companies = await db.company.findMany({
         include: {
           _count: {
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (user!.role === "ADMIN") {
+    if (user!.roles.includes("ADMIN")) {
       const { userEmail, userName } = body;
 
       const company = await db.$transaction(async (tx: TransactionClient) => {

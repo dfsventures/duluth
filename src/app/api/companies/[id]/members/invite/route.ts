@@ -22,7 +22,7 @@ export async function POST(
     if (error) return error;
 
     // Must be admin or OWNER of this company
-    const callerIsAdmin = user.role === "ADMIN";
+    const callerIsAdmin = user.roles.includes("ADMIN");
     if (!callerIsAdmin) {
       const callerMembership = await db.userCompanyMembership.findUnique({
         where: { userId_companyId: { userId: user.id, companyId: id } },
@@ -91,7 +91,7 @@ export async function POST(
           userId: existingUser.id,
           name: existingUser.name,
           email: existingUser.email,
-          userRole: existingUser.role,
+          userRoles: existingUser.roles,
           membershipRole: membership.role,
         });
       }
@@ -146,7 +146,7 @@ export async function POST(
           userId: existingUser.id,
           name: existingUser.name,
           email: existingUser.email,
-          userRole: existingUser.role,
+          userRoles: existingUser.roles,
           membershipRole: membership.role,
         });
       }
@@ -218,7 +218,7 @@ export async function POST(
       userId: newUser.id,
       name: newUser.name,
       email: newUser.email,
-      userRole: newUser.role,
+      userRoles: newUser.roles,
       membershipRole: membership.role,
     });
   } catch (err) {

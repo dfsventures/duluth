@@ -15,7 +15,7 @@ interface Member {
   userId: string;
   name: string | null;
   email: string;
-  userRole: string;
+  userRoles: string[];
   membershipRole: "OWNER" | "MEMBER" | "VIEWER";
 }
 

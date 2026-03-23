@@ -40,7 +40,7 @@ model User {
   email         String     @unique
   name          String?
   passwordHash  String?
-  role          UserRole   @default(FOUNDER)
+  roles         UserRole[] @default([FOUNDER])
   status        UserStatus @default(PENDING)
   approvalToken String?    @unique
   tokenExpiresAt DateTime?

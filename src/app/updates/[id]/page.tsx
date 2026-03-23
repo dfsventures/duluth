@@ -70,7 +70,7 @@ interface UpdateDetail {
       id: string;
       name: string | null;
       email: string;
-      role: string;
+      roles: string[];
     };
   }[];
 }
@@ -536,7 +536,7 @@ export default function UpdateDetailPage() {
                         <span className="text-sm font-medium">
                           {comment.author.name ?? comment.author.email}
                         </span>
-                        {comment.author.role === "ADMIN" && (
+                        {comment.author.roles.includes("ADMIN") && (
                           <Badge variant="info">Molly</Badge>
                         )}
                         <span className="text-xs text-muted-foreground">

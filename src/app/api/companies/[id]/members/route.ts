@@ -16,7 +16,7 @@ export async function GET(
       where: { companyId: id },
       include: {
         user: {
-          select: { id: true, name: true, email: true, role: true },
+          select: { id: true, name: true, email: true, roles: true },
         },
       },
       orderBy: { createdAt: "asc" },
@@ -27,7 +27,7 @@ export async function GET(
       userId: m.user.id,
       name: m.user.name,
       email: m.user.email,
-      userRole: m.user.role,
+      userRoles: m.user.roles,
       membershipRole: m.role,
     }));
 
@@ -85,7 +85,7 @@ export async function POST(
       userId: user.id,
       name: user.name,
       email: user.email,
-      userRole: user.role,
+      userRoles: user.roles,
       membershipRole: membership.role,
     });
   } catch (err) {
@@ -104,7 +104,7 @@ export async function PATCH(
     if (error) return error;
 
     // Check caller is admin or OWNER of this company
-    let callerIsAdmin = user.role === "ADMIN";
+    let callerIsAdmin = user.roles.includes("ADMIN");
     if (!callerIsAdmin) {
       const callerMembership = await db.userCompanyMembership.findUnique({
         where: { userId_companyId: { userId: user.id, companyId: id } },
@@ -149,7 +149,7 @@ export async function PATCH(
       userId: updated.user.id,
       name: updated.user.name,
       email: updated.user.email,
-      userRole: updated.user.role,
+      userRoles: updated.user.roles,
       membershipRole: updated.role,
     });
   } catch (err) {
@@ -168,7 +168,7 @@ export async function DELETE(
     if (error) return error;
 
     // Admins can remove anyone; founders must be OWNER of this company
-    if (user.role !== "ADMIN") {
+    if (!user.roles.includes("ADMIN")) {
       const callerMembership = await db.userCompanyMembership.findUnique({
         where: { userId_companyId: { userId: user.id, companyId: id } },
       });

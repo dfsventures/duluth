@@ -23,7 +23,7 @@ export async function GET(
                 id: true,
                 email: true,
                 name: true,
-                role: true,
+                roles: true,
                 image: true,
               },
             },
@@ -105,7 +105,7 @@ export async function PATCH(
     // Only admins can configure reminder settings
     if (
       body.reminderFrequencyDays !== undefined &&
-      session?.user?.role === "ADMIN"
+      session?.user?.roles?.includes("ADMIN")
     ) {
       data.reminderFrequencyDays =
         body.reminderFrequencyDays === null ? null : Number(body.reminderFrequencyDays);

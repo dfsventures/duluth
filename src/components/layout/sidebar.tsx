@@ -48,10 +48,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const isAdminPath = pathname.startsWith("/admin");
   const isAdmin =
     status === "authenticated"
-      ? session?.user?.role === "ADMIN"
+      ? (session?.user?.roles?.includes("ADMIN") ?? false)
       : isAdminPath;
+  const isFounder =
+    status === "authenticated"
+      ? (session?.user?.roles?.includes("FOUNDER") ?? false)
+      : !isAdminPath;
 
-  const nav = isAdmin ? adminNav : founderNav;
+  // Dual-role users see admin nav on /admin paths, founder nav everywhere else
+  const useAdminNav = isAdminPath || (isAdmin && !isFounder);
+  const nav = useAdminNav ? adminNav : founderNav;
 
   return (
     <aside
@@ -66,7 +72,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
     >
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-5">
-        <Link href={isAdmin ? "/admin" : "/dashboard"} className="flex items-center gap-2">
+        <Link href={useAdminNav ? "/admin" : "/dashboard"} className="flex items-center gap-2">
           <img src="/logo.png" alt="Molly" className="h-8" />
           <span className="font-semibold text-foreground">Molly</span>
         </Link>
@@ -111,7 +117,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <div className="flex-1 min-w-0">
             <p className="truncate text-sm font-medium">{session?.user?.name || session?.user?.email}</p>
             <p className="truncate text-xs text-muted-foreground">
-              {isAdmin ? "Admin" : "Founder"}
+              {isAdmin && isFounder ? "Admin & Founder" : isAdmin ? "Admin" : "Founder"}
             </p>
           </div>
           <button

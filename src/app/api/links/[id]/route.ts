@@ -18,7 +18,7 @@ export async function DELETE(
     }
 
     // Founders can only delete their own links
-    if (user!.role !== "ADMIN" && link.createdById !== user!.id) {
+    if (!user!.roles.includes("ADMIN") && link.createdById !== user!.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -50,7 +50,7 @@ export async function GET(
       return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }
 
-    if (user!.role !== "ADMIN" && link.createdById !== user!.id) {
+    if (!user!.roles.includes("ADMIN") && link.createdById !== user!.id) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

@@ -32,7 +32,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           image: user.image,
-          role: user.role,
+          roles: user.roles,
           status: user.status,
         };
       },
@@ -54,7 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               name: user.name,
               image: user.image,
               googleId: account.providerAccountId,
-              role: "ADMIN",
+              roles: ["ADMIN"],
               status: "APPROVED",
             },
           });
@@ -74,16 +74,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         if (dbUser) {
           token.id = dbUser.id;
-          token.role = dbUser.role;
+          token.roles = dbUser.roles;
           token.status = dbUser.status;
         }
-      } else if (!token.role || !token.status) {
-        // Hydrate missing fields for sessions created before role/status were added to the token
+      } else if (!token.roles || !token.status) {
+        // Hydrate missing fields for sessions created before roles/status were added to the token
         const dbUser = await db.user.findUnique({
           where: { id: token.id as string },
         });
         if (dbUser) {
-          token.role = dbUser.role;
+          token.roles = dbUser.roles;
           token.status = dbUser.status;
         }
       }
@@ -92,7 +92,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async session({ session, token }) {
       if (token) {
         session.user.id = token.id as string;
-        session.user.role = token.role as any;
+        session.user.roles = token.roles as any;
         session.user.status = token.status as any;
       }
       return session;

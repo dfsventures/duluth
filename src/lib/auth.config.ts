@@ -37,7 +37,7 @@ export const authConfig: NextAuthConfig = {
       // Ensure role and status flow through to middleware via req.auth
       if (token && session.user) {
         session.user.id = token.id as string;
-        session.user.role = token.role as "ADMIN" | "FOUNDER";
+        session.user.roles = token.roles as ("ADMIN" | "FOUNDER")[];
         session.user.status = token.status as "PENDING" | "APPROVED" | "REJECTED";
       }
       return session;

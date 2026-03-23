@@ -98,7 +98,7 @@ interface Member {
   userId: string;
   name: string | null;
   email: string;
-  userRole: string;
+  userRoles: string[];
   membershipRole: "OWNER" | "MEMBER" | "VIEWER";
 }
 
@@ -1314,11 +1314,11 @@ export default function AdminCompanyDetailPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge variant={member.userRole === "ADMIN" ? "info" : "neutral"}>
-                        {member.userRole === "ADMIN" ? "Admin" : "Founder"}
+                      <Badge variant={member.userRoles.includes("ADMIN") ? "info" : "neutral"}>
+                        {member.userRoles.includes("ADMIN") ? "Admin" : "Founder"}
                       </Badge>
                       {/* Membership role select (admins can set OWNER/MEMBER/VIEWER) */}
-                      {member.userRole !== "ADMIN" && (
+                      {!member.userRoles.includes("ADMIN") && (
                         <select
                           value={member.membershipRole}
                           disabled={updatingRoleId === member.userId}

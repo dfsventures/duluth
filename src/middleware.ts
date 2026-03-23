@@ -7,8 +7,10 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const { pathname } = req.nextUrl;
   const isLoggedIn = !!req.auth;
-  const userRole = req.auth?.user?.role;
+  const userRoles = req.auth?.user?.roles ?? [];
   const userStatus = req.auth?.user?.status;
+  const isAdmin = userRoles.includes("ADMIN");
+  const isFounder = userRoles.includes("FOUNDER");
 
   // Public routes — always accessible
   const publicPaths = ["/", "/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share"];
@@ -23,17 +25,17 @@ export default auth((req) => {
   }
 
   // Founders must be approved (unless accessing setup wizard)
-  if (userRole === "FOUNDER" && userStatus !== "APPROVED" && pathname !== "/setup-wizard") {
+  if (isFounder && !isAdmin && userStatus !== "APPROVED" && pathname !== "/setup-wizard") {
     return NextResponse.redirect(new URL("/login", req.url));
   }
 
   // Admin routes — only for admins
-  if (pathname.startsWith("/admin") && userRole !== "ADMIN") {
+  if (pathname.startsWith("/admin") && !isAdmin) {
     return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
-  // Founder routes — redirect admins to admin dashboard
-  if (pathname === "/dashboard" && userRole === "ADMIN") {
+  // Founder routes — redirect pure admins (no founder role) to admin dashboard
+  if (pathname === "/dashboard" && isAdmin && !isFounder) {
     return NextResponse.redirect(new URL("/admin", req.url));
   }
 

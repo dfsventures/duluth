@@ -10,7 +10,7 @@ export async function GET() {
     if (error) return error;
 
     const where =
-      user!.role === "ADMIN"
+      user!.roles.includes("ADMIN")
         ? {} // admins see all links
         : { createdById: user!.id };
 
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
 
     // Founders can only share updates for their own companies
     const companyIds = [...new Set(selectedUpdates.map((u) => u.company.id))];
-    if (user!.role !== "ADMIN") {
+    if (!user!.roles.includes("ADMIN")) {
       const memberships = await db.userCompanyMembership.findMany({
         where: { userId: user!.id, companyId: { in: companyIds } },
       });
