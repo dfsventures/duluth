@@ -185,7 +185,7 @@ export async function POST(
         userId: existingUser.id,
         name: existingUser.name,
         email: existingUser.email,
-        userRole: existingUser.role,
+        userRoles: existingUser.roles,
         membershipRole: membership.role,
       });
     }

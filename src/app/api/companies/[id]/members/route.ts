@@ -141,7 +141,7 @@ export async function PATCH(
     const updated = await db.userCompanyMembership.update({
       where: { userId_companyId: { userId, companyId: id } },
       data: { role },
-      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+      include: { user: { select: { id: true, name: true, email: true, roles: true } } },
     });
 
     return NextResponse.json({

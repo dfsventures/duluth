@@ -42,7 +42,7 @@ export async function POST(
         id: true,
         email: true,
         name: true,
-        role: true,
+        roles: true,
         status: true,
       },
     });

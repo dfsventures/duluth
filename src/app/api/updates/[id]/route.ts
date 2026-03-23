@@ -43,7 +43,7 @@ export async function GET(
                 id: true,
                 name: true,
                 email: true,
-                role: true,
+                roles: true,
                 image: true,
               },
             },
