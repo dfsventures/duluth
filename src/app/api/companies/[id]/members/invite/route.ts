@@ -54,16 +54,8 @@ export async function POST(
     const existingUser = await db.user.findUnique({ where: { email } });
 
     if (existingUser) {
-      // PENDING: applied through normal signup — don't bypass admin approval queue
-      if (existingUser.status === "PENDING") {
-        return NextResponse.json(
-          { error: "This email has a pending account application — an admin must approve it first" },
-          { status: 409 }
-        );
-      }
-
-      // REJECTED: founder is vouching for them — re-approve and invite
-      if (existingUser.status === "REJECTED") {
+      // PENDING or REJECTED: admin is vouching for them — approve and invite
+      if (existingUser.status === "PENDING" || existingUser.status === "REJECTED") {
         const { token, tokenExpiresAt } = generateToken();
         await db.user.update({
           where: { id: existingUser.id },
