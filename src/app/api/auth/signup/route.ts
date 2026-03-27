@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
@@ -26,6 +27,34 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing) {
+      // Stuck state: approved but never set a password — resend the setup email
+      if (existing.status === "APPROVED" && !existing.passwordHash) {
+        const tokenExpired =
+          !existing.tokenExpiresAt || existing.tokenExpiresAt < new Date();
+        let activeToken: string;
+        if (existing.approvalToken && !tokenExpired) {
+          activeToken = existing.approvalToken;
+        } else {
+          activeToken = crypto.randomBytes(32).toString("hex");
+          await db.user.update({
+            where: { id: existing.id },
+            data: {
+              approvalToken: activeToken,
+              tokenExpiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+            },
+          });
+        }
+        try {
+          if (process.env.RESEND_API_KEY) {
+            const { sendApprovalEmail } = await import("@/lib/email");
+            await sendApprovalEmail(existing.email, activeToken);
+          }
+        } catch (emailError) {
+          console.error("Failed to resend setup email:", emailError);
+        }
+        return NextResponse.json({ success: true });
+      }
+
       return NextResponse.json(
         { error: "An account with this email already exists." },
         { status: 409 }

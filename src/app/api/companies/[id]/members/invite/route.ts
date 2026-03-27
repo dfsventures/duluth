@@ -103,31 +103,40 @@ export async function POST(
       });
 
       if (!existingUser.passwordHash) {
-        // Account exists but password was never set — either a pending invite or an
-        // edge case where the token was cleared without the user finishing setup.
-        if (existingMembership) {
-          return NextResponse.json(
-            { error: "User is already a member of this company" },
-            { status: 409 }
-          );
-        }
-
+        // Account exists but password was never set — generate/reuse setup token
         const tokenExpired =
           !existingUser.tokenExpiresAt || existingUser.tokenExpiresAt < new Date();
 
         let activeToken: string;
 
         if (existingUser.approvalToken && !tokenExpired) {
-          // Valid token — reuse it (no need to regenerate)
           activeToken = existingUser.approvalToken;
         } else {
-          // Expired or missing token — regenerate so they can complete setup
           const { token, tokenExpiresAt } = generateToken();
           await db.user.update({
             where: { id: existingUser.id },
             data: { approvalToken: token, tokenExpiresAt },
           });
           activeToken = token;
+        }
+
+        if (existingMembership) {
+          // Already a member but never finished setup — resend the invite email
+          sendTeamInviteEmail({
+            toEmail: existingUser.email,
+            inviterName: user.name ?? null,
+            companyName: company.name,
+            token: activeToken,
+          }).catch((err) => console.error("Failed to resend team-invite email:", err));
+
+          return NextResponse.json({
+            membershipId: existingMembership.id,
+            userId: existingUser.id,
+            name: existingUser.name,
+            email: existingUser.email,
+            userRoles: existingUser.roles,
+            membershipRole: existingMembership.role,
+          });
         }
 
         const membership = await db.userCompanyMembership.create({
