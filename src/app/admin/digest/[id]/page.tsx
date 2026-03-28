@@ -96,9 +96,9 @@ export default function DigestDetailPage() {
         <div className="flex flex-col items-center justify-center py-20">
           <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
           <p className="text-sm text-destructive">Digest not found</p>
-          <Button variant="secondary" size="sm" className="mt-4" asChild>
-            <Link href="/admin/digest">Back to digests</Link>
-          </Button>
+          <Link href="/admin/digest">
+            <Button variant="secondary" size="sm" className="mt-4">Back to digests</Button>
+          </Link>
         </div>
       </AppShell>
     );

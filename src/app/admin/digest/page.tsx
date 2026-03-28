@@ -98,9 +98,9 @@ export default function DigestListPage() {
                           Draft
                         </Badge>
                       )}
-                      <Button size="sm" variant="secondary" asChild>
-                        <Link href={`/admin/digest/${d.id}`}>View</Link>
-                      </Button>
+                      <Link href={`/admin/digest/${d.id}`}>
+                        <Button size="sm" variant="secondary">View</Button>
+                      </Link>
                     </div>
                   </div>
                 </CardHeader>
