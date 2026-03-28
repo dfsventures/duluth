@@ -67,7 +67,7 @@ export default function DigestListPage() {
 
       {digests.length === 0 ? (
         <EmptyState
-          icon={BookOpen}
+          icon={<BookOpen className="h-8 w-8" />}
           title="No digests yet"
           description="Ask Claude to generate this week's digest from your Granola meetings."
         />
