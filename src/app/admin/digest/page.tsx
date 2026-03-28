@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { BookOpen, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock, AlertCircle, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -63,6 +63,14 @@ export default function DigestListPage() {
       <PageHeader
         title="Weekly Digest"
         description="AI-generated weekly summaries from your Granola meetings."
+        action={
+          <Link href="/admin/digest/new">
+            <Button size="sm" className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              New Digest
+            </Button>
+          </Link>
+        }
       />
 
       {digests.length === 0 ? (

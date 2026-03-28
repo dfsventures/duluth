@@ -352,3 +352,11 @@ model DigestTodo {
 
   @@map("digest_todos")
 }
+
+model DigestExtraRecipient {
+  id        String   @id
+  email     String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("digest_extra_recipients")
+}

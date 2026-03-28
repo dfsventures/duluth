@@ -27,14 +27,24 @@ export async function POST(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const recipients = await db.user.findMany({
-      where: { roles: { has: "ADMIN" }, receivesDigest: true },
-      select: { email: true, name: true },
-    });
+    const [adminRecipients, extraRecipients] = await Promise.all([
+      db.user.findMany({
+        where: { roles: { has: "ADMIN" }, receivesDigest: true },
+        select: { email: true },
+      }),
+      db.digestExtraRecipient.findMany({ select: { email: true } }),
+    ]);
 
-    if (recipients.length === 0) {
+    const allEmails = [
+      ...adminRecipients.map((r) => r.email),
+      ...extraRecipients.map((r) => r.email),
+    ];
+
+    if (allEmails.length === 0) {
       return NextResponse.json({ error: "No digest recipients configured" }, { status: 400 });
     }
+
+    const recipients = allEmails.map((email) => ({ email }));
 
     const sections = digest.sections as { id: string; heading: string; content: string }[];
     const todos = digest.todos.map((t) => ({
@@ -43,16 +53,11 @@ export async function POST(
       assigneeName: t.assignee?.name ?? t.assignee?.email ?? null,
     }));
 
-    for (const recipient of recipients) {
+    for (const { email } of recipients) {
       try {
-        await sendWeeklyDigestEmail({
-          toEmail: recipient.email,
-          title: digest.title,
-          sections,
-          todos,
-        });
+        await sendWeeklyDigestEmail({ toEmail: email, title: digest.title, sections, todos });
       } catch (err) {
-        console.error(`Failed to send digest to ${recipient.email}:`, err);
+        console.error(`Failed to send digest to ${email}:`, err);
       }
     }
 
