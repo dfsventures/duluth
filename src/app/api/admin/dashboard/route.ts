@@ -101,7 +101,7 @@ export async function GET() {
 
     // Build overdue list and sector breakdown
     let companiesOverdue = 0;
-    const overdueList: { id: string; name: string; sector: string | null; daysSinceUpdate: number | null }[] = [];
+    const overdueList: { id: string; name: string; sector: string | null; daysSinceUpdate: number | null; lastReminderSentAt: string | null }[] = [];
     const sectorMap: Record<string, number> = {};
 
     const companiesData = companies.map((c) => {
