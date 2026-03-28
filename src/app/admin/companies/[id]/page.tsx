@@ -67,6 +67,7 @@ interface Company {
   sector: string | null;
   geography: string | null;
   fundingStage: string | null;
+  aliases: string[];
   reminderFrequencyDays: number | null;
   lastReminderSentAt: string | null;
 }
@@ -312,6 +313,7 @@ export default function AdminCompanyDetailPage() {
           sector: editForm.sector,
           geography: editForm.geography,
           fundingStage: editForm.fundingStage,
+          aliases: editForm.aliases,
           reminderFrequencyDays: editForm.reminderFrequencyDays,
         }),
       });
@@ -759,6 +761,31 @@ export default function AdminCompanyDetailPage() {
                 value={editForm.geography ?? ""}
                 onChange={(e) => updateEditField("geography", e.target.value)}
               />
+              <div className="space-y-1">
+                <label htmlFor="edit-aliases" className="label">
+                  Aliases
+                </label>
+                <input
+                  id="edit-aliases"
+                  className="input-field"
+                  placeholder="e.g. Initech, HashrailsHQ"
+                  value={editForm.aliases.join(", ")}
+                  onChange={(e) =>
+                    setEditForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            aliases: e.target.value
+                              .split(",")
+                              .map((s) => s.trim())
+                              .filter(Boolean),
+                          }
+                        : prev
+                    )
+                  }
+                />
+                <p className="text-xs text-muted-foreground">Comma-separated alternative names used for Granola matching</p>
+              </div>
               <div className="space-y-1">
                 <label htmlFor="edit-fundingStage" className="label">
                   Funding Stage

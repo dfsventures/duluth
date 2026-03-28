@@ -55,8 +55,10 @@ model User {
   comments       Comment[]
   companies      Company[]                @relation("CreatedCompanies")
   shareableLinks ShareableLink[]          @relation("CreatedLinks")
+  receivesDigest Boolean                  @default(true)
   createdNotes   CompanyNote[]            @relation("CreatedNotes")
   noteRevisions  CompanyNoteRevision[]    @relation("NoteRevisions")
+  digestTodos    DigestTodo[]
 
   @@map("users")
 }
@@ -73,6 +75,7 @@ model Company {
   geography    String?
   fundingStage String?
 
+  aliases               String[]  @default([])
   reminderFrequencyDays Int?      // null = disabled; 7, 14, 30, or 90
   lastReminderSentAt    DateTime? // tracks cooldown between reminders
 
@@ -321,4 +324,31 @@ model AIChunk {
   note     CompanyNote? @relation(fields: [noteId], references: [id], onDelete: Cascade)
 
   @@map("ai_chunks")
+}
+
+// ─── Weekly Digest ────────────────────────────────────────
+
+model WeeklyDigest {
+  id        String       @id
+  weekOf    DateTime
+  title     String
+  sections  Json         // DigestSection[]
+  sentAt    DateTime?
+  createdAt DateTime     @default(now())
+  todos     DigestTodo[]
+
+  @@map("weekly_digests")
+}
+
+model DigestTodo {
+  id         String        @id
+  digestId   String
+  digest     WeeklyDigest  @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  text       String
+  assigneeId String?
+  assignee   User?         @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  completed  Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+
+  @@map("digest_todos")
 }

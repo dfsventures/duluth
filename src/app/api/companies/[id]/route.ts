@@ -102,13 +102,15 @@ export async function PATCH(
       }
     }
 
-    // Only admins can configure reminder settings
-    if (
-      body.reminderFrequencyDays !== undefined &&
-      session?.user?.roles?.includes("ADMIN")
-    ) {
-      data.reminderFrequencyDays =
-        body.reminderFrequencyDays === null ? null : Number(body.reminderFrequencyDays);
+    // Only admins can configure reminder settings and aliases
+    if (session?.user?.roles?.includes("ADMIN")) {
+      if (body.reminderFrequencyDays !== undefined) {
+        data.reminderFrequencyDays =
+          body.reminderFrequencyDays === null ? null : Number(body.reminderFrequencyDays);
+      }
+      if (Array.isArray(body.aliases)) {
+        data.aliases = body.aliases;
+      }
     }
 
     if (Object.keys(data).length === 0) {

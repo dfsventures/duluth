@@ -290,6 +290,62 @@ export async function sendMemberAddedEmail(opts: {
   assertSent(result, "member-added");
 }
 
+export async function sendWeeklyDigestEmail(opts: {
+  toEmail: string;
+  title: string;
+  sections: { id: string; heading: string; content: string }[];
+  todos: { text: string; completed: boolean; assigneeName: string | null }[];
+}) {
+  const digestLink = `${BASE_URL}/admin/digest`;
+
+  const sectionsHtml = opts.sections
+    .filter((s) => s.content?.trim())
+    .map(
+      (s) => `
+      <div style="margin-bottom: 28px;">
+        <h2 style="margin: 0 0 10px; font-size: 16px; font-weight: 700; color: #0F172A; border-bottom: 2px solid #3BBFA0; padding-bottom: 6px;">${s.heading}</h2>
+        <div style="font-size: 14px; line-height: 1.7; color: #334155;">${s.content}</div>
+      </div>`
+    )
+    .join("");
+
+  const todosHtml =
+    opts.todos.length > 0
+      ? `<div style="margin-top: 28px;">
+          <h2 style="margin: 0 0 10px; font-size: 16px; font-weight: 700; color: #0F172A; border-bottom: 2px solid #3BBFA0; padding-bottom: 6px;">This Week's Todos</h2>
+          <ul style="margin: 0; padding: 0; list-style: none;">
+            ${opts.todos
+              .map(
+                (t) => `
+              <li style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid #F1F5F9; font-size: 14px; color: ${t.completed ? "#94A3B8" : "#334155"};">
+                <span style="flex-shrink: 0; margin-top: 2px; width: 16px; height: 16px; border: 2px solid ${t.completed ? "#3BBFA0" : "#CBD5E1"}; border-radius: 4px; background: ${t.completed ? "#3BBFA0" : "transparent"}; display: inline-block; text-align: center; line-height: 12px; color: #fff; font-size: 10px;">${t.completed ? "✓" : ""}</span>
+                <span style="${t.completed ? "text-decoration: line-through;" : ""}">${t.text}${t.assigneeName ? `<span style="margin-left: 8px; font-size: 12px; color: #94A3B8;">— ${t.assigneeName}</span>` : ""}</span>
+              </li>`
+              )
+              .join("")}
+          </ul>
+        </div>`
+      : "";
+
+  const result = await resend.emails.send({
+    from: FROM,
+    to: opts.toEmail,
+    subject: opts.title,
+    html: emailWrapper(`
+      <p style="margin: 0 0 4px; font-size: 11px; font-weight: 600; color: #3BBFA0; text-transform: uppercase; letter-spacing: 0.08em;">Weekly Digest</p>
+      <h1 style="margin: 0 0 24px; font-size: 24px; font-weight: 700; color: #0F172A;">${opts.title}</h1>
+
+      ${sectionsHtml}
+      ${todosHtml}
+
+      <div style="margin-top: 32px;">
+        ${primaryButton(digestLink, "View in Molly →")}
+      </div>
+    `),
+  });
+  assertSent(result, "weekly-digest");
+}
+
 export async function sendTestEmail(toEmail: string) {
   const result = await resend.emails.send({
     from: FROM,

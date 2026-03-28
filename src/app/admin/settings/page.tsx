@@ -1,8 +1,9 @@
-import { Mail, Bell, Bot } from "lucide-react";
+import { Mail, Bell, Bot, BookOpen } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmailSettingsPanel } from "./email-settings-panel";
 import { AISettingsPanel } from "./ai-settings-panel";
+import { DigestRecipientsPanel } from "./digest-recipients-panel";
 
 export default function SettingsPage() {
   const hasApiKey = !!process.env.RESEND_API_KEY;
@@ -83,6 +84,20 @@ export default function SettingsPage() {
           </p>
         </div>
       </section>
+      <section className="mt-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
+            <BookOpen className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Weekly Digest Recipients</h2>
+            <p className="text-xs text-muted-foreground">Choose which admins receive the weekly digest email</p>
+          </div>
+        </div>
+
+        <DigestRecipientsPanel />
+      </section>
+
       <section className="mt-6 rounded-xl border border-border bg-card p-6">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">

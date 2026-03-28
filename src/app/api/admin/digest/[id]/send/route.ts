@@ -1,0 +1,67 @@
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth-guard";
+import { sendWeeklyDigestEmail } from "@/lib/email";
+
+export async function POST(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { error } = await requireAdmin();
+    if (error) return error;
+
+    const digest = await db.weeklyDigest.findUnique({
+      where: { id },
+      include: {
+        todos: {
+          include: { assignee: { select: { id: true, name: true, email: true } } },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+
+    if (!digest) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const recipients = await db.user.findMany({
+      where: { roles: { has: "ADMIN" }, receivesDigest: true },
+      select: { email: true, name: true },
+    });
+
+    if (recipients.length === 0) {
+      return NextResponse.json({ error: "No digest recipients configured" }, { status: 400 });
+    }
+
+    const sections = digest.sections as { id: string; heading: string; content: string }[];
+    const todos = digest.todos.map((t) => ({
+      text: t.text,
+      completed: t.completed,
+      assigneeName: t.assignee?.name ?? t.assignee?.email ?? null,
+    }));
+
+    for (const recipient of recipients) {
+      try {
+        await sendWeeklyDigestEmail({
+          toEmail: recipient.email,
+          title: digest.title,
+          sections,
+          todos,
+        });
+      } catch (err) {
+        console.error(`Failed to send digest to ${recipient.email}:`, err);
+      }
+    }
+
+    const now = new Date();
+    await db.weeklyDigest.update({ where: { id }, data: { sentAt: now } });
+
+    return NextResponse.json({ sentAt: now.toISOString() });
+  } catch (err) {
+    console.error("POST /api/admin/digest/[id]/send error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
