@@ -29,6 +29,10 @@ import {
   Archive,
   ArchiveRestore,
   Bell,
+  NotebookPen,
+  History,
+  ChevronLeft,
+  ChevronRight as ChevronRightIcon,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -42,6 +46,7 @@ import { formatDate, normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { MetricChart } from "@/components/ui/metric-chart";
 import { DOC_TYPES } from "@/lib/constants";
+import { RichEditor } from "@/components/ui/rich-editor";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -102,7 +107,38 @@ interface Member {
   membershipRole: "OWNER" | "MEMBER" | "VIEWER";
 }
 
-type Tab = "updates" | "metrics" | "documents" | "members";
+interface NoteUser {
+  id: string;
+  name: string | null;
+  email: string;
+}
+
+interface NoteRevision {
+  id: string;
+  noteId: string;
+  title: string;
+  body: string;
+  occurredAt: string;
+  transcriptUrl: string | null;
+  editedById: string;
+  editedBy: NoteUser;
+  createdAt: string;
+}
+
+interface Note {
+  id: string;
+  title: string;
+  body: string;
+  occurredAt: string;
+  transcriptUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: NoteUser;
+  revisions: NoteRevision[];
+  _count: { revisions: number };
+}
+
+type Tab = "updates" | "metrics" | "documents" | "members" | "notes";
 
 export default function AdminCompanyDetailPage() {
   const params = useParams();
@@ -144,6 +180,21 @@ export default function AdminCompanyDetailPage() {
   // Company deletion
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Notes
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
+  const [noteForm, setNoteForm] = useState({ title: "", body: "", occurredAt: "", transcriptUrl: "" });
+  const [savingNote, setSavingNote] = useState(false);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+  // History modal
+  const [historyNote, setHistoryNote] = useState<Note | null>(null);
+  const [revisions, setRevisions] = useState<NoteRevision[]>([]);
+  const [loadingRevisions, setLoadingRevisions] = useState(false);
+  // Diff modal
+  const [diffLeft, setDiffLeft] = useState<NoteRevision | null>(null);
+  const [diffRight, setDiffRight] = useState<NoteRevision | null>(null);
 
   // Document upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -220,15 +271,27 @@ export default function AdminCompanyDetailPage() {
     }
   }, [companyId]);
 
+  const loadNotes = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/notes`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotes(data ?? []);
+      }
+    } catch {
+      // Silently fail
+    }
+  }, [companyId]);
+
   useEffect(() => {
     async function fetchAll() {
       await loadCompany();
-      await Promise.all([loadUpdates(), loadMetrics(), loadDocuments(), loadMembers()]);
+      await Promise.all([loadUpdates(), loadMetrics(), loadDocuments(), loadMembers(), loadNotes()]);
       setLoading(false);
     }
 
     fetchAll();
-  }, [loadCompany, loadUpdates, loadMetrics, loadDocuments, loadMembers]);
+  }, [loadCompany, loadUpdates, loadMetrics, loadDocuments, loadMembers, loadNotes]);
 
   function updateEditField(field: keyof Company, value: string | number | null) {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -556,6 +619,7 @@ export default function AdminCompanyDetailPage() {
     { key: "metrics", label: "Metrics", icon: <BarChart3 className="h-4 w-4" /> },
     { key: "documents", label: "Documents", icon: <FolderOpen className="h-4 w-4" /> },
     { key: "members", label: "Members", icon: <Users className="h-4 w-4" /> },
+    { key: "notes", label: "Notes", icon: <NotebookPen className="h-4 w-4" /> },
   ];
 
   return (
@@ -1351,6 +1415,368 @@ export default function AdminCompanyDetailPage() {
           )}
         </div>
       )}
+      {/* Notes tab */}
+      {activeTab === "notes" && (
+        <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">Notes</h3>
+            {!showNoteForm && !editingNote && (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setNoteForm({ title: "", body: "", occurredAt: new Date().toISOString().split("T")[0], transcriptUrl: "" });
+                  setShowNoteForm(true);
+                }}
+              >
+                <Plus className="mr-2 h-3.5 w-3.5" />
+                Add Note
+              </Button>
+            )}
+          </div>
+
+          {/* Create / Edit form */}
+          {(showNoteForm || editingNote) && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {editingNote ? "Edit Note" : "New Note"}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Title</label>
+                    <input
+                      type="text"
+                      value={noteForm.title}
+                      onChange={(e) => setNoteForm((p) => ({ ...p, title: e.target.value }))}
+                      placeholder="e.g. Q1 check-in call"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-sm font-medium">Date of event</label>
+                    <input
+                      type="date"
+                      value={noteForm.occurredAt}
+                      onChange={(e) => setNoteForm((p) => ({ ...p, occurredAt: e.target.value }))}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Transcript / Recording URL <span className="text-muted-foreground font-normal">(optional)</span></label>
+                  <input
+                    type="url"
+                    value={noteForm.transcriptUrl}
+                    onChange={(e) => setNoteForm((p) => ({ ...p, transcriptUrl: e.target.value }))}
+                    placeholder="https://..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium">Notes</label>
+                  <RichEditor
+                    value={noteForm.body}
+                    onChange={(val) => setNoteForm((p) => ({ ...p, body: val }))}
+                    placeholder="Add your call notes here..."
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={savingNote}
+                    onClick={async () => {
+                      setSavingNote(true);
+                      try {
+                        const url = editingNote
+                          ? `/api/companies/${companyId}/notes/${editingNote.id}`
+                          : `/api/companies/${companyId}/notes`;
+                        const res = await fetch(url, {
+                          method: editingNote ? "PATCH" : "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(noteForm),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data?.error ?? "Failed to save note");
+                        if (editingNote) {
+                          setNotes((prev) => prev.map((n) => n.id === data.id ? data : n));
+                          setEditingNote(null);
+                        } else {
+                          setNotes((prev) => [data, ...prev]);
+                          setShowNoteForm(false);
+                        }
+                        setMessage({ type: "success", text: "Note saved." });
+                      } catch (err) {
+                        setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to save note." });
+                      } finally {
+                        setSavingNote(false);
+                      }
+                    }}
+                  >
+                    <Save className="mr-2 h-3.5 w-3.5" />
+                    {savingNote ? "Saving..." : "Save Note"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => { setShowNoteForm(false); setEditingNote(null); }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Notes list */}
+          {notes.length === 0 && !showNoteForm ? (
+            <EmptyState
+              icon={<NotebookPen className="h-8 w-8" />}
+              title="No notes yet"
+              description="Add call notes, meeting summaries, or any admin observations about this company."
+              action={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setNoteForm({ title: "", body: "", occurredAt: new Date().toISOString().split("T")[0], transcriptUrl: "" });
+                    setShowNoteForm(true);
+                  }}
+                >
+                  Add First Note
+                </Button>
+              }
+            />
+          ) : (
+            <div className="space-y-4">
+              {notes.map((note) => (
+                <Card key={note.id}>
+                  <CardContent className="py-4">
+                    <div className="mb-3 flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="font-semibold">{note.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(note.occurredAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
+                          {" · "}Added by {note.createdBy.name ?? note.createdBy.email}
+                          {note._count.revisions > 1 && (
+                            <> · <span className="text-muted-foreground">{note._count.revisions} revisions</span></>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {note.transcriptUrl && (
+                          <a
+                            href={note.transcriptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-primary hover:bg-primary-50"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Transcript
+                          </a>
+                        )}
+                        <button
+                          onClick={async () => {
+                            setHistoryNote(note);
+                            setLoadingRevisions(true);
+                            setDiffLeft(null);
+                            setDiffRight(null);
+                            try {
+                              const res = await fetch(`/api/companies/${companyId}/notes/${note.id}/revisions`);
+                              if (res.ok) setRevisions(await res.json());
+                            } finally {
+                              setLoadingRevisions(false);
+                            }
+                          }}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          title="View history"
+                        >
+                          <History className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingNote(note);
+                            setNoteForm({
+                              title: note.title,
+                              body: note.body,
+                              occurredAt: new Date(note.occurredAt).toISOString().split("T")[0],
+                              transcriptUrl: note.transcriptUrl ?? "",
+                            });
+                            setShowNoteForm(false);
+                          }}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          title="Edit note"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          disabled={deletingNoteId === note.id}
+                          onClick={async () => {
+                            setDeletingNoteId(note.id);
+                            try {
+                              const res = await fetch(`/api/companies/${companyId}/notes/${note.id}`, { method: "DELETE" });
+                              if (!res.ok) throw new Error("Failed to delete note");
+                              setNotes((prev) => prev.filter((n) => n.id !== note.id));
+                            } catch {
+                              setMessage({ type: "error", text: "Failed to delete note." });
+                            } finally {
+                              setDeletingNoteId(null);
+                            }
+                          }}
+                          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-40"
+                          title="Delete note"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      className="prose prose-sm max-w-none text-foreground line-clamp-4"
+                      dangerouslySetInnerHTML={{ __html: note.body }}
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* History modal */}
+          {historyNote && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="flex w-full max-w-3xl flex-col rounded-xl bg-white shadow-xl" style={{ maxHeight: "90vh" }}>
+                <div className="flex items-center justify-between border-b px-6 py-4">
+                  <div>
+                    <p className="font-semibold">{historyNote.title}</p>
+                    <p className="text-sm text-muted-foreground">Edit history</p>
+                  </div>
+                  <button
+                    onClick={() => { setHistoryNote(null); setDiffLeft(null); setDiffRight(null); }}
+                    className="rounded-md p-1.5 text-muted-foreground hover:bg-muted"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {diffLeft && diffRight ? (
+                  /* Side-by-side diff view */
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                    <div className="flex items-center gap-2 border-b px-6 py-3">
+                      <button
+                        onClick={() => { setDiffLeft(null); setDiffRight(null); }}
+                        className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Back to history
+                      </button>
+                      <span className="text-sm text-muted-foreground">
+                        Comparing revision {revisions.indexOf(diffRight) + 1} → {revisions.indexOf(diffLeft) + 1}
+                      </span>
+                    </div>
+                    <div className="grid flex-1 grid-cols-2 overflow-hidden divide-x">
+                      <DiffPane label="Before" revision={diffRight} otherRevision={diffLeft} />
+                      <DiffPane label="After" revision={diffLeft} otherRevision={diffRight} isNewer />
+                    </div>
+                  </div>
+                ) : (
+                  /* Revision list */
+                  <div className="overflow-y-auto p-6">
+                    {loadingRevisions ? (
+                      <p className="text-sm text-muted-foreground">Loading revisions...</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {revisions.map((rev, idx) => (
+                          <div
+                            key={rev.id}
+                            className="flex items-center justify-between rounded-lg border p-3"
+                          >
+                            <div>
+                              <p className="text-sm font-medium">
+                                {idx === 0 ? "Current version" : `Revision ${revisions.length - idx}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {rev.editedBy.name ?? rev.editedBy.email} · {new Date(rev.createdAt).toLocaleString()}
+                              </p>
+                            </div>
+                            {idx < revisions.length - 1 && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  setDiffLeft(rev);
+                                  setDiffRight(revisions[idx + 1]);
+                                }}
+                              >
+                                Compare with previous
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </AppShell>
+  );
+}
+
+// ─── Diff pane component ──────────────────────────────────
+
+function stripHtml(html: string): string {
+  if (typeof window === "undefined") return html;
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  return doc.body.textContent ?? "";
+}
+
+function DiffPane({
+  label,
+  revision,
+  otherRevision,
+  isNewer = false,
+}: {
+  label: string;
+  revision: NoteRevision;
+  otherRevision: NoteRevision;
+  isNewer?: boolean;
+}) {
+  const { diffWords } = require("diff") as typeof import("diff");
+
+  const oldText = stripHtml(isNewer ? otherRevision.body : revision.body);
+  const newText = stripHtml(isNewer ? revision.body : otherRevision.body);
+  const parts = diffWords(oldText, newText);
+
+  return (
+    <div className="flex flex-col overflow-hidden">
+      <div className="border-b bg-muted/40 px-4 py-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground">
+          {revision.editedBy.name ?? revision.editedBy.email} · {new Date(revision.createdAt).toLocaleString()}
+        </p>
+      </div>
+      <div className="flex-1 overflow-y-auto p-4 text-sm leading-relaxed">
+        {revision.title !== otherRevision.title && (
+          <p className={`mb-3 rounded px-2 py-1 font-semibold ${isNewer ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800 line-through"}`}>
+            {revision.title}
+          </p>
+        )}
+        <p className="whitespace-pre-wrap">
+          {parts.map((part, i) => {
+            if (isNewer) {
+              if (part.added) return <mark key={i} className="bg-green-100 text-green-900 rounded px-0.5">{part.value}</mark>;
+              if (part.removed) return null;
+            } else {
+              if (part.removed) return <mark key={i} className="bg-red-100 text-red-900 line-through rounded px-0.5">{part.value}</mark>;
+              if (part.added) return null;
+            }
+            return <span key={i}>{part.value}</span>;
+          })}
+        </p>
+      </div>
+    </div>
   );
 }

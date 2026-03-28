@@ -55,6 +55,8 @@ model User {
   comments       Comment[]
   companies      Company[]                @relation("CreatedCompanies")
   shareableLinks ShareableLink[]          @relation("CreatedLinks")
+  createdNotes   CompanyNote[]            @relation("CreatedNotes")
+  noteRevisions  CompanyNoteRevision[]    @relation("NoteRevisions")
 
   @@map("users")
 }
@@ -85,6 +87,7 @@ model Company {
   metricDefinitions MetricDefinition[]
   documents         Document[]
   shareableLinks    ShareableLinkCompany[]
+  notes             CompanyNote[]
 
   @@map("companies")
 }
@@ -265,18 +268,57 @@ model ShareableLinkView {
   @@map("shareable_link_views")
 }
 
+// ─── Company Notes ────────────────────────────────────────
+
+model CompanyNote {
+  id            String   @id @default(cuid())
+  companyId     String
+  createdById   String
+  title         String
+  body          String   @db.Text
+  occurredAt    DateTime
+  transcriptUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User                  @relation("CreatedNotes", fields: [createdById], references: [id])
+  revisions CompanyNoteRevision[]
+  aiChunks  AIChunk[]
+
+  @@map("company_notes")
+}
+
+model CompanyNoteRevision {
+  id            String   @id @default(cuid())
+  noteId        String
+  title         String
+  body          String   @db.Text
+  occurredAt    DateTime
+  transcriptUrl String?
+  editedById    String
+  createdAt     DateTime @default(now())
+
+  note     CompanyNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  editedBy User        @relation("NoteRevisions", fields: [editedById], references: [id])
+
+  @@map("company_note_revisions")
+}
+
 // ─── AI Indexing ──────────────────────────────────────────
 
 model AIChunk {
   id         String   @id @default(cuid())
   updateId   String?
   documentId String?
+  noteId     String?
   content    String   @db.Text
   embedding  Unsupported("vector(1536)")?
   createdAt  DateTime @default(now())
 
-  update   Update?   @relation(fields: [updateId], references: [id], onDelete: Cascade)
-  document Document? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  update   Update?      @relation(fields: [updateId], references: [id], onDelete: Cascade)
+  document Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  note     CompanyNote? @relation(fields: [noteId], references: [id], onDelete: Cascade)
 
   @@map("ai_chunks")
 }

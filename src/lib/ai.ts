@@ -87,18 +87,55 @@ export async function indexDocument(documentId: string, textContent: string) {
 }
 
 /**
+ * Index a company note for RAG retrieval.
+ */
+export async function indexNote(noteId: string) {
+  const note = await db.companyNote.findUnique({
+    where: { id: noteId },
+    include: { company: true },
+  });
+  if (!note) return;
+
+  const fullText = [
+    `Company: ${note.company.name}`,
+    `Note: ${note.title}`,
+    `Date: ${note.occurredAt.toISOString().split("T")[0]}`,
+    note.transcriptUrl ? `Transcript: ${note.transcriptUrl}` : "",
+    note.body,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const chunks = splitIntoChunks(fullText, 2000);
+
+  await db.aIChunk.deleteMany({ where: { noteId } });
+
+  for (const chunk of chunks) {
+    try {
+      const embedding = await generateEmbedding(chunk);
+      await db.$executeRaw`
+        INSERT INTO ai_chunks (id, "noteId", content, embedding, "createdAt")
+        VALUES (${generateId()}, ${noteId}, ${chunk}, ${embeddingToVector(embedding)}::vector, NOW())
+      `;
+    } catch (e) {
+      console.error("Failed to index note chunk:", e);
+    }
+  }
+}
+
+/**
  * Search for relevant chunks using vector similarity.
  */
 export async function searchChunks(query: string, limit = 10): Promise<
-  { id: string; content: string; updateId: string | null; documentId: string | null; similarity: number }[]
+  { id: string; content: string; updateId: string | null; documentId: string | null; noteId: string | null; similarity: number }[]
 > {
   const queryEmbedding = await generateEmbedding(query);
   const vectorStr = embeddingToVector(queryEmbedding);
 
   const results = await db.$queryRaw<
-    { id: string; content: string; updateId: string | null; documentId: string | null; similarity: number }[]
+    { id: string; content: string; updateId: string | null; documentId: string | null; noteId: string | null; similarity: number }[]
   >`
-    SELECT id, content, "updateId", "documentId",
+    SELECT id, content, "updateId", "documentId", "noteId",
            1 - (embedding <=> ${vectorStr}::vector) as similarity
     FROM ai_chunks
     WHERE embedding IS NOT NULL
@@ -145,6 +182,20 @@ export async function chatWithAI(
       });
       if (doc) {
         sources.push({ type: "document", id: doc.id, title: doc.name });
+      }
+    }
+    if (chunk.noteId && !sourceIds.has(chunk.noteId)) {
+      sourceIds.add(chunk.noteId);
+      const note = await db.companyNote.findUnique({
+        where: { id: chunk.noteId },
+        select: { id: true, title: true, occurredAt: true },
+      });
+      if (note) {
+        sources.push({
+          type: "note",
+          id: note.id,
+          title: `${note.title} (${note.occurredAt.toISOString().split("T")[0]})`,
+        });
       }
     }
   }
