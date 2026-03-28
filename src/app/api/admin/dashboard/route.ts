@@ -75,6 +75,7 @@ export async function GET() {
             geography: true,
             fundingStage: true,
             createdAt: true,
+            lastReminderSentAt: true,
             updates: {
               where: { status: "SENT" },
               orderBy: { sentAt: "desc" },
@@ -113,7 +114,7 @@ export async function GET() {
       const overdue = isCompanyOverdue({ createdAt: c.createdAt, publishedUpdates });
       if (overdue) {
         companiesOverdue++;
-        overdueList.push({ id: c.id, name: c.name, sector: c.sector, daysSinceUpdate });
+        overdueList.push({ id: c.id, name: c.name, sector: c.sector, daysSinceUpdate, lastReminderSentAt: c.lastReminderSentAt?.toISOString() ?? null });
       }
 
       const sector = c.sector ?? "Uncategorized";

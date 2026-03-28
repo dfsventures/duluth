@@ -11,6 +11,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Bell,
 } from "lucide-react";
 import {
   BarChart,
@@ -32,6 +33,7 @@ interface OverdueCompany {
   name: string;
   sector: string | null;
   daysSinceUpdate: number | null;
+  lastReminderSentAt: string | null;
 }
 
 interface DashboardData {
@@ -51,6 +53,8 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showOverdue, setShowOverdue] = useState(false);
+  const [reminding, setReminding] = useState<Record<string, boolean>>({});
+  const [remindedAt, setRemindedAt] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
@@ -104,6 +108,27 @@ export default function AdminDashboardPage() {
   }
 
   const d = dashboard!;
+
+  async function sendReminder(companyId: string) {
+    setReminding((prev) => ({ ...prev, [companyId]: true }));
+    try {
+      const res = await fetch(`/api/companies/${companyId}/remind`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setRemindedAt((prev) => ({ ...prev, [companyId]: data.lastReminderSentAt }));
+      }
+    } finally {
+      setReminding((prev) => ({ ...prev, [companyId]: false }));
+    }
+  }
+
+  function timeAgo(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(diff / 86_400_000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    return `${days}d ago`;
+  }
 
   return (
     <AppShell>
@@ -262,6 +287,8 @@ export default function AdminDashboardPage() {
                     <th className="pb-2 font-medium">Company</th>
                     <th className="pb-2 font-medium">Sector</th>
                     <th className="pb-2 font-medium">Days Since Update</th>
+                    <th className="pb-2 font-medium">Last Reminded</th>
+                    <th className="pb-2 font-medium"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,6 +311,24 @@ export default function AdminDashboardPage() {
                         ) : (
                           <span className="text-muted-foreground">Never</span>
                         )}
+                      </td>
+                      <td className="py-2 text-muted-foreground text-xs">
+                        {(() => {
+                          const ts = remindedAt[c.id] ?? c.lastReminderSentAt;
+                          return ts ? timeAgo(ts) : "—";
+                        })()}
+                      </td>
+                      <td className="py-2">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={reminding[c.id]}
+                          onClick={() => sendReminder(c.id)}
+                          className="flex items-center gap-1"
+                        >
+                          <Bell className="h-3 w-3" />
+                          {reminding[c.id] ? "Sending…" : "Remind"}
+                        </Button>
                       </td>
                     </tr>
                   ))}
