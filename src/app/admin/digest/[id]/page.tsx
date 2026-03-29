@@ -284,10 +284,10 @@ export default function DigestDetailPage() {
                   </Button>
                 </>
               )}
-              {!digest.sentAt && (
+              {isEditWindow && (
                 <Button onClick={handleSend} disabled={sending} size="sm" className="flex items-center gap-1.5">
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {sending ? "Sending…" : "Send to team"}
+                  {sending ? "Sending…" : digest.sentAt ? "Resend" : "Send to team"}
                 </Button>
               )}
             </>
