@@ -4,6 +4,37 @@ import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { sendUpdatePublishedEmail } from "@/lib/email";
 
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const existing = await db.update.findUnique({
+      where: { id },
+      select: { companyId: true, status: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Update not found" }, { status: 404 });
+    }
+
+    const { error } = await requireCompanyAccess(existing.companyId);
+    if (error) return error;
+
+    if (existing.status === "SENT") {
+      return NextResponse.json({ error: "Published updates cannot be deleted" }, { status: 403 });
+    }
+
+    await db.update.delete({ where: { id } });
+    return new NextResponse(null, { status: 204 });
+  } catch (err) {
+    console.error("DELETE /api/updates/[id] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }

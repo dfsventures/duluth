@@ -12,6 +12,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Upload,
+  Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -46,6 +47,7 @@ export default function NewUpdatePage() {
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -99,6 +101,18 @@ export default function NewUpdatePage() {
 
   function updateMetricInput(metricId: string, value: string) {
     setMetricInputs((prev) => ({ ...prev, [metricId]: value }));
+  }
+
+  async function handleDelete(updateId: string) {
+    setDeletingId(updateId);
+    try {
+      const res = await fetch(`/api/updates/${updateId}`, { method: "DELETE" });
+      if (res.ok) {
+        setUpdates((prev) => prev.filter((u) => u.id !== updateId));
+      }
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   async function handleSubmit(status: "DRAFT" | "SENT") {
@@ -231,30 +245,32 @@ export default function NewUpdatePage() {
           <h2 className="mb-3 text-lg font-semibold">Previous Updates</h2>
           <div className="space-y-2">
             {updates.map((update) => (
-              <Link
-                key={update.id}
-                href={`/updates/${update.id}`}
-                className="block"
-              >
-                <Card className="transition-colors hover:bg-muted/50">
-                  <CardContent className="flex items-center justify-between py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{update.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatPeriod(update.period)} &middot;{" "}
-                        {formatDate(update.createdAt)}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={
-                        update.status === "SENT" ? "success" : "warning"
-                      }
-                    >
+              <Card key={update.id} className="transition-colors hover:bg-muted/50">
+                <CardContent className="flex items-center justify-between py-3">
+                  <Link href={`/updates/${update.id}`} className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{update.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatPeriod(update.period)} &middot;{" "}
+                      {formatDate(update.createdAt)}
+                    </p>
+                  </Link>
+                  <div className="flex items-center gap-2 shrink-0 ml-3">
+                    <Badge variant={update.status === "SENT" ? "success" : "warning"}>
                       {update.status === "SENT" ? "Published" : "Draft"}
                     </Badge>
-                  </CardContent>
-                </Card>
-              </Link>
+                    {update.status === "DRAFT" && (
+                      <button
+                        onClick={() => handleDelete(update.id)}
+                        disabled={deletingId === update.id}
+                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
+                        title="Delete draft"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         </div>
