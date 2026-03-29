@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
+import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -27,6 +28,22 @@ export async function POST(request: Request) {
     const today = new Date();
     const weekOf = today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
+    // Fetch last digest to extract previous riddle
+    const lastDigest = await db.weeklyDigest.findFirst({
+      orderBy: { weekOf: "desc" },
+      select: { sections: true },
+    });
+
+    const lastRiddleContent = (() => {
+      if (!lastDigest) return null;
+      const sections = lastDigest.sections as { id: string; content: string }[];
+      return sections.find((s) => s.id === "riddle")?.content ?? null;
+    })();
+
+    const riddleContext = lastRiddleContent
+      ? `\nLast week's riddle section was: "${lastRiddleContent}"\nFor the riddle section, first reveal the answer to last week's riddle, then pose a new original riddle. Format as plain text: "Last week's answer: [answer]\n\n[New riddle question]"`
+      : `\nFor the riddle section, pose a fun, original riddle. Format as plain text: "[Riddle question]\n\n(Answer revealed next week)"`;
+
     const prompt = `You are generating the DFS Lab weekly digest from raw meeting notes.
 
 Today is ${weekOf}. Given the meeting notes below, produce a JSON object with:
@@ -36,6 +53,9 @@ Today is ${weekOf}. Given the meeting notes below, produce a JSON object with:
 
 Sections must be in this exact order with these exact ids and headings:
 ${SECTION_DEFS.map((s) => `- id: "${s.id}", heading: "${s.heading}"`).join("\n")}
+
+The first 5 sections should be populated from the meeting notes.
+${riddleContext}
 
 Return only valid JSON, no markdown fences.
 
