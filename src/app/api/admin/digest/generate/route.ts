@@ -54,7 +54,9 @@ async function fetchTranscriptFromUrl(url: string): Promise<string> {
     .filter((l) => l.length > 0)
     .join("\n");
 
-  return `[Source: ${url}]\n${text}`;
+  // Cap at ~15k chars to stay within Claude's useful context
+  const capped = text.length > 15000 ? text.slice(0, 15000) + "\n[truncated]" : text;
+  return `[Source: ${url}]\n${capped}`;
 }
 
 export async function POST(request: Request) {
@@ -101,16 +103,19 @@ export async function POST(request: Request) {
     const today = new Date();
     const weekOf = today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-    // Fetch last digest to extract previous riddle
-    const lastDigest = await db.weeklyDigest.findFirst({
-      orderBy: { weekOf: "desc" },
-      select: { sections: true },
-    });
-
-    const lastRiddleContent = (() => {
-      if (!lastDigest) return null;
-      const sections = lastDigest.sections as { id: string; content: string }[];
-      return sections.find((s) => s.id === "riddle")?.content ?? null;
+    // Fetch last digest to extract previous riddle (best-effort)
+    const lastRiddleContent = await (async () => {
+      try {
+        const lastDigest = await db.weeklyDigest.findFirst({
+          orderBy: { weekOf: "desc" },
+          select: { sections: true },
+        });
+        if (!lastDigest) return null;
+        const sections = lastDigest.sections as { id: string; content: string }[];
+        return sections.find((s) => s.id === "riddle")?.content ?? null;
+      } catch {
+        return null;
+      }
     })();
 
     const riddleContext = lastRiddleContent
@@ -137,16 +142,20 @@ ${combinedNotes}`;
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 2000,
+      max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
 
     const raw = message.content[0]?.type === "text" ? message.content[0].text : "";
 
+    // Strip markdown fences if Claude wrapped the JSON despite instructions
+    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+
     let parsed: { title: string; sections: { id: string; heading: string; content: string }[]; todos: { text: string }[] };
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(cleaned);
     } catch {
+      console.error("Failed to parse AI response. Raw output:", raw.slice(0, 500));
       return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
     }
 
