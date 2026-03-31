@@ -140,11 +140,14 @@ Return only valid JSON, no markdown fences.
 Meeting notes:
 ${combinedNotes}`;
 
-    const message = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const message = await anthropic.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 4096,
+        messages: [{ role: "user", content: prompt }],
+      },
+      { maxRetries: 3 }
+    );
 
     const raw = message.content[0]?.type === "text" ? message.content[0].text : "";
 
@@ -170,8 +173,12 @@ ${combinedNotes}`;
       sections,
       todos: (parsed.todos ?? []).map((t) => ({ text: t.text })),
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("POST /api/admin/digest/generate error:", err);
+    const status = (err as { status?: number })?.status;
+    if (status === 529 || status === 503) {
+      return NextResponse.json({ error: "Claude is currently overloaded — please try again in a moment" }, { status: 503 });
+    }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
