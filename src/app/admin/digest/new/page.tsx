@@ -134,13 +134,13 @@ export default function NewDigestPage() {
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div>
-              <label className="label mb-1.5 block">Paste meeting notes</label>
+              <label className="label mb-1.5 block">Meeting notes or Granola links</label>
               <p className="mb-3 text-xs text-muted-foreground">
-                Copy notes from Granola (or anywhere) and paste them here. Claude will structure them into the digest.
+                Paste Granola share links (one per line), raw meeting notes, or a mix of both. Claude will fetch and structure everything into the digest.
               </p>
               <textarea
                 className="input-field min-h-[320px] w-full resize-y font-mono text-sm"
-                placeholder="Paste your meeting notes here…"
+                placeholder={`https://notes.granola.ai/t/...\nhttps://notes.granola.ai/t/...\n\nOr paste raw notes here…`}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />

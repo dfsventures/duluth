@@ -15,6 +15,48 @@ const SECTION_DEFS = [
   { id: "riddle", heading: "Riddle of the Week" },
 ];
 
+/**
+ * Fetch a Granola transcript URL and extract readable plain text from the HTML.
+ */
+async function fetchTranscriptFromUrl(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0 (compatible; Molly/1.0)" },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch ${url} (${res.status})`);
+  const html = await res.text();
+
+  // Remove <script> and <style> blocks entirely
+  let text = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<head\b[^>]*>[\s\S]*?<\/head>/gi, "");
+
+  // Replace block-level closing tags with newlines to preserve structure
+  text = text.replace(/<\/(p|div|li|h[1-6]|section|article|tr)>/gi, "\n");
+  text = text.replace(/<br\s*\/?>/gi, "\n");
+
+  // Strip remaining HTML tags
+  text = text.replace(/<[^>]+>/g, "");
+
+  // Decode common HTML entities
+  text = text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ");
+
+  // Collapse excess whitespace
+  text = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+    .join("\n");
+
+  return `[Source: ${url}]\n${text}`;
+}
+
 export async function POST(request: Request) {
   try {
     const { error } = await requireAdmin();
@@ -22,7 +64,38 @@ export async function POST(request: Request) {
 
     const { notes } = await request.json() as { notes: string };
     if (!notes?.trim()) {
-      return NextResponse.json({ error: "Meeting notes are required" }, { status: 400 });
+      return NextResponse.json({ error: "Meeting notes or links are required" }, { status: 400 });
+    }
+
+    // Split input into URL lines and plain-text lines
+    const lines = notes.split("\n");
+    const urlLines = lines.filter((l) => /^https?:\/\//i.test(l.trim()));
+    const textLines = lines.filter((l) => !/^https?:\/\//i.test(l.trim()));
+
+    // Fetch all URLs in parallel
+    const fetchedTexts: string[] = [];
+    if (urlLines.length > 0) {
+      const results = await Promise.allSettled(
+        urlLines.map((url) => fetchTranscriptFromUrl(url.trim()))
+      );
+      for (const result of results) {
+        if (result.status === "fulfilled") {
+          fetchedTexts.push(result.value);
+        } else {
+          console.error("Failed to fetch transcript:", result.reason);
+        }
+      }
+    }
+
+    const combinedNotes = [
+      ...fetchedTexts,
+      textLines.join("\n").trim(),
+    ]
+      .filter(Boolean)
+      .join("\n\n---\n\n");
+
+    if (!combinedNotes.trim()) {
+      return NextResponse.json({ error: "Could not retrieve any content from the provided input" }, { status: 400 });
     }
 
     const today = new Date();
@@ -60,7 +133,7 @@ ${riddleContext}
 Return only valid JSON, no markdown fences.
 
 Meeting notes:
-${notes}`;
+${combinedNotes}`;
 
     const message = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
@@ -77,7 +150,6 @@ ${notes}`;
       return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
     }
 
-    // Ensure all 6 sections are present even if Claude omitted one
     const sections = SECTION_DEFS.map((def) => {
       const found = parsed.sections?.find((s) => s.id === def.id);
       return { id: def.id, heading: def.heading, content: found?.content ?? "" };
