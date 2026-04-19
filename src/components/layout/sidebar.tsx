@@ -9,7 +9,6 @@ import {
   Building2,
   FileText,
   BarChart3,
-  Bot,
   LogOut,
   ChevronRight,
   Shield,
@@ -34,7 +33,6 @@ const adminNav = [
   { label: "Companies", href: "/admin/companies", icon: Building2 },
   { label: "Investor Links", href: "/admin/links", icon: Link2 },
   { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
-  { label: "AI Chat", href: "/admin/chat", icon: Bot },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

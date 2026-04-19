@@ -58,9 +58,6 @@ export async function PATCH(
       },
     });
 
-    // Re-index for AI (fire-and-forget)
-    import("@/lib/ai").then(({ indexNote }) => indexNote(noteId)).catch(console.error);
-
     return NextResponse.json(updated);
   } catch (err) {
     console.error("PATCH /api/companies/[id]/notes/[noteId] error:", err);

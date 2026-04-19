@@ -1,12 +1,10 @@
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  extensions = [vector]
 }
 
 // ─── Enums ────────────────────────────────────────────────
@@ -130,7 +128,6 @@ model Update {
   comments  Comment[]
   documents Document[]
   metricValues MetricValue[]
-  aiChunks  AIChunk[]
   shareableLinkSelections ShareableLinkUpdate[]
 
   @@map("updates")
@@ -185,8 +182,6 @@ model Document {
   company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   update     Update? @relation(fields: [updateId], references: [id], onDelete: SetNull)
   uploadedBy User    @relation(fields: [uploadedById], references: [id])
-  aiChunks   AIChunk[]
-
   @@map("documents")
 }
 
@@ -287,8 +282,6 @@ model CompanyNote {
   company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy User                  @relation("CreatedNotes", fields: [createdById], references: [id])
   revisions CompanyNoteRevision[]
-  aiChunks  AIChunk[]
-
   @@map("company_notes")
 }
 
@@ -306,24 +299,6 @@ model CompanyNoteRevision {
   editedBy User        @relation("NoteRevisions", fields: [editedById], references: [id])
 
   @@map("company_note_revisions")
-}
-
-// ─── AI Indexing ──────────────────────────────────────────
-
-model AIChunk {
-  id         String   @id @default(cuid())
-  updateId   String?
-  documentId String?
-  noteId     String?
-  content    String   @db.Text
-  embedding  Unsupported("vector(1536)")?
-  createdAt  DateTime @default(now())
-
-  update   Update?      @relation(fields: [updateId], references: [id], onDelete: Cascade)
-  document Document?    @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  note     CompanyNote? @relation(fields: [noteId], references: [id], onDelete: Cascade)
-
-  @@map("ai_chunks")
 }
 
 // ─── Weekly Digest ────────────────────────────────────────

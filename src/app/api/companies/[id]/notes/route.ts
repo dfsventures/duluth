@@ -89,9 +89,6 @@ export async function POST(
       },
     });
 
-    // Index for AI (fire-and-forget)
-    import("@/lib/ai").then(({ indexNote }) => indexNote(note.id)).catch(console.error);
-
     return NextResponse.json(note, { status: 201 });
   } catch (err) {
     console.error("POST /api/companies/[id]/notes error:", err);
