@@ -2,66 +2,150 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* ── Design tokens: light theme ───────────────────────────── */
+:root {
+  /* Accent — steel blue */
+  --color-accent: #5B8DC5;
+  --color-accent-hover: #4070A8;
+  --color-accent-rgb: 91 141 197;
+  --color-powder: #A9CCE8;
 
+  /* Surfaces */
+  --color-bg: #F9F9F7;
+  --color-surface: #FFFFFF;
+
+  /* Borders */
+  --color-border: #E5E5E2;
+  --color-border-hover: #C8C8C4;
+
+  /* Text */
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #555550;
+  --color-text-muted: #888882;
+
+  /* Muted fill (for hover states, subtle backgrounds) */
+  --color-muted-rgb: 229 229 226;   /* #E5E5E2 — slightly off border */
+
+  /* Primary scale */
+  --color-primary-50: rgba(91, 141, 197, 0.08);
+  --color-primary-100: rgba(91, 141, 197, 0.15);
+  --color-primary-500: #4070A8;
+  --color-primary-600: #3560A0;
+  --color-primary-700: #2A4E88;
+
+  /* Destructive */
+  --color-destructive-rgb: 220 38 38;
+}
+
+/* ── Design tokens: dark theme ────────────────────────────── */
+[data-theme="dark"] {
+  --color-accent: #5BBFAA;
+  --color-accent-hover: #7DD4C2;
+  --color-accent-rgb: 91 191 170;
+  --color-powder: #1A3D38;
+
+  --color-bg: #0E0E0C;
+  --color-surface: #161614;
+
+  --color-border: #252522;
+  --color-border-hover: #3A3A36;
+
+  --color-text-primary: #EEECEA;
+  --color-text-secondary: #C0C0B8;
+  --color-text-muted: #888882;
+
+  --color-muted-rgb: 37 37 34;   /* #252522 */
+
+  --color-primary-50: rgba(91, 191, 170, 0.10);
+  --color-primary-100: rgba(91, 191, 170, 0.18);
+  --color-primary-500: #7DD4C2;
+  --color-primary-600: #5BBFAA;
+  --color-primary-700: #4A9E8C;
+}
+
+/* ── Base ─────────────────────────────────────────────────── */
 @layer base {
   * {
-    border-color: theme('colors.border');
+    border-color: theme("colors.border");
+    transition-duration: 180ms;
+    transition-timing-function: ease;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
   body {
-    color: theme('colors.foreground');
-    background: theme('colors.background');
-    font-family: theme('fontFamily.sans');
+    color: var(--color-text-primary);
+    background: var(--color-bg);
+    font-family: var(--font-sans), system-ui, sans-serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+    border-radius: 4px;
   }
 }
 
+/* ── Component classes ────────────────────────────────────── */
 @layer components {
+
+  /* Buttons */
+  .btn-base {
+    @apply inline-flex items-center justify-center gap-2 rounded-sm font-mono text-xs font-semibold uppercase tracking-widest transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50;
+  }
+
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+    @apply btn-base bg-primary text-white hover:bg-primary-hover px-6 py-3;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+    @apply btn-base border border-border bg-transparent text-foreground hover:border-[var(--color-border-hover)] hover:bg-muted px-6 py-3;
   }
 
   .btn-destructive {
-    @apply inline-flex items-center justify-center rounded-md bg-destructive px-4 py-2 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50;
+    @apply btn-base bg-destructive text-white hover:bg-destructive/90 px-6 py-3;
   }
 
+  /* Inputs */
   .input-field {
-    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
   }
 
+  /* Label */
   .label {
-    @apply text-sm font-medium leading-none;
+    @apply text-xs font-semibold uppercase tracking-widest text-muted-foreground font-mono;
   }
 
+  /* Card */
   .card {
-    @apply rounded-lg border bg-card text-card-foreground p-6;
+    @apply rounded-md border border-border bg-card text-card-foreground p-6;
   }
 
+  /* Badges / tags */
   .badge {
-    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-full border px-3 py-0.5 font-mono text-xs font-medium;
   }
 
   .badge-success {
-    @apply badge border-green-200 bg-green-50 text-green-700;
+    @apply badge border-green-200/60 bg-green-50/60 text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-400;
   }
 
   .badge-warning {
-    @apply badge border-amber-200 bg-amber-50 text-amber-700;
+    @apply badge border-amber-200/60 bg-amber-50/60 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400;
   }
 
   .badge-danger {
-    @apply badge border-red-200 bg-red-50 text-red-700;
+    @apply badge border-red-200/60 bg-red-50/60 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400;
   }
 
   .badge-info {
-    @apply badge border-blue-200 bg-blue-50 text-blue-700;
+    @apply badge bg-primary-50 border-primary/20 text-primary-600 dark:text-primary-500;
   }
 
   .badge-neutral {
-    @apply badge border-gray-200 bg-gray-50 text-gray-700;
+    @apply badge bg-muted/50 border-border text-muted-foreground;
   }
 }

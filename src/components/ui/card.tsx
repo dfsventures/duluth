@@ -14,7 +14,11 @@ export function CardHeader({ children, className }: CardProps) {
 }
 
 export function CardTitle({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={cn("text-lg font-semibold", className)}>{children}</h3>;
+  return (
+    <h3 className={cn("font-display text-base font-semibold text-foreground", className)}>
+      {children}
+    </h3>
+  );
 }
 
 export function CardDescription({ children, className }: { children: React.ReactNode; className?: string }) {

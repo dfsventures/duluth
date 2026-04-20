@@ -6,83 +6,71 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
-        // DFS Lab brand colors extracted from logo
-        brand: {
-          teal: "#3BBFA0",
-          "teal-dark": "#2E9A7E",
-          "teal-light": "#6DD5B8",
-          blue: "#5BAED6",
-          "blue-dark": "#4A8FB5",
-          "blue-light": "#A8D8EA",
-          sky: "#C5E4F0",
-          pale: "#E8F4F8",
-        },
-        // Semantic tokens
+        background: "var(--color-bg)",
+        foreground: "var(--color-text-primary)",
+
         primary: {
-          DEFAULT: "#3BBFA0",
+          DEFAULT: "rgb(var(--color-accent-rgb) / <alpha-value>)",
           foreground: "#FFFFFF",
-          50: "#E8F8F3",
-          100: "#C5EEE1",
-          200: "#9DE3CC",
-          300: "#6DD5B8",
-          400: "#3BBFA0",
-          500: "#2E9A7E",
-          600: "#237A63",
-          700: "#1A5C4B",
-          800: "#113D32",
-          900: "#091F19",
+          hover: "var(--color-accent-hover)",
+          50: "var(--color-primary-50)",
+          100: "var(--color-primary-100)",
+          500: "var(--color-primary-500)",
+          600: "var(--color-primary-600)",
+          700: "var(--color-primary-700)",
         },
-        secondary: {
-          DEFAULT: "#5BAED6",
-          foreground: "#FFFFFF",
-          50: "#EDF5FB",
-          100: "#D4E8F5",
-          200: "#A8D8EA",
-          300: "#7FC3DD",
-          400: "#5BAED6",
-          500: "#4A8FB5",
-          600: "#3A7194",
-          700: "#2B5470",
-          800: "#1D384B",
-          900: "#0E1C26",
-        },
-        background: "#FFFFFF",
-        foreground: "#1A1A2E",
+
         muted: {
-          DEFAULT: "#F1F5F9",
-          foreground: "#64748B",
+          DEFAULT: "rgb(var(--color-muted-rgb) / <alpha-value>)",
+          foreground: "var(--color-text-muted)",
         },
+
         accent: {
-          DEFAULT: "#E8F4F8",
-          foreground: "#1A1A2E",
+          DEFAULT: "var(--color-powder)",
+          foreground: "var(--color-text-primary)",
         },
+
         destructive: {
-          DEFAULT: "#EF4444",
+          DEFAULT: "rgb(var(--color-destructive-rgb) / <alpha-value>)",
           foreground: "#FFFFFF",
         },
-        border: "#E2E8F0",
-        input: "#E2E8F0",
-        ring: "#3BBFA0",
+
+        border: "var(--color-border)",
+        input: "var(--color-border)",
+        ring: "var(--color-accent)",
+
         card: {
-          DEFAULT: "#FFFFFF",
-          foreground: "#1A1A2E",
+          DEFAULT: "var(--color-surface)",
+          foreground: "var(--color-text-primary)",
+        },
+
+        secondary: {
+          DEFAULT: "var(--color-text-secondary)",
+          foreground: "var(--color-text-primary)",
         },
       },
+
       borderRadius: {
-        lg: "0.5rem",
-        md: "0.375rem",
-        sm: "0.25rem",
+        sm: "4px",
+        md: "8px",
+        lg: "8px",
+        xl: "8px",
+        "2xl": "12px",
+        full: "9999px",
       },
+
       fontFamily: {
-        sans: [
-          "Inter",
-          "system-ui",
-          "-apple-system",
-          "sans-serif",
-        ],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "var(--font-sans)", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+      },
+
+      transitionDuration: {
+        DEFAULT: "180ms",
       },
     },
   },
