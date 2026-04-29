@@ -1659,7 +1659,7 @@ export default function AdminCompanyDetailPage() {
                       </div>
                     </div>
                     <div
-                      className="prose prose-sm max-w-none text-foreground line-clamp-4"
+                      className="prose prose-sm max-w-none text-foreground line-clamp-4 dark:prose-invert"
                       dangerouslySetInnerHTML={{ __html: note.body }}
                     />
                   </CardContent>

@@ -318,7 +318,7 @@ export default function DigestDetailPage() {
                 />
               ) : (
                 <div
-                  className="prose prose-sm max-w-none text-foreground"
+                  className="prose prose-sm max-w-none text-foreground dark:prose-invert"
                   dangerouslySetInnerHTML={{ __html: section.content }}
                 />
               )}

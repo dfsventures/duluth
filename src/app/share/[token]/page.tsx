@@ -337,7 +337,7 @@ export default function SharePage() {
                           )}
 
                           <div
-                            className="prose prose-sm max-w-none"
+                            className="prose prose-sm max-w-none dark:prose-invert"
                             dangerouslySetInnerHTML={{ __html: update.body }}
                           />
                         </div>
