@@ -44,7 +44,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         const email = user.email;
-        if (!email || !email.endsWith("@dfslab.net")) return false;
+        if (!email || !email.endsWith("@dfs.vc")) return false;
 
         const existing = await db.user.findUnique({ where: { email } });
         if (!existing) {

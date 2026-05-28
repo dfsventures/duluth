@@ -13,7 +13,7 @@ export async function POST() {
 
   try {
     const DEV_TOKEN = "dev-token-123";
-    const DEV_ADMIN_EMAIL = "admin@dfslab.net";
+    const DEV_ADMIN_EMAIL = "admin@dfs.vc";
     const DEV_ADMIN_PASSWORD = "password123";
 
     // 1. Create or update a dev admin user (email/password, no Google needed)

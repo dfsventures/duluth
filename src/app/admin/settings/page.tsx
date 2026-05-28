@@ -6,8 +6,8 @@ import { DigestRecipientsPanel } from "./digest-recipients-panel";
 
 export default function SettingsPage() {
   const hasApiKey = !!process.env.RESEND_API_KEY;
-  const teamEmail = process.env.TEAM_EMAIL || "joseph@dfslab.net";
-  const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfslab.net>";
+  const teamEmail = process.env.TEAM_EMAIL || "joseph@dfs.vc";
+  const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>";
 
   return (
     <AppShell>

@@ -2,8 +2,8 @@ import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
-const FROM = process.env.EMAIL_FROM || "Molly <noreply@dfslab.net>";
-const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfslab.net";
+const FROM = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>";
+const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfs.vc";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
 // ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ export async function sendRejectionEmail(email: string) {
     html: emailWrapper(`
       <h1 style="margin: 0 0 8px; font-size: 22px; font-weight: 700; color: #0F172A;">Thanks for your interest</h1>
       <p style="margin: 0 0 16px;">We reviewed your request for access to Molly and are unable to approve it at this time.</p>
-      <p style="margin: 0 0 24px;">If you think this was a mistake or have questions, please reach out to us directly at <a href="mailto:support@dfslab.net" style="color: #3BBFA0; text-decoration: none; font-weight: 500;">support@dfslab.net</a> and we'll be happy to help.</p>
+      <p style="margin: 0 0 24px;">If you think this was a mistake or have questions, please reach out to us directly at <a href="mailto:support@dfs.vc" style="color: #3BBFA0; text-decoration: none; font-weight: 500;">support@dfs.vc</a> and we'll be happy to help.</p>
       <p style="margin: 0; color: #64748B;">— The DFS Lab Team</p>
     `),
   });

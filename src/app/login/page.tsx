@@ -27,7 +27,7 @@ function LoginForm() {
 
   const errorMessages: Record<string, string> = {
     CredentialsSignin: "Invalid email or password.",
-    AccessDenied: "Access denied. Only @dfslab.net accounts can sign in with Google.",
+    AccessDenied: "Access denied. Only @dfs.vc accounts can sign in with Google.",
     Default: "An error occurred. Please try again.",
   };
 
@@ -114,7 +114,7 @@ function LoginForm() {
               Sign in with Google
             </Button>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              For @dfslab.net accounts only
+              For @dfs.vc accounts only
             </p>
           </div>
         </div>
