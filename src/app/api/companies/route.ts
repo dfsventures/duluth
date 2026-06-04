@@ -42,6 +42,7 @@ export async function GET() {
     // Founder: return only their companies
     const memberships = await db.userCompanyMembership.findMany({
       where: { userId: user!.id },
+      orderBy: { createdAt: "desc" },
       include: {
         company: {
           include: {
