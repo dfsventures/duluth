@@ -18,6 +18,7 @@ import {
   Users,
   BookOpen,
 } from "lucide-react";
+import { CompanySwitcher } from "@/components/ui/company-switcher";
 
 const founderNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -78,6 +79,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <span className="font-semibold text-foreground">Molly</span>
         </Link>
       </div>
+
+      {/* Company switcher — founder only, hidden when single company */}
+      {!useAdminNav && <CompanySwitcher />}
 
       {/* Nav links */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">

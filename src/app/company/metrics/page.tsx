@@ -16,6 +16,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { MetricChart } from "@/components/ui/metric-chart";
 import { formatDate } from "@/lib/utils";
+import { useCompany } from "@/context/company-context";
 
 interface MetricWithValues {
   id: string;
@@ -26,6 +27,7 @@ interface MetricWithValues {
 
 export default function MetricsPage() {
   const { data: session } = useSession();
+  const { selectedCompany, loading: companyLoading } = useCompany();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<MetricWithValues[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,21 +48,16 @@ export default function MetricsPage() {
   const [addingValue, setAddingValue] = useState<string | null>(null);
 
   useEffect(() => {
+    if (companyLoading) return;
+
     async function load() {
       try {
-        const res = await fetch("/api/companies");
-        if (!res.ok) throw new Error("Failed to load companies");
-        const data = await res.json();
-        const companies = data.data ?? data;
-
-        if (!companies || companies.length === 0) {
+        if (!selectedCompany) {
           setLoading(false);
           return;
         }
-
-        const cId = companies[0].id;
-        setCompanyId(cId);
-        await loadMetrics(cId);
+        setCompanyId(selectedCompany.id);
+        await loadMetrics(selectedCompany.id);
       } catch {
         setMessage({ type: "error", text: "Failed to load data." });
       } finally {
@@ -69,7 +66,7 @@ export default function MetricsPage() {
     }
 
     load();
-  }, []);
+  }, [companyLoading, selectedCompany?.id]);
 
   async function loadMetrics(cId: string) {
     const res = await fetch(`/api/companies/${cId}/metrics/history`);

@@ -4,11 +4,13 @@ import { useState } from "react";
 import { Menu } from "lucide-react";
 import Image from "next/image";
 import { Sidebar } from "./sidebar";
+import { CompanyProvider } from "@/context/company-context";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
+    <CompanyProvider>
     <div className="flex h-screen overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
@@ -37,5 +39,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">{children}</div>
       </main>
     </div>
+    </CompanyProvider>
   );
 }

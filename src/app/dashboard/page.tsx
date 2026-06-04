@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { useCompany } from "@/context/company-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -39,35 +40,27 @@ interface Update {
 export default function DashboardPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
+  const { selectedCompany, loading: companyLoading } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (sessionStatus !== "authenticated") return;
+    if (sessionStatus !== "authenticated" || companyLoading) return;
 
     async function fetchData() {
       try {
-        const res = await fetch("/api/companies");
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(body?.error ?? `Server error (${res.status})`);
-        }
-        const data = await res.json();
-
-        const companies = data.data ?? data;
-        if (!companies || companies.length === 0) {
+        if (!selectedCompany) {
           setCompany(null);
           setLoading(false);
           return;
         }
 
-        const comp = companies[0];
-        setCompany(comp);
+        setCompany(selectedCompany as Company);
 
         const updatesRes = await fetch(
-          `/api/companies/${comp.id}/updates?limit=5`
+          `/api/companies/${selectedCompany.id}/updates?limit=5`
         );
         if (updatesRes.ok) {
           const updatesData = await updatesRes.json();
@@ -81,7 +74,7 @@ export default function DashboardPage() {
     }
 
     fetchData();
-  }, [sessionStatus]);
+  }, [sessionStatus, companyLoading, selectedCompany?.id]);
 
   if (sessionStatus === "loading" || loading) {
     return (

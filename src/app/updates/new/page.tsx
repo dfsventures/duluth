@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { formatDate, formatPeriod } from "@/lib/utils";
+import { useCompany } from "@/context/company-context";
 
 interface Update {
   id: string;
@@ -42,6 +43,7 @@ interface MetricDefinition {
 export default function NewUpdatePage() {
   const router = useRouter();
   const { data: session } = useSession();
+  const { selectedCompany, loading: companyLoading } = useCompany();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
@@ -61,19 +63,16 @@ export default function NewUpdatePage() {
   const [metricInputs, setMetricInputs] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    if (companyLoading) return;
+
     async function load() {
       try {
-        const res = await fetch("/api/companies");
-        if (!res.ok) throw new Error("Failed to load companies");
-        const data = await res.json();
-        const companies = data.data ?? data;
-
-        if (!companies || companies.length === 0) {
+        if (!selectedCompany) {
           setLoading(false);
           return;
         }
 
-        const cId = companies[0].id;
+        const cId = selectedCompany.id;
         setCompanyId(cId);
 
         // Fetch existing updates
@@ -97,7 +96,7 @@ export default function NewUpdatePage() {
     }
 
     load();
-  }, []);
+  }, [companyLoading, selectedCompany?.id]);
 
   function updateMetricInput(metricId: string, value: string) {
     setMetricInputs((prev) => ({ ...prev, [metricId]: value }));

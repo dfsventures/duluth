@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
+import { useCompany } from "@/context/company-context";
 
 const EXPIRY_OPTIONS = [
   { label: "7 days", days: 7 },
@@ -69,6 +70,7 @@ function shareUrl(token: string): string {
 }
 
 export default function FounderLinksPage() {
+  const { selectedCompany, loading: companyLoading } = useCompany();
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [publishedUpdates, setPublishedUpdates] = useState<PublishedUpdate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,32 +90,25 @@ export default function FounderLinksPage() {
   const [deleting, setDeleting] = useState(false);
 
   const loadData = useCallback(async () => {
+    if (companyLoading || !selectedCompany) return;
     try {
-      const [linksRes, companiesRes] = await Promise.all([
-        fetch("/api/links"),
-        fetch("/api/companies"),
-      ]);
+      const linksRes = await fetch("/api/links");
       if (!linksRes.ok) throw new Error("Failed to load links");
-      const [linksData, companiesData] = await Promise.all([
-        linksRes.json(),
-        companiesRes.json(),
-      ]);
+      const linksData = await linksRes.json();
       setLinks(linksData);
 
-      // Fetch published updates for each company
-      const companies: { id: string; name: string }[] = companiesData.data ?? companiesData;
-      const updatesResults = await Promise.all(
-        companies.map((c) =>
-          fetch(`/api/companies/${c.id}/updates`)
-            .then((r) => r.ok ? r.json() : [])
-            .then((updates: (PublishedUpdate & { status: string })[]) =>
-              updates
-                .filter((u) => u.status === "SENT")
-                .map((u) => ({ ...u, company: { id: c.id, name: c.name } }))
-            )
-        )
+      // Fetch published updates for the selected company only
+      const updates: (PublishedUpdate & { status: string })[] = await fetch(
+        `/api/companies/${selectedCompany.id}/updates`
+      )
+        .then((r) => (r.ok ? r.json() : []))
+        .then((data) => data.data ?? data ?? []);
+
+      setPublishedUpdates(
+        updates
+          .filter((u) => u.status === "SENT")
+          .map((u) => ({ ...u, company: { id: selectedCompany.id, name: selectedCompany.name } }))
       );
-      setPublishedUpdates(updatesResults.flat());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
@@ -121,7 +116,7 @@ export default function FounderLinksPage() {
     }
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData, companyLoading, selectedCompany?.id]);
 
   function toggleUpdate(id: string) {
     setSelectedUpdateIds((prev) =>

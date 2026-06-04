@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useCompany } from "@/context/company-context";
 
 interface Member {
   membershipId: string;
@@ -37,6 +38,7 @@ function roleBadge(role: "OWNER" | "MEMBER" | "VIEWER") {
 }
 
 export default function TeamPage() {
+  const { selectedCompany, loading: companyLoading } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,25 +57,21 @@ export default function TeamPage() {
   const [updatingRoleId, setUpdatingRoleId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    if (companyLoading) return;
     try {
-      const companiesRes = await fetch("/api/companies");
-      if (!companiesRes.ok) throw new Error("Failed to load company");
-      const companies: { id: string; name: string; membershipRole?: "OWNER" | "MEMBER" | "VIEWER" }[] =
-        await companiesRes.json();
-      const first = companies[0];
-      if (!first) {
+      if (!selectedCompany) {
         setLoading(false);
         return;
       }
 
-      const membersRes = await fetch(`/api/companies/${first.id}/members`);
+      const membersRes = await fetch(`/api/companies/${selectedCompany.id}/members`);
       if (!membersRes.ok) throw new Error("Failed to load members");
       const membersData: Member[] = await membersRes.json();
 
       setCompany({
-        id: first.id,
-        name: first.name,
-        membershipRole: first.membershipRole ?? "VIEWER",
+        id: selectedCompany.id,
+        name: selectedCompany.name,
+        membershipRole: (selectedCompany.membershipRole as "OWNER" | "MEMBER" | "VIEWER") ?? "VIEWER",
       });
       setMembers(membersData);
     } catch (err) {
@@ -86,7 +84,7 @@ export default function TeamPage() {
 
   useEffect(() => {
     loadData();
-  }, [loadData]);
+  }, [loadData, companyLoading, selectedCompany?.id]);
 
   async function handleInvite() {
     if (!company || !inviteEmail.trim()) return;

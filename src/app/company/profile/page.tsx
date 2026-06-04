@@ -23,6 +23,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
+import { useCompany } from "@/context/company-context";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -37,6 +38,7 @@ interface CompanyFormData {
 
 export default function CompanyProfilePage() {
   const router = useRouter();
+  const { selectedCompany, loading: companyLoading } = useCompany();
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [form, setForm] = useState<CompanyFormData>({
     name: "",
@@ -56,22 +58,18 @@ export default function CompanyProfilePage() {
   } | null>(null);
 
   useEffect(() => {
+    if (companyLoading) return;
+
     async function loadCompany() {
       try {
-        const res = await fetch("/api/companies");
-        if (!res.ok) throw new Error("Failed to load companies");
-        const data = await res.json();
-        const companies = data.data ?? data;
-
-        if (!companies || companies.length === 0) {
+        if (!selectedCompany) {
           setLoading(false);
           return;
         }
 
-        const company = companies[0];
-        setCompanyId(company.id);
+        setCompanyId(selectedCompany.id);
 
-        const detailRes = await fetch(`/api/companies/${company.id}`);
+        const detailRes = await fetch(`/api/companies/${selectedCompany.id}`);
         if (!detailRes.ok) throw new Error("Failed to load company details");
         const detail = await detailRes.json();
         const c = detail.data ?? detail;
@@ -92,7 +90,7 @@ export default function CompanyProfilePage() {
     }
 
     loadCompany();
-  }, []);
+  }, [companyLoading, selectedCompany?.id]);
 
   function updateField(field: keyof CompanyFormData, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
