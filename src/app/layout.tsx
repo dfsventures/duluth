@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
+import { CompanyProvider } from "@/context/company-context";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -58,7 +59,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-screen bg-background antialiased">
-        <SessionProvider>{children}</SessionProvider>
+        <SessionProvider><CompanyProvider>{children}</CompanyProvider></SessionProvider>
       </body>
     </html>
   );
