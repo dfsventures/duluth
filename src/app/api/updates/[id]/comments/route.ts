@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
+import { sendCommentNotificationEmail } from "@/lib/email";
 
 export async function GET(
   _request: Request,
@@ -57,7 +58,12 @@ export async function POST(
 
     const update = await db.update.findUnique({
       where: { id },
-      select: { companyId: true },
+      select: {
+        companyId: true,
+        title: true,
+        period: true,
+        company: { select: { name: true } },
+      },
     });
 
     if (!update) {
@@ -94,6 +100,69 @@ export async function POST(
         },
       },
     });
+
+    // Fire-and-forget: notify the other party when a comment is left
+    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const snippet = body.body.trim().replace(/<[^>]*>/g, "").slice(0, 200);
+    const commenterIsAdmin = user!.roles.includes("ADMIN");
+
+    if (commenterIsAdmin) {
+      // Notify all founders on this company (skip the commenter in the unlikely case they're also a member)
+      db.userCompanyMembership.findMany({
+        where: { companyId: update.companyId },
+        include: { user: { select: { id: true, name: true, email: true, roles: true } } },
+      }).then((memberships) => {
+        const sends = memberships
+          .filter((m) => m.user.roles.includes("FOUNDER") && m.user.id !== user!.id)
+          .map((m) =>
+            sendCommentNotificationEmail({
+              toEmail: m.user.email,
+              toName: m.user.name,
+              commenterName: user!.name ?? null,
+              companyName: update.company.name,
+              updateTitle: update.title,
+              updatePeriod: update.period,
+              commentSnippet: snippet,
+              ctaLink: `${baseUrl}/updates/${id}`,
+              ctaLabel: "View Comment →",
+            })
+          );
+        Promise.allSettled(sends).then((results) => {
+          results.forEach((r, i) => {
+            if (r.status === "rejected")
+              console.error(`Comment notification email ${i} failed:`, r.reason);
+          });
+        });
+      }).catch((err) => console.error("Failed to fetch members for comment notification:", err));
+    } else {
+      // Notify all admins
+      db.user.findMany({
+        where: { roles: { has: "ADMIN" } },
+        select: { id: true, name: true, email: true },
+      }).then((admins) => {
+        const sends = admins
+          .filter((a) => a.id !== user!.id)
+          .map((a) =>
+            sendCommentNotificationEmail({
+              toEmail: a.email,
+              toName: a.name,
+              commenterName: user!.name ?? null,
+              companyName: update.company.name,
+              updateTitle: update.title,
+              updatePeriod: update.period,
+              commentSnippet: snippet,
+              ctaLink: `${baseUrl}/admin/companies/${update.companyId}`,
+              ctaLabel: "View in Dashboard →",
+            })
+          );
+        Promise.allSettled(sends).then((results) => {
+          results.forEach((r, i) => {
+            if (r.status === "rejected")
+              console.error(`Comment notification email ${i} failed:`, r.reason);
+          });
+        });
+      }).catch((err) => console.error("Failed to fetch admins for comment notification:", err));
+    }
 
     return NextResponse.json(comment, { status: 201 });
   } catch (err) {

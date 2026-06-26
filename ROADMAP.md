@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-02-26_
+_Last updated: 2026-06-26_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -40,7 +40,7 @@ This document is the source of truth for existing platform features and planned 
   - Save as Draft or Publish with inline confirmation
   - Email sent to team@dfslab.net on publish (includes metrics table + full body)
   - Edit mode for drafts; view mode with HTML rendering for all
-  - Comments (shared with admins)
+  - Comments (shared with admins) — with email notifications: admins are emailed when a founder comments, founders are emailed when an admin comments
   - PDF download
 - **Investor Links** — tokenized read-only links with period date range and expiry (7d/30d/90d/1yr/never)
   - Email gate on first visit; silent re-tracking via localStorage
@@ -85,7 +85,7 @@ This document is the source of truth for existing platform features and planned 
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
-| **Comment Threading + Notifications** | Threaded replies, @mentions, resolution status. Founders get email alerts on admin feedback. | Turns one-way updates into a coaching feedback loop. |
+| **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) | Turns one-way updates into a coaching feedback loop. |
 | **Update Templates** | Admin-created templates with pre-filled sections and metric guidance. | Reduces founder cognitive load; improves update consistency and completeness. |
 
 ### Medium Priority

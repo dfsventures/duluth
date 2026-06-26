@@ -17,6 +17,7 @@ A web application to manage portfolio company updates, metrics, and documents �
 - Define and track key metrics (MRR, active users, revenue, etc.)
 - Create investor updates with narrative text, metric snapshots, and file attachments
 - Publish updates with a confirmation step — DFS Lab is notified by email on publish
+- Receive email notifications when an admin leaves a comment on an update
 - Generate shareable read-only links for investors with configurable expiry (7 days to never)
 - Download a formatted PDF of each update
 - Invite teammates by email (Owner, Editor, Viewer roles) — new users get an account automatically
@@ -27,7 +28,7 @@ A web application to manage portfolio company updates, metrics, and documents �
 - Global dashboard showing update cadence across all portfolio companies
 - Company detail pages with full update history, metrics trends, and documents
 - Create companies and add members by email — new users are created and invited automatically
-- Comment on updates to communicate with founders
+- Comment on updates to communicate with founders — founders are notified by email; admins are notified when founders reply
 - Create shareable LP links covering one or multiple portfolio companies for a given period
 - AI chatbot that searches across all portfolio data and answers questions using OpenAI
 - Configure per-company update reminder frequency (weekly, bi-weekly, monthly, quarterly)
