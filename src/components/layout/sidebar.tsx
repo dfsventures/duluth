@@ -17,6 +17,7 @@ import {
   Settings,
   Users,
   BookOpen,
+  Briefcase,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 
@@ -27,6 +28,7 @@ const founderNav = [
   { label: "Updates", href: "/updates/new", icon: FileText },
   { label: "Investor Links", href: "/links", icon: Link2 },
   { label: "Team", href: "/team", icon: Users },
+  { label: "Service Providers", href: "/providers", icon: Briefcase },
 ];
 
 const adminNav = [
@@ -35,6 +37,7 @@ const adminNav = [
   { label: "Companies", href: "/admin/companies", icon: Building2 },
   { label: "Investor Links", href: "/admin/links", icon: Link2 },
   { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
+  { label: "Service Providers", href: "/admin/providers", icon: Briefcase },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

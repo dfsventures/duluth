@@ -31,6 +31,17 @@ enum UpdateStatus {
   SENT
 }
 
+enum ProviderType {
+  FIRM
+  INDIVIDUAL
+}
+
+enum ProviderStatus {
+  PENDING
+  VETTED
+  REJECTED
+}
+
 // ─── User ─────────────────────────────────────────────────
 
 model User {
@@ -47,16 +58,18 @@ model User {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
-  memberships    UserCompanyMembership[]
-  updates        Update[]
-  documents      Document[]
-  comments       Comment[]
-  companies      Company[]                @relation("CreatedCompanies")
-  shareableLinks ShareableLink[]          @relation("CreatedLinks")
-  receivesDigest Boolean                  @default(true)
-  createdNotes   CompanyNote[]            @relation("CreatedNotes")
-  noteRevisions  CompanyNoteRevision[]    @relation("NoteRevisions")
-  digestTodos    DigestTodo[]
+  memberships          UserCompanyMembership[]
+  updates              Update[]
+  documents            Document[]
+  comments             Comment[]
+  companies            Company[]                @relation("CreatedCompanies")
+  shareableLinks       ShareableLink[]          @relation("CreatedLinks")
+  receivesDigest       Boolean                  @default(true)
+  createdNotes         CompanyNote[]            @relation("CreatedNotes")
+  noteRevisions        CompanyNoteRevision[]    @relation("NoteRevisions")
+  digestTodos          DigestTodo[]
+  submittedProviders   ServiceProvider[]        @relation("SubmittedProviders")
+  providerEndorsements ProviderEndorsement[]
 
   @@map("users")
 }
@@ -326,6 +339,57 @@ model DigestTodo {
   createdAt  DateTime      @default(now())
 
   @@map("digest_todos")
+}
+
+// ─── Service Providers ────────────────────────────────────
+
+model ServiceCategory {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+
+  providers ServiceProvider[]
+
+  @@map("service_categories")
+}
+
+model ServiceProvider {
+  id            String         @id @default(cuid())
+  type          ProviderType   @default(FIRM)
+  name          String
+  website       String?
+  linkedin      String?
+  categoryId    String
+  description   String?        @db.Text
+  contactEmail  String?
+  country       String?
+  city          String?
+  status        ProviderStatus @default(PENDING)
+  submittedById String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  category     ServiceCategory      @relation(fields: [categoryId], references: [id])
+  submittedBy  User?                @relation("SubmittedProviders", fields: [submittedById], references: [id])
+  endorsements ProviderEndorsement[]
+
+  @@unique([name, categoryId])
+  @@map("service_providers")
+}
+
+model ProviderEndorsement {
+  id         String   @id @default(cuid())
+  providerId String
+  userId     String
+  note       String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  provider ServiceProvider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id])
+
+  @@unique([providerId, userId])
+  @@map("provider_endorsements")
 }
 
 model DigestExtraRecipient {
