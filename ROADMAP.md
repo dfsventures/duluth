@@ -14,7 +14,9 @@ This document is the source of truth for existing platform features and planned 
 - **Admins** — DFS Lab team who review companies, approve accounts, and analyze the portfolio
 - **Investors/LPs** — read-only access via shareable tokenized links (no account required)
 
-**Stack:** Next.js 14 App Router · Prisma ORM · PostgreSQL (pgvector) · S3 · Resend · NextAuth v5
+**Stack:** Next.js 14 App Router · Prisma ORM · PostgreSQL · S3 · Resend · NextAuth v5 · Anthropic Claude (digest drafting)
+
+Molly is open source (MIT) with the explicit goal that other investment teams can fork and run their own instance — see the Fork-friendly theming item in the roadmap below.
 
 ---
 
@@ -66,8 +68,12 @@ This document is the source of truth for existing platform features and planned 
   - Cooldown via `lastReminderSentAt` prevents repeat emails within the configured window
   - Emails all OWNER + MEMBER founders on the company; secured by `CRON_SECRET`
 - **Investor Links** — multi-company link creation; full view log; revoke
-- **AI Chat** — conversational AI over portfolio data (updates + documents); markdown + source attribution
+- **Weekly Digest** (`/admin/digest`) — compose the internal team digest (6 fixed sections + todo list with assignees); AI-assisted drafting via Anthropic Claude from pasted meeting notes or Granola transcript links; sent by email to recipients configured in Settings
+- **Company Notes** — admin-only internal notes on each company, with revision history
+- **Service Provider Directory** (`/providers`, `/admin/providers`) — founders submit and endorse service providers; admins vet submissions (pending/vetted/rejected) and manage categories
 - **Company member management** — add members by email from company detail page; new users created automatically via invite flow; membership role dropdown (Owner/Editor/Viewer) per founder member
+
+> **Note on AI Chat:** the OpenAI-based RAG chatbot (and pgvector embeddings) was deliberately removed, pending a cleaner re-implementation. Re-introduction is planned — see P3 below. The `openai` dependency in package.json is a leftover and can be dropped.
 
 ### Document Management
 - Upload documents linked to a company or specific update
@@ -88,33 +94,45 @@ This document is the source of truth for existing platform features and planned 
 
 ## Roadmap
 
-### High Priority
+Priorities run P0 (do first) through P3 (later). P0 exists because the platform holds confidential portfolio data and serves LPs — a February middleware auth bypass that survived until July, zero automated tests, and open security-audit items make platform integrity the highest-leverage work before new features.
+
+### P0 — Platform Integrity
+
+| Item | Description | Why now |
+|------|-------------|---------|
+| **Security hardening batch** | Rate limiting on `/api/auth/signup` and `/api/auth/set-password`; validate MIME type server-side on document upload; validate email format on the share-link gate; audit log for admin actions. | All four are open items from the security audit. Cheap individually; together they close the known attack surface. |
+| **Auth/authz test suite** | Minimal automated tests covering middleware routing, `requireAuth` / `requireAdmin` / `requireCompanyAccess`, and share-token access. | The middleware bypass shipped in February and was found by accident in July. There are currently zero tests; CI should catch the next one. |
+
+### P1 — Close the Core Loop (this quarter)
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
-| **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) | Turns one-way updates into a coaching feedback loop. |
 | **Update Templates** | Admin-created templates with pre-filled sections and metric guidance. | Reduces founder cognitive load; improves update consistency and completeness. |
+| **Investor entry point** | "Investor Login" on the homepage currently runs admin Google OAuth — it fails for actual investors. Either build a lightweight "find your link" page or remove the button until investor accounts exist. | A public CTA that errors for its named audience erodes trust with exactly the audience LPs represent. |
+| **Share-link engagement for founders** | Surface `ShareableLinkView` data (already collected) as a simple "your investor viewed this" signal on the founder dashboard. | The reward loop that keeps founders publishing. Data already exists; this is UI. |
 
-### Medium Priority
+### P2 — Leverage (next quarter)
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
-| **Metrics Benchmarking** | Anonymized peer comparison (e.g., "Your MRR growth is above portfolio median"). | Motivates founders; surfaces outliers for admin attention. |
-| **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
 | **Bulk LP Report Link** | Admin creates a single link covering the full portfolio for a period. | Current multi-company links require manual selection. Essential for LP meetings. |
-| **Mobile-Optimized Update Flow** | Simplified metric entry and editor optimized for small screens. | Many founders are mobile-first. Improves update frequency. |
+| **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
+| **Rule-based metric alerts** | Auto-surface issues with plain arithmetic — "MRR dropped 20%", "no metrics in last 3 updates". No AI dependency. | Proactive problem detection without waiting on the AI re-introduction. AI-assisted versions fold into P3. |
+| **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
+| **Fork-friendly theming & config** | Promote the existing centralization (CSS variables, `LogoMark`, email color tokens) into a documented single theme config; env-driven org name, logo, and from-address. | Molly is open source for other investment teams to fork — this is adoption infrastructure, and most of the groundwork shipped with the brand redesign. |
 
-### Nice to Have
+### P3 — Later / Opportunistic
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
+| **AI re-introduction** | Bring back portfolio-wide AI chat and add AI-assisted insights/alerts, with a cleaner implementation than the removed OpenAI RAG version. Digest drafting (Claude) already ships and can anchor the pattern. | Deliberately paused, not abandoned. Waits on a clean architecture decision. |
+| **Metrics Benchmarking** | Anonymized peer comparison (e.g., "Your MRR growth is above portfolio median"). | Motivates founders; needs more portfolio data density to be meaningful. |
 | **Portfolio Export / LP Report PDF** | Multi-company polished PDF for LP reporting. Goes beyond the single-update PDF today. | Streamlines DFS Lab's investor reporting workflow. |
-| **Proactive AI Anomaly Alerts** | Auto-surface issues: "MRR dropped 20%", "no metrics in 3 updates". | AI chat is reactive today. Proactive alerts catch problems without admin intervention. |
 | **Custom Company Tags** | Admin-created tags (e.g., B2B SaaS, female-led, export-ready) for portfolio segmentation. | Enables thematic analysis without building new dashboards. |
-| **Update Versioning / Audit Trail** | Track edits to published updates. Who published/edited and when. | Compliance and data integrity as platform matures. |
-| **Investor Accounts (Optional)** | Optional upgrade from token-only to persistent investor accounts. | Enables re-access, saved preferences, and engagement analytics. |
+| **Update Versioning / Audit Trail** | Track edits to published updates. Who published/edited and when. | Compliance and data integrity as platform matures. Pairs with the P0 admin audit log. |
+| **Investor Accounts (Optional)** | Optional upgrade from token-only to persistent investor accounts. | Enables re-access, saved preferences, and engagement analytics. Resolves the P1 investor entry point permanently. |
 | **Slack / Webhook Integrations** | Slack notifications for overdue updates, new approvals, published updates. | Connects Molly into existing DFS Lab team workflows. |
-| **White-Label Branding** | Custom domain, logo, and email templates. | Strengthens DFS Lab brand in founder/investor interactions. |
+| **Mobile-Optimized Update Flow** | Simplified metric entry and editor optimized for small screens. | Many founders are mobile-first. Improves update frequency. |
 
 ---
 
