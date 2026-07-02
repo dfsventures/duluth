@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   title: "Molly — DFS Lab Portfolio Platform",
   description: "Submit updates, track metrics, and share progress with your investors.",
   icons: {
-    icon: "/logo.png",
+    icon: "/favicon.png",
   },
 };
 
