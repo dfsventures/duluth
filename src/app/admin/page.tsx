@@ -268,7 +268,7 @@ export default function AdminDashboardPage() {
               onClick={() => setShowOverdue((v) => !v)}
             >
               <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <AlertTriangle className="h-4 w-4 text-ochre" />
                 Companies Needing Attention
                 <Badge variant="warning">{d.overdueCompanies.length}</Badge>
               </CardTitle>
@@ -305,7 +305,7 @@ export default function AdminDashboardPage() {
                       <td className="py-2 text-muted-foreground">{c.sector ?? "—"}</td>
                       <td className="py-2">
                         {c.daysSinceUpdate !== null ? (
-                          <span className={c.daysSinceUpdate > 60 ? "font-semibold text-destructive" : "text-amber-600"}>
+                          <span className={c.daysSinceUpdate > 60 ? "font-semibold text-destructive" : "text-ochre"}>
                             {c.daysSinceUpdate}d
                           </span>
                         ) : (

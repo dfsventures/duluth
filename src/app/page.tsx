@@ -18,7 +18,7 @@ export default async function HomePage() {
       {/* Nav */}
       <header className="flex items-center justify-between px-6 py-4 sm:px-10">
         <span className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
-          <Image src="/logo.png" alt="" width={28} height={28} priority />
+          <Image src="/logo.png" alt="" width={69} height={28} priority />
           Molly
         </span>
         <div className="flex items-center gap-4">
@@ -40,7 +40,7 @@ export default async function HomePage() {
           aria-hidden
           style={{
             background:
-              "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(59,191,160,0.12) 0%, transparent 70%)",
+              "radial-gradient(ellipse 80% 50% at 50% 0%, rgba(91,141,197,0.12) 0%, transparent 70%)",
           }}
         />
 
@@ -59,7 +59,7 @@ export default async function HomePage() {
         <div className="flex flex-col items-center gap-3 sm:flex-row">
           <Link
             href="/signup"
-            className="inline-flex h-11 items-center rounded-md bg-primary px-6 text-sm font-semibold text-white shadow-sm hover:bg-primary-600 transition-colors"
+            className="inline-flex h-11 items-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
           >
             Apply for Access
           </Link>

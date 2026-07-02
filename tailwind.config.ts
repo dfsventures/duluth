@@ -15,7 +15,7 @@ const config: Config = {
 
         primary: {
           DEFAULT: "rgb(var(--color-accent-rgb) / <alpha-value>)",
-          foreground: "#FFFFFF",
+          foreground: "var(--color-accent-foreground)",
           hover: "var(--color-accent-hover)",
           50: "var(--color-primary-50)",
           100: "var(--color-primary-100)",
@@ -36,7 +36,7 @@ const config: Config = {
 
         destructive: {
           DEFAULT: "rgb(var(--color-destructive-rgb) / <alpha-value>)",
-          foreground: "#FFFFFF",
+          foreground: "var(--color-destructive-foreground)",
         },
 
         border: "var(--color-border)",
@@ -52,14 +52,26 @@ const config: Config = {
           DEFAULT: "var(--color-text-secondary)",
           foreground: "var(--color-text-primary)",
         },
+
+        /* DFS brand palette — see ~/.claude/skills/dfs-brand-style */
+        paper: "#EBE8DE",
+        bone: "#D8D6CB",
+        cocoa: "#C9B08A",
+        obsidian: "#14140F",
+        tide: "#56544B",
+        sky: "#5B8DC5",
+        tuareg: "#3A5876",
+        laterite: "#A65A3E",
+        ochre: "#C9963A",
+        acacia: "#6E7A3E",
       },
 
       borderRadius: {
-        sm: "4px",
-        md: "8px",
-        lg: "8px",
-        xl: "8px",
-        "2xl": "12px",
+        sm: "1px",
+        md: "2px",
+        lg: "2px",
+        xl: "2px",
+        "2xl": "2px",
         full: "9999px",
       },
 

@@ -197,11 +197,11 @@ export default function AdminProvidersPage() {
             <button
               key={value}
               onClick={() => setStatusFilter(value)}
-              className={`px-3 py-2 transition-colors ${statusFilter === value ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-muted"}`}
+              className={`px-3 py-2 transition-colors ${statusFilter === value ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
             >
               {label}
               {value === "PENDING" && pending.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-amber-500 text-white text-xs px-1.5 py-0.5">{pending.length}</span>
+                <span className="ml-1.5 rounded-full bg-ochre text-obsidian text-xs px-1.5 py-0.5">{pending.length}</span>
               )}
             </button>
           ))}
@@ -278,7 +278,7 @@ export default function AdminProvidersPage() {
                 placeholder="e.g. Accounting & Tax"
               />
             </div>
-            {addCategoryError && <p className="text-sm text-red-600">{addCategoryError}</p>}
+            {addCategoryError && <p className="text-sm text-laterite">{addCategoryError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowAddCategory(false)}>Cancel</Button>
               <Button type="submit" disabled={addingCategory}>{addingCategory ? "Adding..." : "Add Category"}</Button>
@@ -358,7 +358,7 @@ export default function AdminProvidersPage() {
               </select>
             </Field>
 
-            {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+            {saveError && <p className="text-sm text-laterite">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setEditTarget(null)}>Cancel</Button>
               <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
@@ -434,7 +434,7 @@ function ProviderRow({
           <button onClick={onEdit} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Edit">
             <Pencil className="h-4 w-4" />
           </button>
-          <button onClick={onDelete} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-red-600 transition-colors" title="Delete">
+          <button onClick={onDelete} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite transition-colors" title="Delete">
             <Trash2 className="h-4 w-4" />
           </button>
           {onApprove && (
@@ -444,7 +444,7 @@ function ProviderRow({
             </Button>
           )}
           {onReject && (
-            <Button size="sm" variant="secondary" onClick={onReject} disabled={loading} className="text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-950/20">
+            <Button size="sm" variant="secondary" onClick={onReject} disabled={loading} className="text-laterite border-laterite/30 hover:bg-laterite/10 dark:hover:bg-laterite/20">
               <XCircle className="h-3.5 w-3.5" />
               Reject
             </Button>
@@ -460,20 +460,20 @@ function ProviderRow({
 function StatusBadge({ status }: { status: Provider["status"] }) {
   if (status === "VETTED") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-green-200/60 bg-green-50/60 px-2 py-0.5 font-mono text-xs font-medium text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-400">
+      <span className="badge-success">
         <CheckCircle2 className="h-3 w-3" /> Vetted
       </span>
     );
   }
   if (status === "REJECTED") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-red-200/60 bg-red-50/60 px-2 py-0.5 font-mono text-xs font-medium text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400">
+      <span className="badge-danger">
         <XCircle className="h-3 w-3" /> Rejected
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-50/60 px-2 py-0.5 font-mono text-xs font-medium text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400">
+    <span className="badge-warning">
       <Clock className="h-3 w-3" /> Pending
     </span>
   );

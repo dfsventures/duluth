@@ -323,8 +323,8 @@ export default function UpdateDetailPage() {
         <div
           className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
             message.type === "success"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-red-200 bg-red-50 text-red-700"
+              ? "border-acacia/30 bg-acacia/10 text-acacia"
+              : "border-laterite/30 bg-laterite/10 text-laterite"
           }`}
         >
           {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
@@ -334,13 +334,13 @@ export default function UpdateDetailPage() {
 
       {/* Publish banner (view mode only) */}
       {!editing && update.status === "DRAFT" && (
-        <div className="mb-6 flex items-center justify-between rounded-md border border-yellow-200 bg-yellow-50 px-4 py-3">
-          <p className="text-sm text-yellow-800">
+        <div className="mb-6 flex items-center justify-between rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
+          <p className="text-sm text-ochre">
             This update is still a draft. Publish it when ready.
           </p>
           {confirmPublish ? (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-yellow-800">Publish and notify the DFS Lab team?</span>
+              <span className="text-sm text-ochre">Publish and notify the DFS Lab team?</span>
               <Button variant="secondary" size="sm" disabled={sending} onClick={() => setConfirmPublish(false)}>
                 Cancel
               </Button>

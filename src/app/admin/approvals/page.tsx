@@ -210,13 +210,13 @@ export default function ApprovalsPage() {
                       <div className="flex items-center gap-2 text-sm">
                         {state?.result === "approved" ? (
                           <>
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                            <span className="text-green-700">Approved</span>
+                            <CheckCircle2 className="h-4 w-4 text-acacia" />
+                            <span className="text-acacia">Approved</span>
                           </>
                         ) : (
                           <>
-                            <XCircle className="h-4 w-4 text-red-600" />
-                            <span className="text-red-700">Rejected</span>
+                            <XCircle className="h-4 w-4 text-laterite" />
+                            <span className="text-laterite">Rejected</span>
                           </>
                         )}
                       </div>

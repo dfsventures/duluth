@@ -572,8 +572,8 @@ export default function AdminCompanyDetailPage() {
   }
 
   function TrendIcon({ trend }: { trend: string }) {
-    if (trend === "up") return <TrendingUp className="h-4 w-4 text-green-600" />;
-    if (trend === "down") return <TrendingDown className="h-4 w-4 text-red-600" />;
+    if (trend === "up") return <TrendingUp className="h-4 w-4 text-acacia" />;
+    if (trend === "down") return <TrendingDown className="h-4 w-4 text-laterite" />;
     return <Minus className="h-4 w-4 text-muted-foreground" />;
   }
 
@@ -673,8 +673,8 @@ export default function AdminCompanyDetailPage() {
         <div
           className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
             message.type === "success"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-red-200 bg-red-50 text-red-700"
+              ? "border-acacia/30 bg-acacia/10 text-acacia"
+              : "border-laterite/30 bg-laterite/10 text-laterite"
           }`}
         >
           {message.type === "success" ? (
@@ -1300,7 +1300,7 @@ export default function AdminCompanyDetailPage() {
                             <button
                               onClick={() => handleArchiveDoc(doc.id, !doc.archivedAt)}
                               disabled={archivingDocId === doc.id}
-                              className="text-muted-foreground hover:text-amber-600 disabled:opacity-40"
+                              className="text-muted-foreground hover:text-ochre disabled:opacity-40"
                               title={doc.archivedAt ? "Unarchive" : "Archive"}
                             >
                               {doc.archivedAt ? (
@@ -1787,17 +1787,17 @@ function DiffPane({
       </div>
       <div className="flex-1 overflow-y-auto p-4 text-sm leading-relaxed">
         {revision.title !== otherRevision.title && (
-          <p className={`mb-3 rounded px-2 py-1 font-semibold ${isNewer ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800 line-through"}`}>
+          <p className={`mb-3 rounded px-2 py-1 font-semibold ${isNewer ? "bg-acacia/10 text-acacia" : "bg-laterite/10 text-laterite line-through"}`}>
             {revision.title}
           </p>
         )}
         <p className="whitespace-pre-wrap">
           {parts.map((part, i) => {
             if (isNewer) {
-              if (part.added) return <mark key={i} className="bg-green-100 text-green-900 rounded px-0.5">{part.value}</mark>;
+              if (part.added) return <mark key={i} className="bg-acacia/15 text-acacia rounded px-0.5">{part.value}</mark>;
               if (part.removed) return null;
             } else {
-              if (part.removed) return <mark key={i} className="bg-red-100 text-red-900 line-through rounded px-0.5">{part.value}</mark>;
+              if (part.removed) return <mark key={i} className="bg-laterite/15 text-laterite line-through rounded px-0.5">{part.value}</mark>;
               if (part.added) return null;
             }
             return <span key={i}>{part.value}</span>;

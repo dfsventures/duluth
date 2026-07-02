@@ -75,9 +75,9 @@ export default function SettingsPage() {
             <span className="font-medium text-foreground">CRON_SECRET</span>
             {" "}— set this environment variable in Vercel to secure the cron endpoint. Without it, reminders will not be triggered.{" "}
             {process.env.CRON_SECRET ? (
-              <span className="text-green-600 font-medium">Configured</span>
+              <span className="text-acacia font-medium">Configured</span>
             ) : (
-              <span className="text-amber-600 font-medium">Not set</span>
+              <span className="text-ochre font-medium">Not set</span>
             )}
           </p>
         </div>

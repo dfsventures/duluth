@@ -225,7 +225,7 @@ export default function FounderLinksPage() {
 
       {message && (
         <div className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-          message.type === "success" ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700"
+          message.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
         }`}>
           {message.type === "success" ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
           <span className="flex-1">{message.text}</span>
@@ -234,7 +234,7 @@ export default function FounderLinksPage() {
       )}
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
           <AlertCircle className="h-4 w-4" />{error}
         </div>
       )}
@@ -360,7 +360,7 @@ export default function FounderLinksPage() {
 
                       <Button variant="secondary" size="sm" onClick={() => copyLink(link.token, link.id)}>
                         {copiedId === link.id ? (
-                          <><CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-green-600" />Copied</>
+                          <><CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-acacia" />Copied</>
                         ) : (
                           <><Copy className="mr-1.5 h-3.5 w-3.5" />Copy Link</>
                         )}

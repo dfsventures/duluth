@@ -197,8 +197,8 @@ export default function MetricsPage() {
         <div
           className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
             message.type === "success"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-red-200 bg-red-50 text-red-700"
+              ? "border-acacia/30 bg-acacia/10 text-acacia"
+              : "border-laterite/30 bg-laterite/10 text-laterite"
           }`}
         >
           {message.type === "success" ? (

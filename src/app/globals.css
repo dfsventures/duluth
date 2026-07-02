@@ -2,65 +2,77 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design tokens: light theme ───────────────────────────── */
+/* ── Design tokens: light theme (DFS brand — see ~/.claude/skills/dfs-brand-style) ──
+   Note: --color-accent and --color-text-muted are darkened versions of the brand's
+   literal Sky (#5B8DC5) / muted hex — the exact brand values fail WCAG AA (2.8:1 /
+   2.9:1) when used as text on Paper. These blends stay in the same hue family
+   (Sky → Tuareg, its own documented "accent dark variant") while passing 4.5:1+. */
 :root {
-  /* Accent — steel blue */
-  --color-accent: #5B8DC5;
-  --color-accent-hover: #4070A8;
-  --color-accent-rgb: 91 141 197;
+  /* Accent — Sky, darkened toward Tuareg for text-safe contrast */
+  --color-accent: #44688E;
+  --color-accent-hover: #3A5876; /* Tuareg */
+  --color-accent-rgb: 68 104 142;
+  --color-accent-foreground: #FFFFFF;
   --color-powder: #A9CCE8;
 
   /* Surfaces */
-  --color-bg: #F9F9F7;
+  --color-bg: #EBE8DE;      /* Paper (Harmattan) */
   --color-surface: #FFFFFF;
 
   /* Borders */
-  --color-border: #E5E5E2;
-  --color-border-hover: #C8C8C4;
+  --color-border: #D8D6CB;       /* Bone (Sahel) */
+  --color-border-hover: #C9B08A; /* Cocoa */
 
   /* Text */
-  --color-text-primary: #1A1A1A;
-  --color-text-secondary: #555550;
-  --color-text-muted: #888882;
+  --color-text-primary: #14140F;   /* Obsidian */
+  --color-text-secondary: #56544B; /* Tide */
+  --color-text-muted: #66645A;
 
   /* Muted fill (for hover states, subtle backgrounds) */
-  --color-muted-rgb: 229 229 226;   /* #E5E5E2 — slightly off border */
+  --color-muted-rgb: 216 214 203;   /* #D8D6CB — Bone */
 
   /* Primary scale */
   --color-primary-50: rgba(91, 141, 197, 0.08);
   --color-primary-100: rgba(91, 141, 197, 0.15);
-  --color-primary-500: #4070A8;
-  --color-primary-600: #3560A0;
-  --color-primary-700: #2A4E88;
+  --color-primary-500: #44688E;
+  --color-primary-600: #3A5876; /* Tuareg */
+  --color-primary-700: #2C4459;
 
-  /* Destructive */
-  --color-destructive-rgb: 220 38 38;
+  /* Destructive — Laterite, deepened for weight */
+  --color-destructive-rgb: 143 74 48;
+  --color-destructive-foreground: #FFFFFF;
 }
 
-/* ── Design tokens: dark theme ────────────────────────────── */
+/* ── Design tokens: dark theme (Obsidian extension of the brand) ── */
 [data-theme="dark"] {
-  --color-accent: #5BBFAA;
-  --color-accent-hover: #7DD4C2;
-  --color-accent-rgb: 91 191 170;
-  --color-powder: #1A3D38;
+  --color-accent: #7BA8D9;       /* Sky, brightened for contrast on dark */
+  --color-accent-hover: #5B8DC5;
+  --color-accent-rgb: 123 168 217;
+  /* White text fails on this bright a background (2.5:1) — use dark text instead. */
+  --color-accent-foreground: #14140F;
+  --color-powder: #1E2A38;
 
-  --color-bg: #0E0E0C;
-  --color-surface: #161614;
+  --color-bg: #16160F;      /* Obsidian */
+  --color-surface: #1F1E15;
 
-  --color-border: #252522;
-  --color-border-hover: #3A3A36;
+  --color-border: #35332A;
+  --color-border-hover: #46432E;
 
-  --color-text-primary: #EEECEA;
-  --color-text-secondary: #C0C0B8;
-  --color-text-muted: #888882;
+  --color-text-primary: #EBE8DE;   /* Paper */
+  --color-text-secondary: #D8D6CB; /* Bone */
+  --color-text-muted: #9C9585;
 
-  --color-muted-rgb: 37 37 34;   /* #252522 */
+  --color-muted-rgb: 53 51 42;   /* #35332A */
 
-  --color-primary-50: rgba(91, 191, 170, 0.10);
-  --color-primary-100: rgba(91, 191, 170, 0.18);
-  --color-primary-500: #7DD4C2;
-  --color-primary-600: #5BBFAA;
-  --color-primary-700: #4A9E8C;
+  --color-primary-50: rgba(123, 168, 217, 0.10);
+  --color-primary-100: rgba(123, 168, 217, 0.18);
+  --color-primary-500: #7BA8D9;
+  --color-primary-600: #5B8DC5;
+  --color-primary-700: #3A5876; /* Tuareg */
+
+  /* Destructive — Laterite, brightened for contrast on dark */
+  --color-destructive-rgb: 198 110 78;
+  --color-destructive-foreground: #14140F;
 }
 
 /* ── Base ─────────────────────────────────────────────────── */
@@ -85,7 +97,7 @@
   :focus-visible {
     outline: 2px solid var(--color-accent);
     outline-offset: 3px;
-    border-radius: 4px;
+    border-radius: 1px;
   }
 }
 
@@ -98,7 +110,7 @@
   }
 
   .btn-primary {
-    @apply btn-base bg-primary text-white hover:bg-primary-hover px-6 py-3;
+    @apply btn-base bg-primary text-primary-foreground hover:bg-primary-hover px-6 py-3;
   }
 
   .btn-secondary {
@@ -106,7 +118,7 @@
   }
 
   .btn-destructive {
-    @apply btn-base bg-destructive text-white hover:bg-destructive/90 px-6 py-3;
+    @apply btn-base bg-destructive text-destructive-foreground hover:bg-destructive/90 px-6 py-3;
   }
 
   /* Inputs */
@@ -126,19 +138,19 @@
 
   /* Badges / tags */
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full border px-3 py-0.5 font-mono text-xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-sm border px-3 py-0.5 font-mono text-xs font-medium;
   }
 
   .badge-success {
-    @apply badge border-green-200/60 bg-green-50/60 text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-400;
+    @apply badge border-acacia/30 bg-acacia/10 text-acacia dark:border-[#8FA05A]/40 dark:bg-[#8FA05A]/10 dark:text-[#9FB06A];
   }
 
   .badge-warning {
-    @apply badge border-amber-200/60 bg-amber-50/60 text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400;
+    @apply badge border-ochre/30 bg-ochre/10 text-ochre dark:border-[#D9AC5C]/40 dark:bg-[#D9AC5C]/10 dark:text-[#D9AC5C];
   }
 
   .badge-danger {
-    @apply badge border-red-200/60 bg-red-50/60 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-400;
+    @apply badge border-laterite/30 bg-laterite/10 text-laterite dark:border-[#C97A5C]/40 dark:bg-[#C97A5C]/10 dark:text-[#C97A5C];
   }
 
   .badge-info {

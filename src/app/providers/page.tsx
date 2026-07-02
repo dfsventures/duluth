@@ -211,7 +211,7 @@ export default function ProvidersPage() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-3 py-2 transition-colors ${statusFilter === s ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-muted"}`}
+              className={`px-3 py-2 transition-colors ${statusFilter === s ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
             >
               {s === "" ? "All" : s === "VETTED" ? "Vetted" : "Community"}
             </button>
@@ -269,7 +269,7 @@ export default function ProvidersPage() {
                     key={t}
                     type="button"
                     onClick={() => setForm((f) => ({ ...f, type: t }))}
-                    className={`flex-1 py-2 transition-colors ${form.type === t ? "bg-primary text-white" : "bg-card text-muted-foreground hover:bg-muted"}`}
+                    className={`flex-1 py-2 transition-colors ${form.type === t ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
                   >
                     {t === "FIRM" ? "Firm / Company" : "Individual"}
                   </button>
@@ -338,7 +338,7 @@ export default function ProvidersPage() {
               <p className="mt-1 text-xs text-muted-foreground">This becomes your endorsement and marks the provider as verified.</p>
             </Field>
 
-            {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+            {submitError && <p className="text-sm text-laterite">{submitError}</p>}
 
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowSubmit(false)}>Cancel</Button>
@@ -357,7 +357,7 @@ export default function ProvidersPage() {
           <p className="mb-4 text-sm text-muted-foreground">
             <strong className="text-foreground">{endorseTarget.name}</strong>
             {endorseTarget.status === "PENDING" && (
-              <span className="ml-2 inline-flex items-center gap-1 text-xs text-amber-600">
+              <span className="ml-2 inline-flex items-center gap-1 text-xs text-ochre">
                 <Clock className="h-3 w-3" /> Your endorsement will mark this provider as verified.
               </span>
             )}
@@ -374,7 +374,7 @@ export default function ProvidersPage() {
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
             </Field>
-            {endorseError && <p className="text-sm text-red-600">{endorseError}</p>}
+            {endorseError && <p className="text-sm text-laterite">{endorseError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => { setEndorseTarget(null); setEndorseNote(""); }}>Cancel</Button>
               <Button type="submit" disabled={endorsing}>{endorsing ? "Saving..." : "Save Endorsement"}</Button>
@@ -468,7 +468,7 @@ function ProviderCard({
           {hasEndorsed ? (
             <div className="flex items-center gap-2">
               <button onClick={onEndorse} className="text-xs text-muted-foreground hover:text-foreground underline">Edit</button>
-              <button onClick={onRemoveEndorsement} className="text-xs text-red-500 hover:text-red-700 underline">Remove</button>
+              <button onClick={onRemoveEndorsement} className="text-xs text-laterite hover:text-laterite underline">Remove</button>
             </div>
           ) : (
             <Button size="sm" variant="secondary" onClick={onEndorse}>
@@ -499,13 +499,13 @@ function ProviderCard({
 function StatusBadge({ status }: { status: Provider["status"] }) {
   if (status === "VETTED") {
     return (
-      <span className="inline-flex items-center gap-1 rounded-full border border-green-200/60 bg-green-50/60 px-2 py-0.5 font-mono text-xs font-medium text-green-700 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-400 shrink-0">
+      <span className="badge-success shrink-0">
         <CheckCircle2 className="h-3 w-3" /> Vetted
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-amber-200/60 bg-amber-50/60 px-2 py-0.5 font-mono text-xs font-medium text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-400 shrink-0">
+    <span className="badge-warning shrink-0">
       <Clock className="h-3 w-3" /> Community
     </span>
   );

@@ -234,7 +234,7 @@ export default function SetupWizardPage() {
       </div>
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>

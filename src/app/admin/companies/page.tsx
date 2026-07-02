@@ -209,14 +209,14 @@ export default function AdminCompaniesPage() {
 
       {/* Import result */}
       {importResult && (
-        <div className="mb-6 flex items-start gap-2 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-acacia">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <div className="flex-1">
             <span className="font-medium">Import complete.</span>{" "}
             {importResult.created} company{importResult.created !== 1 ? "s" : ""} created
             {importResult.skipped > 0 && `, ${importResult.skipped} skipped (already exist)`}.
             {importResult.errors.length > 0 && (
-              <ul className="mt-1 list-disc pl-4 text-red-600">
+              <ul className="mt-1 list-disc pl-4 text-laterite">
                 {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
               </ul>
             )}
@@ -228,7 +228,7 @@ export default function AdminCompaniesPage() {
       )}
 
       {importError && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
           <AlertCircle className="h-4 w-4 shrink-0" />
           <span className="flex-1">{importError}</span>
           <button onClick={() => setImportError(null)}>

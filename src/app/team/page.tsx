@@ -178,8 +178,8 @@ export default function TeamPage() {
         <div
           className={`mb-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
             message.type === "success"
-              ? "border-green-200 bg-green-50 text-green-800"
-              : "border-red-200 bg-red-50 text-red-800"
+              ? "border-acacia/30 bg-acacia/10 text-acacia"
+              : "border-laterite/30 bg-laterite/10 text-laterite"
           }`}
         >
           {message.type === "success" ? (

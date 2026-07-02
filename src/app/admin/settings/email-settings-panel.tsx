@@ -40,7 +40,7 @@ export function EmailSettingsPanel({
   return (
     <>
       {!hasApiKey && (
-        <div className="mb-4 flex gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+        <div className="mb-4 flex gap-2.5 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-xs text-ochre">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>
             <strong>RESEND_API_KEY</strong> is not set. Add it to your environment variables to enable email delivery.{" "}
@@ -67,13 +67,13 @@ export function EmailSettingsPanel({
         </Button>
 
         {status === "success" && (
-          <span className="flex items-center gap-1.5 text-sm text-emerald-600">
+          <span className="flex items-center gap-1.5 text-sm text-acacia">
             <CheckCircle2 className="h-4 w-4" />
             {message}
           </span>
         )}
         {status === "error" && (
-          <span className="flex items-center gap-1.5 text-sm text-red-600">
+          <span className="flex items-center gap-1.5 text-sm text-laterite">
             <XCircle className="h-4 w-4" />
             {message}
           </span>
