@@ -44,6 +44,7 @@ A web application to manage portfolio company updates, metrics, and documents â€
 | File Storage | S3-compatible (AWS S3 / Cloudflare R2) |
 | Email | Resend |
 | AI | OpenAI API with RAG (retrieval-augmented generation) |
+| Design System | DFS brand â€” Paper/Bone/Obsidian/Sky palette, Space Grotesk / IBM Plex Sans / JetBrains Mono, light theme only |
 
 ## Getting Started
 

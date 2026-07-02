@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-06-26_
+_Last updated: 2026-07-02_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -21,11 +21,11 @@ This document is the source of truth for existing platform features and planned 
 ## Existing Features
 
 ### Authentication & Access
-- **Public homepage** (`/`) — hero with headline, feature highlights, dual CTAs (Apply / Sign In), Admin Login button; authenticated users auto-redirect to their dashboard
-- Email/password login + Google OAuth (restricted to @dfslab.net for admins)
+- **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); Founder Login and Investor Login are small nav-bar links (Investor Login is the same Google OAuth flow used by DFS Lab staff, just relabeled — there is no separate investor account system); a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
+- Email/password login + Google OAuth (restricted to @dfslab.net for admins, surfaced publicly as "Investor Login")
 - Founder signup → admin approval → set-password email flow
 - Middleware-enforced role-based routing (Founder → `/dashboard`, Admin → `/admin`)
-- **Transactional emails** — overhauled email templates (approval, rejection, new signup notification, update published) with shared HTML wrapper featuring teal accent bar, Molly header, branded CTA buttons, and consistent footer; proper error handling on Resend API responses
+- **Transactional emails** — all 10 templates (approval, rejection, new signup, update published, update reminder, team invite, member added, weekly digest, comment notification, test email) rebuilt around the DFS brand system: Paper/Bone/Obsidian/Sky palette, Space Grotesk / IBM Plex Sans / JetBrains Mono, real DFS logo in the header, no accent bar; proper error handling on Resend API responses
 - Login page: founder-focused with Google OAuth demoted to DFS Lab team section
 - Signup page: reframed as an application form with expectation-setting copy
 - **Approved founders excluded from pending approvals** — only users awaiting password setup appear in the queue
@@ -76,6 +76,13 @@ This document is the source of truth for existing platform features and planned 
 - Archive / unarchive without permanent deletion
 - Internal-only flag for admin-visible documents
 - Document type badge shown on update detail attachments
+
+### Design & Branding
+- **DFS brand system applied app-wide** — Paper/Bone/Obsidian/Sky palette, Space Grotesk / IBM Plex Sans / JetBrains Mono typography, flat/structured corners (no pill/rounded shapes) instead of the previous generic SaaS theme
+- **Dark mode removed** — light theme only; the old teal-accented dark theme and its toggle were fully deleted, not just hidden
+- **`_Molly` wordmark** — the placeholder auto-generated logo image is gone; a reusable text mark (mono font, brand-colored underscore) is used across the sidebar, nav bars, and auth pages
+- Real DFS logo (pulled from DFS Lab's brand assets, not a placeholder) used in transactional email headers
+- Status colors (badges, alerts) remapped from generic Tailwind red/green/amber to the brand's own Laterite/Acacia/Ochre
 
 ---
 
