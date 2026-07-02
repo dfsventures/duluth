@@ -1,10 +1,17 @@
+import { redirect } from "next/navigation";
 import { Mail, Bell, BookOpen } from "lucide-react";
+import { auth } from "@/lib/auth";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmailSettingsPanel } from "./email-settings-panel";
 import { DigestRecipientsPanel } from "./digest-recipients-panel";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const session = await auth();
+  if (!session?.user?.roles.includes("ADMIN")) {
+    redirect("/login");
+  }
+
   const hasApiKey = !!process.env.RESEND_API_KEY;
   const teamEmail = process.env.TEAM_EMAIL || "joseph@dfs.vc";
   const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>";

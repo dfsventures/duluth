@@ -13,8 +13,10 @@ export default auth((req) => {
   const isFounder = userRoles.includes("FOUNDER");
 
   // Public routes — always accessible
-  const publicPaths = ["/", "/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share"];
-  const isPublic = publicPaths.some((p) => pathname.startsWith(p));
+  // "/" must be an exact match: every pathname starts with "/", so a prefix
+  // match here would make isPublic true for every route in the app.
+  const publicPathPrefixes = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share"];
+  const isPublic = pathname === "/" || publicPathPrefixes.some((p) => pathname.startsWith(p));
   if (isPublic) return NextResponse.next();
 
   // Must be logged in for everything else
@@ -44,6 +46,6 @@ export default auth((req) => {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|logo.svg|logo.png).*)",
+    "/((?!_next/static|_next/image|favicon.ico|favicon.png).*)",
   ],
 };
