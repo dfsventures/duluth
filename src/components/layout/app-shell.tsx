@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="flex-1 overflow-y-auto">
         {/* Mobile top bar */}
-        <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3 md:hidden">
+        <div className="flex items-center gap-3 border-b border-border bg-background px-4 py-3 md:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
             className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"

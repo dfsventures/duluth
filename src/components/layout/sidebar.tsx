@@ -67,7 +67,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "flex h-screen w-60 shrink-0 flex-col border-r border-border bg-card",
+        "flex h-screen w-60 shrink-0 flex-col border-r border-border bg-background",
         // Mobile: fixed overlay, toggled via open prop
         "fixed inset-y-0 left-0 z-40 transition-transform duration-200",
         open ? "translate-x-0" : "-translate-x-full",
