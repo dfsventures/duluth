@@ -45,7 +45,7 @@ function LoginForm() {
       {/* Back to home */}
       <div className="mb-6 w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <Image src="/logo.png" alt="" width={22} height={22} />
+          <Image src="/logo.png" alt="" width={54} height={22} />
           Molly
         </Link>
       </div>
@@ -61,7 +61,7 @@ function LoginForm() {
             </p>
 
             {displayError && (
-              <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-4 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
                 {displayError}
               </div>
             )}

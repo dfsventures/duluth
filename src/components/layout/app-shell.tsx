@@ -30,7 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Image src="/logo.png" alt="Molly" width={24} height={24} />
+          <Image src="/logo.png" alt="Molly" width={59} height={24} />
           <span className="font-semibold text-foreground">Molly</span>
         </div>
 

@@ -79,12 +79,12 @@ function SetPasswordForm() {
               src="/logo.png"
               alt="Molly"
               width={160}
-              height={48}
+              height={65}
               priority
             />
           </div>
           <div className="card text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-laterite/10">
               <svg
                 className="h-6 w-6 text-destructive"
                 fill="none"
@@ -127,7 +127,7 @@ function SetPasswordForm() {
             src="/logo.png"
             alt="Molly"
             width={160}
-            height={48}
+            height={65}
             priority
           />
         </div>
@@ -141,7 +141,7 @@ function SetPasswordForm() {
           </p>
 
           {error && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="mb-4 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
               {error}
             </div>
           )}
