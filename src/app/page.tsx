@@ -1,9 +1,26 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { BarChart3, FileText, Link2 } from "lucide-react";
 import { InvestorLoginButton } from "@/components/ui/investor-login-button";
 import { LogoMark } from "@/components/ui/logo-mark";
+
+const steps = [
+  {
+    num: "01.",
+    title: "Submit Updates",
+    description: "Write and publish rich updates with a single click. DFS Lab gets notified automatically.",
+  },
+  {
+    num: "02.",
+    title: "Track Metrics",
+    description: "Define your KPIs and track them over time with visual trend charts.",
+  },
+  {
+    num: "03.",
+    title: "Share with Investors",
+    description: "Generate secure, time-scoped links to share updates with your investors.",
+  },
+];
 
 export default async function HomePage() {
   const session = await auth();
@@ -16,8 +33,14 @@ export default async function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Nav */}
-      <header className="px-6 py-4 sm:px-10">
+      <header className="flex items-center justify-between px-6 py-4 sm:px-10">
         <LogoMark className="text-lg" />
+        <div className="flex items-center gap-5 text-sm text-muted-foreground">
+          <Link href="/login" className="hover:text-foreground transition-colors">
+            Founder Login
+          </Link>
+          <InvestorLoginButton className="text-sm text-muted-foreground hover:text-foreground transition-colors" />
+        </div>
       </header>
 
       {/* Hero */}
@@ -35,61 +58,41 @@ export default async function HomePage() {
         <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-widest text-primary">
           DFS Lab Portfolio Platform
         </p>
-        <h1 className="mb-4 font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
-          Your portfolio,{" "}
-          <span className="text-primary">organized.</span>
+        <h1 className="mb-4 max-w-2xl font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+          One place to keep your investors{" "}
+          <span className="text-primary">in the loop.</span>
         </h1>
         <p className="mb-8 max-w-lg text-base text-muted-foreground sm:text-lg">
-          Molly helps DFS Lab founders submit investor updates, track key
-          metrics, and share progress with stakeholders — all in one place.
+          Submit updates, track metrics, and share progress — without
+          wrestling with decks or spreadsheets.
         </p>
 
-        <div className="flex flex-col items-center gap-3 sm:flex-row">
-          <InvestorLoginButton className="inline-flex h-11 items-center rounded-md border border-border px-6 font-mono text-xs font-semibold uppercase tracking-widest text-foreground hover:bg-muted transition-colors" />
-          <Link
-            href="/login"
-            className="inline-flex h-11 items-center rounded-md border border-border px-6 font-mono text-xs font-semibold uppercase tracking-widest text-foreground hover:bg-muted transition-colors"
-          >
-            Founder Login
-          </Link>
-          <Link
-            href="/signup"
-            className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-mono text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
-          >
-            Apply for Access
-          </Link>
-        </div>
+        <Link
+          href="/signup"
+          className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-mono text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
+        >
+          Apply for Access
+        </Link>
       </main>
 
-      {/* Features strip */}
-      <section className="mx-auto mb-16 mt-20 grid max-w-2xl gap-6 px-6 sm:grid-cols-3">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50">
-            <FileText className="h-5 w-5 text-primary" />
+      {/* How it works */}
+      <section className="mx-auto mb-20 mt-24 w-full max-w-2xl px-6">
+        {steps.map((step, i) => (
+          <div
+            key={step.num}
+            className={`flex flex-col gap-1 py-6 sm:flex-row sm:gap-8 ${
+              i > 0 ? "border-t border-border" : ""
+            }`}
+          >
+            <span className="font-mono text-sm font-semibold text-primary sm:w-12 sm:shrink-0">
+              {step.num}
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">{step.title}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{step.description}</p>
+            </div>
           </div>
-          <p className="text-sm font-semibold text-foreground">Portfolio Updates</p>
-          <p className="text-xs text-muted-foreground">
-            Write and publish rich updates with a single click. DFS Lab gets notified automatically.
-          </p>
-        </div>
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50">
-            <BarChart3 className="h-5 w-5 text-primary" />
-          </div>
-          <p className="text-sm font-semibold text-foreground">Metric Tracking</p>
-          <p className="text-xs text-muted-foreground">
-            Define your KPIs and track them over time with visual trend charts.
-          </p>
-        </div>
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50">
-            <Link2 className="h-5 w-5 text-primary" />
-          </div>
-          <p className="text-sm font-semibold text-foreground">Investor Links</p>
-          <p className="text-xs text-muted-foreground">
-            Generate secure, time-scoped links to share updates with your investors.
-          </p>
-        </div>
+        ))}
       </section>
 
       {/* Footer */}
