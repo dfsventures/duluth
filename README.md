@@ -9,7 +9,7 @@ Built by [DFS Lab](https://www.dfs.vc) and open source under MIT so other invest
 **Two user groups:**
 
 - **Portfolio company founders** sign up with their company email, get approved by Molly, then use the platform to maintain their company profile, track key metrics, and send investor updates.
-- **Molly admins** log in with their `@dfslab.net` Google accounts to review the full portfolio — approving sign-ups, tracking update cadence, viewing metrics trends, and assembling the team's weekly digest.
+- **Admins** log in with Google accounts on an allow-listed domain (currently `@dfs.vc`, hardcoded — see [ROADMAP.md](./ROADMAP.md)) to review the full portfolio — approving sign-ups, tracking update cadence, viewing metrics trends, and assembling the team's weekly digest.
 
 ## Key Features
 
@@ -18,7 +18,7 @@ Built by [DFS Lab](https://www.dfs.vc) and open source under MIT so other invest
 - Set up company profile (name, logo, sector, geography, funding stage)
 - Define and track key metrics (MRR, active users, revenue, etc.)
 - Create investor updates with narrative text, metric snapshots, and file attachments
-- Publish updates with a confirmation step — DFS Lab is notified by email on publish
+- Publish updates with a confirmation step — the admin team is notified by email on publish
 - Receive email notifications when an admin leaves a comment on an update
 - Generate shareable read-only links for investors with configurable expiry (7 days to never)
 - Download a formatted PDF of each update
@@ -106,4 +106,4 @@ Recommended stack for ~100 portfolio companies at **$25–75/month**:
 
 MIT — free to use, fork, and modify. See [LICENSE](./LICENSE) for details.
 
-Molly is intentionally fork-friendly: if you run an investment team and want your own instance, re-theming means changing the CSS variables in `src/app/globals.css`, the `LogoMark` component, and the color tokens at the top of `src/lib/email.ts`. See [ROADMAP.md](./ROADMAP.md) for planned work on making this a first-class config.
+Molly is intentionally fork-friendly in spirit, but not yet in practice: re-theming means editing the CSS variables in `src/app/globals.css`, the `LogoMark` component, and the color tokens at the top of `src/lib/email.ts` directly, and the admin OAuth domain, support email, and org name are hardcoded in source rather than env-driven. See the Fork Configuration item in [ROADMAP.md](./ROADMAP.md) for planned work on closing this gap.

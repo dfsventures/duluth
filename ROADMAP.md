@@ -8,27 +8,27 @@ This document is the source of truth for existing platform features and planned 
 
 ## Platform Overview
 
-**Molly** is a portfolio management platform built for DFS Lab (startup accelerator/VC). It connects three user types:
+**Molly** is a portfolio management platform originally built by DFS Lab (startup accelerator/VC) to run their own portfolio, and open-sourced for other investment teams to fork. It connects three user types:
 
 - **Founders** — portfolio company operators who submit updates and track metrics
-- **Admins** — DFS Lab team who review companies, approve accounts, and analyze the portfolio
+- **Admins** — the investment team's staff who review companies, approve accounts, and analyze the portfolio
 - **Investors/LPs** — read-only access via shareable tokenized links (no account required)
 
 **Stack:** Next.js 14 App Router · Prisma ORM · PostgreSQL · S3 · Resend · NextAuth v5 · Anthropic Claude (digest drafting)
 
-Molly is open source (MIT) with the explicit goal that other investment teams can fork and run their own instance — see the Fork-friendly theming item in the roadmap below.
+Molly is open source (MIT) with the explicit goal that other investment teams can fork and run their own instance — see the Fork Configuration item in the roadmap below.
 
 ---
 
 ## Existing Features
 
 ### Authentication & Access
-- **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); Founder Login and Investor Login are small nav-bar links (Investor Login is the same Google OAuth flow used by DFS Lab staff, just relabeled — there is no separate investor account system); a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
-- Email/password login + Google OAuth (restricted to @dfslab.net for admins, surfaced publicly as "Investor Login")
+- **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); Founder Login and Investor Login are small nav-bar links (Investor Login is the same Google OAuth flow used by admin staff, just relabeled — there is no separate investor account system); a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
+- Email/password login + Google OAuth (admins restricted to a single email domain, currently `@dfs.vc`, hardcoded in `src/lib/auth.ts` — see Fork Configuration below), surfaced publicly as "Investor Login"
 - Founder signup → admin approval → set-password email flow
 - Middleware-enforced role-based routing (Founder → `/dashboard`, Admin → `/admin`)
 - **Transactional emails** — all 10 templates (approval, rejection, new signup, update published, update reminder, team invite, member added, weekly digest, comment notification, test email) rebuilt around the DFS brand system: Paper/Bone/Obsidian/Sky palette, Space Grotesk / IBM Plex Sans / JetBrains Mono, real DFS logo in the header, no accent bar; proper error handling on Resend API responses
-- Login page: founder-focused with Google OAuth demoted to DFS Lab team section
+- Login page: founder-focused with Google OAuth demoted to an admin-staff login section
 - Signup page: reframed as an application form with expectation-setting copy
 - **Approved founders excluded from pending approvals** — only users awaiting password setup appear in the queue
 
@@ -40,7 +40,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 - **Metrics** — define custom metrics with units; record values over time; history table; line chart per metric
 - **Updates** — rich text editor, period + title, per-update metric values, file attachments
   - Save as Draft or Publish with inline confirmation
-  - Email sent to team@dfslab.net on publish (includes metrics table + full body)
+  - Email sent to the admin team (`TEAM_EMAIL` env var) on publish (includes metrics table + full body)
   - Edit mode for drafts; view mode with HTML rendering for all
   - Comments (shared with admins) — with email notifications: admins are emailed when a founder comments, founders are emailed when an admin comments
   - PDF download
@@ -119,7 +119,7 @@ Priorities run P0 (do first) through P3 (later). P0 exists because the platform 
 | **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
 | **Rule-based metric alerts** | Auto-surface issues with plain arithmetic — "MRR dropped 20%", "no metrics in last 3 updates". No AI dependency. | Proactive problem detection without waiting on the AI re-introduction. AI-assisted versions fold into P3. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
-| **Fork-friendly theming & config** | Promote the existing centralization (CSS variables, `LogoMark`, email color tokens) into a documented single theme config; env-driven org name, logo, and from-address. | Molly is open source for other investment teams to fork — this is adoption infrastructure, and most of the groundwork shipped with the brand redesign. |
+| **Fork Configuration** | Move the hardcoded values that assume a DFS Lab deployment into env vars: `ADMIN_EMAIL_DOMAIN` (currently `@dfs.vc` in `src/lib/auth.ts`, duplicated in `login/page.tsx` copy), `ORG_NAME` (currently "DFS Lab" in `layout.tsx` page title), `SUPPORT_EMAIL` (currently `support@dfs.vc` in `email.ts` rejection template), and `LOGO_PATH` (currently DFS's own logo file, hardcoded in `email.ts`). Theming (CSS variables, `LogoMark`, email color tokens) is already centralized in source but still requires editing files directly — no runtime config exists yet. | A fork can't change its admin domain, support address, org name, or logo without editing source today. This is the actual blocker for other investment teams adopting Molly, not just re-theming. |
 
 ### P3 — Later / Opportunistic
 
