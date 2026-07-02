@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { auth } from "@/lib/auth";
 import { BarChart3, FileText, Link2 } from "lucide-react";
-import { AdminLoginButton } from "@/components/ui/admin-login-button";
+import { InvestorLoginButton } from "@/components/ui/investor-login-button";
+import { LogoMark } from "@/components/ui/logo-mark";
 
 export default async function HomePage() {
   const session = await auth();
@@ -16,20 +16,8 @@ export default async function HomePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Nav */}
-      <header className="flex items-center justify-between px-6 py-4 sm:px-10">
-        <span className="flex items-center gap-2 text-lg font-semibold tracking-tight text-foreground">
-          <Image src="/logo.png" alt="" width={69} height={28} priority />
-          Molly
-        </span>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/login"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            Sign In
-          </Link>
-          <AdminLoginButton className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:border-foreground hover:text-foreground transition-colors" />
-        </div>
+      <header className="px-6 py-4 sm:px-10">
+        <LogoMark className="text-lg" />
       </header>
 
       {/* Hero */}
@@ -44,10 +32,10 @@ export default async function HomePage() {
           }}
         />
 
-        <p className="mb-3 text-sm font-medium uppercase tracking-widest text-primary">
+        <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-widest text-primary">
           DFS Lab Portfolio Platform
         </p>
-        <h1 className="mb-4 text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
+        <h1 className="mb-4 font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
           Your portfolio,{" "}
           <span className="text-primary">organized.</span>
         </h1>
@@ -57,17 +45,18 @@ export default async function HomePage() {
         </p>
 
         <div className="flex flex-col items-center gap-3 sm:flex-row">
-          <Link
-            href="/signup"
-            className="inline-flex h-11 items-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
-          >
-            Apply for Access
-          </Link>
+          <InvestorLoginButton className="inline-flex h-11 items-center rounded-md border border-border px-6 font-mono text-xs font-semibold uppercase tracking-widest text-foreground hover:bg-muted transition-colors" />
           <Link
             href="/login"
-            className="inline-flex h-11 items-center rounded-md border border-border px-6 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+            className="inline-flex h-11 items-center rounded-md border border-border px-6 font-mono text-xs font-semibold uppercase tracking-widest text-foreground hover:bg-muted transition-colors"
           >
-            Sign In
+            Founder Login
+          </Link>
+          <Link
+            href="/signup"
+            className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-mono text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
+          >
+            Apply for Access
           </Link>
         </div>
       </main>
@@ -105,8 +94,7 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="border-t px-6 py-5 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} DFS Lab &mdash;{" "}
-        <AdminLoginButton className="hover:text-foreground underline underline-offset-2" />
+        © {new Date().getFullYear()} DFS Lab
       </footer>
     </div>
   );

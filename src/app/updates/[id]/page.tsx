@@ -435,7 +435,7 @@ export default function UpdateDetailPage() {
             <CardContent>
               {update.body ? (
                 <div
-                  className="prose prose-sm max-w-none text-sm leading-relaxed dark:prose-invert"
+                  className="prose prose-sm max-w-none text-sm leading-relaxed"
                   dangerouslySetInnerHTML={{ __html: update.body }}
                 />
               ) : (

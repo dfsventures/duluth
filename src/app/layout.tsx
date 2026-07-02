@@ -33,18 +33,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Inline script: runs before React hydration to avoid theme flash.
-// Reads localStorage, falls back to OS preference.
-const themeInitScript = `(function(){
-  try {
-    var t = localStorage.getItem('theme');
-    if (!t) {
-      t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    document.documentElement.setAttribute('data-theme', t);
-  } catch(e) {}
-})();`;
-
 export default function RootLayout({
   children,
 }: {
@@ -55,9 +43,6 @@ export default function RootLayout({
       lang="en"
       className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}
     >
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
       <body className="min-h-screen bg-background antialiased">
         <SessionProvider><CompanyProvider>{children}</CompanyProvider></SessionProvider>
       </body>

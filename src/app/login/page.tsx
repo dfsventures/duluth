@@ -4,9 +4,9 @@ import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useState, Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LogoMark } from "@/components/ui/logo-mark";
 
 const GoogleIcon = () => (
   <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -45,8 +45,7 @@ function LoginForm() {
       {/* Back to home */}
       <div className="mb-6 w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <Image src="/logo.png" alt="" width={54} height={22} />
-          Molly
+          <LogoMark />
         </Link>
       </div>
 

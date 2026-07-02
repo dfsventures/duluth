@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LogoMark } from "@/components/ui/logo-mark";
 import {
   LayoutDashboard,
   Building2,
@@ -78,8 +78,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-5">
         <Link href={useAdminNav ? "/admin" : "/dashboard"} className="flex items-center gap-2">
-          <img src="/logo.png" alt="Molly" className="h-8" />
-          <span className="font-semibold text-foreground">Molly</span>
+          <LogoMark className="text-lg" />
         </Link>
       </div>
 
@@ -128,7 +127,6 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               {isAdmin && isFounder ? "Admin & Founder" : isAdmin ? "Admin" : "Founder"}
             </p>
           </div>
-          <ThemeToggle />
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
             className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"

@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LogoMark } from "@/components/ui/logo-mark";
 import { formatDate, formatPeriod } from "@/lib/utils";
 
 interface MetricSnapshot {
@@ -211,7 +212,7 @@ export default function SharePage() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <img src="/logo.png" alt="Molly" className="h-5" />
+            <LogoMark className="text-sm" />
             <span>DFS Lab Portfolio Update</span>
           </div>
           <h1 className="mt-2 text-2xl font-bold">
@@ -337,7 +338,7 @@ export default function SharePage() {
                           )}
 
                           <div
-                            className="prose prose-sm max-w-none dark:prose-invert"
+                            className="prose prose-sm max-w-none"
                             dangerouslySetInnerHTML={{ __html: update.body }}
                           />
                         </div>

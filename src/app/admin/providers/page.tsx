@@ -444,7 +444,7 @@ function ProviderRow({
             </Button>
           )}
           {onReject && (
-            <Button size="sm" variant="secondary" onClick={onReject} disabled={loading} className="text-laterite border-laterite/30 hover:bg-laterite/10 dark:hover:bg-laterite/20">
+            <Button size="sm" variant="secondary" onClick={onReject} disabled={loading} className="text-laterite border-laterite/30 hover:bg-laterite/10">
               <XCircle className="h-3.5 w-3.5" />
               Reject
             </Button>

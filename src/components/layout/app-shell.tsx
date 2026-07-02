@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Menu } from "lucide-react";
-import Image from "next/image";
 import { Sidebar } from "./sidebar";
+import { LogoMark } from "@/components/ui/logo-mark";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,8 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <Image src="/logo.png" alt="Molly" width={59} height={24} />
-          <span className="font-semibold text-foreground">Molly</span>
+          <LogoMark className="text-lg" />
         </div>
 
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">{children}</div>

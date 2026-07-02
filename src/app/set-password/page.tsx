@@ -3,10 +3,10 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LogoMark } from "@/components/ui/logo-mark";
 
 function SetPasswordForm() {
   const searchParams = useSearchParams();
@@ -75,13 +75,7 @@ function SetPasswordForm() {
       <div className="flex min-h-screen items-center justify-center bg-muted px-4">
         <div className="w-full max-w-md space-y-8">
           <div className="flex justify-center">
-            <Image
-              src="/logo.png"
-              alt="Molly"
-              width={160}
-              height={65}
-              priority
-            />
+            <LogoMark className="text-4xl" />
           </div>
           <div className="card text-center">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-laterite/10">
@@ -123,13 +117,7 @@ function SetPasswordForm() {
       <div className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="flex justify-center">
-          <Image
-            src="/logo.png"
-            alt="Molly"
-            width={160}
-            height={65}
-            priority
-          />
+          <LogoMark className="text-4xl" />
         </div>
 
         <div className="card">

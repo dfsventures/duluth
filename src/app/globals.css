@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Design tokens: light theme (DFS brand — see ~/.claude/skills/dfs-brand-style) ──
+/* ── Design tokens (DFS brand — see ~/.claude/skills/dfs-brand-style) ──
    Note: --color-accent and --color-text-muted are darkened versions of the brand's
    literal Sky (#5B8DC5) / muted hex — the exact brand values fail WCAG AA (2.8:1 /
    2.9:1) when used as text on Paper. These blends stay in the same hue family
@@ -41,38 +41,6 @@
   /* Destructive — Laterite, deepened for weight */
   --color-destructive-rgb: 143 74 48;
   --color-destructive-foreground: #FFFFFF;
-}
-
-/* ── Design tokens: dark theme (Obsidian extension of the brand) ── */
-[data-theme="dark"] {
-  --color-accent: #7BA8D9;       /* Sky, brightened for contrast on dark */
-  --color-accent-hover: #5B8DC5;
-  --color-accent-rgb: 123 168 217;
-  /* White text fails on this bright a background (2.5:1) — use dark text instead. */
-  --color-accent-foreground: #14140F;
-  --color-powder: #1E2A38;
-
-  --color-bg: #16160F;      /* Obsidian */
-  --color-surface: #1F1E15;
-
-  --color-border: #35332A;
-  --color-border-hover: #46432E;
-
-  --color-text-primary: #EBE8DE;   /* Paper */
-  --color-text-secondary: #D8D6CB; /* Bone */
-  --color-text-muted: #9C9585;
-
-  --color-muted-rgb: 53 51 42;   /* #35332A */
-
-  --color-primary-50: rgba(123, 168, 217, 0.10);
-  --color-primary-100: rgba(123, 168, 217, 0.18);
-  --color-primary-500: #7BA8D9;
-  --color-primary-600: #5B8DC5;
-  --color-primary-700: #3A5876; /* Tuareg */
-
-  /* Destructive — Laterite, brightened for contrast on dark */
-  --color-destructive-rgb: 198 110 78;
-  --color-destructive-foreground: #14140F;
 }
 
 /* ── Base ─────────────────────────────────────────────────── */
@@ -142,19 +110,19 @@
   }
 
   .badge-success {
-    @apply badge border-acacia/30 bg-acacia/10 text-acacia dark:border-[#8FA05A]/40 dark:bg-[#8FA05A]/10 dark:text-[#9FB06A];
+    @apply badge border-acacia/30 bg-acacia/10 text-acacia;
   }
 
   .badge-warning {
-    @apply badge border-ochre/30 bg-ochre/10 text-ochre dark:border-[#D9AC5C]/40 dark:bg-[#D9AC5C]/10 dark:text-[#D9AC5C];
+    @apply badge border-ochre/30 bg-ochre/10 text-ochre;
   }
 
   .badge-danger {
-    @apply badge border-laterite/30 bg-laterite/10 text-laterite dark:border-[#C97A5C]/40 dark:bg-[#C97A5C]/10 dark:text-[#C97A5C];
+    @apply badge border-laterite/30 bg-laterite/10 text-laterite;
   }
 
   .badge-info {
-    @apply badge bg-primary-50 border-primary/20 text-primary-600 dark:text-primary-500;
+    @apply badge bg-primary-50 border-primary/20 text-primary-600;
   }
 
   .badge-neutral {

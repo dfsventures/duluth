@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { LogoMark } from "@/components/ui/logo-mark";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -47,8 +47,7 @@ export default function SignupPage() {
       {/* Back to home */}
       <div className="mb-6 w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <Image src="/logo.png" alt="" width={54} height={22} />
-          Molly
+          <LogoMark />
         </Link>
       </div>
 
