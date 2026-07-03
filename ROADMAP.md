@@ -72,6 +72,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
   - **Fixed 2026-07-03**: two stacked bugs meant this had likely never fired since it shipped — (1) the route only exported `POST` but Vercel Cron invokes with GET, and (2) even after fixing that, auth middleware redirected every cron invocation to `/login` before the route's own `CRON_SECRET` check ever ran, since cron requests carry no session. `/api/cron` is now on the middleware's public-path list (the route's `CRON_SECRET` check remains the real authorization gate); both fixes verified live against production.
 - **Update Templates** (`/admin/templates`) — admin-created reusable skeletons (rich-text body + name/description) founders can start an update from; soft-delete via archive/unarchive; audit-logged (shipped 2026-07-03)
 - **Investor Links** — multi-company link creation; full view log; revoke
+- **Updates** (`/admin/updates`) — cross-portfolio feed of every published update (drafts excluded), with search (title/company), a company filter, and three sorts (newest/oldest/company A–Z); each row links to the update detail. Fetch-once + client-side filtering, no pagination — reuses the existing `GET /api/admin/updates` endpoint that already powered the link builder (shipped 2026-07-03)
 - **Weekly Digest** (`/admin/digest`) — compose the internal team digest (6 fixed sections + todo list with assignees); AI-assisted drafting via Anthropic Claude from pasted meeting notes or Granola transcript links; sent by email to recipients configured in Settings
 - **Company Notes** — admin-only internal notes on each company, with revision history
 - **Service Provider Directory** (`/providers`, `/admin/providers`) — founders submit and endorse service providers; admins vet submissions (pending/vetted/rejected), manage categories, and add providers directly (`POST /api/admin/providers`, defaults to Vetted per D2, audit-logged as `PROVIDER_CREATED`)
@@ -114,17 +115,10 @@ Priorities run P0 (do first) through P3 (later).
 >
 > Test coverage remains narrow (middleware routing, auth guards, rate limiting) — broadening it further is not yet scheduled; treat "zero automated tests" as resolved for the auth-critical path specifically, not the whole app.
 >
-> **Part 4 follow-up batch (WS6–WS8) in progress, 2026-07-03 afternoon.** Plans in Part 4 of `docs/IMPLEMENTATION_PLAN.md`.
-> - **WS6** — homepage nav collapsed to a single "Log in" link; "Investor access" moved to the footer (shipped 2026-07-03)
-> - **WS7** — admin "Add Provider" flow, and real provider vetting restored (founder submissions stay Pending until an admin acts; endorsements are pure testimonials) (shipped 2026-07-03)
-
-### Next up — July 2026 follow-up batch (WS6–WS7 shipped, WS8 planned)
-
-From a product review on 2026-07-03; detailed junior-executable plans in Part 4 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md). No new cost lines; no schema changes.
-
-| Item | Description | Why |
-|------|-------------|-----|
-| **Cross-portfolio updates page (WS8)** | New admin-only `/admin/updates` feed of all published updates with search, company filter, and sort; rows click through to update detail. Builds on the existing `GET /api/admin/updates` endpoint. | Admins can currently only read updates one company at a time. |
+> **Part 4 follow-up batch (WS6–WS8) shipped 2026-07-03.** Plans in Part 4 of `docs/IMPLEMENTATION_PLAN.md`; shipped feature detail folded into "Existing Features" above.
+> - **WS6** — homepage nav collapsed to a single "Log in" link; "Investor access" moved to the footer
+> - **WS7** — admin "Add Provider" flow, and real provider vetting restored (founder submissions stay Pending until an admin acts; endorsements are pure testimonials)
+> - **WS8** — `/admin/updates` cross-portfolio feed of published updates (search, company filter, sort)
 
 ### P2 — Leverage (next quarter)
 

@@ -940,7 +940,7 @@ export async function POST(request: Request) {
 
 ---
 
-## WS8 — Cross-portfolio updates page for admins (1 day)
+## WS8 — Cross-portfolio updates page for admins (1 day) — SHIPPED 2026-07-03
 
 **Goal:** `/admin/updates` — one browsable, filterable feed of all published updates (D4: admin-only, published-only). Portfolio scale is small (tens of companies, hundreds of updates), so fetch once and filter/sort client-side — **no pagination, no API redesign**.
 
