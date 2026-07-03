@@ -9,6 +9,7 @@ import {
   FileText,
   Clock,
   AlertCircle,
+  Eye,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -37,12 +38,25 @@ interface Update {
   createdAt: string;
 }
 
+interface EngagementView {
+  id: string;
+  email: string;
+  viewedAt: string;
+  link: { label: string | null };
+}
+
+interface Engagement {
+  totalViews: number;
+  recentViews: EngagementView[];
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { data: session, status: sessionStatus } = useSession();
   const { selectedCompany, loading: companyLoading } = useCompany();
   const [company, setCompany] = useState<Company | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
+  const [engagement, setEngagement] = useState<Engagement>({ totalViews: 0, recentViews: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +79,18 @@ export default function DashboardPage() {
         if (updatesRes.ok) {
           const updatesData = await updatesRes.json();
           setUpdates(updatesData.data ?? updatesData ?? []);
+        }
+
+        // Investor engagement is a nice-to-have — never block the dashboard on it
+        try {
+          const engagementRes = await fetch(
+            `/api/companies/${selectedCompany.id}/engagement`
+          );
+          if (engagementRes.ok) {
+            setEngagement(await engagementRes.json());
+          }
+        } catch {
+          // leave engagement at its zero default
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
@@ -140,7 +166,7 @@ export default function DashboardPage() {
       />
 
       {/* Summary cards */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -190,6 +216,58 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <Eye className="h-4 w-4" />
+              Investor Views
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg font-semibold">{engagement.totalViews}</p>
+            <p className="text-sm text-muted-foreground">
+              {engagement.recentViews[0]
+                ? `Last viewed ${formatDate(engagement.recentViews[0].viewedAt)}`
+                : "No views yet"}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent investor activity */}
+      <div className="mb-8">
+        <h2 className="mb-4 text-lg font-semibold">Recent Investor Activity</h2>
+        {engagement.recentViews.length === 0 ? (
+          <EmptyState
+            icon={<Eye className="h-8 w-8" />}
+            title="No investor views yet"
+            description="Create a link on the Investor Links page to share your updates."
+            action={
+              <Button variant="secondary" onClick={() => router.push("/links")}>
+                Go to Investor Links
+              </Button>
+            }
+          />
+        ) : (
+          <div className="space-y-2">
+            {engagement.recentViews.map((view) => (
+              <Card key={view.id}>
+                <CardContent className="flex items-center justify-between py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{view.email}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {view.link.label ?? "Investor link"}
+                    </p>
+                  </div>
+                  <p className="shrink-0 text-sm text-muted-foreground">
+                    {formatDate(view.viewedAt)}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Recent updates */}
