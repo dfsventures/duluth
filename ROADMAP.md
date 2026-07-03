@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-07-02_
+_Last updated: 2026-07-03_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -67,6 +67,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
   - Per-company frequency: weekly / bi-weekly / monthly / quarterly / disabled
   - Cooldown via `lastReminderSentAt` prevents repeat emails within the configured window
   - Emails all OWNER + MEMBER founders on the company; secured by `CRON_SECRET`
+  - ⚠️ **Likely broken as of 2026-07-03**: the route only exports `POST`, but Vercel Cron invokes with GET — scheduled runs 405 and reminders have probably never sent. Fix queued in the P0 bug-fix batch below (WS0 in `docs/IMPLEMENTATION_PLAN.md`); also requires a valid `RESEND_API_KEY`.
 - **Investor Links** — multi-company link creation; full view log; revoke
 - **Weekly Digest** (`/admin/digest`) — compose the internal team digest (6 fixed sections + todo list with assignees); AI-assisted drafting via Anthropic Claude from pasted meeting notes or Granola transcript links; sent by email to recipients configured in Settings
 - **Company Notes** — admin-only internal notes on each company, with revision history
@@ -96,26 +97,29 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 
 Priorities run P0 (do first) through P3 (later). P0 exists because the platform holds confidential portfolio data and serves LPs — a February middleware auth bypass that survived until July, zero automated tests, and open security-audit items make platform integrity the highest-leverage work before new features.
 
+> **Implementation detail:** step-by-step, junior-executable plans for all P0 and P1 items live in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) (from the 2026-07-03 roadmap review). Workstream numbers (WS0–WS5) below refer to that document.
+
 ### P0 — Platform Integrity
 
 | Item | Description | Why now |
 |------|-------------|---------|
-| **Security hardening batch** | Rate limiting on `/api/auth/signup` and `/api/auth/set-password`; validate MIME type server-side on document upload; validate email format on the share-link gate; audit log for admin actions. | All four are open items from the security audit. Cheap individually; together they close the known attack surface. |
-| **Auth/authz test suite** | Minimal automated tests covering middleware routing, `requireAuth` / `requireAdmin` / `requireCompanyAccess`, and share-token access. | The middleware bypass shipped in February and was found by accident in July. There are currently zero tests; CI should catch the next one. |
+| **Bug-fix & hygiene batch (WS0)** | Fix the reminder cron GET/POST mismatch (see Update Reminders note above); repair the never-configured ESLint setup (no config file; eslint 9 / config-next 16 mismatch with Next 14); remove six dead dependencies (`openai`, `ai`, `uuid`, `@types/uuid`, `diff`, `@types/diff`); guard legacy share links against null periods; harden the dev bootstrap route behind an explicit env flag. | Found in the 2026-07-03 review. The cron bug silently disables a shipped feature; lint has never actually run. |
+| **Security hardening batch (WS1)** | Rate limiting on `/api/auth/signup` and `/api/auth/set-password` (Postgres-backed — no new services); validate MIME type server-side on document upload; validate email format on the share-link gate; audit log for admin actions. | All four are open items from the security audit. Cheap individually; together they close the known attack surface. |
+| **Auth/authz test suite (WS2)** | Minimal automated tests covering middleware routing, `requireAuth` / `requireAdmin` / `requireCompanyAccess`, and share-token access. Vitest + free GitHub Actions CI; deploys are deliberately not gated on tests (preserves push-to-deploy). | The middleware bypass shipped in February and was found by accident in July. There are currently zero tests; CI should catch the next one. |
 
 ### P1 — Close the Core Loop (this quarter)
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
 | **Update Templates** | Admin-created templates with pre-filled sections and metric guidance. | Reduces founder cognitive load; improves update consistency and completeness. |
-| **Investor entry point** | "Investor Login" on the homepage currently runs admin Google OAuth — it fails for actual investors. Either build a lightweight "find your link" page or remove the button until investor accounts exist. | A public CTA that errors for its named audience erodes trust with exactly the audience LPs represent. |
+| **Investor entry point** | "Investor Login" on the homepage currently runs admin Google OAuth — it fails for actual investors. **Decision (2026-07-03):** remove the button and replace it with a public `/investors` explainer page describing link-based access (WS4); persistent investor accounts remain P3. | A public CTA that errors for its named audience erodes trust with exactly the audience LPs represent. |
 | **Share-link engagement for founders** | Surface `ShareableLinkView` data (already collected) as a simple "your investor viewed this" signal on the founder dashboard. | The reward loop that keeps founders publishing. Data already exists; this is UI. |
 
 ### P2 — Leverage (next quarter)
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
-| **Bulk LP Report Link** | Admin creates a single link covering the full portfolio for a period. | Current multi-company links require manual selection. Essential for LP meetings. |
+| **Bulk LP Report Link** | Admin creates a single link covering the full portfolio for a period. Before building: resolve the open metric-scoping question (finding F7 in `docs/IMPLEMENTATION_PLAN.md` — pinned-update links currently show investors the latest all-time value of every metric, which bulk links would inherit). | Current multi-company links require manual selection. Essential for LP meetings. |
 | **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
 | **Rule-based metric alerts** | Auto-surface issues with plain arithmetic — "MRR dropped 20%", "no metrics in last 3 updates". No AI dependency. | Proactive problem detection without waiting on the AI re-introduction. AI-assisted versions fold into P3. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
