@@ -2,10 +2,16 @@
 
 _Prepared: 2026-07-03 · Reviewed against `ROADMAP.md` (last updated 2026-07-02)_
 
-This document is the output of a full codebase-vs-roadmap review. It has two parts:
+> **Status (2026-07-03, end of day): Parts 1–3 are complete.** All six workstreams (WS0–WS5) shipped to production the same day and were verified live on `molly.dfslab.net`. One bug beyond this plan was found during WS0's live verification: `/api/cron/reminders` was **also** blocked by the auth middleware itself (Vercel Cron requests carry no session, so every invocation was 307-redirected to `/login` before the route's `CRON_SECRET` check ran) — independent of, and stacked on, the GET/POST bug F1 describes. Fixed by adding `/api/cron` to the middleware public-path list (commit `b6cb846`); the route-level secret check remains the real gate, confirmed live (200 with secret, 401 without).
+>
+> **Part 4 (added later the same day)** contains the next approved batch: WS6–WS8, from a follow-up product review. These are planned, not yet implemented.
+
+This document is the output of a full codebase-vs-roadmap review. It has four parts:
 
 1. **Review findings** — where the code and the roadmap agree, where they drift, and issues found during review that the roadmap doesn't know about yet.
 2. **Implementation plan** — step-by-step workstreams for all P0 and P1 items (plus a small bug-fix/hygiene workstream), written so a junior engineer can execute them without further design decisions. P2/P3 get recommendations only.
+3. **P2/P3 recommendations** — sketches only.
+4. **Follow-up batch (WS6–WS8)** — homepage login CTA consolidation, admin provider management + real vetting, and a cross-portfolio updates page for admins.
 
 **Hard constraints honored throughout:**
 
@@ -770,3 +776,205 @@ Suggestions only; each fits the no-new-cost constraint when its time comes:
 ## Roadmap bookkeeping
 
 As each workstream ships, move the corresponding item in `ROADMAP.md` from the Roadmap tables into "Existing Features" (per that file's own convention), and add F1 (cron fix) to the changelog/commit message so the "Update Reminders" feature claim becomes true.
+
+---
+
+# Part 4 — Follow-up Batch: WS6–WS8
+
+_Added 2026-07-03 (afternoon), after WS0–WS5 shipped. From a product review of three issues raised by the team. Same constraints as Parts 1–3: **no new cost lines**, **no UX regressions**. All product decisions below were confirmed with the team on 2026-07-03._
+
+## Part 4 review findings
+
+**F8 — Provider vetting is vestigial (MEDIUM, drift between product claim and code).**
+The roadmap and the admin UI both present a founder-submits → admin-vets flow, but the code short-circuits it twice:
+
+1. `POST /api/providers` (`src/app/api/providers/route.ts:84-96`) creates every founder submission as `PENDING`, then immediately creates the submitter's own endorsement and promotes the provider to `VETTED`. Every submission is therefore instantly vetted by its own author.
+2. `POST /api/providers/[id]/endorse` (`src/app/api/providers/[id]/endorse/route.ts:33-36`) promotes any `PENDING` provider to `VETTED` on any endorsement.
+
+Net effect: the admin "Pending Review" queue can never receive anything through the normal flow, and the "Vetted" badge means "someone (possibly the submitter themselves) wrote an endorsement note," not "reviewed by DFS Lab." → Fixed in WS7.
+
+**F9 — Admins have no add-provider path (LOW, missing UI + endpoint).**
+Technically an admin *can* call the founder submission endpoint (it's `requireAuth`, not founder-scoped), but it forces an "experience note" endorsement from them and labels them as the submitter/endorser — semantically wrong for an admin curating the directory. There is no "Add Provider" button on `/admin/providers`; admins can only edit/vet/delete what founders submit. → Fixed in WS7.
+
+**F10 — Homepage nav still audience-splits the login (LOW, copy/IA).**
+After WS4 the nav reads "Founder Login" + "Investor Access." Since investors never log in and `/login` already serves both founders and DFS Lab admins (neutral "Welcome back" heading, credentials form, "DFS Lab team?" Google section — verified, no changes needed there), the split labels overpromise. → Fixed in WS6.
+
+**F11 — No cross-portfolio updates view (feature gap).**
+Admins can only read updates company-by-company via each company detail page. `GET /api/admin/updates` already returns all published updates portfolio-wide (id, title, period, sentAt, company) — it currently powers the admin link builder — but no page renders it as a browsable feed. → Built in WS8.
+
+### Decisions taken (confirmed with the team, 2026-07-03)
+
+| # | Decision |
+|---|---|
+| D1 | Homepage nav collapses to a single **"Log in"** CTA → `/login`. The `/investors` page **stays live**, linked from the homepage **footer** ("Investor access"). |
+| D2 | Admins get a direct **Add Provider** flow; admin-created providers default to **VETTED** (the form's status selector stays visible, so an admin can park one as pending if they want). |
+| D3 | **Real vetting restored, admin-only**: founder submissions land as `PENDING`; endorsements (self or peer) **never** change status; only admins promote/reject. Endorsements become pure testimonials. |
+| D4 | The all-updates page is **admin-only** and shows **published updates only** (drafts stay private to founders until published). |
+
+**Judgment call (flagged, not asked):** pending submissions remain **visible** in the founder directory's existing "community" tier (badged, filterable — that tier is already designed and shipped). Restoring vetting changes what the *Vetted* badge means, not who can see the listing. If the team would rather hide pending entries from other founders until vetted, that is a one-line filter change in `GET /api/providers` (default `status` filter from `{ not: "REJECTED" }` to `VETTED`-plus-own-pending) — decide before or after WS7 ships; the rest of the workstream is unaffected.
+
+---
+
+## WS6 — Single login CTA on the homepage (¼–½ day)
+
+**Goal:** one honest login entry point. No changes to `/login` (already dual-audience) or `/investors` (already public with a back-home link).
+
+1. `src/app/page.tsx` — in the nav header (the `div` holding the two links), replace both the "Founder Login" `Link` and the "Investor Access" `Link` with a single:
+   ```tsx
+   <Link href="/login" className="hover:text-foreground transition-colors">
+     Log in
+   </Link>
+   ```
+2. Same file — footer: the current footer is a single `© {year} DFS Lab` line. Make it a flex row keeping the © text and adding a muted link:
+   ```tsx
+   <footer className="flex items-center justify-center gap-4 border-t px-6 py-5 text-center text-xs text-muted-foreground">
+     <span>© {new Date().getFullYear()} DFS Lab</span>
+     <span aria-hidden>·</span>
+     <Link href="/investors" className="hover:text-foreground transition-colors">
+       Investor access
+     </Link>
+   </footer>
+   ```
+3. No route-access changes (`/investors` is already in `PUBLIC_PREFIXES`, covered by an existing test). No middleware changes.
+4. Run `npm run typecheck && npm run lint && npm test`, push, verify live.
+
+**WS6 acceptance checklist**
+- [ ] Homepage nav shows exactly one login link ("Log in") → `/login`
+- [ ] Footer shows the "Investor access" link → `/investors`; page still renders logged-out
+- [ ] `/login` unchanged: founder credentials form + "DFS Lab team?" Google section both work
+- [ ] Logged-in visit to `/` still auto-redirects to `/dashboard` or `/admin`
+
+**UX impact:** founders/admins get a clearer single entry (label change only — the destination is the page both audiences already use). Investors keep a discoverable path via the footer. **Cost impact:** none.
+
+---
+
+## WS7 — Admin provider management + real vetting (1–1.5 days)
+
+Two halves; ship as two commits in this order (7.1 is purely additive; 7.2 changes flow semantics).
+
+### WS7.1 Admin "Add Provider"
+
+**Step 1 — Endpoint.** New file `src/app/api/admin/providers/route.ts` (only `[id]/` and `categories/` exist under that directory today):
+
+```ts
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
+
+export async function POST(request: Request) {
+  const { user, error } = await requireAdmin();
+  if (error) return error;
+
+  const body = await request.json();
+  if (!body.name?.trim()) return NextResponse.json({ error: "Name is required" }, { status: 400 });
+  if (!body.categoryId) return NextResponse.json({ error: "Category is required" }, { status: 400 });
+
+  const category = await db.serviceCategory.findUnique({ where: { id: body.categoryId } });
+  if (!category) return NextResponse.json({ error: "Invalid category" }, { status: 400 });
+
+  // schema has @@unique([name, categoryId]) — check first so the user gets a 409, not a 500
+  const existing = await db.serviceProvider.findUnique({
+    where: { name_categoryId: { name: body.name.trim(), categoryId: body.categoryId } },
+  });
+  if (existing) return NextResponse.json({ error: "A provider with that name already exists in this category" }, { status: 409 });
+
+  const validStatuses = ["PENDING", "VETTED", "REJECTED"] as const;
+  const status = validStatuses.includes(body.status) ? body.status : "VETTED";
+
+  const provider = await db.serviceProvider.create({
+    data: {
+      type: body.type === "INDIVIDUAL" ? "INDIVIDUAL" : "FIRM",
+      name: body.name.trim(),
+      website: body.website?.trim() || null,
+      linkedin: body.linkedin?.trim() || null,
+      categoryId: body.categoryId,
+      description: body.description?.trim() || null,
+      contactEmail: body.contactEmail?.trim() || null,
+      country: body.country?.trim() || null,
+      city: body.city?.trim() || null,
+      status,                       // D2: defaults to VETTED for admin-created entries
+      submittedById: user!.id,      // provenance: "Submitted by <admin name>" renders honestly
+    },
+    include: {
+      category: { select: { id: true, name: true } },
+      endorsements: { select: { id: true, userId: true, note: true, createdAt: true, user: { select: { id: true, name: true } } } },
+    },
+  });
+
+  await logAdminAction(user!, "PROVIDER_CREATED", { targetType: "ServiceProvider", targetId: provider.id, metadata: { name: provider.name, status } });
+  return NextResponse.json(provider, { status: 201 });
+}
+```
+
+**Step 2 — UI.** `src/app/admin/providers/page.tsx`: follow the exact pattern `src/app/admin/templates/page.tsx` used — widen `editTarget` from `Provider | null` to `Provider | "new" | null`:
+
+- Add an **"Add Provider"** primary button next to "Add Category" in the `PageHeader` `action` (wrap both in a flex `div`).
+- `openNew()` sets `editTarget = "new"` and seeds `editForm` with defaults: `{ type: "FIRM", status: "VETTED", categoryId: categories[0]?.id ?? "" }`.
+- In `handleSaveEdit`, branch: `editTarget === "new"` → `POST /api/admin/providers`, else the existing `PATCH`. Surface the endpoint's `error` string on failure (409 duplicate included).
+- Modal title: `"Add Provider"` in new mode. The existing edit form already has every field including the status selector — no new form fields needed.
+
+### WS7.2 Restore real vetting (D3)
+
+**Step 1 —** `src/app/api/providers/route.ts` (`POST`): delete the auto-promote block — the `db.serviceProvider.update({ ..., data: { status: "VETTED" } })` call and the "this also promotes to VETTED" comment (lines ~89-96). **Keep** the endorsement creation itself (the submitter's experience note remains a testimonial on the listing). Submissions now stay `PENDING`.
+
+**Step 2 —** `src/app/api/providers/[id]/endorse/route.ts` (`POST`): delete the promotion block (lines ~33-36, `if (provider.status === "PENDING") { ...update to VETTED }`) and its comment. Endorsements no longer change status for anyone.
+
+**Step 3 — Founder-facing copy.** `src/app/providers/page.tsx`:
+- The endorse-modal title currently branches to `"Endorse & verify this provider"` for `PENDING` providers (line ~354) — drop the branch; it's always `"Endorse this provider"` (keep the existing your-endorsement update variant). Remove/adjust the pending-specific helper copy near line ~359 that implies endorsing verifies.
+- In the submit-provider modal, add one expectation-setting line under the form (muted, small): *"New submissions appear in the community tier and are marked Vetted once reviewed by the DFS Lab team."*
+- Everything else stays: the All/Vetted/Pending filter, the "community" count label, and the pending `StatusBadge` are already built for exactly this state.
+
+**Step 4 — No data migration.** Every existing provider was auto-promoted at creation, so there are no live `PENDING` rows to reconcile; the queue simply starts filling with new submissions. Admin vet/reject actions are already audit-logged via `PROVIDER_UPDATED` (statusFrom/statusTo metadata, WS1.4).
+
+**WS7 acceptance checklist**
+- [ ] Admin: "Add Provider" creates a VETTED entry (visible in founder directory immediately); audit row `PROVIDER_CREATED` appears; duplicate name+category → readable 409 message
+- [ ] Founder: new submission lands `PENDING`, visible in the community tier with a pending badge, and shows up in the admin "Pending Review" queue
+- [ ] Endorsing a pending provider (as a different founder) adds the testimonial but does **not** change its status
+- [ ] Admin approve from the queue → provider moves to Vetted; reject → hidden from founder default view (existing behavior)
+- [ ] No "verify" language remains in founder-facing endorse copy
+- [ ] Founders still get 401/403 from `POST /api/admin/providers`
+
+**UX impact:** founders' submissions stay immediately visible (community tier) — only the instant "Vetted" badge changes, which is the point. Admins gain add capability. **Cost impact:** none.
+
+---
+
+## WS8 — Cross-portfolio updates page for admins (1 day)
+
+**Goal:** `/admin/updates` — one browsable, filterable feed of all published updates (D4: admin-only, published-only). Portfolio scale is small (tens of companies, hundreds of updates), so fetch once and filter/sort client-side — **no pagination, no API redesign**.
+
+**Step 1 — Endpoint (additive only).** `src/app/api/admin/updates/route.ts` is consumed by the admin link builder (`/admin/links`), so its response shape must not lose fields. Add one field to the `select`: `createdBy: { select: { name: true } }` (who published it). Adding is safe; the link builder ignores unknown fields.
+
+**Step 2 — Page.** New file `src/app/admin/updates/page.tsx`, client page modeled on `src/app/admin/providers/page.tsx` (fetch-once + client filters):
+
+- Fetch `GET /api/admin/updates` on mount.
+- Controls row: a search `Input` (matches against `title` and `company.name`, case-insensitive), a company `<select>` (options derived from the distinct companies in the response, "All companies" default), and a sort `<select>`: **Newest first** (default, by `sentAt` desc) / Oldest first / Company A–Z (then newest within a company).
+- Result count line (e.g., "42 updates · 12 companies") that reflects active filters.
+- Rows: one `Card` per update — title, company name, `formatPeriod(period)`, `formatDate(sentAt)`, author name if present — the whole row a `Link` to `/updates/${id}` (admins pass `requireCompanyAccess` via the admin bypass; verified the update-detail API guards allow this).
+- `EmptyState` for zero results ("No published updates match your filters") and for a genuinely empty portfolio.
+
+**Step 3 — Sidebar.** `src/components/layout/sidebar.tsx`: insert `{ label: "Updates", href: "/admin/updates", icon: FileText }` into `adminNav` directly after Companies (`FileText` is already imported for the founder nav).
+
+**Step 4 —** `npm run typecheck && npm run lint && npm test && npm run build`, push, verify live.
+
+**WS8 acceptance checklist**
+- [ ] `/admin/updates` lists all published updates newest-first; drafts never appear
+- [ ] Search, company filter, and all three sorts work and combine; count line updates
+- [ ] Clicking a row opens the update detail as an admin
+- [ ] Founders hitting `/admin/updates` are redirected to `/dashboard` (existing middleware `/admin` gating — no new rules needed)
+- [ ] `/admin/links` link builder still works (response shape unchanged, one field added)
+
+**UX impact:** purely additive (one new sidebar entry, one new page). **Cost impact:** none — reuses the existing endpoint, no new queries at scale.
+
+---
+
+## Part 4 sequencing & effort
+
+WS6 → WS7 → WS8 (independent of each other, so any order works; this one puts the smallest, most visible fix first). Same ground rules as Part 2: one workstream per commit-and-verify cycle on the live deploy, `typecheck && lint && test` before every push. No schema changes anywhere in this batch — no `db push` needed.
+
+**Rough effort:** WS6 ¼–½d · WS7 1–1.5d · WS8 1d → **~2.5–3 junior-engineer days.**
+
+## Part 4 roadmap bookkeeping
+
+`ROADMAP.md` has been annotated with F8 (the vestigial-vetting drift) on the Service Provider Directory feature claim, and a "Next up" section pointing at WS6–WS8. As each workstream ships, fold it into "Existing Features" per the file's convention — in particular, the homepage description (currently "Founder Login and Investor Access are small nav-bar links") must be rewritten when WS6 lands.

@@ -75,6 +75,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 - **Weekly Digest** (`/admin/digest`) — compose the internal team digest (6 fixed sections + todo list with assignees); AI-assisted drafting via Anthropic Claude from pasted meeting notes or Granola transcript links; sent by email to recipients configured in Settings
 - **Company Notes** — admin-only internal notes on each company, with revision history
 - **Service Provider Directory** (`/providers`, `/admin/providers`) — founders submit and endorse service providers; admins vet submissions (pending/vetted/rejected) and manage categories
+  - ⚠️ **Vetting is currently vestigial (found 2026-07-03)**: submissions are auto-promoted to VETTED by the submitter's own endorsement, and any endorsement promotes a pending provider — so the admin queue never fills and "Vetted" doesn't mean admin-reviewed. Admins also have no direct add-provider path. Both fixed in WS7 (see "Next up" below).
 - **Company member management** — add members by email from company detail page; new users created automatically via invite flow; membership role dropdown (Owner/Editor/Viewer) per founder member
 - **Audit Log** (`/admin/audit`) — timestamped record of every admin mutation (approvals, deletions, provider/digest/note/sector/template CRUD, member adds, manual reminders, test emails); last 100 shown; write-only from `src/lib/audit.ts`, never blocks the action it logs (shipped 2026-07-03)
 
@@ -112,6 +113,16 @@ Priorities run P0 (do first) through P3 (later).
 > - **WS5** — investor engagement signal on the founder dashboard
 >
 > Test coverage remains narrow (middleware routing, auth guards, rate limiting) — broadening it further is not yet scheduled; treat "zero automated tests" as resolved for the auth-critical path specifically, not the whole app.
+
+### Next up — July 2026 follow-up batch (planned, not yet built)
+
+From a product review on 2026-07-03; detailed junior-executable plans in Part 4 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md). No new cost lines; no schema changes.
+
+| Item | Description | Why |
+|------|-------------|-----|
+| **Single login CTA (WS6)** | Homepage nav collapses "Founder Login" + "Investor Access" into one "Log in" link → `/login` (which already serves founders and admins). `/investors` stays live, linked from the footer. | Investors never log in, so audience-split login links overpromise; one honest CTA. |
+| **Admin provider management + real vetting (WS7)** | Admins get a direct "Add Provider" flow (defaults to Vetted, audit-logged). Founder submissions land as Pending in the existing community tier; endorsements become pure testimonials — only admins promote/reject. | Fixes the vestigial-vetting drift flagged above and the missing admin add path. |
+| **Cross-portfolio updates page (WS8)** | New admin-only `/admin/updates` feed of all published updates with search, company filter, and sort; rows click through to update detail. Builds on the existing `GET /api/admin/updates` endpoint. | Admins can currently only read updates one company at a time. |
 
 ### P2 — Leverage (next quarter)
 
