@@ -23,7 +23,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 ## Existing Features
 
 ### Authentication & Access
-- **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); Founder Login and Investor Access are small nav-bar links; a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
+- **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); nav bar collapses to a single "Log in" link → `/login` (which already serves both founders and admins); footer carries a muted "Investor access" link → `/investors` (shipped 2026-07-03 — investors never log in, so an audience-split nav overpromised); a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
 - Email/password login + Google OAuth (admins restricted to a single email domain, currently `@dfs.vc`, hardcoded in `src/lib/auth.ts` — see Fork Configuration below)
 - **Investor Access** (`/investors`) — public page explaining that investor access is link-based (no account needed) with a support contact (`SUPPORT_EMAIL`); replaces the old "Investor Login" button, which silently ran admin Google OAuth and errored for real investors (shipped 2026-07-03)
 - Founder signup → admin approval → set-password email flow, rate-limited (10/hour/IP, Postgres-backed) against `/api/auth/signup` and `/api/auth/set-password`
@@ -113,14 +113,16 @@ Priorities run P0 (do first) through P3 (later).
 > - **WS5** — investor engagement signal on the founder dashboard
 >
 > Test coverage remains narrow (middleware routing, auth guards, rate limiting) — broadening it further is not yet scheduled; treat "zero automated tests" as resolved for the auth-critical path specifically, not the whole app.
+>
+> **Part 4 follow-up batch (WS6–WS8) in progress, 2026-07-03 afternoon.** Plans in Part 4 of `docs/IMPLEMENTATION_PLAN.md`.
+> - **WS6** — homepage nav collapsed to a single "Log in" link; "Investor access" moved to the footer (shipped 2026-07-03)
 
-### Next up — July 2026 follow-up batch (planned, not yet built)
+### Next up — July 2026 follow-up batch (WS6 shipped, WS7–WS8 planned)
 
 From a product review on 2026-07-03; detailed junior-executable plans in Part 4 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md). No new cost lines; no schema changes.
 
 | Item | Description | Why |
 |------|-------------|-----|
-| **Single login CTA (WS6)** | Homepage nav collapses "Founder Login" + "Investor Access" into one "Log in" link → `/login` (which already serves founders and admins). `/investors` stays live, linked from the footer. | Investors never log in, so audience-split login links overpromise; one honest CTA. |
 | **Admin provider management + real vetting (WS7)** | Admins get a direct "Add Provider" flow (defaults to Vetted, audit-logged). Founder submissions land as Pending in the existing community tier; endorsements become pure testimonials — only admins promote/reject. | Fixes the vestigial-vetting drift flagged above and the missing admin add path. |
 | **Cross-portfolio updates page (WS8)** | New admin-only `/admin/updates` feed of all published updates with search, company filter, and sort; rows click through to update detail. Builds on the existing `GET /api/admin/updates` endpoint. | Admins can currently only read updates one company at a time. |
 

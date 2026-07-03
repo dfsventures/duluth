@@ -36,10 +36,7 @@ export default async function HomePage() {
         <LogoMark className="text-lg" />
         <div className="flex items-center gap-5 text-sm text-muted-foreground">
           <Link href="/login" className="hover:text-foreground transition-colors">
-            Founder Login
-          </Link>
-          <Link href="/investors" className="hover:text-foreground transition-colors">
-            Investor Access
+            Log in
           </Link>
         </div>
       </header>
@@ -97,8 +94,12 @@ export default async function HomePage() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t px-6 py-5 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} DFS Lab
+      <footer className="flex items-center justify-center gap-4 border-t px-6 py-5 text-center text-xs text-muted-foreground">
+        <span>© {new Date().getFullYear()} DFS Lab</span>
+        <span aria-hidden>·</span>
+        <Link href="/investors" className="hover:text-foreground transition-colors">
+          Investor access
+        </Link>
       </footer>
     </div>
   );
