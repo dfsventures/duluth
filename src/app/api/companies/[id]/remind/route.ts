@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { sendUpdateReminderEmail } from "@/lib/email";
+import { logAdminAction } from "@/lib/audit";
 
 export async function POST(
   _request: Request,
@@ -10,7 +11,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const company = await db.company.findUnique({
@@ -58,6 +59,7 @@ export async function POST(
       data: { lastReminderSentAt: now },
     });
 
+    await logAdminAction(user!, "MANUAL_REMINDER_SENT", { targetType: "Company", targetId: id, metadata: { recipientCount: company.memberships.length } });
     return NextResponse.json({ lastReminderSentAt: now.toISOString() });
   } catch (err) {
     console.error("POST /api/companies/[id]/remind error:", err);

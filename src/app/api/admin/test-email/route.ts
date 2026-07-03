@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
 import { sendTestEmail } from "@/lib/email";
+import { logAdminAction } from "@/lib/audit";
 
 export async function POST() {
   try {
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const session = await auth();
@@ -25,6 +26,7 @@ export async function POST() {
 
     await sendTestEmail(email);
 
+    await logAdminAction(user!, "TEST_EMAIL_SENT", { metadata: { sentTo: email } });
     return NextResponse.json({ success: true, sentTo: email });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

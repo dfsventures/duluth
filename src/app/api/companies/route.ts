@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 type TransactionClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
@@ -145,6 +146,7 @@ export async function POST(request: Request) {
         return newCompany;
       });
 
+      await logAdminAction(user!, "COMPANY_CREATED", { targetType: "Company", targetId: company.id, metadata: { name: company.name } });
       return NextResponse.json(company, { status: 201 });
     }
 

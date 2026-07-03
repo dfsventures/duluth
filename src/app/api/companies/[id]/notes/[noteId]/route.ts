@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function PATCH(
   request: Request,
@@ -58,6 +59,7 @@ export async function PATCH(
       },
     });
 
+    await logAdminAction(user!, "NOTE_UPDATED", { targetType: "CompanyNote", targetId: noteId, metadata: { companyId: id } });
     return NextResponse.json(updated);
   } catch (err) {
     console.error("PATCH /api/companies/[id]/notes/[noteId] error:", err);
@@ -71,7 +73,7 @@ export async function DELETE(
 ) {
   try {
     const { id, noteId } = await params;
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const note = await db.companyNote.findUnique({ where: { id: noteId } });
@@ -80,6 +82,7 @@ export async function DELETE(
     }
 
     await db.companyNote.delete({ where: { id: noteId } });
+    await logAdminAction(user!, "NOTE_DELETED", { targetType: "CompanyNote", targetId: noteId, metadata: { companyId: id } });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("DELETE /api/companies/[id]/notes/[noteId] error:", err);

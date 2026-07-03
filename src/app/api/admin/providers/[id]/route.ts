@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function GET(
   _request: Request,
@@ -31,7 +32,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
 
   const { id } = await params;
@@ -62,6 +63,11 @@ export async function PATCH(
     },
   });
 
+  await logAdminAction(user!, "PROVIDER_UPDATED", {
+    targetType: "ServiceProvider",
+    targetId: id,
+    metadata: body.status !== undefined ? { statusFrom: provider.status, statusTo: body.status } : undefined,
+  });
   return NextResponse.json(updated);
 }
 
@@ -69,10 +75,11 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { error } = await requireAdmin();
+  const { user, error } = await requireAdmin();
   if (error) return error;
 
   const { id } = await params;
   await db.serviceProvider.delete({ where: { id } });
+  await logAdminAction(user!, "PROVIDER_DELETED", { targetType: "ServiceProvider", targetId: id });
   return NextResponse.json({ ok: true });
 }

@@ -11,8 +11,17 @@ export async function POST(
     const body = await request.json();
     const { email } = body;
 
-    if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (
+      !email ||
+      typeof email !== "string" ||
+      email.length > 254 ||
+      !emailRegex.test(email.trim())
+    ) {
+      return NextResponse.json(
+        { error: "Please enter a valid email address." },
+        { status: 400 }
+      );
     }
 
     const link = await db.shareableLink.findUnique({ where: { token } });

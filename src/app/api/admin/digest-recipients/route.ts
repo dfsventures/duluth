@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function GET() {
   try {
@@ -21,7 +22,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const { email } = await request.json() as { email: string };
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       update: {},
     });
 
+    await logAdminAction(user!, "DIGEST_RECIPIENT_ADDED", { targetType: "DigestExtraRecipient", targetId: recipient.id, metadata: { email: recipient.email } });
     return NextResponse.json(recipient, { status: 201 });
   } catch (err) {
     console.error("POST /api/admin/digest-recipients error:", err);

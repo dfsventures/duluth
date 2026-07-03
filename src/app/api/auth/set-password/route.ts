@@ -2,9 +2,17 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await checkRateLimit("set-password", clientIp(req), 10))) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again in an hour." },
+        { status: 429 }
+      );
+    }
+
     const { token, password } = await req.json();
 
     if (!token || !password) {

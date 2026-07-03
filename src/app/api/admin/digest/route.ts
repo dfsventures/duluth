@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function GET() {
   try {
@@ -27,7 +28,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const body = await request.json();
@@ -66,6 +67,7 @@ export async function POST(request: Request) {
       },
     });
 
+    await logAdminAction(user!, "DIGEST_CREATED", { targetType: "WeeklyDigest", targetId: digest.id, metadata: { title: digest.title } });
     return NextResponse.json(digest, { status: 201 });
   } catch (err) {
     console.error("POST /api/admin/digest error:", err);

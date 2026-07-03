@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function PATCH(
   request: Request,
@@ -9,19 +10,20 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireAdmin();
+    const { user: actor, error } = await requireAdmin();
     if (error) return error;
 
     const body = await request.json();
     const { receivesDigest } = body as { receivesDigest: boolean };
 
-    const user = await db.user.update({
+    const targetUser = await db.user.update({
       where: { id },
       data: { receivesDigest },
       select: { id: true, name: true, email: true, receivesDigest: true },
     });
 
-    return NextResponse.json(user);
+    await logAdminAction(actor!, "ADMIN_DIGEST_SUBSCRIPTION_UPDATED", { targetType: "User", targetId: id, metadata: { receivesDigest } });
+    return NextResponse.json(targetUser);
   } catch (err) {
     console.error("PATCH /api/admin/users/[id] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { sendWeeklyDigestEmail } from "@/lib/email";
+import { logAdminAction } from "@/lib/audit";
 
 export async function POST(
   _request: Request,
@@ -10,7 +11,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const digest = await db.weeklyDigest.findUnique({
@@ -64,6 +65,7 @@ export async function POST(
     const now = new Date();
     await db.weeklyDigest.update({ where: { id }, data: { sentAt: now } });
 
+    await logAdminAction(user!, "DIGEST_SENT", { targetType: "WeeklyDigest", targetId: id, metadata: { recipientCount: recipients.length } });
     return NextResponse.json({ sentAt: now.toISOString() });
   } catch (err) {
     console.error("POST /api/admin/digest/[id]/send error:", err);

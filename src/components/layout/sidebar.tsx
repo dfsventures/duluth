@@ -18,6 +18,7 @@ import {
   Users,
   BookOpen,
   Briefcase,
+  ScrollText,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 
@@ -38,6 +39,7 @@ const adminNav = [
   { label: "Investor Links", href: "/admin/links", icon: Link2 },
   { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
   { label: "Service Providers", href: "/admin/providers", icon: Briefcase },
+  { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

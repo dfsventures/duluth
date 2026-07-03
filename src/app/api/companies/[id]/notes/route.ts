@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function GET(
   _request: Request,
@@ -89,6 +90,7 @@ export async function POST(
       },
     });
 
+    await logAdminAction(user!, "NOTE_CREATED", { targetType: "CompanyNote", targetId: note.id, metadata: { companyId: id, title: note.title } });
     return NextResponse.json(note, { status: 201 });
   } catch (err) {
     console.error("POST /api/companies/[id]/notes error:", err);

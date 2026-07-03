@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 interface CompanyRow {
   name: string;
@@ -52,6 +53,7 @@ export async function POST(request: Request) {
       }
     }
 
+    await logAdminAction(user!, "COMPANIES_IMPORTED", { metadata: { created, skipped, errorCount: errors.length } });
     return NextResponse.json({ created, skipped, errors });
   } catch (err) {
     console.error("POST /api/admin/companies/import error:", err);

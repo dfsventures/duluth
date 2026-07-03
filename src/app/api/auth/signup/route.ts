@@ -2,9 +2,17 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   try {
+    if (!(await checkRateLimit("signup", clientIp(req), 10))) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again in an hour." },
+        { status: 429 }
+      );
+    }
+
     const { name, email, companyName } = await req.json();
 
     if (!name || !email || !companyName) {

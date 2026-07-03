@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function GET(
   _request: Request,
@@ -39,7 +40,7 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const existing = await db.weeklyDigest.findUnique({ where: { id }, select: { sentAt: true } });
@@ -96,6 +97,7 @@ export async function PATCH(
       },
     });
 
+    await logAdminAction(user!, "DIGEST_UPDATED", { targetType: "WeeklyDigest", targetId: id });
     return NextResponse.json(full);
   } catch (err) {
     console.error("PATCH /api/admin/digest/[id] error:", err);
@@ -109,7 +111,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const existing = await db.weeklyDigest.findUnique({ where: { id }, select: { sentAt: true } });
@@ -120,6 +122,7 @@ export async function DELETE(
     }
 
     await db.weeklyDigest.delete({ where: { id } });
+    await logAdminAction(user!, "DIGEST_DELETED", { targetType: "WeeklyDigest", targetId: id });
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     console.error("DELETE /api/admin/digest/[id] error:", err);

@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin, requireCompanyAccess } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function GET(
   _request: Request,
@@ -44,7 +45,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireAdmin();
+    const { user: actor, error } = await requireAdmin();
     if (error) return error;
 
     const body = await request.json();
@@ -80,6 +81,7 @@ export async function POST(
       create: { userId: user.id, companyId: id },
     });
 
+    await logAdminAction(actor!, "MEMBER_ADDED", { targetType: "Company", targetId: id, metadata: { email: user.email } });
     return NextResponse.json({
       membershipId: membership.id,
       userId: user.id,

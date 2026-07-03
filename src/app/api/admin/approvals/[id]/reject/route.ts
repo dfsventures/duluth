@@ -2,13 +2,14 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error } = await requireAdmin();
+    const { user: actor, error } = await requireAdmin();
     if (error) return error;
 
     const { id } = await params;
@@ -52,6 +53,7 @@ export async function POST(
       console.error("Failed to send rejection email:", emailError);
     }
 
+    await logAdminAction(actor!, "USER_REJECTED", { targetType: "User", targetId: id, metadata: { email: updatedUser.email } });
     return NextResponse.json(updatedUser);
   } catch (err) {
     console.error("POST /api/admin/approvals/[id]/reject error:", err);

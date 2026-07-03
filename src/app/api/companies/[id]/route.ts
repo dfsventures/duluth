@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess, requireAdmin } from "@/lib/auth-guard";
 import { auth } from "@/lib/auth";
+import { logAdminAction } from "@/lib/audit";
 
 export async function GET(
   _request: Request,
@@ -141,7 +142,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const existing = await db.company.findUnique({ where: { id } });
@@ -150,6 +151,7 @@ export async function DELETE(
     }
 
     await db.company.delete({ where: { id } });
+    await logAdminAction(user!, "COMPANY_DELETED", { targetType: "Company", targetId: id, metadata: { name: existing.name } });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("DELETE /api/companies/[id] error:", err);

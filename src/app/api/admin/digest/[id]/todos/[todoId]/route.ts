@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 
 export async function PATCH(
   request: Request,
@@ -9,7 +10,7 @@ export async function PATCH(
 ) {
   try {
     const { todoId } = await params;
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const body = await request.json();
@@ -20,6 +21,7 @@ export async function PATCH(
       data: { completed },
     });
 
+    await logAdminAction(user!, "DIGEST_TODO_TOGGLED", { targetType: "DigestTodo", targetId: todoId, metadata: { completed } });
     return NextResponse.json(todo);
   } catch (err) {
     console.error("PATCH /api/admin/digest/[id]/todos/[todoId] error:", err);
