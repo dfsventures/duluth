@@ -17,7 +17,7 @@ export default function DownloadUpdatePage() {
       <div className="card text-center max-w-md">
         <h2 className="text-lg font-semibold mb-2">Generating your update</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          A printable version has been opened in a new tab. Use your browser's
+          A printable version has been opened in a new tab. Use your browser&apos;s
           Print function (Ctrl+P / Cmd+P) to save it as PDF.
         </p>
         <a href={`/updates/${id}`} className="btn-primary">

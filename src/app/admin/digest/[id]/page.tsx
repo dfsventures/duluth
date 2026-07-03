@@ -331,7 +331,7 @@ export default function DigestDetailPage() {
           <Card>
             <CardContent className="pt-5">
               <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2">
-                This Week's Todos
+                This Week&apos;s Todos
               </h2>
 
               {editing ? (

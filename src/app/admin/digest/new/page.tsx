@@ -211,7 +211,7 @@ export default function NewDigestPage() {
           {/* Todos */}
           <Card>
             <CardContent className="pt-5 space-y-3">
-              <label className="label block">This Week's Todos</label>
+              <label className="label block">This Week&apos;s Todos</label>
 
               {todos.length > 0 && (
                 <ul className="space-y-2">

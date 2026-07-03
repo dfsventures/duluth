@@ -7,8 +7,8 @@ import bcrypt from "bcryptjs";
 // Approves all pending users with a known token so you can test without Google OAuth
 
 export async function POST() {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Not available in production" }, { status: 403 });
+  if (process.env.NODE_ENV === "production" || process.env.ALLOW_DEV_BOOTSTRAP !== "true") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   try {

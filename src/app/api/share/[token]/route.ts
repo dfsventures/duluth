@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(
   _request: Request,
@@ -60,7 +61,7 @@ export async function GET(
       },
     } as const;
 
-    let updates;
+    let updates: Prisma.UpdateGetPayload<{ select: typeof updateSelect }>[];
     if (link.selectedUpdates.length > 0) {
       // New-style link: fetch the explicitly selected updates
       updates = await db.update.findMany({
@@ -68,25 +69,28 @@ export async function GET(
         select: updateSelect,
         orderBy: { sentAt: "desc" },
       });
-    } else {
+    } else if (link.periodStart && link.periodEnd) {
       // Legacy link: filter by company + period range
-      const periodEndInclusive = new Date(link.periodEnd!);
+      const periodEndInclusive = new Date(link.periodEnd);
       periodEndInclusive.setUTCHours(23, 59, 59, 999);
       updates = await db.update.findMany({
         where: {
           companyId: { in: companyIds },
           status: "SENT",
-          sentAt: { gte: link.periodStart!, lte: periodEndInclusive },
+          sentAt: { gte: link.periodStart, lte: periodEndInclusive },
         },
         select: updateSelect,
         orderBy: { sentAt: "desc" },
       });
+    } else {
+      // Legacy link with no period range and no explicit selection — nothing to show
+      updates = [];
     }
 
     // Metric summary: latest value per metric across the relevant companies
-    const metricDateFilter = link.selectedUpdates.length > 0
-      ? {} // no date filter for explicit-update links — show all metrics
-      : { date: { gte: link.periodStart!, lte: link.periodEnd! } };
+    const metricDateFilter = link.selectedUpdates.length > 0 || !link.periodStart || !link.periodEnd
+      ? {} // no date filter for explicit-update links or links missing a period — show all metrics
+      : { date: { gte: link.periodStart, lte: link.periodEnd } };
 
     const metricValues = await db.metricValue.findMany({
       where: {

@@ -2,7 +2,9 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { sendUpdateReminderEmail } from "@/lib/email";
 
-export async function POST(req: NextRequest) {
+// Vercel Cron invokes scheduled jobs with GET; POST is kept for manual
+// testing with the CRON_SECRET. Both share the same handler.
+async function handleReminders(req: NextRequest) {
   // Verify the request is from Vercel Cron (or a manual test with the secret)
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("authorization");
@@ -99,4 +101,12 @@ export async function POST(req: NextRequest) {
 
   console.log(`[cron/reminders] sent=${sent} skipped=${skipped}`);
   return Response.json({ sent, skipped });
+}
+
+export async function GET(req: NextRequest) {
+  return handleReminders(req);
+}
+
+export async function POST(req: NextRequest) {
+  return handleReminders(req);
 }
