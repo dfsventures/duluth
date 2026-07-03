@@ -18,8 +18,17 @@ describe("decideRoute — public routes", () => {
     "/set-password",
     "/api/auth/session",
     "/share/abc123",
+    "/api/cron/reminders",
   ])("allows %s logged out", (path) => {
     expect(decideRoute(path, "", loggedOut)).toEqual({ type: "next" });
+  });
+
+  // Found 2026-07-03: Vercel Cron invocations carry no session, so without
+  // this the middleware redirected every cron call to /login before the
+  // route's own CRON_SECRET check ever ran — the daily reminder job had
+  // silently never sent an email.
+  it("allows /api/cron/reminders with no session (auth is enforced by CRON_SECRET in the route)", () => {
+    expect(decideRoute("/api/cron/reminders", "", loggedOut)).toEqual({ type: "next" });
   });
 
   // Regression: the February bug matched "/" as a prefix, which made
