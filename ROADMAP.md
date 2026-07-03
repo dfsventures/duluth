@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-07-03_
+_Last updated: 2026-07-03 (P0 + P1 shipped)_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -23,17 +23,18 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 ## Existing Features
 
 ### Authentication & Access
-- **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); Founder Login and Investor Login are small nav-bar links (Investor Login is the same Google OAuth flow used by admin staff, just relabeled — there is no separate investor account system); a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
-- Email/password login + Google OAuth (admins restricted to a single email domain, currently `@dfs.vc`, hardcoded in `src/lib/auth.ts` — see Fork Configuration below), surfaced publicly as "Investor Login"
-- Founder signup → admin approval → set-password email flow
-- Middleware-enforced role-based routing (Founder → `/dashboard`, Admin → `/admin`)
+- **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); Founder Login and Investor Access are small nav-bar links; a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
+- Email/password login + Google OAuth (admins restricted to a single email domain, currently `@dfs.vc`, hardcoded in `src/lib/auth.ts` — see Fork Configuration below)
+- **Investor Access** (`/investors`) — public page explaining that investor access is link-based (no account needed) with a support contact (`SUPPORT_EMAIL`); replaces the old "Investor Login" button, which silently ran admin Google OAuth and errored for real investors (shipped 2026-07-03)
+- Founder signup → admin approval → set-password email flow, rate-limited (10/hour/IP, Postgres-backed) against `/api/auth/signup` and `/api/auth/set-password`
+- Middleware-enforced role-based routing (Founder → `/dashboard`, Admin → `/admin`); routing decision logic lives in `src/lib/route-access.ts` as a pure, unit-tested function with regression coverage for the Feb–Jul auth bypass
 - **Transactional emails** — all 10 templates (approval, rejection, new signup, update published, update reminder, team invite, member added, weekly digest, comment notification, test email) rebuilt around the DFS brand system: Paper/Bone/Obsidian/Sky palette, Space Grotesk / IBM Plex Sans / JetBrains Mono, real DFS logo in the header, no accent bar; proper error handling on Resend API responses
 - Login page: founder-focused with Google OAuth demoted to an admin-staff login section
 - Signup page: reframed as an application form with expectation-setting copy
 - **Approved founders excluded from pending approvals** — only users awaiting password setup appear in the queue
 
 ### Founder Features
-- **Dashboard** — company summary, update history, days-since-last-update, onboarding prompt
+- **Dashboard** — company summary, update history, days-since-last-update, onboarding prompt, **investor engagement card** (total investor views + last-viewed date) and a "Recent Investor Activity" list surfacing who viewed via investor links, with an empty state linking to Investor Links (shipped 2026-07-03; data source: `ShareableLinkView`, already collected, this is UI)
 - **Setup Wizard** — 3-step onboarding: company profile → metric definitions → document upload
 - **Company Profile** — name, description, website, sector, geography, funding stage, logo
 - **Dynamic Sectors** — user-created sectors; admins can rename/delete
@@ -42,10 +43,11 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
   - Save as Draft or Publish with inline confirmation
   - Email sent to the admin team (`TEAM_EMAIL` env var) on publish (includes metrics table + full body)
   - Edit mode for drafts; view mode with HTML rendering for all
+  - **Start from a template** — optional dropdown (only shown if admin-created templates exist) prefills the update body; asks for confirmation before overwriting existing draft text (shipped 2026-07-03, see Update Templates below)
   - Comments (shared with admins) — with email notifications: admins are emailed when a founder comments, founders are emailed when an admin comments
   - PDF download
 - **Investor Links** — tokenized read-only links with period date range and expiry (7d/30d/90d/1yr/never)
-  - Email gate on first visit; silent re-tracking via localStorage
+  - Email gate on first visit (server-validated email format as of 2026-07-03); silent re-tracking via localStorage
   - View log with email + timestamp
   - Revoke links
 - **Team Management** (`/team`) — OWNER founders can invite teammates by email (MEMBER/VIEWER roles)
@@ -67,14 +69,16 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
   - Per-company frequency: weekly / bi-weekly / monthly / quarterly / disabled
   - Cooldown via `lastReminderSentAt` prevents repeat emails within the configured window
   - Emails all OWNER + MEMBER founders on the company; secured by `CRON_SECRET`
-  - ⚠️ **Likely broken as of 2026-07-03**: the route only exports `POST`, but Vercel Cron invokes with GET — scheduled runs 405 and reminders have probably never sent. Fix queued in the P0 bug-fix batch below (WS0 in `docs/IMPLEMENTATION_PLAN.md`); also requires a valid `RESEND_API_KEY`.
+  - **Fixed 2026-07-03**: two stacked bugs meant this had likely never fired since it shipped — (1) the route only exported `POST` but Vercel Cron invokes with GET, and (2) even after fixing that, auth middleware redirected every cron invocation to `/login` before the route's own `CRON_SECRET` check ever ran, since cron requests carry no session. `/api/cron` is now on the middleware's public-path list (the route's `CRON_SECRET` check remains the real authorization gate); both fixes verified live against production.
+- **Update Templates** (`/admin/templates`) — admin-created reusable skeletons (rich-text body + name/description) founders can start an update from; soft-delete via archive/unarchive; audit-logged (shipped 2026-07-03)
 - **Investor Links** — multi-company link creation; full view log; revoke
 - **Weekly Digest** (`/admin/digest`) — compose the internal team digest (6 fixed sections + todo list with assignees); AI-assisted drafting via Anthropic Claude from pasted meeting notes or Granola transcript links; sent by email to recipients configured in Settings
 - **Company Notes** — admin-only internal notes on each company, with revision history
 - **Service Provider Directory** (`/providers`, `/admin/providers`) — founders submit and endorse service providers; admins vet submissions (pending/vetted/rejected) and manage categories
 - **Company member management** — add members by email from company detail page; new users created automatically via invite flow; membership role dropdown (Owner/Editor/Viewer) per founder member
+- **Audit Log** (`/admin/audit`) — timestamped record of every admin mutation (approvals, deletions, provider/digest/note/sector/template CRUD, member adds, manual reminders, test emails); last 100 shown; write-only from `src/lib/audit.ts`, never blocks the action it logs (shipped 2026-07-03)
 
-> **Note on AI Chat:** the OpenAI-based RAG chatbot (and pgvector embeddings) was deliberately removed, pending a cleaner re-implementation. Re-introduction is planned — see P3 below. The `openai` dependency in package.json is a leftover and can be dropped.
+> **Note on AI Chat:** the OpenAI-based RAG chatbot (and pgvector embeddings) was deliberately removed, pending a cleaner re-implementation. Re-introduction is planned — see P3 below. The dead `openai` dependency was dropped from package.json on 2026-07-03 along with five other unused packages (`ai`, `uuid`, `@types/uuid`; `diff`/`@types/diff` were initially flagged too but turned out to be in active use by the company-notes diff view and were restored).
 
 ### Document Management
 - Upload documents linked to a company or specific update
@@ -83,6 +87,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 - Archive / unarchive without permanent deletion
 - Internal-only flag for admin-visible documents
 - Document type badge shown on update detail attachments
+- **Server-side MIME/extension allowlist** (as of 2026-07-03) — the upload endpoint no longer trusts the client-supplied MIME type; PDFs, Office formats, images, CSV/TXT/ZIP, and MP4/MOV are allowed and must match a real file extension
 
 ### Design & Branding
 - **DFS brand system applied app-wide** — Paper/Bone/Obsidian/Sky palette, Space Grotesk / IBM Plex Sans / JetBrains Mono typography, flat/structured corners (no pill/rounded shapes) instead of the previous generic SaaS theme
@@ -95,25 +100,18 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 
 ## Roadmap
 
-Priorities run P0 (do first) through P3 (later). P0 exists because the platform holds confidential portfolio data and serves LPs — a February middleware auth bypass that survived until July, zero automated tests, and open security-audit items make platform integrity the highest-leverage work before new features.
+Priorities run P0 (do first) through P3 (later).
 
-> **Implementation detail:** step-by-step, junior-executable plans for all P0 and P1 items live in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) (from the 2026-07-03 roadmap review). Workstream numbers (WS0–WS5) below refer to that document.
-
-### P0 — Platform Integrity
-
-| Item | Description | Why now |
-|------|-------------|---------|
-| **Bug-fix & hygiene batch (WS0)** | Fix the reminder cron GET/POST mismatch (see Update Reminders note above); repair the never-configured ESLint setup (no config file; eslint 9 / config-next 16 mismatch with Next 14); remove six dead dependencies (`openai`, `ai`, `uuid`, `@types/uuid`, `diff`, `@types/diff`); guard legacy share links against null periods; harden the dev bootstrap route behind an explicit env flag. | Found in the 2026-07-03 review. The cron bug silently disables a shipped feature; lint has never actually run. |
-| **Security hardening batch (WS1)** | Rate limiting on `/api/auth/signup` and `/api/auth/set-password` (Postgres-backed — no new services); validate MIME type server-side on document upload; validate email format on the share-link gate; audit log for admin actions. | All four are open items from the security audit. Cheap individually; together they close the known attack surface. |
-| **Auth/authz test suite (WS2)** | Minimal automated tests covering middleware routing, `requireAuth` / `requireAdmin` / `requireCompanyAccess`, and share-token access. Vitest + free GitHub Actions CI; deploys are deliberately not gated on tests (preserves push-to-deploy). | The middleware bypass shipped in February and was found by accident in July. There are currently zero tests; CI should catch the next one. |
-
-### P1 — Close the Core Loop (this quarter)
-
-| Feature | Description | Benefits |
-|---------|-------------|----------|
-| **Update Templates** | Admin-created templates with pre-filled sections and metric guidance. | Reduces founder cognitive load; improves update consistency and completeness. |
-| **Investor entry point** | "Investor Login" on the homepage currently runs admin Google OAuth — it fails for actual investors. **Decision (2026-07-03):** remove the button and replace it with a public `/investors` explainer page describing link-based access (WS4); persistent investor accounts remain P3. | A public CTA that errors for its named audience erodes trust with exactly the audience LPs represent. |
-| **Share-link engagement for founders** | Surface `ShareableLinkView` data (already collected) as a simple "your investor viewed this" signal on the founder dashboard. | The reward loop that keeps founders publishing. Data already exists; this is UI. |
+> **P0 and P1 shipped 2026-07-03.** All items from the 2026-07-03 roadmap review (workstreams WS0–WS5, plus a critical follow-on fix — see below) are live on production and verified end-to-end. Full step-by-step detail and verification notes are in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md). Shipped feature detail has been folded into "Existing Features" above; summary:
+> - **WS0** — reminder cron GET/POST fix, ESLint repair, six dead deps removed, legacy share-link guard, dev bootstrap hardened
+> - **WS1** — Postgres-backed rate limiting on signup/set-password, MIME/extension allowlist on uploads, share-link email validation, admin audit log
+> - **WS2** — middleware routing extracted into a tested pure function (`src/lib/route-access.ts`), Vitest suite with a regression test for the Feb–Jul auth bypass, free GitHub Actions CI (not gating deploys)
+> - **Unplanned fix, found during WS2 live verification** — `/api/cron/reminders` was also being blocked by auth middleware itself (cron requests carry no session), independent of the WS0 GET/POST bug. Both are now fixed and confirmed live.
+> - **WS3** — Update Templates (admin CRUD + founder picker)
+> - **WS4** — `/investors` page replaces the broken "Investor Login" OAuth button
+> - **WS5** — investor engagement signal on the founder dashboard
+>
+> Test coverage remains narrow (middleware routing, auth guards, rate limiting) — broadening it further is not yet scheduled; treat "zero automated tests" as resolved for the auth-critical path specifically, not the whole app.
 
 ### P2 — Leverage (next quarter)
 
@@ -123,7 +121,7 @@ Priorities run P0 (do first) through P3 (later). P0 exists because the platform 
 | **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
 | **Rule-based metric alerts** | Auto-surface issues with plain arithmetic — "MRR dropped 20%", "no metrics in last 3 updates". No AI dependency. | Proactive problem detection without waiting on the AI re-introduction. AI-assisted versions fold into P3. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
-| **Fork Configuration** | Move the hardcoded values that assume a DFS Lab deployment into env vars: `ADMIN_EMAIL_DOMAIN` (currently `@dfs.vc` in `src/lib/auth.ts`, duplicated in `login/page.tsx` copy), `ORG_NAME` (currently "DFS Lab" in `layout.tsx` page title), `SUPPORT_EMAIL` (currently `support@dfs.vc` in `email.ts` rejection template), and `LOGO_PATH` (currently DFS's own logo file, hardcoded in `email.ts`). Theming (CSS variables, `LogoMark`, email color tokens) is already centralized in source but still requires editing files directly — no runtime config exists yet. | A fork can't change its admin domain, support address, org name, or logo without editing source today. This is the actual blocker for other investment teams adopting Molly, not just re-theming. |
+| **Fork Configuration** | Move the hardcoded values that assume a DFS Lab deployment into env vars: `ADMIN_EMAIL_DOMAIN` (currently `@dfs.vc` in `src/lib/auth.ts`, duplicated in `login/page.tsx` copy), `ORG_NAME` (currently "DFS Lab" in `layout.tsx` page title), and `LOGO_PATH` (currently DFS's own logo file, hardcoded in `email.ts`). `SUPPORT_EMAIL` is already env-configurable as of 2026-07-03 (added for the `/investors` page, still defaults to `support@dfs.vc` and isn't yet used by `email.ts`'s rejection template — wire that up as part of this item). Theming (CSS variables, `LogoMark`, email color tokens) is already centralized in source but still requires editing files directly — no runtime config exists yet. | A fork can't change its admin domain, org name, or logo without editing source today. This is the actual blocker for other investment teams adopting Molly, not just re-theming. |
 
 ### P3 — Later / Opportunistic
 
@@ -133,8 +131,8 @@ Priorities run P0 (do first) through P3 (later). P0 exists because the platform 
 | **Metrics Benchmarking** | Anonymized peer comparison (e.g., "Your MRR growth is above portfolio median"). | Motivates founders; needs more portfolio data density to be meaningful. |
 | **Portfolio Export / LP Report PDF** | Multi-company polished PDF for LP reporting. Goes beyond the single-update PDF today. | Streamlines DFS Lab's investor reporting workflow. |
 | **Custom Company Tags** | Admin-created tags (e.g., B2B SaaS, female-led, export-ready) for portfolio segmentation. | Enables thematic analysis without building new dashboards. |
-| **Update Versioning / Audit Trail** | Track edits to published updates. Who published/edited and when. | Compliance and data integrity as platform matures. Pairs with the P0 admin audit log. |
-| **Investor Accounts (Optional)** | Optional upgrade from token-only to persistent investor accounts. | Enables re-access, saved preferences, and engagement analytics. Resolves the P1 investor entry point permanently. |
+| **Update Versioning / Audit Trail** | Track edits to published updates. Who published/edited and when. | Compliance and data integrity as platform matures. Pairs with the admin audit log (shipped 2026-07-03) — same `AuditLog` model, add `UPDATE_EDITED` entries with a diff in `metadata`. |
+| **Investor Accounts (Optional)** | Optional upgrade from token-only to persistent investor accounts. | Enables re-access, saved preferences, and engagement analytics. The `/investors` explainer page (shipped 2026-07-03) is the interim fix; this would replace it with real accounts. |
 | **Slack / Webhook Integrations** | Slack notifications for overdue updates, new approvals, published updates. | Connects Molly into existing DFS Lab team workflows. |
 | **Mobile-Optimized Update Flow** | Simplified metric entry and editor optimized for small screens. | Many founders are mobile-first. Improves update frequency. |
 
