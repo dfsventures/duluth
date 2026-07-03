@@ -335,10 +335,14 @@ export default function ProvidersPage() {
                 rows={3}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
-              <p className="mt-1 text-xs text-muted-foreground">This becomes your endorsement and marks the provider as verified.</p>
+              <p className="mt-1 text-xs text-muted-foreground">This becomes your endorsement, shown alongside the listing.</p>
             </Field>
 
             {submitError && <p className="text-sm text-laterite">{submitError}</p>}
+
+            <p className="text-xs text-muted-foreground">
+              New submissions appear in the community tier and are marked Vetted once reviewed by the DFS Lab team.
+            </p>
 
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowSubmit(false)}>Cancel</Button>
@@ -351,16 +355,11 @@ export default function ProvidersPage() {
       {/* Endorse modal */}
       {endorseTarget && (
         <Modal
-          title={endorseTarget.userEndorsement ? "Update your endorsement" : endorseTarget.status === "PENDING" ? "Endorse & verify this provider" : "Endorse this provider"}
+          title={endorseTarget.userEndorsement ? "Update your endorsement" : "Endorse this provider"}
           onClose={() => { setEndorseTarget(null); setEndorseNote(""); }}
         >
           <p className="mb-4 text-sm text-muted-foreground">
             <strong className="text-foreground">{endorseTarget.name}</strong>
-            {endorseTarget.status === "PENDING" && (
-              <span className="ml-2 inline-flex items-center gap-1 text-xs text-ochre">
-                <Clock className="h-3 w-3" /> Your endorsement will mark this provider as verified.
-              </span>
-            )}
           </p>
           <form onSubmit={handleEndorse} className="space-y-4">
             <Field label="Your experience *">

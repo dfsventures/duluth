@@ -59,8 +59,8 @@ export default function AdminProvidersPage() {
   const [addingCategory, setAddingCategory] = useState(false);
   const [addCategoryError, setAddCategoryError] = useState("");
 
-  // Edit modal
-  const [editTarget, setEditTarget] = useState<Provider | null>(null);
+  // Edit / add modal
+  const [editTarget, setEditTarget] = useState<Provider | "new" | null>(null);
   const [editForm, setEditForm] = useState<Partial<Provider & { categoryId: string }>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -133,6 +133,12 @@ export default function AdminProvidersPage() {
     }
   }
 
+  function openNew() {
+    setEditTarget("new");
+    setEditForm({ type: "FIRM", status: "VETTED", categoryId: categories[0]?.id ?? "" });
+    setSaveError("");
+  }
+
   function openEdit(p: Provider) {
     setEditTarget(p);
     setEditForm({ ...p, categoryId: p.category.id });
@@ -145,12 +151,17 @@ export default function AdminProvidersPage() {
     setSaving(true);
     setSaveError("");
     try {
-      const res = await fetch(`/api/admin/providers/${editTarget.id}`, {
-        method: "PATCH",
+      const isNew = editTarget === "new";
+      const url = isNew ? "/api/admin/providers" : `/api/admin/providers/${(editTarget as Provider).id}`;
+      const res = await fetch(url, {
+        method: isNew ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm),
       });
-      if (!res.ok) throw new Error("Failed to save");
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.error ?? "Failed to save");
+      }
       setEditTarget(null);
       loadData();
     } catch (err) {
@@ -169,10 +180,16 @@ export default function AdminProvidersPage() {
         title="Service Providers"
         description="Review submissions and manage the provider directory."
         action={
-          <Button variant="secondary" onClick={() => setShowAddCategory(true)}>
-            <Plus className="h-4 w-4" />
-            Add Category
-          </Button>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setShowAddCategory(true)}>
+              <Plus className="h-4 w-4" />
+              Add Category
+            </Button>
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4" />
+              Add Provider
+            </Button>
+          </div>
         }
       />
 
@@ -287,9 +304,9 @@ export default function AdminProvidersPage() {
         </Modal>
       )}
 
-      {/* Edit modal */}
+      {/* Add / edit modal */}
       {editTarget && (
-        <Modal title={`Edit — ${editTarget.name}`} onClose={() => setEditTarget(null)}>
+        <Modal title={editTarget === "new" ? "Add Provider" : `Edit — ${(editTarget as Provider).name}`} onClose={() => setEditTarget(null)}>
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Field label="Name *">
@@ -361,7 +378,9 @@ export default function AdminProvidersPage() {
             {saveError && <p className="text-sm text-laterite">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setEditTarget(null)}>Cancel</Button>
-              <Button type="submit" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</Button>
+              <Button type="submit" disabled={saving}>
+                {saving ? "Saving..." : editTarget === "new" ? "Add Provider" : "Save Changes"}
+              </Button>
             </div>
           </form>
         </Modal>

@@ -86,13 +86,9 @@ export async function POST(request: Request) {
     },
   });
 
-  // Auto-endorse from the submitter — this also promotes to VETTED
+  // Auto-endorse from the submitter — a testimonial, not a status change
   await db.providerEndorsement.create({
     data: { providerId: provider.id, userId: user!.id, note: endorsementNote.trim() },
-  });
-  await db.serviceProvider.update({
-    where: { id: provider.id },
-    data: { status: "VETTED" },
   });
 
   const full = await db.serviceProvider.findUnique({

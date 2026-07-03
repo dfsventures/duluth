@@ -30,11 +30,6 @@ export async function POST(
     include: { user: { select: { id: true, name: true } } },
   });
 
-  // First endorsement on a pending provider promotes it to vetted
-  if (provider.status === "PENDING") {
-    await db.serviceProvider.update({ where: { id }, data: { status: "VETTED" } });
-  }
-
   return NextResponse.json(endorsement);
 }
 
