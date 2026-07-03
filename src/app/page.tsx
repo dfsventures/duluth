@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { InvestorLoginButton } from "@/components/ui/investor-login-button";
 import { LogoMark } from "@/components/ui/logo-mark";
 
 const steps = [
@@ -39,7 +38,9 @@ export default async function HomePage() {
           <Link href="/login" className="hover:text-foreground transition-colors">
             Founder Login
           </Link>
-          <InvestorLoginButton className="text-sm text-muted-foreground hover:text-foreground transition-colors" />
+          <Link href="/investors" className="hover:text-foreground transition-colors">
+            Investor Access
+          </Link>
         </div>
       </header>
 

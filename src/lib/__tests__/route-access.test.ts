@@ -19,6 +19,7 @@ describe("decideRoute — public routes", () => {
     "/api/auth/session",
     "/share/abc123",
     "/api/cron/reminders",
+    "/investors",
   ])("allows %s logged out", (path) => {
     expect(decideRoute(path, "", loggedOut)).toEqual({ type: "next" });
   });
