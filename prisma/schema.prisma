@@ -70,6 +70,7 @@ model User {
   digestTodos          DigestTodo[]
   submittedProviders   ServiceProvider[]        @relation("SubmittedProviders")
   providerEndorsements ProviderEndorsement[]
+  createdTemplates     UpdateTemplate[]         @relation("CreatedTemplates")
 
   @@map("users")
 }
@@ -426,4 +427,21 @@ model AuditLog {
 
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─── Update Templates ─────────────────────────────────────
+
+model UpdateTemplate {
+  id          String    @id @default(cuid())
+  name        String
+  description String?   // one-line hint shown to founders
+  body        String    @db.Text // rich text HTML, same format as Update.body
+  createdById String
+  archivedAt  DateTime? // soft delete — founders only see active templates
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy User @relation("CreatedTemplates", fields: [createdById], references: [id])
+
+  @@map("update_templates")
 }

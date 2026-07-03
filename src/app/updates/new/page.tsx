@@ -40,6 +40,13 @@ interface MetricDefinition {
   unit: string | null;
 }
 
+interface UpdateTemplate {
+  id: string;
+  name: string;
+  description: string | null;
+  body: string;
+}
+
 export default function NewUpdatePage() {
   const router = useRouter();
   const { data: session } = useSession();
@@ -47,6 +54,7 @@ export default function NewUpdatePage() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
+  const [templates, setTemplates] = useState<UpdateTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -88,6 +96,13 @@ export default function NewUpdatePage() {
           const metricsData = await metricsRes.json();
           setMetrics(metricsData.data ?? metricsData ?? []);
         }
+
+        // Fetch available update templates (optional — page works fine with none)
+        const templatesRes = await fetch(`/api/templates`);
+        if (templatesRes.ok) {
+          const templatesData = await templatesRes.json();
+          setTemplates(templatesData.data ?? templatesData ?? []);
+        }
       } catch {
         setMessage({ type: "error", text: "Failed to load data." });
       } finally {
@@ -100,6 +115,18 @@ export default function NewUpdatePage() {
 
   function updateMetricInput(metricId: string, value: string) {
     setMetricInputs((prev) => ({ ...prev, [metricId]: value }));
+  }
+
+  function applyTemplate(templateId: string) {
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+
+    const isBodyEmpty = body.replace(/<[^>]*>/g, "").trim() === "";
+    if (!isBodyEmpty && !window.confirm("Replace your current draft text with this template?")) {
+      return;
+    }
+
+    setBody(template.body);
   }
 
   async function handleDelete(updateId: string) {
@@ -284,6 +311,31 @@ export default function NewUpdatePage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          {templates.length > 0 && (
+            <div>
+              <label className="label mb-1.5 block" htmlFor="template-select">
+                Start from a template
+              </label>
+              <select
+                id="template-select"
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) applyTemplate(e.target.value);
+                  e.target.value = "";
+                }}
+                className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">Optional — pick a template to prefill the update body</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.description ? ` — ${t.description}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
               id="period"
