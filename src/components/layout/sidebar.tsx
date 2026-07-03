@@ -37,6 +37,7 @@ const adminNav = [
   { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
   { label: "Approvals", href: "/admin/approvals", icon: Shield },
   { label: "Companies", href: "/admin/companies", icon: Building2 },
+  { label: "Updates", href: "/admin/updates", icon: FileText },
   { label: "Templates", href: "/admin/templates", icon: LayoutTemplate },
   { label: "Investor Links", href: "/admin/links", icon: Link2 },
   { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },

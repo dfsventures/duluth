@@ -16,6 +16,7 @@ export async function GET() {
         period: true,
         sentAt: true,
         company: { select: { id: true, name: true } },
+        createdBy: { select: { name: true } },
       },
       orderBy: { sentAt: "desc" },
     });
