@@ -74,8 +74,8 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 - **Investor Links** — multi-company link creation; full view log; revoke
 - **Weekly Digest** (`/admin/digest`) — compose the internal team digest (6 fixed sections + todo list with assignees); AI-assisted drafting via Anthropic Claude from pasted meeting notes or Granola transcript links; sent by email to recipients configured in Settings
 - **Company Notes** — admin-only internal notes on each company, with revision history
-- **Service Provider Directory** (`/providers`, `/admin/providers`) — founders submit and endorse service providers; admins vet submissions (pending/vetted/rejected) and manage categories
-  - ⚠️ **Vetting is currently vestigial (found 2026-07-03)**: submissions are auto-promoted to VETTED by the submitter's own endorsement, and any endorsement promotes a pending provider — so the admin queue never fills and "Vetted" doesn't mean admin-reviewed. Admins also have no direct add-provider path. Both fixed in WS7 (see "Next up" below).
+- **Service Provider Directory** (`/providers`, `/admin/providers`) — founders submit and endorse service providers; admins vet submissions (pending/vetted/rejected), manage categories, and add providers directly (`POST /api/admin/providers`, defaults to Vetted per D2, audit-logged as `PROVIDER_CREATED`)
+  - **Real vetting restored (2026-07-03, WS7)**: founder submissions land as PENDING and stay there until an admin promotes or rejects them; endorsements (self or peer) are now pure testimonials and never change status. Previously submissions were auto-promoted to VETTED by the submitter's own endorsement, and any endorsement promoted a pending provider — so the admin queue never filled and "Vetted" didn't mean admin-reviewed. Pending submissions remain visible in the founder directory's community tier by design (a deliberate, deferred decision, not a bug).
 - **Company member management** — add members by email from company detail page; new users created automatically via invite flow; membership role dropdown (Owner/Editor/Viewer) per founder member
 - **Audit Log** (`/admin/audit`) — timestamped record of every admin mutation (approvals, deletions, provider/digest/note/sector/template CRUD, member adds, manual reminders, test emails); last 100 shown; write-only from `src/lib/audit.ts`, never blocks the action it logs (shipped 2026-07-03)
 
@@ -116,14 +116,14 @@ Priorities run P0 (do first) through P3 (later).
 >
 > **Part 4 follow-up batch (WS6–WS8) in progress, 2026-07-03 afternoon.** Plans in Part 4 of `docs/IMPLEMENTATION_PLAN.md`.
 > - **WS6** — homepage nav collapsed to a single "Log in" link; "Investor access" moved to the footer (shipped 2026-07-03)
+> - **WS7** — admin "Add Provider" flow, and real provider vetting restored (founder submissions stay Pending until an admin acts; endorsements are pure testimonials) (shipped 2026-07-03)
 
-### Next up — July 2026 follow-up batch (WS6 shipped, WS7–WS8 planned)
+### Next up — July 2026 follow-up batch (WS6–WS7 shipped, WS8 planned)
 
 From a product review on 2026-07-03; detailed junior-executable plans in Part 4 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md). No new cost lines; no schema changes.
 
 | Item | Description | Why |
 |------|-------------|-----|
-| **Admin provider management + real vetting (WS7)** | Admins get a direct "Add Provider" flow (defaults to Vetted, audit-logged). Founder submissions land as Pending in the existing community tier; endorsements become pure testimonials — only admins promote/reject. | Fixes the vestigial-vetting drift flagged above and the missing admin add path. |
 | **Cross-portfolio updates page (WS8)** | New admin-only `/admin/updates` feed of all published updates with search, company filter, and sort; rows click through to update detail. Builds on the existing `GET /api/admin/updates` endpoint. | Admins can currently only read updates one company at a time. |
 
 ### P2 — Leverage (next quarter)

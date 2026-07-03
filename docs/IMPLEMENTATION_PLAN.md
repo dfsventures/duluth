@@ -848,7 +848,7 @@ Admins can only read updates company-by-company via each company detail page. `G
 
 ---
 
-## WS7 — Admin provider management + real vetting (1–1.5 days)
+## WS7 — Admin provider management + real vetting (1–1.5 days) — SHIPPED 2026-07-03
 
 Two halves; ship as two commits in this order (7.1 is purely additive; 7.2 changes flow semantics).
 
