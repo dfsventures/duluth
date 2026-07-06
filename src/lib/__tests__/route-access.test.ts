@@ -20,8 +20,16 @@ describe("decideRoute — public routes", () => {
     "/share/abc123",
     "/api/cron/reminders",
     "/investors",
+    "/brand/dfs-logo-primary.png",
   ])("allows %s logged out", (path) => {
     expect(decideRoute(path, "", loggedOut)).toEqual({ type: "next" });
+  });
+
+  // Found 2026-07-06: email clients fetch the header logo from /brand
+  // with no session; the middleware 307'd the image request to /login,
+  // so every transactional email rendered with a broken logo.
+  it("allows /brand assets with no session (email clients fetch the logo unauthenticated)", () => {
+    expect(decideRoute("/brand/dfs-logo-primary.png", "", loggedOut)).toEqual({ type: "next" });
   });
 
   // Found 2026-07-03: Vercel Cron invocations carry no session, so without

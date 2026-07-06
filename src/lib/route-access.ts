@@ -18,7 +18,11 @@ export type RouteDecision =
 // before the route's own secret check ever runs (found 2026-07-03: the
 // reminder cron had never actually sent an email despite the app
 // believing it had a working daily job).
-const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/cron", "/investors"];
+//
+// "/brand" is public for the same reason: email clients fetch the logo
+// images under /brand with no session, so gating them breaks every
+// email header (found 2026-07-06).
+const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/cron", "/investors", "/brand"];
 
 export function decideRoute(pathname: string, search: string, s: SessionInfo): RouteDecision {
   const isAdmin = s.roles.includes("ADMIN");
