@@ -27,7 +27,7 @@ import {
   Undo,
   Redo,
 } from "lucide-react";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 interface RichEditorProps {
   value: string;
@@ -73,6 +73,15 @@ export function RichEditor({
       },
     },
   });
+
+  // TipTap only reads `content` at creation; sync later external `value` changes
+  // (e.g. template prefill) into the editor. The getHTML() guard keeps edits that
+  // originated inside the editor from resetting the cursor.
+  useEffect(() => {
+    if (editor && value !== editor.getHTML()) {
+      editor.commands.setContent(value, { emitUpdate: false });
+    }
+  }, [value, editor]);
 
   const setLink = useCallback(() => {
     if (!editor) return;
