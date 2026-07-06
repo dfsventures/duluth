@@ -1033,7 +1033,7 @@ Per protocol these are the user's calls; each comes with a recommendation. Q1/Q2
 
 ---
 
-## WS9 — Fork Configuration (1 day)
+## WS9 — Fork Configuration (1 day) — SHIPPED 2026-07-06
 
 **Goal:** a fork can change its org name, admin OAuth domain, email logo, and support contact **with env vars only** — no source edits. With no env vars set, production output stays byte-identical (defaults = current hardcoded values). This is the stated blocker for Molly's open-source purpose; nothing else in the batch depends on it, but it ships first because it's the smallest and unblocks external adopters.
 
