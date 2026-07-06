@@ -4,14 +4,17 @@ _Prepared: 2026-07-03 · Reviewed against `ROADMAP.md` (last updated 2026-07-02)
 
 > **Status (2026-07-03, end of day): Parts 1–3 are complete.** All six workstreams (WS0–WS5) shipped to production the same day and were verified live on `molly.dfslab.net`. One bug beyond this plan was found during WS0's live verification: `/api/cron/reminders` was **also** blocked by the auth middleware itself (Vercel Cron requests carry no session, so every invocation was 307-redirected to `/login` before the route's `CRON_SECRET` check ran) — independent of, and stacked on, the GET/POST bug F1 describes. Fixed by adding `/api/cron` to the middleware public-path list (commit `b6cb846`); the route-level secret check remains the real gate, confirmed live (200 with secret, 401 without).
 >
-> **Part 4 (added later the same day)** contains the next approved batch: WS6–WS8, from a follow-up product review. These are planned, not yet implemented.
+> **Part 4 (added later the same day)** contains the follow-up batch WS6–WS8, from a follow-up product review. **Shipped and verified on production 2026-07-03.**
+>
+> **Part 5 (added 2026-07-06)** is the plan for the next phase: the P2 tier of `ROADMAP.md` (WS9–WS12, with Comment Threading explicitly deferred). Planned, not yet implemented.
 
-This document is the output of a full codebase-vs-roadmap review. It has four parts:
+This document is the output of a full codebase-vs-roadmap review. It has five parts:
 
 1. **Review findings** — where the code and the roadmap agree, where they drift, and issues found during review that the roadmap doesn't know about yet.
 2. **Implementation plan** — step-by-step workstreams for all P0 and P1 items (plus a small bug-fix/hygiene workstream), written so a junior engineer can execute them without further design decisions. P2/P3 get recommendations only.
 3. **P2/P3 recommendations** — sketches only.
 4. **Follow-up batch (WS6–WS8)** — homepage login CTA consolidation, admin provider management + real vetting, and a cross-portfolio updates page for admins.
+5. **P2 batch (WS9–WS12)** — fork configuration, rule-based metric alerts, scheduled publishing, bulk LP report link; Comment Threading explicitly deferred (added 2026-07-06).
 
 **Hard constraints honored throughout:**
 
@@ -978,3 +981,473 @@ WS6 → WS7 → WS8 (independent of each other, so any order works; this one put
 ## Part 4 roadmap bookkeeping
 
 `ROADMAP.md` has been annotated with F8 (the vestigial-vetting drift) on the Service Provider Directory feature claim, and a "Next up" section pointing at WS6–WS8. As each workstream ships, fold it into "Existing Features" per the file's convention — in particular, the homepage description (currently "Founder Login and Investor Access are small nav-bar links") must be rewritten when WS6 lands.
+
+---
+
+# Part 5 — P2 Batch: WS9–WS12 (Comment Threading deferred)
+
+_Added 2026-07-06, after WS0–WS8 shipped and verified. Scope: the P2 tier of `ROADMAP.md` ("Leverage — next quarter"). Same hard constraints as Parts 1–4: **no new cost lines** (existing Vercel/Neon/S3/Resend/Anthropic stack + free tooling only), **no UX regressions** (every change additive or invisible), **additive-only schema changes**._
+
+**Every claim below was re-verified against the code on 2026-07-06** — file paths and line numbers cite the current working tree.
+
+## Part 5 ground rules (carry-over + additions)
+
+All Part 2 ground rules still apply verbatim (schema-push procedure, code-style matching, `force-dynamic`, never change existing response shapes, quality gates before every push). Additions for this batch:
+
+1. **Quality gate before every push:** `npm run typecheck && npm run lint && npm test`. One workstream per commit-and-verify cycle on the live deploy (`molly.dfslab.net`) — there is no staging.
+2. **Schema pushes in this batch** (all additive — new table, new nullable/defaulted columns): WS10 (new `metric_alerts` table), WS11 (`Update.scheduledFor` column), WS12 Option B (`ShareableLink.metricScope` column). Push the schema before pushing the code that uses it, per the Part 2 procedure.
+3. **Resend prerequisite:** the production `RESEND_API_KEY` was returning 401 as of 2026-07-02 and rotation is unconfirmed. **Before starting WS10 or WS11, verify email works** via `/admin/settings` → "Send Test Email". WS10 v1 deliberately sends no email (dashboard-only), and WS11's publish email is best-effort (never blocks the publish), so neither workstream is *blocked* by the key — but their acceptance checklists include email checks that can only pass after rotation. See F12 for why the broken key is worse than "emails just don't arrive."
+4. **Cron facts (verified against Vercel docs, 2026-07):** every plan now allows up to 100 cron jobs per project, so adding cron entries is free and unconstrained. The frequency limit is what matters: **Hobby = once per day max, with invocation anywhere within the scheduled hour; Pro = per-minute precision.** This batch designs everything around daily crons so it works on any plan; only decision Q3's rejected option needs Pro.
+
+## Part 5 review findings
+
+Continuing the F-numbering from Part 4 (F1–F11):
+
+**F12 — Reminder cron burns its cooldown even when every email fails (MEDIUM, live impact today).**
+`src/app/api/cron/reminders/route.ts:75-99`: each `sendUpdateReminderEmail` call is wrapped in its own try/catch, and then `lastReminderSentAt` is set and `sent++` counted **unconditionally**. With the currently-invalid Resend key, every "sent" reminder since the WS0/WS2 cron fixes has actually been a 401 swallowed by the catch — and the cooldown still advanced, so founders won't be retried for a full frequency window. The roadmap's "Update Reminders … verified live" claim is true of the cron *mechanics* but currently false of *delivery*. Fix in WS10.1 (one-commit change: only update the cooldown / count `sent` when at least one email for that company succeeded). Rotating the Resend key is still the real fix for delivery.
+
+**F13 — `POST /api/updates/[id]/send` is a dead publish endpoint that skips the team email (LOW, drift trap).**
+`src/app/api/updates/[id]/send/route.ts` flips DRAFT→SENT and sets `sentAt`, but sends **no** `sendUpdatePublishedEmail` — unlike both real publish paths (`POST /api/companies/[id]/updates` with status SENT, and `PATCH /api/updates/[id]`, which both email the team). Grep confirms no client code calls it (`grep -rn "/send" src/` outside `api/` finds nothing; the update pages publish via PATCH). It's a session-guarded zombie that would silently under-notify if anything ever adopted it. WS11 removes it while touching the publish paths (flagged judgment call — see WS11.6).
+
+**F14 — The fork-config hardcode list in ROADMAP.md is a large undercount (LOW, docs drift).**
+The roadmap names three spots (`auth.ts`, `layout.tsx` title, `email.ts` logo). The actual sweep (`grep -rn "dfs\.vc\|DFS Lab" src/`) finds **~25 occurrences across 12 files**, including client components that can't read plain server env vars: `login/page.tsx` (3: OAuth error copy, "DFS Lab team?" divider, "For @dfs.vc accounts only"), `signup/page.tsx:67`, `providers/page.tsx:344`, `updates/new/page.tsx` (2), `updates/[id]/page.tsx` (2), `share/[token]/page.tsx` (2), plus server-side `page.tsx` homepage (3), `investors/page.tsx` (2), `layout.tsx:29`, `email.ts` (7 — incl. the hardcoded `support@dfs.vc` mailto in the rejection template at line 162, twice in one line), the Claude prompt in `api/admin/digest/generate/route.ts` (3), and `api/dev/bootstrap/route.ts:16`. Also trivial: `.env.example` defaults say `@dfslab.net` while the code defaults say `@dfs.vc`. WS9 covers the full sweep; ROADMAP.md annotated.
+
+**F7 restatus (still open, now load-bearing):** re-verified in `src/app/api/share/[token]/route.ts:91-93` — explicit-update ("pinned") links apply an **empty metric date filter**, so investors always see the latest all-time value of every metric. Every link created since the share-link redesign takes this path (the founder/admin builders only create explicit-update links, and `periodStart/periodEnd` are auto-derived from the selected updates' `sentAt` range at `api/links/route.ts:74-76` — so the period data needed for scoping already exists on every new-style link row). This is decision **Q1** below and gates WS12.
+
+## Open product decisions (answer before or during the batch)
+
+> **All decided 2026-07-06 (user review): every recommendation accepted as-is.**
+> Q1 = **B** (additive `metricScope`, default `ALL_TIME`) · Q2 = **snapshot** · Q3 = **date-only** · Q4 = **admin-only, fixed env-tunable thresholds, no email in v1** · Q4b = **B** (±20% either direction, neutral wording) · Q5 = **defer Comment Threading (WS13 out of batch)**.
+> Consequently WS12 is un-gated and joins the batch at full scope (~1.5d): batch = WS9 → WS10 → WS11 → WS12.
+
+Per protocol these are the user's calls; each comes with a recommendation. Q1/Q2 gate WS12 only — WS9–WS11 can start immediately.
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q1** (= F7) | What metric values should a **bulk LP link** show — and should link creators be able to scope metrics to the shared period? | **A.** Keep current semantics everywhere (latest all-time values; zero schema change). **B.** Add an additive `metricScope` field on `ShareableLink` (default `ALL_TIME` = today's behavior for every existing link); the admin bulk builder can set `PERIOD` to scope the metric summary to the link's period. **C.** Change pinned-link metric semantics globally to period-scoped. | **B.** A ships a Q2-period LP report showing July numbers — confusing in an LP meeting. C silently changes what existing recipients see (UX-regression violation). B is additive, opt-in, and existing links render byte-identically. |
+| **Q2** | Bulk link model: **snapshot** (one-click select-all-published-updates-in-a-date-range in the admin builder; link pins exactly those updates) or **evergreen** (an `allCompanies` flag that auto-includes future updates/companies)? | Snapshot / Evergreen / both | **Snapshot.** Matches the roadmap wording ("a single link covering the full portfolio **for a period**") and the LP-meeting use case; reuses `POST /api/links` unchanged; an evergreen link that silently grows after the LP meeting is a liability, and can layer on later without conflict. |
+| **Q3** | Scheduled publishing granularity: **date-only** (publishes the morning of the chosen date, daily cron, works on any Vercel plan) or **date+time** (needs an hourly/minutely cron → Pro plan required, and Hobby's within-the-hour jitter makes even "9am" imprecise)? | Date-only / date+time | **Date-only.** Honest about what a daily cron delivers, plan-independent, and solves the actual roadmap problem ("removes last-minute quarter-end scramble"). Upgrading to time-of-day later is purely additive (tighten the cron schedule + swap the date input for datetime). |
+| **Q4** | Metric alerts audience & config: admin-only or founder-visible? Fixed global thresholds or per-company/per-metric config UI? | Admin-only + fixed global / founder-visible / per-company config | **Admin-only, fixed global thresholds (env-tunable), no email in v1.** Alerts are a portfolio-triage tool; founder-visible "your MRR dropped" banners feel punitive and need product care. Per-metric threshold config is a later layer once the fixed rules prove out. Dashboard-only also sidesteps the Resend outage. |
+| **Q4b** | "MRR dropped 20%" is direction-blind for lower-is-better metrics (churn, burn): drop-only alerts will also fire when churn *improves* is not the issue — the issue is a churn *increase* fires nothing, and a churn *decrease* fires a false "drop" alert. | **A.** Drop-only (roadmap wording, accept false positives on inverted metrics). **B.** Fire on ±X% change either direction, neutrally worded ("changed −34%"). | **B.** Same arithmetic, neutral phrasing ("MRR changed −34% (12,000 → 7,900)") is never *wrong*, only occasionally uninteresting — admins dismiss those. Direction metadata per metric is the later fix. |
+| **Q5** | Comment Threading: include in this batch or defer? | Include last / defer | **Defer** — see "WS13 (deferred)" at the end for the full justification and a future sketch. |
+
+---
+
+## WS9 — Fork Configuration (1 day)
+
+**Goal:** a fork can change its org name, admin OAuth domain, email logo, and support contact **with env vars only** — no source edits. With no env vars set, production output stays byte-identical (defaults = current hardcoded values). This is the stated blocker for Molly's open-source purpose; nothing else in the batch depends on it, but it ships first because it's the smallest and unblocks external adopters.
+
+**Confirmed decisions:** none needed — pure mechanical sweep. One technical judgment call, flagged: **use `NEXT_PUBLIC_`-prefixed vars for values needed in client components** (org name, admin domain — both already public information: they're rendered on the public login page today). `NEXT_PUBLIC_` vars are inlined at build time, readable from both server and client code, which lets one var serve `auth.ts` (server) and `login/page.tsx` (client). Caveat to document: changing them requires a redeploy, not just an env edit. Cheap reversal: they're ordinary env reads; switching to server-passed props later is mechanical.
+
+**Schema changes: none.**
+
+### WS9.1 Central org module
+
+New file `src/lib/org.ts`:
+
+```ts
+// Fork-facing configuration. All values have DFS Lab defaults so an
+// unconfigured deploy behaves exactly as before.
+// NEXT_PUBLIC_ vars are inlined at BUILD time — changing them requires a redeploy.
+
+/** Organization display name, used in UI copy, page titles, and emails. */
+export const ORG_NAME = process.env.NEXT_PUBLIC_ORG_NAME || "DFS Lab";
+
+/** Email domain granted admin access via Google OAuth (no leading "@"). */
+export const ADMIN_EMAIL_DOMAIN = (
+  process.env.NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN || "dfs.vc"
+).replace(/^@/, "");
+```
+
+Server-only values stay as plain env vars where they already live: `SUPPORT_EMAIL` (exists), `EMAIL_FROM` / `TEAM_EMAIL` (exist), and a new `EMAIL_LOGO_PATH` read inside `email.ts` (WS9.3).
+
+### WS9.2 Auth domain check
+
+`src/lib/auth.ts:47` — replace `if (!email || !email.endsWith("@dfs.vc")) return false;` with:
+
+```ts
+import { ADMIN_EMAIL_DOMAIN } from "@/lib/org";
+// ...
+if (!email || !email.endsWith(`@${ADMIN_EMAIL_DOMAIN}`)) return false;
+```
+
+Also `src/app/api/dev/bootstrap/route.ts:16`: `` const DEV_ADMIN_EMAIL = `admin@${ADMIN_EMAIL_DOMAIN}`; `` (dev-only nicety so fork devs get a working bootstrap admin).
+
+### WS9.3 Email templates (`src/lib/email.ts`)
+
+1. Top of file, alongside `FROM`/`TEAM_EMAIL`:
+   ```ts
+   import { ORG_NAME } from "@/lib/org";
+   const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
+   const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/dfs-logo-primary.png";
+   ```
+2. Line 64 (header): `src="${BASE_URL}${EMAIL_LOGO_PATH}"` and `alt="${ORG_NAME}"`. Keep the fixed width/height attrs — document in `.env.example` that a fork's logo should be ~54×22 or it will letterbox.
+3. Replace every literal "DFS Lab" with `${ORG_NAME}`: footer line 80, approval template line 140, rejection sign-off line 163, reminder templates lines 265 and 270.
+4. Rejection template line 162: both the `mailto:` href and the visible text currently hardcode `support@dfs.vc` — replace both with `${SUPPORT_EMAIL}` (this wires up the already-existing env var, closing the roadmap's explicit sub-item).
+5. `src/app/investors/page.tsx:6` already reads `SUPPORT_EMAIL` — leave it, but replace its two "DFS Lab" copy occurrences (lines 39, 59) with `{ORG_NAME}`.
+
+### WS9.4 Server-component copy
+
+- `src/app/layout.tsx:29`: `` title: `Molly — ${ORG_NAME} Portfolio Platform` `` (module-level metadata reads env at build — fine).
+- `src/app/page.tsx` lines 10, 57, 98: feature-card copy ("… ${ORG_NAME} gets notified automatically."), hero eyebrow, © footer.
+- `src/app/api/admin/digest/generate/route.ts` lines 125, 128, 171: the Claude prompt ("You are generating the ${ORG_NAME} weekly digest…"), the title format instruction, and the fallback title.
+
+### WS9.5 Client-component copy
+
+Import `ORG_NAME` / `ADMIN_EMAIL_DOMAIN` from `@/lib/org` (works in client components because the values are build-inlined):
+
+- `src/app/login/page.tsx:30` → `` `Access denied. Only @${ADMIN_EMAIL_DOMAIN} accounts can sign in with Google.` ``; line 102 → `{ORG_NAME} team?`; line 116 → `For @{ADMIN_EMAIL_DOMAIN} accounts only`.
+- `src/app/signup/page.tsx:67`, `src/app/providers/page.tsx:344`, `src/app/updates/new/page.tsx:189,411`, `src/app/updates/[id]/page.tsx:212,343` → `{ORG_NAME}` in each sentence.
+- `src/app/share/[token]/page.tsx:216` ("${ORG_NAME} Portfolio Update") and `:356` ("Shared via Molly · ${ORG_NAME} portfolio management platform").
+
+### WS9.6 Docs & env plumbing
+
+1. `.env.example`: add a new "Fork configuration" section documenting `NEXT_PUBLIC_ORG_NAME`, `NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN`, `EMAIL_LOGO_PATH` (with the logo-dimensions note and the redeploy-required caveat), and cross-reference the existing `SUPPORT_EMAIL`. Fix the default-domain drift noted in F14 (pick one canonical example domain, e.g. `example.com`, for the commented defaults so forks stop inheriting either DFS domain by accident in docs).
+2. README: extend the fork/deployment section: the four env vars above, plus the file-based steps env vars deliberately don't cover — replace `public/brand/*` assets, `public/favicon.png`, and the CSS theme tokens in `globals.css` (theming stays source-edit by design; runtime theming is out of scope, matching the roadmap note).
+3. Optional (skip if time-boxed): a 5-line vitest for `org.ts` asserting the `@`-stripping normalization.
+
+**WS9 acceptance checklist**
+- [ ] With no new env vars set: production homepage, login, signup, share page, investor page, and a test email render identical copy to before (spot-check each)
+- [ ] `grep -rn "dfs\.vc\|DFS Lab" src/` returns only the default fallbacks in `org.ts` and `email.ts` (and `admin/settings/page.tsx`'s existing `TEAM_EMAIL`/`EMAIL_FROM` fallbacks, which are already env-driven)
+- [ ] Local run with `NEXT_PUBLIC_ORG_NAME="Acme Ventures" NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN="acme.vc"`: login page shows "Acme Ventures team?" / "For @acme.vc accounts only"; page title updates; Google sign-in from a non-acme.vc account is refused
+- [ ] Rejection email (trigger via a test rejection or read the built HTML) links `mailto:` to `SUPPORT_EMAIL`'s value
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** none — defaults reproduce current output exactly. **Cost impact:** none. **Schema:** none.
+
+---
+
+## WS10 — Rule-based metric alerts (2.5–3 days)
+
+**Goal:** plain-arithmetic portfolio alerts, evaluated by a daily cron, surfaced on the admin dashboard with a dismiss action. No AI, no email in v1 (per Q4 recommendation). Assumes Q4 = admin-only/fixed-thresholds and Q4b = ±change; adjust wording if the user picks drop-only.
+
+**Schema change (additive, `db push` before code):** new `metric_alerts` table.
+
+### WS10.1 First commit — fix F12 (reminder cooldown burn)
+
+`src/app/api/cron/reminders/route.ts`: track per-company success and only advance the cooldown when something was actually delivered:
+
+```ts
+let anySent = false;
+for (const membership of company.memberships) {
+  try {
+    if (process.env.RESEND_API_KEY) {
+      await sendUpdateReminderEmail({ /* ...unchanged... */ });
+      anySent = true;
+    }
+  } catch (err) { /* ...unchanged logging... */ }
+}
+
+if (anySent) {
+  await db.company.update({ where: { id: company.id }, data: { lastReminderSentAt: now } });
+  sent++;
+} else {
+  skipped++;
+}
+```
+
+This makes a broken Resend key self-healing: once the key is rotated, the next 09:00 UTC run retries everyone still overdue instead of waiting out a burned cooldown. Verify live post-deploy with the manual curl (`{sent, skipped}` — with the key still broken, expect `sent: 0`).
+
+### WS10.2 Schema
+
+Append to `prisma/schema.prisma`, then `db push`:
+
+```prisma
+// ─── Metric Alerts ────────────────────────────────────────
+
+model MetricAlert {
+  id                 String    @id @default(cuid())
+  companyId          String
+  rule               String    // "METRIC_CHANGE" | "NO_METRICS_IN_UPDATES"
+  metricDefinitionId String?   // set for METRIC_CHANGE
+  message            String    // e.g. "MRR changed −34% (12,000 → 7,900)"
+  dedupeKey          String    @unique // see evaluator — prevents refiring on unchanged data
+  metadata           Json?     // { previousValue, latestValue, changePct, previousDate, latestDate }
+  firedAt            DateTime  @default(now())
+  resolvedAt         DateTime? // set when an admin dismisses
+  resolvedById       String?
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  metricDefinition MetricDefinition? @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
+
+  @@index([resolvedAt, firedAt])
+  @@map("metric_alerts")
+}
+```
+
+Add back-relations `metricAlerts MetricAlert[]` to `Company` and `MetricDefinition` (relation-list fields add no DB columns — still additive).
+
+### WS10.3 Pure evaluator (tested)
+
+New file `src/lib/metric-alerts.ts` — pure function over plain data, mirroring the `route-access.ts` extract-and-test pattern:
+
+```ts
+export const DEFAULT_CHANGE_PCT = 20; // override via METRIC_ALERT_CHANGE_PCT env (server-only)
+
+export interface MetricSeries {
+  metricDefinitionId: string;
+  name: string;
+  unit: string | null;
+  values: { value: number; date: Date }[]; // sorted date desc, up to 5
+}
+
+export interface CompanySnapshot {
+  companyId: string;
+  companyName: string;
+  metricDefinitionCount: number;
+  series: MetricSeries[];
+  // newest-first, up to 3, published only
+  lastPublishedUpdates: { id: string; metricValueCount: number }[];
+}
+
+export interface FiredAlert {
+  rule: "METRIC_CHANGE" | "NO_METRICS_IN_UPDATES";
+  companyId: string;
+  metricDefinitionId?: string;
+  message: string;
+  dedupeKey: string;
+  metadata: Record<string, unknown>;
+}
+
+export function evaluateCompanyAlerts(
+  snap: CompanySnapshot,
+  changePct: number = DEFAULT_CHANGE_PCT
+): FiredAlert[] { /* rules below */ }
+```
+
+**Rule 1 — METRIC_CHANGE.** For each series with ≥2 values on distinct dates: `latest` vs `previous` (next-earlier distinct date). Skip when `previous === 0` (undefined percentage). Fire when `Math.abs((latest - previous) / previous) * 100 >= changePct`. Message: `` `${name} changed ${sign}${rounded}% (${fmt(previous)} → ${fmt(latest)})` ``. `dedupeKey` = `` `METRIC_CHANGE:${companyId}:${metricDefinitionId}:${latestDateISO}` `` — a re-run on unchanged data produces the same key and is skipped; a *new* latest value produces a new key and re-evaluates. (`MetricValue.value` is Prisma `Decimal` — the cron converts with `Number()` before building snapshots, matching the codebase convention.)
+
+**Rule 2 — NO_METRICS_IN_UPDATES.** Fire when `metricDefinitionCount > 0` AND `lastPublishedUpdates.length >= 3` AND all three have `metricValueCount === 0`. Message: `` `No metrics attached to the last 3 updates` ``. `dedupeKey` = `` `NO_METRICS_IN_UPDATES:${companyId}:${lastPublishedUpdates[0].id}` `` (refires only after another metric-less update is published).
+
+Tests in `src/lib/__tests__/metric-alerts.test.ts`: 19.99% change → no fire; 20% exactly → fire; negative and positive direction both fire (or only negative, if Q4b = A); previous 0 → skip; single value → skip; R2 fires only with ≥3 published updates AND ≥1 metric definition AND all-zero counts; dedupeKey stability for identical input.
+
+### WS10.4 Cron route
+
+New file `src/app/api/cron/alerts/route.ts` — same shape as the reminders cron (GET + POST → shared handler, `CRON_SECRET` bearer check first; `/api/cron` is already in `PUBLIC_PREFIXES` at `src/lib/route-access.ts:21`, so no middleware change). Handler:
+
+1. Fetch companies using the same `approvedCompanyFilter` as `api/admin/dashboard/route.ts:59-61` (skip unapproved-founder companies), including `metricDefinitions` with `values: { orderBy: { date: "desc" }, take: 5 }` (Prisma nested take is per-parent), and `updates: { where: { status: "SENT" }, orderBy: { sentAt: "desc" }, take: 3, select: { id: true, _count: { select: { metricValues: true } } } }`.
+2. Build snapshots (`Number()` the Decimals), run `evaluateCompanyAlerts` per company with `Number(process.env.METRIC_ALERT_CHANGE_PCT) || DEFAULT_CHANGE_PCT`.
+3. Persist all fired alerts with one `db.metricAlert.createMany({ data, skipDuplicates: true })` — the `dedupeKey` unique constraint makes dedup atomic and race-free.
+4. Return `{ evaluated: companies.length, fired: <createMany count> }` and `console.log` it, matching the reminders cron.
+
+`vercel.json`: append `{ "path": "/api/cron/alerts", "schedule": "30 9 * * *" }` (daily — works on Hobby; the 100-cron-per-project limit is nowhere near a concern).
+
+### WS10.5 Admin API
+
+- New `src/app/api/admin/alerts/route.ts` — `GET` (`requireAdmin`): open alerts (`resolvedAt: null`), `orderBy: { firedAt: "desc" }, take: 100`, including `company: { select: { id: true, name: true } }` and `metricDefinition: { select: { name: true, unit: true } }`.
+- New `src/app/api/admin/alerts/[id]/route.ts` — `PATCH` (`requireAdmin`): body `{ resolved: true }` → set `resolvedAt: new Date(), resolvedById: user!.id`; then `logAdminAction(user!, "ALERT_DISMISSED", { targetType: "MetricAlert", targetId: id, metadata: { rule, companyId } })`. Guard/validate/act pattern per Part 2 rules; both files start with `export const dynamic = "force-dynamic";`.
+
+### WS10.6 Admin dashboard UI
+
+`src/app/admin/dashboard` page (client): fetch `/api/admin/alerts` alongside the existing dashboard fetch; non-OK → treat as empty (never block the dashboard). Render a **"Metric Alerts"** section between the KPI cards and the charts, **only when alerts exist** (zero visual change for a clean portfolio): one row per alert — company name (link to `/admin/companies/[id]`), message, fired date, and a "Dismiss" button (PATCH, then remove from local state). Laterite accent for the rule badge, consistent with existing status-color conventions. No sidebar entry — the dashboard is the alerts surface.
+
+**WS10 acceptance checklist**
+- [ ] F12: manual reminder-cron trigger with broken/absent Resend key reports `sent: 0` and does not advance `lastReminderSentAt` (check a known-overdue company's row)
+- [ ] `npm test` green including the new evaluator tests
+- [ ] Manual `curl -H "Authorization: Bearer <CRON_SECRET>" https://molly.dfslab.net/api/cron/alerts` returns `{evaluated, fired}`; without the secret → 401
+- [ ] Seed a ≥20% metric change on a test company (record two values via the metrics page), trigger the cron → alert row appears on `/admin/dashboard`; second trigger fires no duplicate
+- [ ] Dismiss removes the alert, writes an `ALERT_DISMISSED` audit row, and it stays gone on refresh
+- [ ] Founder accounts get 403 from `/api/admin/alerts`; admin dashboard renders unchanged when zero alerts exist
+- [ ] Next scheduled 09:30 UTC run green in Vercel logs
+
+**UX impact:** admin-only, additive (a section that only appears when alerts exist); founders see nothing. **Cost impact:** none — one daily query batch over a tens-of-companies portfolio plus one small table. **Schema:** additive (`metric_alerts` + two relation-list fields).
+
+---
+
+## WS11 — Scheduled Publishing (2 days)
+
+**Goal:** founders can schedule a draft to publish on a future date; a daily cron publishes due drafts and sends the existing team-notification email. Assumes Q3 = date-only. Everything is additive: founders who never touch the schedule control see an unchanged flow.
+
+**Schema change (additive, `db push` before code):** one nullable column on `Update`:
+
+```prisma
+  scheduledFor DateTime? // null = not scheduled; date-only semantics (publishes at the next daily cron ≥ this instant)
+```
+
+### WS11.1 Extract a single publish path
+
+The publish side-effect is currently duplicated: `POST /api/companies/[id]/updates` (lines 138-162) and `PATCH /api/updates/[id]` (lines 192-222) each build and send `sendUpdatePublishedEmail` with identical shapes. A cron publisher would be a third copy — extract instead. New file `src/lib/publish-update.ts`:
+
+```ts
+import { db } from "@/lib/db";
+import { sendUpdatePublishedEmail } from "@/lib/email";
+
+/**
+ * Flip a DRAFT update to SENT and send the team notification.
+ * The email is best-effort: a Resend failure must never roll back
+ * or block the publish (matches existing behavior in both publish paths).
+ * Returns the updated row, or null if the update was not a publishable draft.
+ */
+export async function publishUpdate(updateId: string) {
+  const existing = await db.update.findUnique({
+    where: { id: updateId },
+    select: { status: true },
+  });
+  if (!existing || existing.status === "SENT") return null;
+
+  const updated = await db.update.update({
+    where: { id: updateId },
+    data: { status: "SENT", sentAt: new Date(), scheduledFor: null },
+  });
+
+  try {
+    const full = await db.update.findUnique({
+      where: { id: updateId },
+      include: {
+        company: { select: { id: true, name: true } },
+        metricValues: { include: { metricDefinition: { select: { name: true, unit: true } } } },
+      },
+    });
+    if (full) {
+      await sendUpdatePublishedEmail({ /* same mapping as the PATCH route today */ });
+    }
+  } catch (emailErr) {
+    console.error("Failed to send publish email:", emailErr);
+  }
+
+  return updated;
+}
+```
+
+Refactor `PATCH /api/updates/[id]`'s just-published branch to call it (keeping the metric-replacement transaction exactly where it is, before the publish flip). The create-with-SENT path in `POST /api/companies/[id]/updates` may either stay as-is or reuse the email-sending half — implementer's choice; do not change its response shape or transaction structure.
+
+**Also (F13, flagged judgment call):** delete the dead `src/app/api/updates/[id]/send/route.ts`. No client code calls it (verified by grep), it's session-guarded (no external integration risk), and it publishes without notifying the team — leaving it invites exactly the drift this workstream is consolidating. Cheap reversal: `git revert`. If the user objects, the alternative is one line — make it call `publishUpdate()` — but dead code that *works* is still dead code.
+
+### WS11.2 Accept `scheduledFor` on the write paths
+
+- `PATCH /api/updates/[id]`: accept optional `scheduledFor: string | null`. Rules: settable/clearable **only while the update is (and stays) DRAFT** — reject with 400 ("Only drafts can be scheduled") if the row is SENT or the same request sets `status: "SENT"` (publishing now supersedes a schedule; `publishUpdate`/the publish branch clears it anyway). Validate: parseable date, and `> now` (400 "Scheduled date must be in the future"). Store as the UTC instant of the chosen date's 00:00 (client sends `new Date(dateInput + "T00:00:00Z").toISOString()`) — the 09:00 UTC cron then publishes it that morning.
+- `POST /api/companies/[id]/updates`: accept the same optional field, only honored when the effective status is DRAFT; same validation.
+
+### WS11.3 Cron route
+
+New file `src/app/api/cron/scheduled-publish/route.ts` — same GET+POST/`CRON_SECRET` shape as the other crons:
+
+```ts
+const due = await db.update.findMany({
+  where: { status: "DRAFT", scheduledFor: { lte: new Date() } },
+  select: { id: true },
+});
+let published = 0, failed = 0;
+for (const u of due) {
+  try { (await publishUpdate(u.id)) ? published++ : failed++; }
+  catch (err) { console.error(`scheduled publish failed for ${u.id}:`, err); failed++; }
+}
+return Response.json({ published, failed });
+```
+
+Per-update try/catch so one bad row can't block the rest. `vercel.json`: append `{ "path": "/api/cron/scheduled-publish", "schedule": "0 9 * * *" }`. (Same daily hour as reminders; relative ordering between the two jobs is not guaranteed and does not matter — a same-morning "overdue" reminder racing a scheduled publish is a one-time cosmetic edge case, and Hobby-plan hour jitter would defeat any ordering attempt anyway.) `/api/cron` public-prefix already covers it.
+
+### WS11.4 Founder UI
+
+`src/app/updates/new/page.tsx` (and mirrored on the draft-edit path in `src/app/updates/[id]/page.tsx`):
+
+1. Below the existing Save as Draft / Publish buttons (around line 437), add a "Schedule for later" disclosure: a native `<input type="date">` (native controls are the codebase convention; `min` = tomorrow) plus a "Schedule" button, enabled only when a date is picked. Submitting saves with `status: "DRAFT"` and the `scheduledFor` ISO string. Helper copy (muted, small): *"Publishes on the morning of the selected date (UTC). You can keep editing until then."*
+2. Drafts with `scheduledFor` show it: in the updates list (the status badge at line ~285 currently renders "Published"/"Draft") add a third presentation for drafts with `scheduledFor` — "Scheduled · {date}" (ochre/warning token per the status-color conventions). On the edit page, a banner: *"Scheduled to publish on {date}"* with a "Cancel schedule" button (PATCH `scheduledFor: null`).
+3. Publishing manually (existing confirm flow) works unchanged on a scheduled draft and clears the schedule.
+
+### WS11.5 Edge cases (spec'd, no decisions needed)
+
+- Editing a scheduled draft: allowed, schedule persists (it's still a DRAFT).
+- Deleting a scheduled draft: existing draft-delete flow; row (and schedule) gone.
+- `sentAt` is set to the **actual** publish instant, not `scheduledFor` — the 3-day edit window, cadence detection, and share-link period derivation all key off `sentAt` and keep working with zero changes.
+- Resend down at publish time: the update still publishes (best-effort email, F12-style lesson pre-applied); the miss is logged.
+
+**WS11 acceptance checklist**
+- [ ] Founder schedules a draft for tomorrow → badge shows "Scheduled"; cancel returns it to a plain draft
+- [ ] Schedule a draft for today (via API or by setting the date then manually curling the cron with the secret) → update flips to SENT, appears on `/admin/updates`, `scheduledFor` is null, team email arrives (post-Resend-rotation) or a logged failure does not block the publish
+- [ ] Scheduling a published update → 400; scheduling in the past → 400
+- [ ] Manual publish of a scheduled draft works and clears the schedule
+- [ ] Founders who ignore the control see a pixel-identical flow (disclosure collapsed by default)
+- [ ] `POST /api/updates/[id]/send` returns 404 (route deleted, F13) — and the update pages still publish fine via PATCH
+- [ ] Cron: 401 without secret; next scheduled 09:00 UTC run green in Vercel logs
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** additive (optional disclosure + a new badge state for scheduled drafts only). **Cost impact:** none — one daily indexed-scan cron. **Schema:** additive (`Update.scheduledFor`).
+
+---
+
+## WS12 — Bulk LP Report Link (0.5–1.5 days, **gated on Q1 + Q2**)
+
+**Goal (assuming recommendations Q1 = B, Q2 = snapshot):** an admin opens the link builder, picks a date range, one-clicks "select all published updates in range," optionally scopes the metric summary to that period, and gets a single portfolio-wide link for an LP meeting. Effort: ~0.5 day if Q1 = A (no schema, builder convenience only); ~1.5 days for the full Q1 = B version below.
+
+### WS12.1 Schema (only if Q1 = B; additive, `db push` before code)
+
+On `ShareableLink`:
+
+```prisma
+  metricScope String @default("ALL_TIME") // "ALL_TIME" | "PERIOD" — ALL_TIME = pre-existing behavior
+```
+
+Every existing row gets `ALL_TIME` via the default → existing links render byte-identically. (String, not enum: adding a Postgres enum is a heavier DDL for two values, and the codebase already uses strings for `AuditLog.action`, `Document.docType`.)
+
+### WS12.2 Share endpoint scoping (only if Q1 = B)
+
+`src/app/api/share/[token]/route.ts` — the metric filter at lines 91-93 becomes:
+
+```ts
+const periodEndInclusiveForMetrics = link.periodEnd ? endOfDayUTC(link.periodEnd) : null; // reuse the existing 23:59:59.999 normalization
+const metricDateFilter =
+  link.metricScope === "PERIOD" && link.periodStart && periodEndInclusiveForMetrics
+    ? { date: { gte: link.periodStart, lte: periodEndInclusiveForMetrics } }
+    : link.selectedUpdates.length > 0 || !link.periodStart || !link.periodEnd
+      ? {} // unchanged pre-existing behavior for ALL_TIME links
+      : { date: { gte: link.periodStart, lte: link.periodEnd } };
+```
+
+This works because `POST /api/links` already derives `periodStart`/`periodEnd` from the min/max `sentAt` of the selected updates (lines 74-76) — every new-style link has the period data. The per-company "latest value per metric" reduction below the query needs no changes; it just operates on the filtered set. Companies whose metrics all fall outside the period show an empty metrics list on the share page — verify the share page's rendering of `metrics: []` is graceful (it must already handle companies with no metrics at all).
+
+### WS12.3 Link creation
+
+`src/app/api/links/route.ts` `POST`: accept optional `metricScope`, validate against `["ALL_TIME", "PERIOD"]` (400 otherwise), default `"ALL_TIME"`. No other changes — response shape untouched. (Founders technically *can* pass it; harmless and consistent. The founder UI doesn't expose it in v1.)
+
+### WS12.4 Admin builder UI
+
+`src/app/admin/links/page.tsx` (the builder already lists every published update via `GET /api/admin/updates` — client-side selection over fetched data, so "select all" needs zero new endpoints):
+
+1. Above the update-selection list, add a "Bulk select by period" row: two native `<input type="date">` fields (From / To) and a **"Select all in range"** button that checks every listed update whose `sentAt` falls in the range (and a "Clear selection" affordance). Show a per-selection summary line: "N updates across M companies."
+2. If Q1 = B: a checkbox **"Limit the metric summary to this period"** → sends `metricScope: "PERIOD"`. Default it to checked when the bulk-select was used, unchecked otherwise (flagged micro-judgment: this default is the entire point of the feature for LP reports; reversal is removing one `useState` default).
+3. Everything else (label, expiry, create, copy-link) unchanged.
+
+**WS12 acceptance checklist**
+- [ ] Open a share link created **before** this workstream → renders byte-identically (metrics still all-time latest)
+- [ ] Admin bulk-selects a quarter → link created with all published updates in range across companies; share page groups them per company as today
+- [ ] (Q1 = B) With period-scoping on: the share page's metric summary shows the latest value **within** the period per metric; values recorded after the period do not appear; a company with no in-period metrics shows an empty metrics section gracefully
+- [ ] (Q1 = B) `metricScope: "banana"` → 400; omitted → ALL_TIME
+- [ ] Founder `/links` builder unchanged
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** additive admin-builder controls; existing links and the founder flow untouched. **Cost impact:** none. **Schema:** one defaulted column (Q1 = B only).
+
+---
+
+## WS13 — Comment Threading: **recommend deferring out of this batch**
+
+Recommendation (Q5): **defer**, for four reasons. (1) The roadmap itself demoted it ("templates improve update quality more per unit of effort") — and templates have now shipped, so the comparison should be re-run with real usage data before investing here. (2) It's the only P2 item that redesigns an existing founder-and-admin-facing surface (the comment section on every update) rather than adding a new one — the highest UX-regression risk in the tier, deserving its own focused batch. (3) Its notification half (@mentions, reply notifications) lands on top of an email pipeline that is currently broken (Resend 401) — building notification UX before delivery works means shipping untestable features. (4) @mentions need real permission design (founders must not be able to mention/see users outside their company; admins can — this is a product surface, not a schema field).
+
+**Future sketch (for the next batch's Felix, not for implementation now):** additive `parentId String?` and `resolvedAt DateTime?` on `Comment` (self-relation, one level deep — no arbitrary nesting); `GET/POST /api/updates/[id]/comments` gain `parentId` handling (response shape additive); UI renders one indent level with a "Resolve" toggle on root comments (admin + author only); @mentions deferred even then. Verified against `prisma/schema.prisma` (`Comment` model, lines 204-216) and `src/app/api/updates/[id]/comments/route.ts` — the flat model and its two notification fan-outs (founder→admins, admin→founders) port cleanly; reply notifications should go to the parent-comment author instead of the full fan-out.
+
+`ROADMAP.md` annotated: Comment Threading stays in P2, marked "deferred from the Jul 2026 P2 batch."
+
+---
+
+## Part 5 sequencing, batch scope & effort
+
+**Recommended batch scope — agree with the prior recommendation, extended by one:** start with **WS9 → WS10** (fork config unblocks the project's stated open-source purpose at near-zero risk; alerts are the highest-leverage admin feature and also fix F12). **WS11 belongs in the same batch**: it rides the same cron pattern WS10 just exercised, needs no product decisions beyond Q3's default, and is fully verifiable without email. **WS12 joins the batch iff Q1/Q2 are answered by the time WS11 ships** — otherwise it waits; nothing else depends on it. **WS13 is out** (see above).
+
+Order: WS9 → WS10 → WS11 → WS12. Each workstream = commit(s) + live verification before the next starts. WS10 and WS11 are independent of each other in code (only WS10.1's cron-file touch overlaps WS11's cron additions trivially), but sequential shipping keeps live verification honest.
+
+| WS | Item | Effort | Schema push | Gated on |
+|---|---|---|---|---|
+| WS9 | Fork Configuration | 1d | — | nothing |
+| WS10 | Metric alerts (+ F12 fix) | 2.5–3d | `metric_alerts` | Q4/Q4b (defaults recommended) |
+| WS11 | Scheduled Publishing | 2d | `Update.scheduledFor` | Q3 (default recommended) |
+| WS12 | Bulk LP Report Link | 0.5–1.5d | `ShareableLink.metricScope` (Q1 = B only) | **Q1 + Q2 (real forks — must be answered)** |
+| WS13 | Comment Threading | — | — | deferred (Q5) |
+
+**Total: ~6–7.5 junior-engineer days** for WS9–WS12.
+
+**Resend dependency summary:** rotate the key before or during WS10 — WS10.1 makes reminders self-healing after rotation; WS11's publish email and any future alert emails are best-effort until then; only email-related acceptance items block on it.
+
+## Part 5 roadmap bookkeeping
+
+Done alongside this plan: `ROADMAP.md` annotated with F12 (reminder delivery vs. cron mechanics), F14 (fork-config hardcode undercount), the Comment Threading deferral, and a "Next up" pointer to this Part. As each workstream ships, fold it into "Existing Features" per the file's convention; the fork-config row moves wholesale with the new env-var names documented.
