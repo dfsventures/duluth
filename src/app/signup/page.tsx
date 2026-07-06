@@ -6,6 +6,7 @@ import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoMark } from "@/components/ui/logo-mark";
+import { ORG_NAME } from "@/lib/org";
 
 export default function SignupPage() {
   const [name, setName] = useState("");
@@ -64,7 +65,7 @@ export default function SignupPage() {
                   Application received
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Thanks for applying. The DFS Lab team will review your request
+                  Thanks for applying. The {ORG_NAME} team will review your request
                   and email you within a few days once your account is approved.
                 </p>
                 <Link

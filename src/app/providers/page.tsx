@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ORG_NAME } from "@/lib/org";
 
 interface Category {
   id: string;
@@ -341,7 +342,7 @@ export default function ProvidersPage() {
             {submitError && <p className="text-sm text-laterite">{submitError}</p>}
 
             <p className="text-xs text-muted-foreground">
-              New submissions appear in the community tier and are marked Vetted once reviewed by the DFS Lab team.
+              New submissions appear in the community tier and are marked Vetted once reviewed by the {ORG_NAME} team.
             </p>
 
             <div className="flex justify-end gap-3 pt-2">

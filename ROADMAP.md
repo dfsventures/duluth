@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-07-03 (P0 + P1 shipped)_
+_Last updated: 2026-07-06 (P0 + P1 shipped; P2 batch in progress — WS9 shipped)_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -24,13 +24,14 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 
 ### Authentication & Access
 - **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); nav bar collapses to a single "Log in" link → `/login` (which already serves both founders and admins); footer carries a muted "Investor access" link → `/investors` (shipped 2026-07-03 — investors never log in, so an audience-split nav overpromised); a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
-- Email/password login + Google OAuth (admins restricted to a single email domain, currently `@dfs.vc`, hardcoded in `src/lib/auth.ts` — see Fork Configuration below)
+- Email/password login + Google OAuth (admins restricted to a single email domain, configurable via `NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN`, defaults to `dfs.vc` — see Fork Configuration below)
 - **Investor Access** (`/investors`) — public page explaining that investor access is link-based (no account needed) with a support contact (`SUPPORT_EMAIL`); replaces the old "Investor Login" button, which silently ran admin Google OAuth and errored for real investors (shipped 2026-07-03)
 - Founder signup → admin approval → set-password email flow, rate-limited (10/hour/IP, Postgres-backed) against `/api/auth/signup` and `/api/auth/set-password`
 - Middleware-enforced role-based routing (Founder → `/dashboard`, Admin → `/admin`); routing decision logic lives in `src/lib/route-access.ts` as a pure, unit-tested function with regression coverage for the Feb–Jul auth bypass
 - **Transactional emails** — all 10 templates (approval, rejection, new signup, update published, update reminder, team invite, member added, weekly digest, comment notification, test email) rebuilt around the DFS brand system: Paper/Bone/Obsidian/Sky palette, Space Grotesk / IBM Plex Sans / JetBrains Mono, real DFS logo in the header, no accent bar; proper error handling on Resend API responses
 - Login page: founder-focused with Google OAuth demoted to an admin-staff login section
 - Signup page: reframed as an application form with expectation-setting copy
+- **Fork Configuration** (shipped 2026-07-06, WS9) — `NEXT_PUBLIC_ORG_NAME`, `NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN`, `EMAIL_LOGO_PATH`, and the existing `SUPPORT_EMAIL` now cover every UI/email spot that assumed a DFS Lab deployment (~25 occurrences across 12 files, per F14's full sweep) — a fork can rename itself and change its admin domain/logo/support contact with env vars only, no source edits. Unconfigured, output is byte-identical to before. Theming (CSS tokens, `LogoMark`, brand assets under `public/`) remains a deliberate source edit — see README's Fork Configuration section.
 - **Approved founders excluded from pending approvals** — only users awaiting password setup appear in the queue
 
 ### Founder Features
@@ -123,7 +124,7 @@ Priorities run P0 (do first) through P3 (later).
 
 ### P2 — Leverage (next quarter)
 
-> **Next up (planned 2026-07-06):** the P2 batch is planned in detail as Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) — WS9 (Fork Configuration) → WS10 (metric alerts) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link, gated on the F7/Q1 metric-scoping decision). Comment Threading is deferred out of the batch (see its row below).
+> **In progress (planned 2026-07-06):** the P2 batch is planned in detail as Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) — WS9 (Fork Configuration, **shipped 2026-07-06** — see Existing Features above) → WS10 (metric alerts) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link). Comment Threading is deferred out of the batch (see its row below).
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
@@ -131,7 +132,6 @@ Priorities run P0 (do first) through P3 (later).
 | **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
 | **Rule-based metric alerts** | Auto-surface issues with plain arithmetic — "MRR dropped 20%", "no metrics in last 3 updates". No AI dependency. | Proactive problem detection without waiting on the AI re-introduction. AI-assisted versions fold into P3. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) **Deferred from the Jul 2026 P2 batch** — it's the tier's only redesign of an existing shared surface (highest UX-regression risk), its notification half depends on the currently-broken Resend key, and @mentions need cross-company permission design first. Future sketch in Part 5 / WS13 of `docs/IMPLEMENTATION_PLAN.md`. | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
-| **Fork Configuration** | Move the hardcoded values that assume a DFS Lab deployment into env vars: `ADMIN_EMAIL_DOMAIN` (currently `@dfs.vc` in `src/lib/auth.ts`, duplicated in `login/page.tsx` copy), `ORG_NAME` (currently "DFS Lab" in `layout.tsx` page title), and `LOGO_PATH` (currently DFS's own logo file, hardcoded in `email.ts`). `SUPPORT_EMAIL` is already env-configurable as of 2026-07-03 (added for the `/investors` page, still defaults to `support@dfs.vc` and isn't yet used by `email.ts`'s rejection template — wire that up as part of this item). ⚠️ **Scope correction (F14, 2026-07-06)**: the list above is a large undercount — the real sweep is ~25 occurrences of `dfs.vc` / "DFS Lab" across 12 files, including six client components (login, signup, providers, both update pages, share page) and the digest AI prompt; full inventory and plan in Part 5 / WS9 of `docs/IMPLEMENTATION_PLAN.md`. Theming (CSS variables, `LogoMark`, email color tokens) is already centralized in source but still requires editing files directly — no runtime config exists yet. | A fork can't change its admin domain, org name, or logo without editing source today. This is the actual blocker for other investment teams adopting Molly, not just re-theming. |
 
 ### P3 — Later / Opportunistic
 

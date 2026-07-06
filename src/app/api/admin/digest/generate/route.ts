@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
 import { db } from "@/lib/db";
 import Anthropic from "@anthropic-ai/sdk";
+import { ORG_NAME } from "@/lib/org";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -122,10 +123,10 @@ export async function POST(request: Request) {
       ? `\nLast week's riddle section was: "${lastRiddleContent}"\nFor the riddle section, first reveal the answer to last week's riddle, then pose a new original riddle. Format as plain text: "Last week's answer: [answer]\n\n[New riddle question]"`
       : `\nFor the riddle section, pose a fun, original riddle. Format as plain text: "[Riddle question]\n\n(Answer revealed next week)"`;
 
-    const prompt = `You are generating the DFS Lab weekly digest from raw meeting notes.
+    const prompt = `You are generating the ${ORG_NAME} weekly digest from raw meeting notes.
 
 Today is ${weekOf}. Given the meeting notes below, produce a JSON object with:
-- "title": a digest title like "DFS Lab Weekly — Week of ${weekOf}"
+- "title": a digest title like "${ORG_NAME} Weekly — Week of ${weekOf}"
 - "sections": array of exactly 6 objects, one per section, each with "id", "heading", and "content" (plain text, 1-4 short paragraphs). Leave "content" as an empty string if there is nothing relevant from the notes.
 - "todos": array of action items extracted from the notes, each with "text" (include the assignee name inline if mentioned, e.g. "Follow up with Acme re: term sheet — Joseph")
 
@@ -168,7 +169,7 @@ ${combinedNotes}`;
     });
 
     return NextResponse.json({
-      title: parsed.title ?? `DFS Lab Weekly — Week of ${weekOf}`,
+      title: parsed.title ?? `${ORG_NAME} Weekly — Week of ${weekOf}`,
       weekOf: today.toISOString(),
       sections,
       todos: (parsed.todos ?? []).map((t) => ({ text: t.text })),

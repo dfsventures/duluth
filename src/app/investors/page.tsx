@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Mail, ArrowLeft } from "lucide-react";
 import { LogoMark } from "@/components/ui/logo-mark";
+import { ORG_NAME } from "@/lib/org";
 
 export default function InvestorsPage() {
   const supportEmail = process.env.SUPPORT_EMAIL || "support@dfs.vc";
@@ -36,7 +37,7 @@ export default function InvestorsPage() {
           Investor access works through secure links.
         </h1>
         <p className="mb-2 max-w-lg text-base text-muted-foreground">
-          You don&apos;t need an account. Founders and the DFS Lab team share updates
+          You don&apos;t need an account. Founders and the {ORG_NAME} team share updates
           with you directly by email using a tokenized link — if you&apos;ve received
           one, open it to view the update.
         </p>
@@ -56,7 +57,7 @@ export default function InvestorsPage() {
 
       {/* Footer */}
       <footer className="border-t px-6 py-5 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} DFS Lab
+        © {new Date().getFullYear()} {ORG_NAME}
       </footer>
     </div>
   );

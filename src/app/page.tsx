@@ -2,12 +2,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { LogoMark } from "@/components/ui/logo-mark";
+import { ORG_NAME } from "@/lib/org";
 
 const steps = [
   {
     num: "01.",
     title: "Submit Updates",
-    description: "Write and publish rich updates with a single click. DFS Lab gets notified automatically.",
+    description: `Write and publish rich updates with a single click. ${ORG_NAME} gets notified automatically.`,
   },
   {
     num: "02.",
@@ -54,7 +55,7 @@ export default async function HomePage() {
         />
 
         <p className="mb-3 font-mono text-xs font-semibold uppercase tracking-widest text-primary">
-          DFS Lab Portfolio Platform
+          {ORG_NAME} Portfolio Platform
         </p>
         <h1 className="mb-4 max-w-2xl font-display text-4xl font-bold tracking-tight text-foreground sm:text-5xl">
           One place to keep your investors{" "}
@@ -95,7 +96,7 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="flex items-center justify-center gap-4 border-t px-6 py-5 text-center text-xs text-muted-foreground">
-        <span>© {new Date().getFullYear()} DFS Lab</span>
+        <span>© {new Date().getFullYear()} {ORG_NAME}</span>
         <span aria-hidden>·</span>
         <Link href="/investors" className="hover:text-foreground transition-colors">
           Investor access

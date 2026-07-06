@@ -9,7 +9,7 @@ Built by [DFS Lab](https://www.dfs.vc) and open source under MIT so other invest
 **Two user groups:**
 
 - **Portfolio company founders** sign up with their company email, get approved by Molly, then use the platform to maintain their company profile, track key metrics, and send investor updates.
-- **Admins** log in with Google accounts on an allow-listed domain (currently `@dfs.vc`, hardcoded — see [ROADMAP.md](./ROADMAP.md)) to review the full portfolio — approving sign-ups, tracking update cadence, viewing metrics trends, and assembling the team's weekly digest.
+- **Admins** log in with Google accounts on an allow-listed domain (`NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN`, defaults to `dfs.vc` — see Fork Configuration below) to review the full portfolio — approving sign-ups, tracking update cadence, viewing metrics trends, and assembling the team's weekly digest.
 
 ## Key Features
 
@@ -106,4 +106,20 @@ Recommended stack for ~100 portfolio companies at **$25–75/month**:
 
 MIT — free to use, fork, and modify. See [LICENSE](./LICENSE) for details.
 
-Molly is intentionally fork-friendly in spirit, but not yet in practice: re-theming means editing the CSS variables in `src/app/globals.css`, the `LogoMark` component, and the color tokens at the top of `src/lib/email.ts` directly, and the admin OAuth domain, support email, and org name are hardcoded in source rather than env-driven. See the Fork Configuration item in [ROADMAP.md](./ROADMAP.md) for planned work on closing this gap.
+### Fork Configuration
+
+A fork can rename the deployment with env vars only — no source edits needed for these four:
+
+- `NEXT_PUBLIC_ORG_NAME` — organization display name in UI copy, page titles, and emails (default `"DFS Lab"`)
+- `NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN` — email domain granted admin access via Google OAuth, no leading `@` (default `"dfs.vc"`)
+- `EMAIL_LOGO_PATH` — path under `public/` to the logo shown in transactional email headers (default `"/brand/dfs-logo-primary.png"`; recommended ~54×22px to avoid letterboxing)
+- `SUPPORT_EMAIL` — contact address on the public `/investors` page and the rejection email's reply-to (default `"support@dfs.vc"`)
+
+`NEXT_PUBLIC_*` vars are inlined into the client bundle at build time, so changing them requires a redeploy, not just an env edit. With none of the above set, a deploy behaves byte-identically to unconfigured DFS Lab defaults.
+
+Theming stays a source edit by design (not yet runtime-configurable):
+- Replace `public/brand/*` assets and `public/favicon.png` with your own
+- Replace the CSS theme tokens (colors, fonts) in `src/app/globals.css`
+- The `LogoMark` component (`src/components/ui/logo-mark.tsx`) and the color token object at the top of `src/lib/email.ts` are the two places brand colors are centralized if you want to re-theme beyond swapping CSS variables
+
+See the Fork Configuration item in [ROADMAP.md](./ROADMAP.md) for the full history of this work.

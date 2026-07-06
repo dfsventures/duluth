@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
+import { ADMIN_EMAIL_DOMAIN } from "@/lib/org";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -44,7 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         const email = user.email;
-        if (!email || !email.endsWith("@dfs.vc")) return false;
+        if (!email || !email.endsWith(`@${ADMIN_EMAIL_DOMAIN}`)) return false;
 
         const existing = await db.user.findUnique({ where: { email } });
         if (!existing) {

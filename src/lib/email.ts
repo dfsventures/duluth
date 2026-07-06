@@ -1,10 +1,13 @@
 import { Resend } from "resend";
+import { ORG_NAME } from "@/lib/org";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
 const FROM = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>";
 const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfs.vc";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
+const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/dfs-logo-primary.png";
 
 // ---------------------------------------------------------------------------
 // DFS brand tokens (see ~/.claude/skills/dfs-brand-style)
@@ -61,7 +64,7 @@ function emailWrapper(content: string): string {
           <!-- Header -->
           <tr>
             <td style="padding: 0 4px 20px;">
-              <img src="${BASE_URL}/brand/dfs-logo-primary.png" alt="DFS" width="54" height="22" style="display: inline-block; vertical-align: middle; border: 0;" />
+              <img src="${BASE_URL}${EMAIL_LOGO_PATH}" alt="${ORG_NAME}" width="54" height="22" style="display: inline-block; vertical-align: middle; border: 0;" />
               <span style="font-family: ${FONT_BODY}; font-size: 12px; color: ${C.tide}; margin-left: 10px; vertical-align: middle;">Molly &middot; Portfolio Platform</span>
             </td>
           </tr>
@@ -77,7 +80,7 @@ function emailWrapper(content: string): string {
           <tr>
             <td style="padding: 20px 4px 0;">
               <p style="margin: 0; font-family: ${FONT_BODY}; font-size: 12px; color: ${C.muted}; line-height: 1.6;">
-                DFS Lab &mdash; Molly Portfolio Platform<br>
+                ${ORG_NAME} &mdash; Molly Portfolio Platform<br>
                 This is an automated message. Please do not reply directly to this email.
               </p>
             </td>
@@ -137,7 +140,7 @@ export async function sendApprovalEmail(email: string, token: string) {
     html: emailWrapper(`
       ${eyebrow("Access Approved")}
       ${heading("Welcome to Molly")}
-      <p style="margin: 0 0 24px;">Your account has been approved by the DFS Lab team. Set your password to get started.</p>
+      <p style="margin: 0 0 24px;">Your account has been approved by the ${ORG_NAME} team. Set your password to get started.</p>
 
       <p>${primaryButton(link, "Set Your Password →")}</p>
 
@@ -159,8 +162,8 @@ export async function sendRejectionEmail(email: string) {
       ${eyebrow("Access Request", C.laterite)}
       ${heading("Thanks for your interest")}
       <p style="margin: 0 0 16px;">We reviewed your request for access to Molly and are unable to approve it at this time.</p>
-      <p style="margin: 0 0 24px;">If you think this was a mistake or have questions, reach out to us directly at <a href="mailto:support@dfs.vc" style="color: ${C.sky}; text-decoration: none; font-weight: 500;">support@dfs.vc</a> and we'll be happy to help.</p>
-      <p style="margin: 0; color: ${C.tide};">&mdash; The DFS Lab Team</p>
+      <p style="margin: 0 0 24px;">If you think this was a mistake or have questions, reach out to us directly at <a href="mailto:${SUPPORT_EMAIL}" style="color: ${C.sky}; text-decoration: none; font-weight: 500;">${SUPPORT_EMAIL}</a> and we'll be happy to help.</p>
+      <p style="margin: 0; color: ${C.tide};">&mdash; The ${ORG_NAME} Team</p>
     `),
   });
   assertSent(result, "rejection");
@@ -262,12 +265,12 @@ export async function sendUpdateReminderEmail(opts: {
       ${eyebrow("Reminder")}
       ${heading("Time for an update")}
       <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${opts.founderName.split(" ")[0]}` : ""},</p>
-      <p style="margin: 0 0 24px;">It's been <strong>${opts.daysSinceLastUpdate} day${opts.daysSinceLastUpdate === 1 ? "" : "s"}</strong> since <strong>${opts.companyName}</strong> submitted an update. Keeping your portfolio page current helps DFS Lab support you better — and takes less time than you think.</p>
+      <p style="margin: 0 0 24px;">It's been <strong>${opts.daysSinceLastUpdate} day${opts.daysSinceLastUpdate === 1 ? "" : "s"}</strong> since <strong>${opts.companyName}</strong> submitted an update. Keeping your portfolio page current helps ${ORG_NAME} support you better — and takes less time than you think.</p>
 
       ${primaryButton(dashboardLink, "Submit an Update →")}
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        You're receiving this because DFS Lab has configured update reminders for ${opts.companyName}. Reply to this email if you have any questions.
+        You're receiving this because ${ORG_NAME} has configured update reminders for ${opts.companyName}. Reply to this email if you have any questions.
       </p>
     `),
   });

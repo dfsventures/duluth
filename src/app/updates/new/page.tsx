@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { useCompany } from "@/context/company-context";
+import { ORG_NAME } from "@/lib/org";
 
 interface Update {
   id: string;
@@ -186,7 +187,7 @@ export default function NewUpdatePage() {
         type: "success",
         text:
           status === "SENT"
-            ? "Update published. The DFS Lab team has been notified."
+            ? `Update published. The ${ORG_NAME} team has been notified.`
             : "Update saved as draft.",
       });
       setConfirmPublish(false);
@@ -408,7 +409,7 @@ export default function NewUpdatePage() {
             {confirmPublish ? (
               <>
                 <span className="text-sm text-muted-foreground">
-                  Publish and notify the DFS Lab team?
+                  Publish and notify the {ORG_NAME} team?
                 </span>
                 <Button
                   variant="secondary"

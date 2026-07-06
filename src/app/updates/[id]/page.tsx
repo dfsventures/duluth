@@ -27,6 +27,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { DOC_TYPES } from "@/lib/constants";
+import { ORG_NAME } from "@/lib/org";
 
 interface MetricDefinition {
   id: string;
@@ -209,7 +210,7 @@ export default function UpdateDetailPage() {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? "Failed to send update");
       }
-      setMessage({ type: "success", text: "Update published. The DFS Lab team has been notified." });
+      setMessage({ type: "success", text: `Update published. The ${ORG_NAME} team has been notified.` });
       setConfirmPublish(false);
       await loadUpdate();
     } catch (err) {
@@ -340,7 +341,7 @@ export default function UpdateDetailPage() {
           </p>
           {confirmPublish ? (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-ochre">Publish and notify the DFS Lab team?</span>
+              <span className="text-sm text-ochre">Publish and notify the {ORG_NAME} team?</span>
               <Button variant="secondary" size="sm" disabled={sending} onClick={() => setConfirmPublish(false)}>
                 Cancel
               </Button>

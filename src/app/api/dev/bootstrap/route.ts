@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { ADMIN_EMAIL_DOMAIN } from "@/lib/org";
 
 // ⚠️  DEV ONLY — this route is disabled in production
 // Approves all pending users with a known token so you can test without Google OAuth
@@ -13,7 +14,7 @@ export async function POST() {
 
   try {
     const DEV_TOKEN = "dev-token-123";
-    const DEV_ADMIN_EMAIL = "admin@dfs.vc";
+    const DEV_ADMIN_EMAIL = `admin@${ADMIN_EMAIL_DOMAIN}`;
     const DEV_ADMIN_PASSWORD = "password123";
 
     // 1. Create or update a dev admin user (email/password, no Google needed)

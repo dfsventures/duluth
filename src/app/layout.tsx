@@ -3,6 +3,7 @@ import { Space_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { CompanyProvider } from "@/context/company-context";
+import { ORG_NAME } from "@/lib/org";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -26,7 +27,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Molly — DFS Lab Portfolio Platform",
+  title: `Molly — ${ORG_NAME} Portfolio Platform`,
   description: "Submit updates, track metrics, and share progress with your investors.",
   icons: {
     icon: "/favicon.png",

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { formatDate, formatPeriod } from "@/lib/utils";
+import { ORG_NAME } from "@/lib/org";
 
 interface MetricSnapshot {
   name: string;
@@ -213,7 +214,7 @@ export default function SharePage() {
         <div className="mb-8">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <LogoMark className="text-sm" />
-            <span>DFS Lab Portfolio Update</span>
+            <span>{ORG_NAME} Portfolio Update</span>
           </div>
           <h1 className="mt-2 text-2xl font-bold">
             {data!.label || "Portfolio Update"}
@@ -353,7 +354,7 @@ export default function SharePage() {
 
         {/* Footer */}
         <div className="mt-10 border-t pt-6 text-center text-xs text-muted-foreground">
-          <p>Shared via Molly · DFS Lab portfolio management platform</p>
+          <p>Shared via Molly · {ORG_NAME} portfolio management platform</p>
           {data!.expiresAt && (
             <p className="mt-1">
               This link expires {new Date(data!.expiresAt).toLocaleDateString()}

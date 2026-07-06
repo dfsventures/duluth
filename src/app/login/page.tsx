@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoMark } from "@/components/ui/logo-mark";
+import { ORG_NAME, ADMIN_EMAIL_DOMAIN } from "@/lib/org";
 
 const GoogleIcon = () => (
   <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -27,7 +28,7 @@ function LoginForm() {
 
   const errorMessages: Record<string, string> = {
     CredentialsSignin: "Invalid email or password.",
-    AccessDenied: "Access denied. Only @dfs.vc accounts can sign in with Google.",
+    AccessDenied: `Access denied. Only @${ADMIN_EMAIL_DOMAIN} accounts can sign in with Google.`,
     Default: "An error occurred. Please try again.",
   };
 
@@ -99,7 +100,7 @@ function LoginForm() {
             {/* Divider */}
             <div className="my-6 flex items-center gap-3">
               <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">DFS Lab team?</span>
+              <span className="text-xs text-muted-foreground">{ORG_NAME} team?</span>
               <div className="h-px flex-1 bg-border" />
             </div>
 
@@ -113,7 +114,7 @@ function LoginForm() {
               Sign in with Google
             </Button>
             <p className="mt-2 text-center text-xs text-muted-foreground">
-              For @dfs.vc accounts only
+              For @{ADMIN_EMAIL_DOMAIN} accounts only
             </p>
           </div>
         </div>
