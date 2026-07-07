@@ -9,7 +9,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    // h-dvh, not h-screen — see the note in sidebar.tsx
+    <div className="flex h-dvh overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
