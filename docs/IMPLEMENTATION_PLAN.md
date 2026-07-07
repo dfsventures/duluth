@@ -1117,7 +1117,7 @@ Import `ORG_NAME` / `ADMIN_EMAIL_DOMAIN` from `@/lib/org` (works in client compo
 
 ---
 
-## WS10 — Rule-based metric alerts (2.5–3 days)
+## WS10 — Rule-based metric alerts (2.5–3 days) — SHIPPED 2026-07-06
 
 **Goal:** plain-arithmetic portfolio alerts, evaluated by a daily cron, surfaced on the admin dashboard with a dismiss action. No AI, no email in v1 (per Q4 recommendation). Assumes Q4 = admin-only/fixed-thresholds and Q4b = ±change; adjust wording if the user picks drop-only.
 

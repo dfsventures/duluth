@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-07-06 (P0 + P1 shipped; P2 batch in progress — WS9 shipped)_
+_Last updated: 2026-07-06 (P0 + P1 shipped; P2 batch in progress — WS9, WS10 shipped)_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -71,7 +71,8 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
   - Cooldown via `lastReminderSentAt` prevents repeat emails within the configured window
   - Emails all OWNER + MEMBER founders on the company; secured by `CRON_SECRET`
   - **Fixed 2026-07-03**: two stacked bugs meant this had likely never fired since it shipped — (1) the route only exported `POST` but Vercel Cron invokes with GET, and (2) even after fixing that, auth middleware redirected every cron invocation to `/login` before the route's own `CRON_SECRET` check ever ran, since cron requests carry no session. `/api/cron` is now on the middleware's public-path list (the route's `CRON_SECRET` check remains the real authorization gate); both fixes verified live against production.
-  - ⚠️ **Known issue (F12, found 2026-07-06)**: the cron *mechanics* are verified, but *delivery* is currently failing — the production Resend key has been invalid (401) since at least 2026-07-02, and the route advances each company's `lastReminderSentAt` cooldown even when every send fails, so reminders are silently burned. Fix planned as WS10.1 in `docs/IMPLEMENTATION_PLAN.md` Part 5 (only advance the cooldown on a successful send); rotating the Resend key is the delivery fix.
+  - **Fixed 2026-07-06 (F12, WS10.1)**: the cooldown now only advances when at least one reminder email actually sends for a company — previously a broken Resend key still burned the full cooldown window on every "attempt". Self-healing: once `RESEND_API_KEY` is rotated, the next run retries every still-overdue company instead of waiting out an already-burned window.
+- **Metric Alerts** (admin dashboard, shipped 2026-07-06, WS10) — daily cron (`/api/cron/alerts`, 9:30am UTC) evaluates two plain-arithmetic rules per company: a metric changed ≥20% (either direction, env-tunable via `METRIC_ALERT_CHANGE_PCT`) between its two most recent recorded dates, or the last 3 published updates all shipped with zero metrics attached. Fired alerts dedupe atomically on a unique key (no repeat alerts for unchanged data) and surface in a dismissible "Metric Alerts" section on `/admin` (only rendered when alerts exist); dismissing writes an `ALERT_DISMISSED` audit row. Admin-only, no email in v1 — dashboard-only by design so it isn't gated on the Resend outage.
 - **Update Templates** (`/admin/templates`) — admin-created reusable skeletons (rich-text body + name/description) founders can start an update from; soft-delete via archive/unarchive; audit-logged (shipped 2026-07-03)
 - **Investor Links** — multi-company link creation; full view log; revoke
 - **Updates** (`/admin/updates`) — cross-portfolio feed of every published update (drafts excluded), with search (title/company), a company filter, and three sorts (newest/oldest/company A–Z); each row links to the update detail. Fetch-once + client-side filtering, no pagination — reuses the existing `GET /api/admin/updates` endpoint that already powered the link builder (shipped 2026-07-03)
@@ -124,13 +125,12 @@ Priorities run P0 (do first) through P3 (later).
 
 ### P2 — Leverage (next quarter)
 
-> **In progress (planned 2026-07-06):** the P2 batch is planned in detail as Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) — WS9 (Fork Configuration, **shipped 2026-07-06** — see Existing Features above) → WS10 (metric alerts) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link). Comment Threading is deferred out of the batch (see its row below).
+> **In progress (planned 2026-07-06):** the P2 batch is planned in detail as Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) — WS9 (Fork Configuration, **shipped 2026-07-06** — see Existing Features above) → WS10 (metric alerts, **shipped 2026-07-06** — see Existing Features above) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link). Comment Threading is deferred out of the batch (see its row below).
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
 | **Bulk LP Report Link** | Admin creates a single link covering the full portfolio for a period. Before building: resolve the open metric-scoping question (finding F7 in `docs/IMPLEMENTATION_PLAN.md` — pinned-update links currently show investors the latest all-time value of every metric, which bulk links would inherit). | Current multi-company links require manual selection. Essential for LP meetings. |
 | **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
-| **Rule-based metric alerts** | Auto-surface issues with plain arithmetic — "MRR dropped 20%", "no metrics in last 3 updates". No AI dependency. | Proactive problem detection without waiting on the AI re-introduction. AI-assisted versions fold into P3. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) **Deferred from the Jul 2026 P2 batch** — it's the tier's only redesign of an existing shared surface (highest UX-regression risk), its notification half depends on the currently-broken Resend key, and @mentions need cross-company permission design first. Future sketch in Part 5 / WS13 of `docs/IMPLEMENTATION_PLAN.md`. | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
 
 ### P3 — Later / Opportunistic

@@ -71,7 +71,10 @@ async function handleReminders(req: NextRequest) {
       }
     }
 
-    // Send reminder to each OWNER/MEMBER
+    // Send reminder to each OWNER/MEMBER; only advance the cooldown when at
+    // least one email actually went out (F12 — a broken Resend key must not
+    // silently burn the cooldown for a whole frequency window).
+    let anySent = false;
     for (const membership of company.memberships) {
       try {
         if (process.env.RESEND_API_KEY) {
@@ -81,6 +84,7 @@ async function handleReminders(req: NextRequest) {
             companyName: company.name,
             daysSinceLastUpdate: daysSinceUpdate,
           });
+          anySent = true;
         }
       } catch (err) {
         console.error(
@@ -90,13 +94,16 @@ async function handleReminders(req: NextRequest) {
       }
     }
 
-    // Update the cooldown timestamp
-    await db.company.update({
-      where: { id: company.id },
-      data: { lastReminderSentAt: now },
-    });
-
-    sent++;
+    if (anySent) {
+      // Update the cooldown timestamp
+      await db.company.update({
+        where: { id: company.id },
+        data: { lastReminderSentAt: now },
+      });
+      sent++;
+    } else {
+      skipped++;
+    }
   }
 
   console.log(`[cron/reminders] sent=${sent} skipped=${skipped}`);

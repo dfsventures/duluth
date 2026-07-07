@@ -47,6 +47,15 @@ interface DashboardData {
   sectorBreakdown: { sector: string; count: number }[];
 }
 
+interface MetricAlert {
+  id: string;
+  rule: string;
+  message: string;
+  firedAt: string;
+  company: { id: string; name: string };
+  metricDefinition: { name: string; unit: string | null } | null;
+}
+
 export default function AdminDashboardPage() {
   const { data: session, status: sessionStatus } = useSession();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -55,6 +64,8 @@ export default function AdminDashboardPage() {
   const [showOverdue, setShowOverdue] = useState(false);
   const [reminding, setReminding] = useState<Record<string, boolean>>({});
   const [remindedAt, setRemindedAt] = useState<Record<string, string>>({});
+  const [alerts, setAlerts] = useState<MetricAlert[]>([]);
+  const [dismissing, setDismissing] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
@@ -75,8 +86,44 @@ export default function AdminDashboardPage() {
       }
     }
 
+    async function fetchAlerts() {
+      try {
+        const res = await fetch("/api/admin/alerts");
+        if (!res.ok) return; // never block the dashboard on the alerts feed
+        const data = await res.json();
+        setAlerts(data);
+      } catch {
+        // non-fatal — dashboard renders without the alerts section
+      }
+    }
+
     fetchData();
+    fetchAlerts();
   }, [sessionStatus]);
+
+  async function dismissAlert(id: string) {
+    setDismissing((prev) => ({ ...prev, [id]: true }));
+    try {
+      const res = await fetch(`/api/admin/alerts/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved: true }),
+      });
+      if (res.ok) {
+        setAlerts((prev) => prev.filter((a) => a.id !== id));
+      }
+    } finally {
+      setDismissing((prev) => ({ ...prev, [id]: false }));
+    }
+  }
+
+  function alertAgo(iso: string): string {
+    const diff = Date.now() - new Date(iso).getTime();
+    const days = Math.floor(diff / 86_400_000);
+    if (days === 0) return "Today";
+    if (days === 1) return "Yesterday";
+    return `${days}d ago`;
+  }
 
   if (sessionStatus === "loading" || loading) {
     return (
@@ -193,6 +240,57 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Metric Alerts — only rendered when alerts exist, zero visual change otherwise */}
+      {alerts.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
+              <AlertTriangle className="h-4 w-4 text-laterite" />
+              Metric Alerts
+              <Badge variant="danger">{alerts.length}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="pb-2 font-medium">Company</th>
+                  <th className="pb-2 font-medium">Alert</th>
+                  <th className="pb-2 font-medium">Fired</th>
+                  <th className="pb-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {alerts.map((a) => (
+                  <tr key={a.id} className="border-b last:border-0">
+                    <td className="py-2">
+                      <Link
+                        href={`/admin/companies/${a.company.id}`}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        {a.company.name}
+                      </Link>
+                    </td>
+                    <td className="py-2">{a.message}</td>
+                    <td className="py-2 text-muted-foreground text-xs">{alertAgo(a.firedAt)}</td>
+                    <td className="py-2">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={dismissing[a.id]}
+                        onClick={() => dismissAlert(a.id)}
+                      >
+                        {dismissing[a.id] ? "Dismissing…" : "Dismiss"}
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Second row: chart + sector breakdown */}
       <div className="mt-6 grid gap-6 lg:grid-cols-3">

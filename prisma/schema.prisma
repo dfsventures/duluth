@@ -103,6 +103,7 @@ model Company {
   documents         Document[]
   shareableLinks    ShareableLinkCompany[]
   notes             CompanyNote[]
+  metricAlerts      MetricAlert[]
 
   @@map("companies")
 }
@@ -158,6 +159,7 @@ model MetricDefinition {
 
   company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   values  MetricValue[]
+  alerts  MetricAlert[]
 
   @@unique([companyId, name])
   @@map("metric_definitions")
@@ -444,4 +446,25 @@ model UpdateTemplate {
   createdBy User @relation("CreatedTemplates", fields: [createdById], references: [id])
 
   @@map("update_templates")
+}
+
+// ─── Metric Alerts ────────────────────────────────────────
+
+model MetricAlert {
+  id                 String    @id @default(cuid())
+  companyId          String
+  rule               String    // "METRIC_CHANGE" | "NO_METRICS_IN_UPDATES"
+  metricDefinitionId String?   // set for METRIC_CHANGE
+  message            String    // e.g. "MRR changed −34% (12,000 → 7,900)"
+  dedupeKey          String    @unique // see evaluator — prevents refiring on unchanged data
+  metadata           Json?     // { previousValue, latestValue, changePct, previousDate, latestDate }
+  firedAt            DateTime  @default(now())
+  resolvedAt         DateTime? // set when an admin dismisses
+  resolvedById       String?
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  metricDefinition MetricDefinition? @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
+
+  @@index([resolvedAt, firedAt])
+  @@map("metric_alerts")
 }
