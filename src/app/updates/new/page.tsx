@@ -419,6 +419,15 @@ export default function NewUpdatePage() {
             </div>
           </div>
 
+          {/* Validation errors repeat next to the buttons that trigger them —
+              the top-of-page banner is out of view on this long form */}
+          {message?.type === "error" && (
+            <div className="flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+              <AlertCircle className="h-4 w-4" />
+              {message.text}
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex items-center justify-end gap-3 border-t pt-4">
             {confirmPublish ? (

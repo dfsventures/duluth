@@ -19,6 +19,7 @@ import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -92,6 +93,7 @@ export default function UpdateDetailPage() {
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduling, setScheduling] = useState(false);
@@ -154,6 +156,28 @@ export default function UpdateDetailPage() {
   function cancelEdit() {
     setEditing(false);
     setMessage(null);
+  }
+
+  async function handleDeleteDraft() {
+    if (!update) return;
+    // Unlike the list page's one-click delete, the draft's content is on
+    // screen here — confirm before destroying visible work.
+    if (!window.confirm("Delete this draft? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/updates/${update.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to delete draft.");
+      }
+      router.push("/updates/new");
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to delete draft.",
+      });
+      setDeleting(false);
+    }
   }
 
   async function handleSaveEdit() {
@@ -426,10 +450,20 @@ export default function UpdateDetailPage() {
               </Button>
             </div>
           ) : (
-            <Button size="sm" disabled={sending} onClick={() => setConfirmPublish(true)}>
-              <Globe className="mr-2 h-4 w-4" />
-              Publish
-            </Button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleDeleteDraft}
+                disabled={deleting}
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
+                title="Delete draft"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <Button size="sm" disabled={sending || deleting} onClick={() => setConfirmPublish(true)}>
+                <Globe className="mr-2 h-4 w-4" />
+                Publish
+              </Button>
+            </div>
           )}
         </div>
       )}
@@ -528,6 +562,15 @@ export default function UpdateDetailPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Validation errors repeat next to the buttons that trigger them —
+              the top-of-page banner is out of view on this long form */}
+          {message?.type === "error" && (
+            <div className="flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+              <AlertCircle className="h-4 w-4" />
+              {message.text}
+            </div>
+          )}
 
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={cancelEdit} disabled={saving}>
