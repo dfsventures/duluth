@@ -260,9 +260,9 @@ export default function TeamPage() {
             const isOwnerRow = member.membershipRole === "OWNER";
             return (
               <Card key={member.membershipId}>
-                <CardContent className="flex items-center justify-between py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
+                <CardContent className="flex flex-wrap items-center gap-3 py-3">
+                  <div className="min-w-48 flex-1 flex items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
                       {(member.name?.[0] ?? member.email[0]).toUpperCase()}
                     </div>
                     <div>
@@ -278,7 +278,7 @@ export default function TeamPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex shrink-0 items-center gap-3">
                     {/* Role: owners see badge only; OWNER can change MEMBER/VIEWER via select */}
                     {isOwner && !isOwnerRow ? (
                       <div className="relative">

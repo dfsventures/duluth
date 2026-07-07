@@ -308,7 +308,7 @@ export default function AdminProvidersPage() {
       {editTarget && (
         <Modal title={editTarget === "new" ? "Add Provider" : `Edit — ${(editTarget as Provider).name}`} onClose={() => setEditTarget(null)}>
           <form onSubmit={handleSaveEdit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Name *">
                 <Input required value={editForm.name ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
               </Field>
@@ -350,7 +350,7 @@ export default function AdminProvidersPage() {
               />
             </Field>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Country">
                 <Input value={editForm.country ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, country: e.target.value }))} />
               </Field>

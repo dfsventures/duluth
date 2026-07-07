@@ -1466,7 +1466,7 @@ Done alongside this plan: `ROADMAP.md` annotated with F12 (reminder delivery vs.
 
 _Added 2026-07-07, after a real-device report showed `/admin/providers` breaking at phone width (header buttons pushed off-screen, card text crushed to one word per line). Commit `e1a91cc` already fixed the two reported spots (`page-header.tsx` now stacks below `sm:`; the providers card row and header action group wrap) — this Part is the full-app audit that request triggered. Scope: **layout only** — no schema changes, no behavior changes, no new dependencies. Same hard constraints as Parts 1–5._
 
-> **Status (2026-07-07): WS14 shipped and verified live.** All ten confirmed phone-width breakers fixed with the four house patterns (A–D). Quality gates (`typecheck`, `lint`, `test`, `build`) passed; no new lint errors. WS15 in progress next.
+> **Status (2026-07-07): WS14 shipped and verified live** (commit `93203c7`, deployed to `molly.dfslab.net`). All ten confirmed phone-width breakers fixed with the four house patterns (A–D), plus one addition found mid-batch via a real device screenshot (WS14.7, founder `/providers` card grid — see below). Quality gates (`typecheck`, `lint`, `test`, `build`) passed; no new lint errors. Live curl check: `/`, `/login`, `/investors` return 200; all auth-gated touched routes (`/providers`, `/admin`, `/links`, `/admin/audit`, `/admin/companies/[id]`, `/admin/digest/[id]`, `/company/metrics`, `/setup-wizard`, `/updates/new`, `/updates/[id]`) 307-redirect to `/login` as expected with no session — no 500s. WS15 in progress next.
 
 **Method note:** this audit was done by reading layout code (Tailwind classes + flex/grid structure) against a 375 px reference width — no browser. Where the math is borderline rather than provably broken, the item says **"verify on device"** instead of asserting a break. Every file/line below was read in the current working tree on 2026-07-07.
 
@@ -1613,6 +1613,8 @@ Checked adjacent card-grids for the same failure category (`/admin/companies`, a
 
 **Goal:** finish the inventory — the crushed-but-functional rows, the cramped modal grids, and the "borderline, add wrap for safety" spots — so the app has one consistent answer to narrow widths. Optional: WS14 alone fixes everything a user has actually reported or that provably breaks.
 
+> **Status (2026-07-07): WS15.1–WS15.3 shipped and verified live.** JC2 (diff-modal stacking) adopted as recommended. Quality gates (`typecheck`, `lint`, `test`, `build`) passed; no new lint errors. WS15.4 (device walk) was **not performed** — no code, and the implementing agent cannot render mobile layouts on a physical device; the checklist is handed to the user in the final report instead.
+
 ### WS15.1 Member/approval/notes rows → Pattern B
 - `src/app/admin/companies/[id]/page.tsx:1392` (Members) and `src/app/team/page.tsx:263`: outer row → `flex flex-wrap items-center gap-3`; give the avatar+name block `min-w-48 flex-1` (on the company-detail one, also add `min-w-0` + `truncate` to the name/email `<p>`s — long emails are the overflow vector); action cluster gets `shrink-0`.
 - `src/app/admin/approvals/page.tsx:146`: same treatment (text block already has `min-w-0 flex-1` — change to `min-w-48 flex-1` and add `flex-wrap` + drop `justify-between` on the outer row, `shrink-0` on the button cluster).
@@ -1633,11 +1635,11 @@ Checked adjacent card-grids for the same failure category (`/admin/companies`, a
 Walk these and file anything that still looks wrong as new findings: setup-wizard step indicator; `/share/[token]` with a real link containing inline images (prose `max-w-full` should handle them — confirm); the share email-gate; `/admin/approvals` with a long email; a members list with a long email; the company-detail Metrics tab chart at 375 px.
 
 ### WS15 acceptance checklist
-- [ ] At 375 px: members (`/team` + admin company detail), approvals, notes, and digest-list rows show full text with action clusters wrapped below when needed; no page-level horizontal scroll
-- [ ] Provider modals (all three forms) show stacked fields at 375 px, two-up at ≥ 640 px
-- [ ] Notes diff modal at 375 px: Before pane above After pane, scrollable; desktop side-by-side unchanged
-- [ ] WS15.4 device walk done; new findings (if any) recorded in this doc as F-items
-- [ ] Desktop screenshots of touched pages unchanged; quality gates pass
+- [ ] At 375 px: members (`/team` + admin company detail), approvals, notes, and digest-list rows show full text with action clusters wrapped below when needed; no page-level horizontal scroll — device-dependent, not verifiable by the implementing agent
+- [ ] Provider modals (all three forms) show stacked fields at 375 px, two-up at ≥ 640 px — device-dependent, not verifiable by the implementing agent
+- [ ] Notes diff modal at 375 px: Before pane above After pane, scrollable; desktop side-by-side unchanged — device-dependent, not verifiable by the implementing agent
+- [ ] WS15.4 device walk done; new findings (if any) recorded in this doc as F-items — **not performed by the implementing agent; see final report for the device-walk checklist handed to the user**
+- [x] Desktop screenshots of touched pages unchanged — no JSX restructuring, only className additions inert at ≥640px (verified by code review, not a rendered screenshot); quality gates pass: `typecheck`, `lint` (no new errors), `test` (74/74), `build` all green, 2026-07-07
 
 **UX impact:** additive-only; the single deliberate mobile-behavior change is the diff modal stacking (JC2). Desktop pixel-identical everywhere.
 **Cost impact:** zero.

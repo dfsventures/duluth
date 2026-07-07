@@ -223,7 +223,7 @@ export default function NewCompanyPage() {
           <CardContent className="space-y-4">
             <div className="space-y-1">
               <label className="label">User Assignment</label>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
                   variant={assignUser === "none" ? "primary" : "secondary"}

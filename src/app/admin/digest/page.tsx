@@ -87,8 +87,8 @@ export default function DigestListPage() {
             return (
               <Card key={d.id} className="hover:border-primary/40 transition-colors">
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="min-w-48 flex-1">
                       <CardTitle className="text-base font-semibold truncate">{d.title}</CardTitle>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         Week of {formatDate(d.weekOf)}

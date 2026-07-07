@@ -630,7 +630,7 @@ export default function AdminCompanyDetailPage() {
         title={company.name}
         description="Company detail view"
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {confirmDelete ? (
               <>
                 <span className="text-sm text-muted-foreground">Delete this company?</span>
@@ -1148,7 +1148,7 @@ export default function AdminCompanyDetailPage() {
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <div className="flex-1">
               <p className="mb-1 text-sm font-medium">Upload Document</p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <select
                   value={uploadDocType}
                   onChange={(e) => setUploadDocType(e.target.value)}
@@ -1391,22 +1391,22 @@ export default function AdminCompanyDetailPage() {
             <div className="space-y-2">
               {members.map((member) => (
                 <Card key={member.membershipId}>
-                  <CardContent className="flex items-center justify-between py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
+                  <CardContent className="flex flex-wrap items-center gap-3 py-3">
+                    <div className="min-w-48 flex-1 flex items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
                         {member.name?.[0]?.toUpperCase() ??
                           member.email[0].toUpperCase()}
                       </div>
-                      <div>
-                        <p className="font-medium">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
                           {member.name ?? member.email}
                         </p>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="truncate text-sm text-muted-foreground">
                           {member.email}
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex shrink-0 items-center gap-3">
                       <Badge variant={member.userRoles.includes("ADMIN") ? "info" : "neutral"}>
                         {member.userRoles.includes("ADMIN") ? "Admin" : "Founder"}
                       </Badge>
@@ -1582,8 +1582,8 @@ export default function AdminCompanyDetailPage() {
               {notes.map((note) => (
                 <Card key={note.id}>
                   <CardContent className="py-4">
-                    <div className="mb-3 flex items-start justify-between gap-4">
-                      <div className="min-w-0">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
+                      <div className="min-w-48 flex-1">
                         <p className="font-semibold">{note.title}</p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(note.occurredAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}
@@ -1702,7 +1702,7 @@ export default function AdminCompanyDetailPage() {
                         Comparing revision {revisions.indexOf(diffRight) + 1} → {revisions.indexOf(diffLeft) + 1}
                       </span>
                     </div>
-                    <div className="grid flex-1 grid-cols-2 overflow-hidden divide-x">
+                    <div className="grid flex-1 grid-cols-1 divide-y overflow-y-auto sm:grid-cols-2 sm:divide-y-0 sm:divide-x">
                       <DiffPane label="Before" revision={diffRight} otherRevision={diffLeft} />
                       <DiffPane label="After" revision={diffLeft} otherRevision={diffRight} isNewer />
                     </div>
