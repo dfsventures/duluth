@@ -216,8 +216,8 @@ export default function MetricsPage() {
           <CardTitle>Define a New Metric</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAddMetric} className="flex items-end gap-3">
-            <div className="flex-1">
+          <form onSubmit={handleAddMetric} className="flex flex-wrap items-end gap-3">
+            <div className="min-w-48 flex-1">
               <Input
                 id="metricName"
                 label="Metric Name"
@@ -285,7 +285,7 @@ export default function MetricsPage() {
                     </div>
 
                     {/* Add value form */}
-                    <div className="mb-4 flex items-end gap-3 border-t pt-4">
+                    <div className="mb-4 flex flex-wrap items-end gap-3 border-t pt-4">
                       <div className="w-44">
                         <Input
                           id={`date-${metric.id}`}

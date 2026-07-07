@@ -207,7 +207,7 @@ export default function DigestDetailPage() {
   return (
     <AppShell>
       {/* Header */}
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Link
             href="/admin/digest"
@@ -237,7 +237,7 @@ export default function DigestDetailPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           {digest.sentAt ? (
             <Badge variant="success" className="flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" />

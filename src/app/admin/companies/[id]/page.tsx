@@ -913,12 +913,12 @@ export default function AdminCompanyDetailPage() {
       </Card>
 
       {/* Tab navigation */}
-      <div className="mb-6 flex gap-1 border-b">
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
@@ -1241,7 +1241,8 @@ export default function AdminCompanyDetailPage() {
           ) : (
             <Card>
               <CardContent className="p-0">
-                <table className="w-full text-sm">
+                <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-sm">
                   <thead>
                     <tr className="border-b text-left text-muted-foreground">
                       <th className="px-4 py-3 font-medium">Name</th>
@@ -1315,6 +1316,7 @@ export default function AdminCompanyDetailPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </CardContent>
             </Card>
           )}

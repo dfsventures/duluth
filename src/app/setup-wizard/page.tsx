@@ -306,8 +306,8 @@ export default function SetupWizardPage() {
 
             <div className="space-y-3">
               {metricDrafts.map((metric, index) => (
-                <div key={index} className="flex items-end gap-3">
-                  <div className="flex-1">
+                <div key={index} className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-48 flex-1">
                     <Input
                       id={`metricName-${index}`}
                       label={index === 0 ? "Metric Name" : undefined}

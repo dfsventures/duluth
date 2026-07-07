@@ -429,7 +429,7 @@ export default function NewUpdatePage() {
           )}
 
           {/* Action buttons */}
-          <div className="flex items-center justify-end gap-3 border-t pt-4">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t pt-4">
             {confirmPublish ? (
               <>
                 <span className="text-sm text-muted-foreground">

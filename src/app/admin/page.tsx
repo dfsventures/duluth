@@ -252,7 +252,8 @@ export default function AdminDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
               <thead>
                 <tr className="border-b text-left text-muted-foreground">
                   <th className="pb-2 font-medium">Company</th>
@@ -288,6 +289,7 @@ export default function AdminDashboardPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -379,7 +381,8 @@ export default function AdminDashboardPage() {
           </CardHeader>
           {showOverdue && (
             <CardContent>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-sm">
                 <thead>
                   <tr className="border-b text-left text-muted-foreground">
                     <th className="pb-2 font-medium">Company</th>
@@ -432,6 +435,7 @@ export default function AdminDashboardPage() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </CardContent>
           )}
         </Card>

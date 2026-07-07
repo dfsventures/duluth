@@ -437,8 +437,8 @@ export default function AdminLinksPage() {
             return (
               <Card key={link.id} className={expired ? "opacity-60" : ""}>
                 <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="flex flex-wrap items-start gap-4">
+                    <div className="min-w-48 flex-1 space-y-1.5">
                       <div className="flex items-center gap-2">
                         <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <p className="font-medium">{link.label || "Untitled link"}</p>

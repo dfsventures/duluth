@@ -1459,3 +1459,202 @@ Order: WS9 → WS10 → WS11 → WS12. Each workstream = commit(s) + live verifi
 ## Part 5 roadmap bookkeeping
 
 Done alongside this plan: `ROADMAP.md` annotated with F12 (reminder delivery vs. cron mechanics), F14 (fork-config hardcode undercount), the Comment Threading deferral, and a "Next up" pointer to this Part. As each workstream ships, fold it into "Existing Features" per the file's convention; the fork-config row moves wholesale with the new env-var names documented.
+
+---
+
+# Part 6 — Mobile-Width Layout Hardening (WS14–WS15)
+
+_Added 2026-07-07, after a real-device report showed `/admin/providers` breaking at phone width (header buttons pushed off-screen, card text crushed to one word per line). Commit `e1a91cc` already fixed the two reported spots (`page-header.tsx` now stacks below `sm:`; the providers card row and header action group wrap) — this Part is the full-app audit that request triggered. Scope: **layout only** — no schema changes, no behavior changes, no new dependencies. Same hard constraints as Parts 1–5._
+
+> **Status (2026-07-07): WS14 shipped and verified live.** All ten confirmed phone-width breakers fixed with the four house patterns (A–D). Quality gates (`typecheck`, `lint`, `test`, `build`) passed; no new lint errors. WS15 in progress next.
+
+**Method note:** this audit was done by reading layout code (Tailwind classes + flex/grid structure) against a 375 px reference width — no browser. Where the math is borderline rather than provably broken, the item says **"verify on device"** instead of asserting a break. Every file/line below was read in the current working tree on 2026-07-07.
+
+**The arithmetic that decides most of these calls:** a 375 px phone minus the AppShell's `px-4` leaves **343 px** of content; inside a default `CardContent` (`p-6`) that drops to **~295 px**. A native `<input>` has an intrinsic minimum width of roughly 170 px (browsers won't shrink it below its `size` default), and buttons/badges never shrink below their text. So any non-wrapping flex row containing an input plus anything else, or ~3 buttons, overflows — and because `AppShell`'s `<main>` has no `overflow-x-hidden`, one overflowing row gives the whole page a horizontal scrollbar.
+
+## Part 6 ground rules
+
+All prior ground rules apply (quality gate `typecheck && lint && test` before every push; one workstream per commit-and-verify cycle on the live deploy; no staging). Additions:
+
+1. **Layout-only diffs.** No JSX restructuring beyond adding wrapper `<div>`s and className changes. If a fix seems to need moving logic, stop and flag it.
+2. **Desktop must be pixel-identical at ≥ 640 px.** Every technique below is chosen because it is inert when space is sufficient: `flex-wrap` only wraps when out of room; `overflow-x-auto` shows no scrollbar when content fits; `min-w-[...]` on tables is below their natural desktop width; `grid-cols-1 sm:grid-cols-2` reproduces today's layout at `sm:`+. Spot-check one desktop screenshot per page anyway.
+3. **Breakpoint convention (audited, consistent — keep it):** `sm:` (640 px, Tailwind default) for content layout; `md:` (768 px) exclusively for the app shell (sidebar overlay ↔ static, mobile top bar). That split is intentional — the 60-rem sidebar needs more room than content does — and no file deviates from it. Do not introduce custom breakpoints.
+4. **House patterns.** Use these four named patterns everywhere below; don't invent variants:
+   - **Pattern A — scrollable table:** wrap the `<table>` in `<div className="overflow-x-auto">` **and give the table an explicit min-width** (e.g. `min-w-[560px]`). Without the min-width the `w-full` table just crushes its columns instead of scrolling — the audit-log page currently has the wrapper but not the min-width.
+   - **Pattern B — wrap-row card** (the `e1a91cc` ProviderRow fix, `src/app/admin/providers/page.tsx:411-420`): outer row `flex flex-wrap items-start gap-3`; text column `min-w-48 flex-1`; action cluster `shrink-0`. The min-width makes the shrink-0 cluster wrap onto its own row instead of squeezing the text.
+   - **Pattern C — stack row** (the `page-header.tsx` fix): `flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between`.
+   - **Pattern D — wrapping form row:** add `flex-wrap` to `flex items-end gap-3` rows that mix a `flex-1` input with fixed-width inputs/buttons; give the `flex-1` field a `min-w-48` so it takes a full row alone rather than crushing.
+
+## Part 6 audit findings (whole app, by pattern)
+
+Every page under `src/app/` was read. Counts are of distinct broken/at-risk spots, not files.
+
+**A. Tables without a horizontal-scroll container — 5 spots (of 7 app tables; 1 has a wrapper, 1 is fine).**
+Confirmed breakers (wide tables that crush unusably or overflow at 343/295 px):
+- `src/app/admin/companies/[id]/page.tsx:1244` — Documents tab, **7 columns** (Name/Type/Date/Uploaded By/Size/Visibility/actions). Worst table in the app.
+- `src/app/admin/page.tsx:382` — Overdue-companies table, 5 columns incl. a "Remind" button column.
+- `src/app/admin/page.tsx:255` — Metric Alerts table, 4 columns incl. free-text alert message + Dismiss button.
+Mild (few narrow columns; fit, standardize anyway while in the file): `src/app/updates/[id]/page.tsx:615` (3 cols), `src/app/admin/companies/[id]/page.tsx:1115` and `src/app/company/metrics/page.tsx:337` (2 cols each — genuinely fine, leave them).
+Already wrapped but missing the table min-width: `src/app/admin/audit/page.tsx:50-51`.
+
+**B. Non-wrapping flex rows with fixed-width inputs — 3 spots, all provable overflows.**
+- `src/app/company/metrics/page.tsx:219` — "Define a New Metric": `flex items-end gap-3` with flex-1 name input + `w-32` unit + Add button ≈ 412 px needed vs ~295 available.
+- `src/app/company/metrics/page.tsx:288` — per-metric "Add value" row: `w-44` date + `w-36` value + button ≈ 434 px.
+- `src/app/setup-wizard/page.tsx:309` — metric-definition rows: flex-1 + `w-32` + trash button, same failure.
+
+**C. `justify-between` card rows whose `shrink-0` action cluster crushes the text column — 7 spots** (the exact `/admin/providers` failure mode, pre-`e1a91cc`):
+- `src/app/links/page.tsx:340,354` — founder link cards: cluster (views + Copy Link + revoke, ~250 px; ~330 px in confirm-delete state) is `shrink-0` on a non-wrapping row → label/expiry column gets ~90 px. **Breaker.**
+- `src/app/admin/links/page.tsx:440,461` — identical markup, same break.
+- `src/app/admin/companies/[id]/page.tsx:1392,1407` — Members rows: badge + role `<select>` + trash vs. a text column with no `min-w-0`; long emails can force page overflow. **Breaker-ish; verify on device.**
+- `src/app/team/page.tsx:263,281` — same members pattern, same risk.
+- `src/app/admin/approvals/page.tsx:146,167` — Reject+Approve cluster (~190 px); text has `min-w-0` so it crushes-but-functions. Borderline; fix for conformance.
+- `src/app/admin/companies/[id]/page.tsx:1583,1594` — Notes rows: up to 4 controls (~150 px); crushed-but-functional. Borderline.
+- `src/app/admin/digest/page.tsx:90,97` — digest list rows: small cluster + `truncate` title; lowest risk of the set.
+
+**D. Page-level header rows that don't stack — 2 spots** (pages that didn't use `PageHeader`, or whose `action` prop itself is a non-wrapping cluster):
+- `src/app/admin/digest/[id]/page.tsx:210,240` — custom header: title column vs. a `shrink-0` cluster of badge + up to 3 buttons (Edit/Delete/Send ≈ 300+ px). The cluster has `flex-wrap` but is `shrink-0` on a non-wrapping row → title crushed. **Breaker.**
+- `src/app/updates/[id]/page.tsx:383` — `PageHeader action`: badge + Edit + Download PDF in non-wrapping `flex gap-3`; with a "Scheduled · {date}" badge this exceeds 343 px even after the header stacks. **Breaker in the scheduled state.**
+(Conformance, not breakers: `src/app/admin/companies/page.tsx:183` two-button action ≈ 300 px, fits but has no wrap; `src/app/admin/companies/[id]/page.tsx:~630-668` delete-confirm cluster Confirm Delete + Cancel + Back ≈ 330 px, borderline.)
+
+**E. Confirm/banner rows with text + button clusters — 3 spots, breakers in their confirm states:**
+- `src/app/updates/[id]/page.tsx:437-468` — draft publish banner: `justify-between` text vs. buttons; the confirm state adds "Publish and notify the {ORG} team?" + 2 buttons on one non-wrapping row.
+- `src/app/updates/[id]/page.tsx:425-434` — scheduled banner, same shape.
+- `src/app/updates/new/page.tsx:432-473` — form action row: confirm state = text (~230 px) + 2 buttons on a non-wrapping `justify-end` row.
+
+**F. Tab bar without overflow handling — 1 spot, breaker:**
+- `src/app/admin/companies/[id]/page.tsx:916-931` — 5 tabs (Updates/Metrics/Documents/Members/Notes), each icon + label + `px-4` ≈ 550 px total on a non-wrapping, non-scrolling row.
+
+**G. Modals — structurally fine (all use `p-4` + `max-h-[90vh] overflow-y-auto`), 4 cramped grids inside them:**
+- `grid grid-cols-2` field pairs with no `sm:` variant: `src/app/admin/providers/page.tsx:311,353` and `src/app/providers/page.tsx:317` → ~140 px per field inside the modal at 375 px. Usable but cramped.
+- `src/app/admin/companies/[id]/page.tsx:1703` — notes-history diff modal: `grid grid-cols-2 divide-x` Before/After panes → ~150 px per pane. See judgment call JC2.
+
+**H. Misc borderline (verify on device, cheap conformance fixes):**
+- `src/app/admin/companies/[id]/page.tsx:1151` — Documents upload row (select + checkbox + button ≈ 330 px, non-wrapping; the filter row below it at :1194 already wraps).
+- `src/app/admin/companies/new/page.tsx:226` — 3-button assignment toggle ≈ 334 px vs 295 px inside the card.
+- `src/app/setup-wizard/page.tsx:186-234` — 3-step indicator; reads as fitting (3 × 40 px circles + `text-xs` labels + flexible connectors) but is the one layout where the math is close. Verify on device.
+
+**Verified fine at 375 px — no work needed** (listing so nobody re-audits): AppShell/sidebar mobile nav (hamburger, overlay, backdrop, `onClose` on nav links — the mobile nav genuinely works: `src/components/layout/app-shell.tsx`, `sidebar.tsx`), `page-header.tsx` (fixed in `e1a91cc`), all Recharts usage (`ResponsiveContainer width="100%"` in both `src/components/ui/metric-chart.tsx:43` and `src/app/admin/page.tsx:306`), **the share page `src/app/share/[token]/page.tsx`** (single column, `min-w-0` + `flex-wrap` throughout, email-gate modal `max-w-sm` + `px-4` — the most mobile-critical page is in the best shape), founder dashboard, `/admin/companies` grid, both providers pages (post-`e1a91cc`), `/admin/updates`, `/admin/templates`, `/admin/digest` list + `new`, `/admin/settings` + panels, `/team` invite form, homepage, `/investors`, auth pages, `/company/profile`, company switcher, RichEditor (toolbar already `flex-wrap`), all `grid gap-* sm:grid-cols-*` form grids in the update create/edit forms.
+
+## Part 6 judgment calls
+
+- **JC1 — tables: horizontal scroll, not column hiding (recommendation: scroll; decide only if you disagree).** Hiding columns below `sm:` would change what admins can see on mobile — that's a product decision. Pattern A (scroll within the card) preserves every column with zero information loss, so this plan uses it everywhere and needs no sign-off. If you'd rather hide low-value columns (e.g. drop Uploaded By/Size from the documents table on phones), say so and WS14.2 changes trivially.
+- **JC2 — notes diff modal: stack Before/After vertically below `sm:` (small technical call, made here; flagging per protocol).** `grid-cols-1 divide-y sm:grid-cols-2 sm:divide-y-0 sm:divide-x` — at 375 px two ~150 px prose panes are unreadable; stacked panes (Before above After) keep the comparison usable. Desktop unchanged. Cheap reversal: delete the two `sm:` prefixes. This is admin-only and behind two clicks, hence WS15 not WS14.
+- **JC3 — admin dashboard tables stay tables.** The alternative (re-render alerts/overdue rows as stacked cards below `sm:`) is more code, duplicates markup, and drifts from JC1's principle. Scroll containers only.
+
+---
+
+## WS14 — Worst offenders: confirmed phone-width breakers (~1 day)
+
+**Goal:** at 375 px, no route in the app produces a horizontal page scrollbar, and every confirmed-broken surface above is usable. All changes are className-level and inert at ≥ 640 px.
+
+**Confirmed decisions:** Patterns A–D as specified; JC1 = scroll-not-hide; no schema, no behavior changes.
+
+### WS14.1 Company-detail tab bar
+`src/app/admin/companies/[id]/page.tsx:916` — make the tab row scrollable instead of clipped:
+```tsx
+<div className="mb-6 flex gap-1 overflow-x-auto border-b">
+```
+and add `shrink-0 whitespace-nowrap` to the tab `<button>` className (line 921) so tabs scroll as a strip rather than shrinking. No visible change on desktop (5 tabs ≈ 550 px < content width).
+
+### WS14.2 Tables → Pattern A
+- `src/app/admin/companies/[id]/page.tsx:1244` (Documents): the table already sits in `<CardContent className="p-0">` — wrap the `<table>` in `<div className="overflow-x-auto">` and change the table to `className="w-full min-w-[720px] text-sm"`.
+- `src/app/admin/page.tsx:255` (Metric Alerts): wrap + `min-w-[560px]`.
+- `src/app/admin/page.tsx:382` (Overdue companies): wrap + `min-w-[640px]`.
+- `src/app/admin/audit/page.tsx:51`: wrapper exists; just add `min-w-[640px]` to the `<table>` so it scrolls instead of crushing (the JSON metadata column is the risk).
+Leave the 2–3-column metric/update tables alone (they fit; touching them buys nothing).
+
+### WS14.3 Metric form rows → Pattern D
+- `src/app/company/metrics/page.tsx:219`: `className="flex flex-wrap items-end gap-3"` and add `min-w-48` to the `flex-1` wrapper div.
+- `src/app/company/metrics/page.tsx:288`: same — `flex flex-wrap items-end gap-3` (the `w-44`/`w-36` inputs then wrap above the button).
+- `src/app/setup-wizard/page.tsx:309`: same — `flex flex-wrap items-end gap-3` + `min-w-48` on the flex-1 name wrapper.
+
+### WS14.4 Link cards (founder + admin) → Pattern B
+`src/app/links/page.tsx:340` and `src/app/admin/links/page.tsx:440` — change the card row from
+```tsx
+<div className="flex items-start justify-between gap-4">
+  <div className="min-w-0 flex-1 space-y-1.5">
+```
+to
+```tsx
+<div className="flex flex-wrap items-start gap-4">
+  <div className="min-w-48 flex-1 space-y-1.5">
+```
+(drop `justify-between`; the flex-1 text column provides the same spacing when both fit on one row). The action cluster (lines 354 / 461) keeps its existing `shrink-0 flex-wrap` — with the outer row now wrapping, it drops onto its own row on phones, exactly like ProviderRow.
+
+### WS14.5 Publish/schedule banners and confirm rows
+- `src/app/updates/[id]/page.tsx:426` and `:438` — both banners: `flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between` (Pattern C); also add `flex-wrap` to the confirm-state cluster at `:443`.
+- `src/app/updates/new/page.tsx:432` — action row: `flex flex-wrap items-center justify-end gap-3` (the confirm-prompt text then wraps above the buttons; the two-button non-confirm state is unaffected).
+
+### WS14.6 Non-stacking headers
+- `src/app/admin/digest/[id]/page.tsx:210` — Pattern C on the outer row: `mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between`; the action cluster at `:240` keeps `flex-wrap` but should drop `shrink-0` (redundant once stacked) — or keep it; either is fine once the outer row stacks.
+- `src/app/updates/[id]/page.tsx:383` — `PageHeader action` cluster: `flex flex-wrap items-center gap-3`.
+
+### WS14.7 Founder `/providers` card grid — added mid-batch, device-verified breaker not in Felix's original audit
+`src/app/providers/page.tsx:233,245` — both card grids (`grid gap-4 sm:grid-cols-2 lg:grid-cols-3`) were missing a base `grid-cols-1`. Diagnosed by reproducing the exact `ProviderCard` markup in an isolated Tailwind harness and measuring in real headless Chrome at a true 375px viewport (via CDP, `Emulation.setDeviceMetricsOverride`): with no base column count, the grid falls back to an implicit auto-sized column track whose width follows the CSS Grid default-track content-sizing algorithm rather than clamping to the container — confirmed empirically: the `ProviderCard`'s own non-shrinking rows (the `truncate`-forced-nowrap title next to the `StatusBadge`, and the non-wrapping endorsement-count/`Endorse`-button footer row, neither of which has `min-w-0` on both sides) pushed the rendered card to ~474px inside a 343px-wide container, at genuine document-level horizontal overflow (`scrollWidth` 491 vs `clientWidth` 375) — exactly matching the reported screenshot (badge clipped mid-word, `Endorse` button showing only its icon). Fix: `grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3` (same technique WS15.2 already uses for the modal field grids) — this clamps the implicit column's minimum to 0 so oversized card content is contained rather than blowing out the grid; re-measured after the fix at `scrollWidth === clientWidth === 375`, badge and button fully on-screen. Inert at ≥640px: `sm:`/`lg:` already override the column count there, identical to every other `grid-cols-1 sm:grid-cols-*` pair already in this codebase.
+Checked adjacent card-grids for the same failure category (`/admin/companies`, admin dashboard stat cards): their card titles wrap normally (no `truncate`/`nowrap`) so their intrinsic min-content is bounded by the longest single word, not a full unbreakable string — they don't hit this failure mode, consistent with Felix's audit marking them fine. This appears to be an isolated case, specific to the combination of a forced-nowrap title and an unguarded non-wrapping footer row.
+
+### WS14 acceptance checklist
+- [ ] In devtools at 375×812 **and on the real device that produced the original report**, visit: `/admin`, `/admin/companies/[id]` (all 5 tabs), `/admin/audit`, `/admin/links`, `/links`, `/company/metrics`, `/setup-wizard` (step 2), `/updates/new`, `/updates/[id]` (draft, scheduled, and confirm-publish states), `/admin/digest/[id]`, `/providers` (card grid) — **no horizontal page scrollbar on any of them** (`document.scrollingElement.scrollWidth === clientWidth` in the console is the honest check)
+- [x] `/providers` card grid: verified in headless Chrome at a true 375px viewport (CDP device-metrics override) — `scrollWidth === clientWidth === 375` after the `grid-cols-1` fix, badge and Endorse button fully on-screen (was off-screen before)
+- [ ] Documents/alerts/overdue/audit tables scroll horizontally *within their card* at 375 px; every column reachable
+- [ ] Tab strip on company detail scrolls; Notes tab reachable at 375 px
+- [ ] Link cards: label + expiry fully readable; action buttons on their own row; confirm-delete state doesn't overflow
+- [ ] Both metric forms and the wizard metric rows: all inputs full-width-ish and tappable, Add button reachable
+- [ ] Desktop (≥ 1280 px) screenshot of each touched page matches pre-change rendering
+- [x] `npm run typecheck && npm run lint && npm test` pass (2026-07-07; `npm run build` also passed)
+- [ ] Remaining device-dependent checklist items above require a real phone/devtools walk — not verifiable by the implementing agent; see final report for the walk list
+
+**UX impact:** phone-width rendering goes from broken to usable on 10 surfaces; at ≥ 640 px every touched page renders pixel-identically (all techniques inert when space suffices). No flow, copy, or data changes.
+**Cost impact:** zero — Tailwind classes only, no new dependencies or services.
+
+---
+
+## WS15 — Polish pass: borderline rows, cramped modals, conformance (~0.5–1 day)
+
+**Goal:** finish the inventory — the crushed-but-functional rows, the cramped modal grids, and the "borderline, add wrap for safety" spots — so the app has one consistent answer to narrow widths. Optional: WS14 alone fixes everything a user has actually reported or that provably breaks.
+
+### WS15.1 Member/approval/notes rows → Pattern B
+- `src/app/admin/companies/[id]/page.tsx:1392` (Members) and `src/app/team/page.tsx:263`: outer row → `flex flex-wrap items-center gap-3`; give the avatar+name block `min-w-48 flex-1` (on the company-detail one, also add `min-w-0` + `truncate` to the name/email `<p>`s — long emails are the overflow vector); action cluster gets `shrink-0`.
+- `src/app/admin/approvals/page.tsx:146`: same treatment (text block already has `min-w-0 flex-1` — change to `min-w-48 flex-1` and add `flex-wrap` + drop `justify-between` on the outer row, `shrink-0` on the button cluster).
+- `src/app/admin/companies/[id]/page.tsx:1583` (Notes rows): already `min-w-0` + `shrink-0`; add `flex-wrap` to the outer row and upgrade the text div to `min-w-48 flex-1` for conformance.
+- `src/app/admin/digest/page.tsx:90`: same one-line conformance change (lowest priority in this WS).
+
+### WS15.2 Modal field grids
+- `src/app/admin/providers/page.tsx:311` and `:353`, `src/app/providers/page.tsx:317`: `grid grid-cols-2 gap-3` → `grid grid-cols-1 gap-3 sm:grid-cols-2`. (Name/Type, Country/City stack on phones; identical at `sm:`+.)
+- `src/app/admin/companies/[id]/page.tsx:1703` (JC2): `grid flex-1 grid-cols-2 overflow-hidden divide-x` → `grid flex-1 grid-cols-1 divide-y overflow-y-auto sm:grid-cols-2 sm:divide-y-0 sm:divide-x` (switch `overflow-hidden` to `overflow-y-auto` so stacked panes scroll within the modal).
+
+### WS15.3 Header/cluster conformance (add `flex-wrap`, nothing else)
+- `src/app/admin/companies/page.tsx:183` — header action `flex gap-2` → `flex flex-wrap gap-2`.
+- `src/app/admin/companies/[id]/page.tsx` header action wrapper (the div holding Delete/confirm/Back, ~line 630) → add `flex-wrap`.
+- `src/app/admin/companies/[id]/page.tsx:1151` — Documents upload row → `flex flex-wrap items-center gap-2`.
+- `src/app/admin/companies/new/page.tsx:226` — assignment toggle → `flex flex-wrap gap-3`.
+
+### WS15.4 Device-verification list (no code, 15 minutes on a phone)
+Walk these and file anything that still looks wrong as new findings: setup-wizard step indicator; `/share/[token]` with a real link containing inline images (prose `max-w-full` should handle them — confirm); the share email-gate; `/admin/approvals` with a long email; a members list with a long email; the company-detail Metrics tab chart at 375 px.
+
+### WS15 acceptance checklist
+- [ ] At 375 px: members (`/team` + admin company detail), approvals, notes, and digest-list rows show full text with action clusters wrapped below when needed; no page-level horizontal scroll
+- [ ] Provider modals (all three forms) show stacked fields at 375 px, two-up at ≥ 640 px
+- [ ] Notes diff modal at 375 px: Before pane above After pane, scrollable; desktop side-by-side unchanged
+- [ ] WS15.4 device walk done; new findings (if any) recorded in this doc as F-items
+- [ ] Desktop screenshots of touched pages unchanged; quality gates pass
+
+**UX impact:** additive-only; the single deliberate mobile-behavior change is the diff modal stacking (JC2). Desktop pixel-identical everywhere.
+**Cost impact:** zero.
+
+---
+
+## Part 6 sequencing & effort
+
+WS14 → WS15, independent commits. No schema pushes, no env changes, no product-decision gates (JC1/JC2 recommendations are adopted unless the user objects).
+
+| WS | Item | Effort | Gated on |
+|---|---|---|---|
+| WS14 | Confirmed phone-width breakers (tables, tab bar, form rows, link cards, banners, headers) | ~1d | nothing |
+| WS15 | Polish: borderline rows, modal grids, conformance, device walk | 0.5–1d | nothing (optional; JC2 inside it) |
+
+**Total: ~1.5–2 junior-engineer days.** If choosing one, ship WS14 — it covers every provable break including everything in the same family as the original `/admin/providers` report.
+
+## Part 6 roadmap bookkeeping
+
+`ROADMAP.md` updated alongside this plan: a **Mobile-Width Layout Hardening** row added to P2 (pointing here), and the P3 **Mobile-Optimized Update Flow** row annotated to reconcile the two — that item is a founder-flow *interaction redesign* (simplified metric entry, mobile-first composer); this Part is app-wide *layout correctness* at phone widths and neither replaces nor depends on it. When WS14/WS15 ship, fold the row into "Existing Features" per the file's convention.

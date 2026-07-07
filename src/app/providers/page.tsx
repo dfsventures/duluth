@@ -230,7 +230,7 @@ export default function ProvidersPage() {
 
       {/* Grid */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
             <div key={i} className="h-52 rounded-md bg-muted animate-pulse" />
           ))}
@@ -242,7 +242,7 @@ export default function ProvidersPage() {
           description="Try adjusting your filters, or be the first to submit one."
         />
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {displayed.map((p) => (
             <ProviderCard
               key={p.id}

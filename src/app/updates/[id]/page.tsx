@@ -380,7 +380,7 @@ export default function UpdateDetailPage() {
             : `${formatPeriod(update.period)} · Created ${formatDate(update.createdAt)}`
         }
         action={
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Badge variant={update.status === "SENT" ? "success" : "warning"}>
               {update.status === "SENT"
                 ? "Published"
@@ -423,7 +423,7 @@ export default function UpdateDetailPage() {
 
       {/* Scheduled banner (view mode only) */}
       {!editing && update.status === "DRAFT" && update.scheduledFor && (
-        <div className="mb-3 flex items-center justify-between rounded-md border border-primary/20 bg-primary-50 px-4 py-3">
+        <div className="mb-3 flex flex-col gap-3 rounded-md border border-primary/20 bg-primary-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-primary-600">
             Scheduled to publish on {formatDate(update.scheduledFor)}.
           </p>
@@ -435,12 +435,12 @@ export default function UpdateDetailPage() {
 
       {/* Publish banner (view mode only) */}
       {!editing && update.status === "DRAFT" && (
-        <div className="mb-6 flex items-center justify-between rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
+        <div className="mb-6 flex flex-col gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-ochre">
             This update is still a draft. Publish it when ready.
           </p>
           {confirmPublish ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-ochre">Publish and notify the {ORG_NAME} team?</span>
               <Button variant="secondary" size="sm" disabled={sending} onClick={() => setConfirmPublish(false)}>
                 Cancel
