@@ -2,13 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
-
-/** Normalize a period-end date to the last instant of that UTC day. */
-function endOfDayUTC(date: Date): Date {
-  const d = new Date(date);
-  d.setUTCHours(23, 59, 59, 999);
-  return d;
-}
+import { buildMetricDateFilter, buildMetricSummary, endOfDayUTC } from "@/lib/share-metrics";
 
 export async function GET(
   _request: Request,
@@ -94,16 +88,13 @@ export async function GET(
     }
 
     // Metric summary: latest value per metric across the relevant companies.
-    // metricScope "PERIOD" (opt-in, Q1 = B) scopes the summary to the link's
-    // period; the default "ALL_TIME" preserves pre-existing behavior exactly
-    // for every link created before this field existed.
-    const periodEndInclusiveForMetrics = link.periodEnd ? endOfDayUTC(link.periodEnd) : null;
-    const metricDateFilter =
-      link.metricScope === "PERIOD" && link.periodStart && periodEndInclusiveForMetrics
-        ? { date: { gte: link.periodStart, lte: periodEndInclusiveForMetrics } }
-        : link.selectedUpdates.length > 0 || !link.periodStart || !link.periodEnd
-          ? {} // unchanged pre-existing behavior for ALL_TIME links
-          : { date: { gte: link.periodStart, lte: link.periodEnd } };
+    // Scoping rules live in src/lib/share-metrics.ts (pure, unit-tested).
+    const metricDateFilter = buildMetricDateFilter({
+      metricScope: link.metricScope,
+      periodStart: link.periodStart,
+      periodEnd: link.periodEnd,
+      hasSelectedUpdates: link.selectedUpdates.length > 0,
+    });
 
     const metricValues = await db.metricValue.findMany({
       where: {
@@ -119,23 +110,9 @@ export async function GET(
       orderBy: { date: "desc" },
     });
 
-    // Build per-company metric summary (latest value per metric in range)
-    const metricsByCompany: Record<string, { name: string; unit: string | null; value: number; date: string }[]> = {};
-    const seen = new Set<string>();
-    for (const mv of metricValues) {
-      const key = `${mv.metricDefinition.companyId}:${mv.metricDefinition.name}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        const cid = mv.metricDefinition.companyId;
-        if (!metricsByCompany[cid]) metricsByCompany[cid] = [];
-        metricsByCompany[cid].push({
-          name: mv.metricDefinition.name,
-          unit: mv.metricDefinition.unit,
-          value: Number(mv.value),
-          date: mv.date.toISOString(),
-        });
-      }
-    }
+    // Per-company metric summary (latest value per metric in range) —
+    // logic in src/lib/share-metrics.ts
+    const metricsByCompany = buildMetricSummary(metricValues);
 
     return NextResponse.json({
       id: link.id,
