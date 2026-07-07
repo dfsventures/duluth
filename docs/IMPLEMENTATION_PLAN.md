@@ -1613,7 +1613,7 @@ Checked adjacent card-grids for the same failure category (`/admin/companies`, a
 
 **Goal:** finish the inventory — the crushed-but-functional rows, the cramped modal grids, and the "borderline, add wrap for safety" spots — so the app has one consistent answer to narrow widths. Optional: WS14 alone fixes everything a user has actually reported or that provably breaks.
 
-> **Status (2026-07-07): WS15.1–WS15.3 shipped and verified live.** JC2 (diff-modal stacking) adopted as recommended. Quality gates (`typecheck`, `lint`, `test`, `build`) passed; no new lint errors. WS15.4 (device walk) was **not performed** — no code, and the implementing agent cannot render mobile layouts on a physical device; the checklist is handed to the user in the final report instead.
+> **Status (2026-07-07): WS15.1–WS15.3 shipped and verified live** (commit `cf06796`, deployed to `molly.dfslab.net`). JC2 (diff-modal stacking) adopted as recommended. Quality gates (`typecheck`, `lint`, `test`, `build`) passed; no new lint errors. Live curl check: `/`, `/login`, `/investors` 200; `/providers`, `/admin`, `/team`, `/admin/approvals`, `/admin/companies`, `/admin/companies/new`, `/admin/digest`, `/admin/companies/[id]` all 307-redirect to `/login` as expected with no session — no 500s. WS15.4 (device walk) was **not performed** — no code, and the implementing agent cannot render mobile layouts on a physical device; the checklist is handed to the user in the final report instead.
 
 ### WS15.1 Member/approval/notes rows → Pattern B
 - `src/app/admin/companies/[id]/page.tsx:1392` (Members) and `src/app/team/page.tsx:263`: outer row → `flex flex-wrap items-center gap-3`; give the avatar+name block `min-w-48 flex-1` (on the company-detail one, also add `min-w-0` + `truncate` to the name/email `<p>`s — long emails are the overflow vector); action cluster gets `shrink-0`.
@@ -1659,4 +1659,6 @@ WS14 → WS15, independent commits. No schema pushes, no env changes, no product
 
 ## Part 6 roadmap bookkeeping
 
-`ROADMAP.md` updated alongside this plan: a **Mobile-Width Layout Hardening** row added to P2 (pointing here), and the P3 **Mobile-Optimized Update Flow** row annotated to reconcile the two — that item is a founder-flow *interaction redesign* (simplified metric entry, mobile-first composer); this Part is app-wide *layout correctness* at phone widths and neither replaces nor depends on it. When WS14/WS15 ship, fold the row into "Existing Features" per the file's convention.
+`ROADMAP.md` updated alongside this plan: a **Mobile-Width Layout Hardening** row added to P2 (pointing here), and the P3 **Mobile-Optimized Update Flow** row annotated to reconcile the two — that item is a founder-flow *interaction redesign* (simplified metric entry, mobile-first composer); this Part is app-wide *layout correctness* at phone widths and neither replaces nor depends on it.
+
+**Done (2026-07-07):** WS14 and WS15 both shipped same-day; the P2 row was folded into "Existing Features" → Design & Branding in `ROADMAP.md`, and the P3 Mobile-Optimized Update Flow annotation was updated from "planned" to "shipped" to reflect that layout correctness is now live.

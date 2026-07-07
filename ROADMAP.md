@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-07-07 (P0 + P1 shipped; P2 batch shipped — WS9, WS10, WS11, WS12; mobile layout hardening planned — WS14–WS15)_
+_Last updated: 2026-07-07 (P0 + P1 shipped; P2 batch shipped — WS9, WS10, WS11, WS12; mobile-width layout hardening shipped — WS14, WS15)_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -103,6 +103,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 - **`_Molly` wordmark** — the placeholder auto-generated logo image is gone; a reusable text mark (mono font, brand-colored underscore) is used across the sidebar, nav bars, and auth pages
 - Real DFS logo (pulled from DFS Lab's brand assets, not a placeholder) used in transactional email headers
 - Status colors (badges, alerts) remapped from generic Tailwind red/green/amber to the brand's own Laterite/Acacia/Ochre
+- **Mobile-width layout hardening** (shipped 2026-07-07, WS14–WS15) — app-wide layout correctness at phone widths (~375px): scrollable tables with explicit min-widths, wrap-row cards (link cards, members, approvals, notes, digest list), a scrollable company-detail tab strip, wrapping metric/setup-wizard form rows, stacked publish/schedule banners, stacked provider-modal field grids, and a stacked (below `sm:`) notes revision diff modal. Every fix is className-only and inert at ≥640px. Includes one breaker found via a real device screenshot mid-batch, outside the original audit: the founder `/providers` card grid had no base `grid-cols-1`, so the browser used an unconstrained implicit grid track that let each card blow out past its container, pushing the status badge and Endorse button off-screen — confirmed and fixed by reproducing the exact markup in headless Chrome at a true 375px viewport. Full detail in Part 6 of `docs/IMPLEMENTATION_PLAN.md`.
 
 ---
 
@@ -128,11 +129,10 @@ Priorities run P0 (do first) through P3 (later).
 
 ### P2 — Leverage (next quarter)
 
-> **P2 batch shipped 2026-07-06.** WS9 (Fork Configuration) → WS10 (metric alerts) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link), planned in Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), all shipped and folded into "Existing Features" above. Comment Threading was deferred out of the batch (see its row below).
+> **P2 batch shipped 2026-07-06.** WS9 (Fork Configuration) → WS10 (metric alerts) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link), planned in Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), all shipped and folded into "Existing Features" above. **Mobile-Width Layout Hardening (WS14–WS15) shipped 2026-07-07**, planned in Part 6, also folded into "Existing Features" (Design & Branding) above. Comment Threading was deferred out of the batch (see its row below).
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
-| **Mobile-Width Layout Hardening** | App-wide layout correctness at phone widths (~375px): scrollable tables, wrapping card rows/form rows/button clusters, scrollable tab bar, stacked modal grids. Triggered by a real-device report on `/admin/providers` (header fixed in `e1a91cc`, 2026-07-07); full audit + plan in Part 6 / WS14–WS15 of `docs/IMPLEMENTATION_PLAN.md` (~1.5–2 days; WS14 alone covers every confirmed break). Layout-only — distinct from the P3 "Mobile-Optimized Update Flow" item, which is an interaction redesign of the founder update flow; this makes every existing view *render* correctly on phones. | Investors open share links on phones, founders submit from the field, admins triage from anywhere — today several admin/founder views break outright at phone width. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) **Deferred from the Jul 2026 P2 batch** — it's the tier's only redesign of an existing shared surface (highest UX-regression risk), its notification half depends on the currently-broken Resend key, and @mentions need cross-company permission design first. Future sketch in Part 5 / WS13 of `docs/IMPLEMENTATION_PLAN.md`. | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
 
 ### P3 — Later / Opportunistic
@@ -146,7 +146,7 @@ Priorities run P0 (do first) through P3 (later).
 | **Update Versioning / Audit Trail** | Track edits to published updates. Who published/edited and when. | Compliance and data integrity as platform matures. Pairs with the admin audit log (shipped 2026-07-03) — same `AuditLog` model, add `UPDATE_EDITED` entries with a diff in `metadata`. |
 | **Investor Accounts (Optional)** | Optional upgrade from token-only to persistent investor accounts. | Enables re-access, saved preferences, and engagement analytics. The `/investors` explainer page (shipped 2026-07-03) is the interim fix; this would replace it with real accounts. |
 | **Slack / Webhook Integrations** | Slack notifications for overdue updates, new approvals, published updates. | Connects Molly into existing DFS Lab team workflows. |
-| **Mobile-Optimized Update Flow** | Simplified metric entry and editor optimized for small screens — an *interaction redesign* of the founder update flow (composer, metric entry), not just layout. The app-wide **Mobile-Width Layout Hardening** item (P2 above, planned 2026-07-07 in Part 6 of `docs/IMPLEMENTATION_PLAN.md`) makes the existing update form and every other view render correctly at phone widths; this item remains for rethinking the flow itself once layout correctness has shipped. | Many founders are mobile-first. Improves update frequency. |
+| **Mobile-Optimized Update Flow** | Simplified metric entry and editor optimized for small screens — an *interaction redesign* of the founder update flow (composer, metric entry), not just layout. **Mobile-Width Layout Hardening shipped 2026-07-07** (see Design & Branding above) and already makes the existing update form and every other view render correctly at phone widths; this item remains for rethinking the flow itself now that layout correctness has shipped. | Many founders are mobile-first. Improves update frequency. |
 
 ---
 
