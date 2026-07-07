@@ -170,7 +170,7 @@ export default function UpdateDetailPage() {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error || "Failed to delete draft.");
       }
-      router.push("/updates/new");
+      router.push("/updates");
     } catch (err) {
       setMessage({
         type: "error",
@@ -360,7 +360,7 @@ export default function UpdateDetailPage() {
         <p className="text-sm text-muted-foreground">
           This update could not be found or you don&apos;t have access.
         </p>
-        <Button variant="secondary" className="mt-4" onClick={() => router.push("/updates/new")}>
+        <Button variant="secondary" className="mt-4" onClick={() => router.push("/updates")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Updates
         </Button>
@@ -729,7 +729,7 @@ export default function UpdateDetailPage() {
           </Card>
 
           <div className="mt-6">
-            <Button variant="ghost" onClick={() => router.push("/updates/new")}>
+            <Button variant="ghost" onClick={() => router.push("/updates")}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Updates
             </Button>

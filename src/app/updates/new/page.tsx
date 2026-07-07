@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -12,10 +11,10 @@ import {
   AlertCircle,
   CheckCircle2,
   Upload,
-  Trash2,
   Calendar,
   ChevronDown,
   ChevronUp,
+  ArrowLeft,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -23,21 +22,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RichEditor } from "@/components/ui/rich-editor";
-import { formatDate, formatPeriod } from "@/lib/utils";
 import { useCompany } from "@/context/company-context";
 import { ORG_NAME } from "@/lib/org";
-
-interface Update {
-  id: string;
-  title: string;
-  period: string;
-  status: "DRAFT" | "SENT";
-  createdAt: string;
-  scheduledFor: string | null;
-}
 
 interface MetricDefinition {
   id: string;
@@ -57,12 +45,10 @@ export default function NewUpdatePage() {
   const { data: session } = useSession();
   const { selectedCompany, loading: companyLoading } = useCompany();
   const [companyId, setCompanyId] = useState<string | null>(null);
-  const [updates, setUpdates] = useState<Update[]>([]);
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
   const [templates, setTemplates] = useState<UpdateTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -89,13 +75,6 @@ export default function NewUpdatePage() {
 
         const cId = selectedCompany.id;
         setCompanyId(cId);
-
-        // Fetch existing updates
-        const updatesRes = await fetch(`/api/companies/${cId}/updates`);
-        if (updatesRes.ok) {
-          const updatesData = await updatesRes.json();
-          setUpdates(updatesData.data ?? updatesData ?? []);
-        }
 
         // Fetch metric definitions
         const metricsRes = await fetch(`/api/companies/${cId}/metrics`);
@@ -134,18 +113,6 @@ export default function NewUpdatePage() {
     }
 
     setBody(template.body);
-  }
-
-  async function handleDelete(updateId: string) {
-    setDeletingId(updateId);
-    try {
-      const res = await fetch(`/api/updates/${updateId}`, { method: "DELETE" });
-      if (res.ok) {
-        setUpdates((prev) => prev.filter((u) => u.id !== updateId));
-      }
-    } finally {
-      setDeletingId(null);
-    }
   }
 
   async function handleSubmit(status: "DRAFT" | "SENT", scheduledForISO?: string) {
@@ -209,17 +176,8 @@ export default function NewUpdatePage() {
       setBody("");
       setMetricInputs({});
 
-      // Redirect to the new update
-      if (newUpdate?.id) {
-        router.push(`/updates/${newUpdate.id}`);
-      } else {
-        // Reload updates list
-        const updatesRes = await fetch(`/api/companies/${companyId}/updates`);
-        if (updatesRes.ok) {
-          const updatesData = await updatesRes.json();
-          setUpdates(updatesData.data ?? updatesData ?? []);
-        }
-      }
+      // Redirect to the new update (fall back to the list page)
+      router.push(newUpdate?.id ? `/updates/${newUpdate.id}` : "/updates");
     } catch (err) {
       setMessage({
         type: "error",
@@ -243,7 +201,7 @@ export default function NewUpdatePage() {
   if (!companyId) {
     return (
       <AppShell>
-        <PageHeader title="Updates" />
+        <PageHeader title="New Update" />
         <EmptyState
           icon={<FileText className="h-10 w-10" />}
           title="No company found"
@@ -255,9 +213,17 @@ export default function NewUpdatePage() {
 
   return (
     <AppShell>
+      <button
+        onClick={() => router.push("/updates")}
+        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Updates
+      </button>
+
       <PageHeader
-        title="Updates"
-        description="Create and manage portfolio updates for Molly."
+        title="New Update"
+        description="Share your progress with your investors."
       />
 
       {message && (
@@ -274,47 +240,6 @@ export default function NewUpdatePage() {
             <AlertCircle className="h-4 w-4" />
           )}
           {message.text}
-        </div>
-      )}
-
-      {/* Existing updates */}
-      {updates.length > 0 && (
-        <div className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Previous Updates</h2>
-          <div className="space-y-2">
-            {updates.map((update) => (
-              <Card key={update.id} className="transition-colors hover:bg-muted/50">
-                <CardContent className="flex items-center justify-between py-3">
-                  <Link href={`/updates/${update.id}`} className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{update.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatPeriod(update.period)} &middot;{" "}
-                      {formatDate(update.createdAt)}
-                    </p>
-                  </Link>
-                  <div className="flex items-center gap-2 shrink-0 ml-3">
-                    <Badge variant={update.status === "SENT" ? "success" : "warning"}>
-                      {update.status === "SENT"
-                        ? "Published"
-                        : update.scheduledFor
-                          ? `Scheduled · ${formatDate(update.scheduledFor)}`
-                          : "Draft"}
-                    </Badge>
-                    {update.status === "DRAFT" && (
-                      <button
-                        onClick={() => handleDelete(update.id)}
-                        disabled={deletingId === update.id}
-                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
-                        title="Delete draft"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
         </div>
       )}
 

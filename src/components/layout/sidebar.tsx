@@ -27,7 +27,7 @@ const founderNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Company Profile", href: "/company/profile", icon: Building2 },
   { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
-  { label: "Updates", href: "/updates/new", icon: FileText },
+  { label: "Updates", href: "/updates", icon: FileText },
   { label: "Investor Links", href: "/links", icon: Link2 },
   { label: "Team", href: "/team", icon: Users },
   { label: "Service Providers", href: "/providers", icon: Briefcase },
