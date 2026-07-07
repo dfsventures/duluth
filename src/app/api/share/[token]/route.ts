@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { buildMetricDateFilter, buildMetricSummary, endOfDayUTC } from "@/lib/share-metrics";
+import { rewriteDocumentUrls } from "@/lib/share-docs";
 
 export async function GET(
   _request: Request,
@@ -124,7 +125,12 @@ export async function GET(
         ...c.company,
         metrics: metricsByCompany[c.companyId] ?? [],
       })),
-      updates,
+      // Inline document images are rewritten to the token-scoped proxy so
+      // they render for sessionless investors (F16, option b)
+      updates: updates.map((u) => ({
+        ...u,
+        body: rewriteDocumentUrls(u.body, token),
+      })),
     });
   } catch (err) {
     console.error("GET /api/share/[token] error:", err);
