@@ -52,6 +52,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
   - Email gate on first visit (server-validated email format as of 2026-07-03); silent re-tracking via localStorage
   - View log with email + timestamp
   - Revoke links
+  - **Fixed 2026-07-06 (F15, found live during WS12 verification)**: the `/share/[token]` page itself was public, but the client-side data fetch it makes to `/api/share/[token]` (and the `/view` email-gate endpoint) was not on the middleware's public-path list — so every investor (who has no account by design) had that fetch 307-redirected to `/login`, and the share page never actually rendered any data. This had likely been broken since the route-access.ts extraction; no links existed in production to have surfaced it via a bug report. Fixed the same way as the prior `/api/cron` and `/brand` gaps (added `/api/share` to `PUBLIC_PREFIXES` in `src/lib/route-access.ts`, a token-gated route needs no session-based gate); regression test added.
 - **Team Management** (`/team`) — OWNER founders can invite teammates by email (MEMBER/VIEWER roles)
   - New users get an account automatically (APPROVED + set-password link, 48hr expiry); no admin review queue
   - Existing users get a notification email and are added immediately

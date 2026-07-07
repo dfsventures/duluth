@@ -21,8 +21,20 @@ describe("decideRoute — public routes", () => {
     "/api/cron/reminders",
     "/investors",
     "/brand/dfs-logo-primary.png",
+    "/api/share/abc123",
+    "/api/share/abc123/view",
   ])("allows %s logged out", (path) => {
     expect(decideRoute(path, "", loggedOut)).toEqual({ type: "next" });
+  });
+
+  // Found 2026-07-06 (F15), during WS12 live verification: the page at
+  // "/share/[token]" was already public, but the client-side data fetch it
+  // makes to "/api/share/[token]" was not — so every investor (who has no
+  // account) had that fetch 307-redirected to /login, and the share page
+  // never actually rendered any data. The token itself is the
+  // authorization for this endpoint, same as for "/share" itself.
+  it("allows /api/share/[token] with no session (a share link's token is its own authorization)", () => {
+    expect(decideRoute("/api/share/abc123", "", loggedOut)).toEqual({ type: "next" });
   });
 
   // Found 2026-07-06: email clients fetch the header logo from /brand

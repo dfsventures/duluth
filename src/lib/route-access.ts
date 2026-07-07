@@ -22,7 +22,16 @@ export type RouteDecision =
 // "/brand" is public for the same reason: email clients fetch the logo
 // images under /brand with no session, so gating them breaks every
 // email header (found 2026-07-06).
-const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/cron", "/investors", "/brand"];
+//
+// "/api/share" (found 2026-07-06, F15, during WS12 live verification) is
+// public because investor share links are the platform's one no-account
+// surface — the page at "/share/[token]" was already public, but the data
+// API it fetches client-side, "/api/share/[token]" (and its "/view" email
+// gate), was not, so every investor's browser fetch was 307-redirected to
+// /login and the share page never rendered. The route itself has no
+// CRON_SECRET-style gate because none is needed: a share link's own token
+// is the authorization, exactly like "/share" itself.
+const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/share", "/api/cron", "/investors", "/brand"];
 
 export function decideRoute(pathname: string, search: string, s: SessionInfo): RouteDecision {
   const isAdmin = s.roles.includes("ADMIN");
