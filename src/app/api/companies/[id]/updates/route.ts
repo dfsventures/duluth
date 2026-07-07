@@ -60,7 +60,7 @@ export async function POST(
     if (error) return error;
 
     const body = await request.json();
-    const { period, title, body: updateBody, status, metrics } = body;
+    const { period, title, body: updateBody, status, metrics, scheduledFor } = body;
 
     if (!period || typeof period !== "string") {
       return NextResponse.json(
@@ -86,6 +86,22 @@ export async function POST(
     const validStatuses = ["DRAFT", "SENT"];
     const updateStatus = status && validStatuses.includes(status) ? status : "DRAFT";
 
+    // Scheduling is only meaningful for drafts — publishing now supersedes it.
+    let scheduledForDate: Date | null = null;
+    if (scheduledFor !== undefined && scheduledFor !== null) {
+      if (updateStatus === "SENT") {
+        return NextResponse.json({ error: "Only drafts can be scheduled" }, { status: 400 });
+      }
+      const parsed = new Date(scheduledFor);
+      if (isNaN(parsed.getTime())) {
+        return NextResponse.json({ error: "Invalid scheduled date" }, { status: 400 });
+      }
+      if (parsed.getTime() <= Date.now()) {
+        return NextResponse.json({ error: "Scheduled date must be in the future" }, { status: 400 });
+      }
+      scheduledForDate = parsed;
+    }
+
     const update = await db.$transaction(async (tx: TransactionClient) => {
       const newUpdate = await tx.update.create({
         data: {
@@ -96,6 +112,7 @@ export async function POST(
           body: updateBody,
           status: updateStatus,
           sentAt: updateStatus === "SENT" ? new Date() : null,
+          scheduledFor: scheduledForDate,
         },
       });
 

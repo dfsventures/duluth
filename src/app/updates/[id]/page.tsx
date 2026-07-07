@@ -16,6 +16,9 @@ import {
   Pencil,
   X,
   Save,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -42,6 +45,7 @@ interface UpdateDetail {
   status: "DRAFT" | "SENT";
   body: string;
   sentAt: string | null;
+  scheduledFor: string | null;
   createdAt: string;
   updatedAt: string;
   companyId: string;
@@ -88,6 +92,9 @@ export default function UpdateDetailPage() {
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduling, setScheduling] = useState(false);
 
   // Edit mode state
   const [editing, setEditing] = useState(false);
@@ -223,6 +230,59 @@ export default function UpdateDetailPage() {
     }
   }
 
+  async function handleSchedule() {
+    if (!scheduleDate) return;
+    setScheduling(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/updates/${updateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledFor: new Date(`${scheduleDate}T00:00:00Z`).toISOString() }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to schedule update");
+      }
+      setMessage({ type: "success", text: "Draft scheduled." });
+      setShowSchedule(false);
+      setScheduleDate("");
+      await loadUpdate();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to schedule update.",
+      });
+    } finally {
+      setScheduling(false);
+    }
+  }
+
+  async function handleCancelSchedule() {
+    setScheduling(true);
+    setMessage(null);
+    try {
+      const res = await fetch(`/api/updates/${updateId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scheduledFor: null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed to cancel schedule");
+      }
+      setMessage({ type: "success", text: "Schedule canceled." });
+      await loadUpdate();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to cancel schedule.",
+      });
+    } finally {
+      setScheduling(false);
+    }
+  }
+
   async function handleAddComment(e: React.FormEvent) {
     e.preventDefault();
     if (!newComment.trim()) return;
@@ -298,7 +358,11 @@ export default function UpdateDetailPage() {
         action={
           <div className="flex items-center gap-3">
             <Badge variant={update.status === "SENT" ? "success" : "warning"}>
-              {update.status === "SENT" ? "Published" : "Draft"}
+              {update.status === "SENT"
+                ? "Published"
+                : update.scheduledFor
+                  ? `Scheduled · ${formatDate(update.scheduledFor)}`
+                  : "Draft"}
             </Badge>
             {!editing && (
               <>
@@ -333,6 +397,18 @@ export default function UpdateDetailPage() {
         </div>
       )}
 
+      {/* Scheduled banner (view mode only) */}
+      {!editing && update.status === "DRAFT" && update.scheduledFor && (
+        <div className="mb-3 flex items-center justify-between rounded-md border border-primary/20 bg-primary-50 px-4 py-3">
+          <p className="text-sm text-primary-600">
+            Scheduled to publish on {formatDate(update.scheduledFor)}.
+          </p>
+          <Button variant="secondary" size="sm" disabled={scheduling} onClick={handleCancelSchedule}>
+            {scheduling ? "Canceling..." : "Cancel schedule"}
+          </Button>
+        </div>
+      )}
+
       {/* Publish banner (view mode only) */}
       {!editing && update.status === "DRAFT" && (
         <div className="mb-6 flex items-center justify-between rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
@@ -354,6 +430,45 @@ export default function UpdateDetailPage() {
               <Globe className="mr-2 h-4 w-4" />
               Publish
             </Button>
+          )}
+        </div>
+      )}
+
+      {/* Schedule for later (collapsed by default; only offered when not already scheduled) */}
+      {!editing && update.status === "DRAFT" && !update.scheduledFor && (
+        <div className="mb-6">
+          <button
+            type="button"
+            onClick={() => setShowSchedule((v) => !v)}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <Calendar className="h-3.5 w-3.5" />
+            Schedule for later
+            {showSchedule ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+
+          {showSchedule && (
+            <div className="mt-3 flex flex-wrap items-end gap-3">
+              <Input
+                id="schedule-date"
+                label="Publish date"
+                type="date"
+                min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!scheduleDate || scheduling}
+                onClick={handleSchedule}
+              >
+                {scheduling ? "Scheduling..." : "Schedule"}
+              </Button>
+              <p className="w-full text-xs text-muted-foreground">
+                Publishes on the morning of the selected date (UTC). You can keep editing until then.
+              </p>
+            </div>
           )}
         </div>
       )}

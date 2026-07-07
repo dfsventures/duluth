@@ -13,6 +13,9 @@ import {
   CheckCircle2,
   Upload,
   Trash2,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -33,6 +36,7 @@ interface Update {
   period: string;
   status: "DRAFT" | "SENT";
   createdAt: string;
+  scheduledFor: string | null;
 }
 
 interface MetricDefinition {
@@ -60,6 +64,8 @@ export default function NewUpdatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
   const [message, setMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -142,7 +148,7 @@ export default function NewUpdatePage() {
     }
   }
 
-  async function handleSubmit(status: "DRAFT" | "SENT") {
+  async function handleSubmit(status: "DRAFT" | "SENT", scheduledForISO?: string) {
     if (!companyId) return;
 
     if (!period.trim() || !title.trim()) {
@@ -172,6 +178,7 @@ export default function NewUpdatePage() {
           body: body.trim(),
           status,
           metrics,
+          ...(scheduledForISO ? { scheduledFor: scheduledForISO } : {}),
         }),
       });
 
@@ -188,9 +195,13 @@ export default function NewUpdatePage() {
         text:
           status === "SENT"
             ? `Update published. The ${ORG_NAME} team has been notified.`
-            : "Update saved as draft.",
+            : scheduledForISO
+              ? `Draft scheduled to publish on ${new Date(scheduledForISO).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}.`
+              : "Update saved as draft.",
       });
       setConfirmPublish(false);
+      setShowSchedule(false);
+      setScheduleDate("");
 
       // Reset form
       setPeriod("");
@@ -283,7 +294,11 @@ export default function NewUpdatePage() {
                   </Link>
                   <div className="flex items-center gap-2 shrink-0 ml-3">
                     <Badge variant={update.status === "SENT" ? "success" : "warning"}>
-                      {update.status === "SENT" ? "Published" : "Draft"}
+                      {update.status === "SENT"
+                        ? "Published"
+                        : update.scheduledFor
+                          ? `Scheduled · ${formatDate(update.scheduledFor)}`
+                          : "Draft"}
                     </Badge>
                     {update.status === "DRAFT" && (
                       <button
@@ -447,6 +462,51 @@ export default function NewUpdatePage() {
               </>
             )}
           </div>
+
+          {/* Schedule for later (collapsed by default — pixel-identical flow for founders who ignore it) */}
+          {!confirmPublish && (
+            <div className="border-t pt-4">
+              <button
+                type="button"
+                onClick={() => setShowSchedule((v) => !v)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                Schedule for later
+                {showSchedule ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+              </button>
+
+              {showSchedule && (
+                <div className="mt-3 flex flex-wrap items-end gap-3">
+                  <Input
+                    id="schedule-date"
+                    label="Publish date"
+                    type="date"
+                    min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!scheduleDate || submitting}
+                    onClick={() =>
+                      handleSubmit("DRAFT", new Date(`${scheduleDate}T00:00:00Z`).toISOString())
+                    }
+                  >
+                    {submitting ? "Scheduling..." : "Schedule"}
+                  </Button>
+                  <p className="w-full text-xs text-muted-foreground">
+                    Publishes on the morning of the selected date (UTC). You can keep editing until then.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </AppShell>

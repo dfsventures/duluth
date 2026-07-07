@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
-import { sendUpdatePublishedEmail } from "@/lib/email";
+import { publishUpdate } from "@/lib/publish-update";
 
 export async function DELETE(
   _request: Request,
@@ -151,6 +151,8 @@ export async function PATCH(
     const body = await request.json();
     const data: Record<string, unknown> = {};
 
+    const justPublished = body.status === "SENT" && existing.status !== "SENT";
+
     if (body.title !== undefined) data.title = body.title;
     if (body.period !== undefined) data.period = body.period;
     if (body.body !== undefined) data.body = body.body;
@@ -158,19 +160,44 @@ export async function PATCH(
       if (!["DRAFT", "SENT"].includes(body.status)) {
         return NextResponse.json({ error: "Invalid status" }, { status: 400 });
       }
-      data.status = body.status;
-      if (body.status === "SENT" && existing.status !== "SENT") {
-        data.sentAt = new Date();
+      // When justPublished, publishUpdate() below sets status/sentAt (and
+      // clears scheduledFor) as part of the shared publish path — don't
+      // duplicate that write here.
+      if (!justPublished) {
+        data.status = body.status;
       }
     }
 
-    if (Object.keys(data).length === 0 && !body.metricValues) {
+    if (body.scheduledFor !== undefined) {
+      // Only drafts can be scheduled — publishing now supersedes any schedule.
+      if (existing.status === "SENT" || body.status === "SENT") {
+        return NextResponse.json({ error: "Only drafts can be scheduled" }, { status: 400 });
+      }
+      if (body.scheduledFor === null) {
+        data.scheduledFor = null;
+      } else {
+        const parsed = new Date(body.scheduledFor);
+        if (isNaN(parsed.getTime())) {
+          return NextResponse.json({ error: "Invalid scheduled date" }, { status: 400 });
+        }
+        if (parsed.getTime() <= Date.now()) {
+          return NextResponse.json({ error: "Scheduled date must be in the future" }, { status: 400 });
+        }
+        data.scheduledFor = parsed;
+      }
+    }
+
+    if (Object.keys(data).length === 0 && !body.metricValues && !justPublished) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
     // Update fields and optionally replace metric values in a transaction
-    const updated = await db.$transaction(async (tx) => {
-      const result = await tx.update.update({ where: { id }, data });
+    // (the publish flip itself happens after, via publishUpdate())
+    let updated = await db.$transaction(async (tx) => {
+      const result =
+        Object.keys(data).length > 0
+          ? await tx.update.update({ where: { id }, data })
+          : await tx.update.findUniqueOrThrow({ where: { id } });
 
       if (Array.isArray(body.metricValues) && body.metricValues.length > 0) {
         // Remove old metric values for this update and replace with new ones
@@ -188,37 +215,9 @@ export async function PATCH(
       return result;
     });
 
-    // Send email if this PATCH just published the update
-    const justPublished = body.status === "SENT" && existing.status !== "SENT";
     if (justPublished) {
-      try {
-        const full = await db.update.findUnique({
-          where: { id },
-          include: {
-            company: { select: { id: true, name: true } },
-            metricValues: {
-              include: { metricDefinition: { select: { name: true, unit: true } } },
-            },
-          },
-        });
-        if (full) {
-          await sendUpdatePublishedEmail({
-            companyName: full.company.name,
-            companyId: full.company.id,
-            updateId: full.id,
-            title: full.title,
-            period: full.period,
-            body: full.body,
-            metrics: full.metricValues.map((mv) => ({
-              name: mv.metricDefinition.name,
-              unit: mv.metricDefinition.unit,
-              value: Number(mv.value),
-            })),
-          });
-        }
-      } catch (emailErr) {
-        console.error("Failed to send publish email:", emailErr);
-      }
+      const published = await publishUpdate(id);
+      if (published) updated = published;
     }
 
     return NextResponse.json(updated);

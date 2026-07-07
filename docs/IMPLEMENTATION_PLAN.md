@@ -1254,7 +1254,7 @@ New file `src/app/api/cron/alerts/route.ts` — same shape as the reminders cron
 
 ---
 
-## WS11 — Scheduled Publishing (2 days)
+## WS11 — Scheduled Publishing (2 days) — SHIPPED 2026-07-06
 
 **Goal:** founders can schedule a draft to publish on a future date; a daily cron publishes due drafts and sends the existing team-notification email. Assumes Q3 = date-only. Everything is additive: founders who never touch the schedule control see an unchanged flow.
 

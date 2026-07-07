@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-07-06 (P0 + P1 shipped; P2 batch in progress — WS9, WS10 shipped)_
+_Last updated: 2026-07-06 (P0 + P1 shipped; P2 batch in progress — WS9, WS10, WS11 shipped)_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -42,6 +42,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 - **Metrics** — define custom metrics with units; record values over time; history table; line chart per metric
 - **Updates** — rich text editor, period + title, per-update metric values, file attachments
   - Save as Draft or Publish with inline confirmation
+  - **Scheduled Publishing** (shipped 2026-07-06, WS11) — an optional "Schedule for later" disclosure on a draft (collapsed by default) picks a future date; a daily cron (`/api/cron/scheduled-publish`, 9am UTC) publishes it that morning via the same shared publish path as manual publishing (team email included, best-effort). Date-only granularity by design (works on any Vercel plan, no Pro-only per-minute cron needed). Drafts show a "Scheduled · {date}" badge with a "Cancel schedule" control; editing a scheduled draft keeps the schedule, manually publishing early clears it. `sentAt` is always the actual publish instant, never the scheduled date, so the 3-day edit window and cadence detection are unaffected. The two existing publish paths (create-with-SENT, and PATCH-to-SENT) and the new cron now share one `publishUpdate()` helper (`src/lib/publish-update.ts`); the dead `POST /api/updates/[id]/send` endpoint (F13 — unreachable from any client, and it skipped the team email) was deleted rather than left as a drift trap.
   - Email sent to the admin team (`TEAM_EMAIL` env var) on publish (includes metrics table + full body)
   - Edit mode for drafts; view mode with HTML rendering for all
   - **Start from a template** — optional dropdown (only shown if admin-created templates exist) prefills the update body; asks for confirmation before overwriting existing draft text (shipped 2026-07-03, see Update Templates below)
@@ -125,12 +126,11 @@ Priorities run P0 (do first) through P3 (later).
 
 ### P2 — Leverage (next quarter)
 
-> **In progress (planned 2026-07-06):** the P2 batch is planned in detail as Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) — WS9 (Fork Configuration, **shipped 2026-07-06** — see Existing Features above) → WS10 (metric alerts, **shipped 2026-07-06** — see Existing Features above) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link). Comment Threading is deferred out of the batch (see its row below).
+> **In progress (planned 2026-07-06):** the P2 batch is planned in detail as Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) — WS9 (Fork Configuration, **shipped**) → WS10 (metric alerts, **shipped**) → WS11 (Scheduled Publishing, **shipped**) → WS12 (Bulk LP Link). All shipped items are folded into Existing Features above. Comment Threading is deferred out of the batch (see its row below).
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
 | **Bulk LP Report Link** | Admin creates a single link covering the full portfolio for a period. Before building: resolve the open metric-scoping question (finding F7 in `docs/IMPLEMENTATION_PLAN.md` — pinned-update links currently show investors the latest all-time value of every metric, which bulk links would inherit). | Current multi-company links require manual selection. Essential for LP meetings. |
-| **Scheduled Publishing** | Founders write updates ahead of time and schedule publish for a future date/time. | Removes last-minute quarter-end scramble. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) **Deferred from the Jul 2026 P2 batch** — it's the tier's only redesign of an existing shared surface (highest UX-regression risk), its notification half depends on the currently-broken Resend key, and @mentions need cross-company permission design first. Future sketch in Part 5 / WS13 of `docs/IMPLEMENTATION_PLAN.md`. | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
 
 ### P3 — Later / Opportunistic

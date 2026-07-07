@@ -135,6 +135,7 @@ model Update {
   body      String       @db.Text // rich text / markdown
   status    UpdateStatus @default(DRAFT)
   sentAt    DateTime?
+  scheduledFor DateTime? // null = not scheduled; date-only semantics (publishes at the next daily cron >= this instant)
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
