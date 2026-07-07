@@ -1,6 +1,6 @@
 # Molly — Product Roadmap
 
-_Last updated: 2026-07-06 (P0 + P1 shipped; P2 batch in progress — WS9, WS10, WS11 shipped)_
+_Last updated: 2026-07-06 (P0 + P1 shipped; P2 batch shipped — WS9, WS10, WS11, WS12)_
 
 This document is the source of truth for existing platform features and planned enhancements. Update it as features ship or priorities change.
 
@@ -76,6 +76,7 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 - **Metric Alerts** (admin dashboard, shipped 2026-07-06, WS10) — daily cron (`/api/cron/alerts`, 9:30am UTC) evaluates two plain-arithmetic rules per company: a metric changed ≥20% (either direction, env-tunable via `METRIC_ALERT_CHANGE_PCT`) between its two most recent recorded dates, or the last 3 published updates all shipped with zero metrics attached. Fired alerts dedupe atomically on a unique key (no repeat alerts for unchanged data) and surface in a dismissible "Metric Alerts" section on `/admin` (only rendered when alerts exist); dismissing writes an `ALERT_DISMISSED` audit row. Admin-only, no email in v1 — dashboard-only by design so it isn't gated on the Resend outage.
 - **Update Templates** (`/admin/templates`) — admin-created reusable skeletons (rich-text body + name/description) founders can start an update from; soft-delete via archive/unarchive; audit-logged (shipped 2026-07-03)
 - **Investor Links** — multi-company link creation; full view log; revoke
+  - **Bulk LP Report Link** (shipped 2026-07-06, WS12) — "Bulk select by period" in the admin builder: pick a From/To date range and one-click-select every published update in range across the whole portfolio, with a running "N updates across M companies" summary; an optional "Limit the metric summary to this period" checkbox (checked by default after a bulk select) adds an additive `metricScope` field (`ALL_TIME` default / `PERIOD`) on `ShareableLink` — `PERIOD` scopes the share page's per-company metric summary to the link's date range instead of showing each metric's latest all-time value. Every link created before this shipped keeps `ALL_TIME` and renders byte-identically; the founder link builder is unchanged.
 - **Updates** (`/admin/updates`) — cross-portfolio feed of every published update (drafts excluded), with search (title/company), a company filter, and three sorts (newest/oldest/company A–Z); each row links to the update detail. Fetch-once + client-side filtering, no pagination — reuses the existing `GET /api/admin/updates` endpoint that already powered the link builder (shipped 2026-07-03)
 - **Weekly Digest** (`/admin/digest`) — compose the internal team digest (6 fixed sections + todo list with assignees); AI-assisted drafting via Anthropic Claude from pasted meeting notes or Granola transcript links; sent by email to recipients configured in Settings
 - **Company Notes** — admin-only internal notes on each company, with revision history
@@ -126,11 +127,10 @@ Priorities run P0 (do first) through P3 (later).
 
 ### P2 — Leverage (next quarter)
 
-> **In progress (planned 2026-07-06):** the P2 batch is planned in detail as Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md) — WS9 (Fork Configuration, **shipped**) → WS10 (metric alerts, **shipped**) → WS11 (Scheduled Publishing, **shipped**) → WS12 (Bulk LP Link). All shipped items are folded into Existing Features above. Comment Threading is deferred out of the batch (see its row below).
+> **P2 batch shipped 2026-07-06.** WS9 (Fork Configuration) → WS10 (metric alerts) → WS11 (Scheduled Publishing) → WS12 (Bulk LP Link), planned in Part 5 of [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), all shipped and folded into "Existing Features" above. Comment Threading was deferred out of the batch (see its row below).
 
 | Feature | Description | Benefits |
 |---------|-------------|----------|
-| **Bulk LP Report Link** | Admin creates a single link covering the full portfolio for a period. Before building: resolve the open metric-scoping question (finding F7 in `docs/IMPLEMENTATION_PLAN.md` — pinned-update links currently show investors the latest all-time value of every metric, which bulk links would inherit). | Current multi-company links require manual selection. Essential for LP meetings. |
 | **Comment Threading** | Threaded replies, @mentions, resolution status. (Basic comment notifications already shipped.) **Deferred from the Jul 2026 P2 batch** — it's the tier's only redesign of an existing shared surface (highest UX-regression risk), its notification half depends on the currently-broken Resend key, and @mentions need cross-company permission design first. Future sketch in Part 5 / WS13 of `docs/IMPLEMENTATION_PLAN.md`. | Turns one-way updates into a coaching feedback loop. Demoted from top priority: templates improve update quality more per unit of effort. |
 
 ### P3 — Later / Opportunistic

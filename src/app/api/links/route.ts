@@ -36,10 +36,14 @@ export async function POST(request: Request) {
     if (error) return error;
 
     const body = await request.json();
-    const { label, updateIds, expiresAt } = body;
+    const { label, updateIds, expiresAt, metricScope } = body;
 
     if (!updateIds || !Array.isArray(updateIds) || updateIds.length === 0) {
       return NextResponse.json({ error: "At least one update is required" }, { status: 400 });
+    }
+
+    if (metricScope !== undefined && !["ALL_TIME", "PERIOD"].includes(metricScope)) {
+      return NextResponse.json({ error: "Invalid metricScope" }, { status: 400 });
     }
 
     // Fetch selected updates — must all be published (SENT)
@@ -85,6 +89,7 @@ export async function POST(request: Request) {
         periodStart,
         periodEnd,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
+        metricScope: metricScope ?? "ALL_TIME",
         companies: {
           create: companyIds.map((id: string) => ({ companyId: id })),
         },

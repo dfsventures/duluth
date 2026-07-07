@@ -80,6 +80,11 @@ export default function AdminLinksPage() {
   const [selectedUpdateIds, setSelectedUpdateIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
 
+  // Bulk LP report link (WS12): select-all-in-range + optional period-scoped metrics
+  const [bulkFrom, setBulkFrom] = useState("");
+  const [bulkTo, setBulkTo] = useState("");
+  const [limitMetricsToPeriod, setLimitMetricsToPeriod] = useState(false);
+
   const [expandedViews, setExpandedViews] = useState<string | null>(null);
   const [viewLogs, setViewLogs] = useState<Record<string, ViewLog[]>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -114,6 +119,28 @@ export default function AdminLinksPage() {
     );
   }
 
+  function selectAllInRange() {
+    if (!bulkFrom || !bulkTo) return;
+    const from = new Date(`${bulkFrom}T00:00:00Z`);
+    const to = new Date(`${bulkTo}T23:59:59.999Z`);
+    const inRange = publishedUpdates.filter((u) => {
+      if (!u.sentAt) return false;
+      const sentAt = new Date(u.sentAt);
+      return sentAt >= from && sentAt <= to;
+    });
+    setSelectedUpdateIds(inRange.map((u) => u.id));
+    setLimitMetricsToPeriod(true);
+  }
+
+  function clearSelection() {
+    setSelectedUpdateIds([]);
+    setLimitMetricsToPeriod(false);
+  }
+
+  const selectedCompanyCount = new Set(
+    publishedUpdates.filter((u) => selectedUpdateIds.includes(u.id)).map((u) => u.company.id)
+  ).size;
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (selectedUpdateIds.length === 0) {
@@ -135,6 +162,7 @@ export default function AdminLinksPage() {
           label: label.trim() || null,
           updateIds: selectedUpdateIds,
           expiresAt,
+          metricScope: limitMetricsToPeriod ? "PERIOD" : "ALL_TIME",
         }),
       });
 
@@ -146,6 +174,9 @@ export default function AdminLinksPage() {
       setLabel("");
       setExpiryDays(30);
       setSelectedUpdateIds([]);
+      setBulkFrom("");
+      setBulkTo("");
+      setLimitMetricsToPeriod(false);
       setShowForm(false);
       setMessage({ type: "success", text: "Investor link created." });
       await loadData();
@@ -253,6 +284,57 @@ export default function AdminLinksPage() {
                 placeholder="e.g. Q1 2025 LP Update"
               />
 
+              {publishedUpdates.length > 0 && (
+                <div className="space-y-2 rounded-md border border-dashed p-3">
+                  <label className="label">Bulk select by period (LP report link)</label>
+                  <div className="flex flex-wrap items-end gap-3">
+                    <Input
+                      id="bulk-from"
+                      label="From"
+                      type="date"
+                      value={bulkFrom}
+                      onChange={(e) => setBulkFrom(e.target.value)}
+                    />
+                    <Input
+                      id="bulk-to"
+                      label="To"
+                      type="date"
+                      value={bulkTo}
+                      onChange={(e) => setBulkTo(e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={!bulkFrom || !bulkTo}
+                      onClick={selectAllInRange}
+                    >
+                      Select all in range
+                    </Button>
+                    {selectedUpdateIds.length > 0 && (
+                      <Button type="button" variant="ghost" size="sm" onClick={clearSelection}>
+                        Clear selection
+                      </Button>
+                    )}
+                  </div>
+                  {selectedUpdateIds.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {selectedUpdateIds.length} update{selectedUpdateIds.length !== 1 ? "s" : ""} across{" "}
+                      {selectedCompanyCount} compan{selectedCompanyCount !== 1 ? "ies" : "y"}.
+                    </p>
+                  )}
+                  <label className="flex items-center gap-2 pt-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={limitMetricsToPeriod}
+                      onChange={(e) => setLimitMetricsToPeriod(e.target.checked)}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    Limit the metric summary to this period
+                  </label>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="label">Updates to include</label>
                 {publishedUpdates.length === 0 ? (
@@ -321,7 +403,18 @@ export default function AdminLinksPage() {
                 <Button type="submit" size="sm" disabled={creating || selectedUpdateIds.length === 0}>
                   {creating ? "Creating..." : "Create Link"}
                 </Button>
-                <Button type="button" variant="secondary" size="sm" onClick={() => { setShowForm(false); setSelectedUpdateIds([]); }}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setShowForm(false);
+                    setSelectedUpdateIds([]);
+                    setBulkFrom("");
+                    setBulkTo("");
+                    setLimitMetricsToPeriod(false);
+                  }}
+                >
                   Cancel
                 </Button>
               </div>

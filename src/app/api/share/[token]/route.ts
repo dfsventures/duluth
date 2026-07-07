@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 
+/** Normalize a period-end date to the last instant of that UTC day. */
+function endOfDayUTC(date: Date): Date {
+  const d = new Date(date);
+  d.setUTCHours(23, 59, 59, 999);
+  return d;
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ token: string }> }
@@ -71,8 +78,7 @@ export async function GET(
       });
     } else if (link.periodStart && link.periodEnd) {
       // Legacy link: filter by company + period range
-      const periodEndInclusive = new Date(link.periodEnd);
-      periodEndInclusive.setUTCHours(23, 59, 59, 999);
+      const periodEndInclusive = endOfDayUTC(link.periodEnd);
       updates = await db.update.findMany({
         where: {
           companyId: { in: companyIds },
@@ -87,10 +93,17 @@ export async function GET(
       updates = [];
     }
 
-    // Metric summary: latest value per metric across the relevant companies
-    const metricDateFilter = link.selectedUpdates.length > 0 || !link.periodStart || !link.periodEnd
-      ? {} // no date filter for explicit-update links or links missing a period — show all metrics
-      : { date: { gte: link.periodStart, lte: link.periodEnd } };
+    // Metric summary: latest value per metric across the relevant companies.
+    // metricScope "PERIOD" (opt-in, Q1 = B) scopes the summary to the link's
+    // period; the default "ALL_TIME" preserves pre-existing behavior exactly
+    // for every link created before this field existed.
+    const periodEndInclusiveForMetrics = link.periodEnd ? endOfDayUTC(link.periodEnd) : null;
+    const metricDateFilter =
+      link.metricScope === "PERIOD" && link.periodStart && periodEndInclusiveForMetrics
+        ? { date: { gte: link.periodStart, lte: periodEndInclusiveForMetrics } }
+        : link.selectedUpdates.length > 0 || !link.periodStart || !link.periodEnd
+          ? {} // unchanged pre-existing behavior for ALL_TIME links
+          : { date: { gte: link.periodStart, lte: link.periodEnd } };
 
     const metricValues = await db.metricValue.findMany({
       where: {

@@ -6,7 +6,7 @@ _Prepared: 2026-07-03 · Reviewed against `ROADMAP.md` (last updated 2026-07-02)
 >
 > **Part 4 (added later the same day)** contains the follow-up batch WS6–WS8, from a follow-up product review. **Shipped and verified on production 2026-07-03.**
 >
-> **Part 5 (added 2026-07-06)** is the plan for the next phase: the P2 tier of `ROADMAP.md` (WS9–WS12, with Comment Threading explicitly deferred). Planned, not yet implemented.
+> **Part 5 (added 2026-07-06)** is the plan for the P2 tier of `ROADMAP.md` (WS9–WS12, with Comment Threading explicitly deferred). **Shipped and verified on production 2026-07-06** — all four workstreams (WS9 → WS10 → WS11 → WS12) live on `molly.dfslab.net`.
 
 This document is the output of a full codebase-vs-roadmap review. It has five parts:
 
@@ -1366,7 +1366,7 @@ Per-update try/catch so one bad row can't block the rest. `vercel.json`: append 
 
 ---
 
-## WS12 — Bulk LP Report Link (0.5–1.5 days, **gated on Q1 + Q2**)
+## WS12 — Bulk LP Report Link (0.5–1.5 days, **gated on Q1 + Q2**) — SHIPPED 2026-07-06
 
 **Goal (assuming recommendations Q1 = B, Q2 = snapshot):** an admin opens the link builder, picks a date range, one-clicks "select all published updates in range," optionally scopes the metric summary to that period, and gets a single portfolio-wide link for an LP meeting. Effort: ~0.5 day if Q1 = A (no schema, builder convenience only); ~1.5 days for the full Q1 = B version below.
 

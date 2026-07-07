@@ -238,6 +238,7 @@ model ShareableLink {
   periodStart DateTime? // null for links using explicit update selection
   periodEnd   DateTime? // null for links using explicit update selection
   expiresAt   DateTime? // null = never expires
+  metricScope String    @default("ALL_TIME") // "ALL_TIME" | "PERIOD" — ALL_TIME = pre-existing behavior
   createdAt   DateTime  @default(now())
 
   createdBy       User                   @relation("CreatedLinks", fields: [createdById], references: [id])
