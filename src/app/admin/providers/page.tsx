@@ -180,7 +180,7 @@ export default function AdminProvidersPage() {
         title="Service Providers"
         description="Review submissions and manage the provider directory."
         action={
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Button variant="secondary" onClick={() => setShowAddCategory(true)}>
               <Plus className="h-4 w-4" />
               Add Category
@@ -414,8 +414,10 @@ function ProviderRow({
           {p.type === "FIRM" ? <Building2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
         </div>
 
-        {/* Info */}
-        <div className="flex-1 min-w-0">
+        {/* Info — min-w keeps the text column readable on phones: instead of
+            being squeezed to one word per line by the shrink-0 action cluster,
+            the cluster wraps onto its own row (the parent is flex-wrap) */}
+        <div className="min-w-48 flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="font-semibold text-foreground text-sm">{p.name}</span>
             <span className="text-xs text-muted-foreground">{p.category.name}</span>
