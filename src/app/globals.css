@@ -67,6 +67,18 @@
     outline-offset: 3px;
     border-radius: 1px;
   }
+
+  /* Text-entry surfaces manage their own focus affordance (caret, or the
+     .input ring) — the global accent outline double-decorates them and
+     flashes on click-focus in Chrome, which treats text fields and
+     contenteditable as :focus-visible during the pointer-focus transition.
+     Keyboard outlines on buttons/links are unaffected. */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [contenteditable]:focus-visible {
+    outline: none;
+  }
 }
 
 /* ── Component classes ────────────────────────────────────── */
