@@ -1986,7 +1986,7 @@ All `requireAdmin`, guard→validate→act pattern, `force-dynamic`, audit-logge
 
 ---
 
-## WS17 — Report authoring, mentions, snapshot publishing (2.5–3 days)
+## WS17 — Report authoring, mentions, snapshot publishing (2.5–3 days) — SHIPPED 2026-07-08/09 (Q6 headline is since-first-check, not blended, per the Part 7 decision banner — this diverges from the body text below, which predates that banner)
 
 **Goal:** admins write letter-style fund reports in the existing editor, mention portfolio companies via an explicit `@` picker, preview exactly what LPs will see, and publish — freezing valuation snapshots at that instant. Still admin-only; nothing is LP-visible until WS18.
 

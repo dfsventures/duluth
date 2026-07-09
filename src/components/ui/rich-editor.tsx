@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { AnyExtension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
@@ -44,6 +45,12 @@ interface RichEditorProps {
    * never pass this, so they render exactly as before.
    */
   variant?: "boxed" | "chromeless";
+  /**
+   * Additive extensions spread in after the built-ins (Part 7, JC9) — e.g.
+   * the fund-report editor's portfolio-company mention extension. Defaults
+   * to empty, so every existing caller is unaffected.
+   */
+  extraExtensions?: AnyExtension[];
 }
 
 export function RichEditor({
@@ -53,6 +60,7 @@ export function RichEditor({
   className,
   companyId,
   variant = "boxed",
+  extraExtensions = [],
 }: RichEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
@@ -72,6 +80,7 @@ export function RichEditor({
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Placeholder.configure({ placeholder }),
+      ...extraExtensions,
     ],
     content: value,
     onUpdate: ({ editor }) => {
@@ -368,6 +377,7 @@ export function RichEditor({
         .ProseMirror hr { border: none; border-top: 1px solid #E2E8F0; margin: 1rem 0; }
         .ProseMirror p { margin: 0.5rem 0; }
         .ProseMirror strong { font-weight: 600; }
+        .ProseMirror .portco-mention { color: #44688E; text-decoration: underline; text-decoration-color: #44688E; font-weight: 500; }
       `}</style>
     </div>
   );

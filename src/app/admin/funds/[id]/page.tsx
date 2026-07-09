@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft,
   Layers,
@@ -525,18 +526,37 @@ export default function AdminFundDetailPage() {
 
       {activeTab === "reports" && (
         <div>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold">Reports</h3>
+            <Link href={`/admin/reports?fundId=${fund.id}`} className="text-sm text-primary hover:underline">
+              Manage reports for this fund →
+            </Link>
+          </div>
           {fund.reports.length === 0 ? (
-            <EmptyState icon={<FileText className="h-8 w-8" />} title="No reports yet" description="Fund report authoring is coming in a later workstream." />
+            <EmptyState
+              icon={<FileText className="h-8 w-8" />}
+              title="No reports yet"
+              description="Create the fund's first LP report."
+              action={
+                <Link href={`/admin/reports?fundId=${fund.id}`}>
+                  <Button size="sm">New Report</Button>
+                </Link>
+              }
+            />
           ) : (
             <div className="space-y-2">
               {fund.reports.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-2.5">
+                <Link
+                  key={r.id}
+                  href={`/admin/reports/${r.id}`}
+                  className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-2.5 hover:border-primary/40 transition-colors"
+                >
                   <div>
                     <span className="text-sm font-medium">{r.title}</span>
                     {r.periodLabel && <span className="ml-2 text-xs text-muted-foreground">{r.periodLabel}</span>}
                   </div>
                   <Badge variant={r.status === "PUBLISHED" ? "success" : "warning"}>{r.status === "PUBLISHED" ? "Published" : "Draft"}</Badge>
-                </div>
+                </Link>
               ))}
             </div>
           )}
