@@ -2335,3 +2335,209 @@ WS20 is independent of Part 7's data work but **should land before WS17 builds t
 ## Part 8 roadmap bookkeeping
 
 `ROADMAP.md`: add the composer redesign as a planned P2 row pointing here, and annotate the P3 "Mobile-Optimized Update Flow" row — WS20 delivers the *visual/layout* half of a composer rethink; that P3 item's remaining scope narrows to mobile-specific *interaction* work (simplified metric entry). Fold into "Existing Features" when shipped.
+
+# Part 9 — Expired Set-Password Link Recovery (WS21–WS22)
+
+_Added 2026-07-09, from a real founder support email: "Please could you send another password link for Molly?… the previous one expired." A founder is waiting on this now — the batch is sized for same-day execution._
+
+**Interim manual rescue (works today, before anything ships):** an admin can open the founder's company detail page and re-add them as a member with their existing email. The invite flow's existing-user path (`src/app/api/companies/[id]/members/invite/route.ts:56-131`) regenerates the token for password-less accounts (flipping PENDING → APPROVED on the way) and re-emails a set-password link, reusing the existing membership. Undiscoverable, but functional — unblock the waiting founder this way while WS21 deploys.
+
+## Verified current behavior (all line refs checked 2026-07-09)
+
+- Setup tokens expire after 48h, generated at **three** sites: `api/admin/approvals/[id]/approve/route.ts:33-34` (`randomUUID`), `api/companies/[id]/members/invite/route.ts:8-13` (`randomBytes(32).hex`, used 4×), and `api/auth/signup/route.ts:46-52` (`randomBytes(32).hex`, in a stuck-state resend branch).
+- Expired token at `/set-password` → `api/auth/set-password/route.ts:45-50` returns a 400 with "contact support" prose, no machine-readable code, no recovery path. The page (`src/app/set-password/page.tsx`) renders the form for any token and only surfaces errors after a submit.
+- `/api/admin/approvals` lists only `{ status: PENDING, approvalToken: null }` (route.ts:12) — users who were approved but never set a password are invisible to admins.
+- Tokens are cleared **only** on set-password success (route.ts:56-64), which is also the **only** place `status` flips to APPROVED.
+- Rate limiting (`src/lib/rate-limit.ts`) already guards signup and set-password at 10/hr/IP; `/api/auth` and `/set-password` are both in `PUBLIC_PREFIXES` (`route-access.ts:34`) — a new endpoint under `/api/auth/**` needs **no** middleware change (no F15-family exposure; route-access tests already exercise `/api/auth/*`).
+- The member-added path (`invite/route.ts:167-182`) deliberately issues tokens to users who already **have** passwords (set-or-reset semantics) — so "has a token" does not imply "password-less".
+
+## Part 9 review findings
+
+**F19 — The approve endpoint never sets `status: "APPROVED"`; the signup route's existing stuck-state resend is unreachable for the approval path.** `approve/route.ts:36-41` writes only `{ approvalToken, tokenExpiresAt }`; APPROVED is set by set-password itself (line 60). Consequence: an admin-approved signup founder is `PENDING` + token, so the signup route's existing recovery branch (`signup/route.ts:38-64`, gated on `status === "APPROVED" && !passwordHash`) can never fire for them — they hit the 409 "account already exists" instead. That branch only ever rescues invite-created users. Any eligibility logic in this Part keyed on "status APPROVED" (as the initial task shape assumed) would repeat this bug; WS21.1's `canResendSetupLink()` predicate is written against the real state machine.
+
+**F20 — A user rejected after approval can still activate their account.** `reject/route.ts:32-36` sets only `{ status: "REJECTED" }` — it does not clear `approvalToken`/`tokenExpiresAt` — and set-password never checks `status` (any valid-token holder gets `status: "APPROVED"` written at line 60). So approve-then-reject leaves a live 48h activation link that silently un-rejects the user. Low severity (requires an admin to reverse a decision inside the window), fixed in WS21.4/21.5.
+
+**F21 — ROADMAP.md line 35 claims the opposite of what the code does.** "only users awaiting password setup appear in the queue" — the `approvalToken: null` filter means users awaiting password setup are *precisely the hidden population*; the queue shows users awaiting an admin decision. Annotated in ROADMAP now; WS22 makes a corrected version of the sentence true.
+
+Also noted (not contradictions, so no F numbers): the three generation sites use two token formats and hardcode "48 hours" in three email templates (`email.ts:148,300,328`) plus ROADMAP line 58; and the two expiry checks disagree on `tokenExpiresAt: null` (set-password:45 treats null as valid-forever, invite:99-100 and signup:40-41 treat it as expired). WS21.1 unifies all of this in one helper — null becomes **expired** (the stricter, majority semantics; safe now that a resend path exists).
+
+## Part 9 technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+- **JC10 — The self-serve resend is token-keyed, not email-keyed.** The founder reaches the resend button *from the expired link itself*, so `POST { token: <the expired token> }` covers the entire entry path with zero enumeration surface (you must already possess a previously-issued 256-bit token; expired tokens stay in the DB until replaced or consumed). No email input, no account-existence oracle to neutralize, and the fresh link goes only to the stored account address by construction. If the link itself is lost, admins have WS22 (and the invite-flow rescue). Reversal: the endpoint later also accepts `{ email }` with the same always-`{ ok: true }` response.
+- **JC11 — Resends reuse `sendApprovalEmail`.** Its copy ("Your account has been approved… Set your password to get started") reads correctly for both eligible populations (approved signups and invited-but-never-set users). Reversal: a dedicated template later, ~30 lines in `email.ts`.
+- **JC12 — Token format unifies on `randomBytes(32).hex`** (the majority format, 256-bit vs UUID's 122). Tokens are opaque strings looked up by `findUnique` — format changes are invisible to everything, including outstanding old-format tokens.
+- **JC13 — The set-password API's 400s gain an additive machine-readable `code` field** (`"TOKEN_EXPIRED" | "TOKEN_INVALID"`). The existing client reads only `data.error`, so this is invisible until the same WS's UI starts using it. The expired-vs-invalid distinction was already leaked by the two different prose messages, and tokens are unguessable, so this creates no new oracle.
+
+## Part 9 open product decisions (Q19–Q20)
+
+> **Both decided 2026-07-09 (user review): recommendations accepted as-is.**
+> **Q19 = B** (7-day TTL via the single `SETUP_TOKEN_TTL_DAYS` constant) · **Q20 = A** (WS22 admin queue ships in the same batch).
+> Batch = WS21 → WS22, ~1–1.25 days, unblocked. (Queued behind the in-flight WS18/WS19 LP batch — same working tree.)
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q19** | **Token lifetime.** 48h is demonstrably too short for founders across time zones with busy inboxes — this bug is the proof. | **A.** Keep 48h, rely on the new resend. **B.** 7 days. **C.** 14+ days. | **B — 7 days.** Long enough to survive a weekend + travel, short enough that a compromised inbox has a bounded window; with F20 fixed, rejection now kills the token immediately regardless of TTL. One constant (`SETUP_TOKEN_TTL_DAYS`) — trivially revisited. |
+| **Q20** | **Does the admin "Awaiting password setup" queue (WS22) ship in v1 or get deferred?** Self-serve (WS21) alone fixes the founder-side dead end. | **A.** Ship WS22 in the same batch. **B.** Defer; revisit if support emails continue. | **A.** It closes the admin blind spot F21 documents (today an admin literally cannot see who's stuck, which is why this arrived as a support email), it lets the team *proactively* push a fresh link — including to the founder waiting right now — and it's ~half a day on existing patterns (approve/reject sibling route, audit log, wrap-row cards). Severable without touching WS21 if you'd rather not. |
+
+---
+
+## WS21 — Self-serve link recovery + token lifecycle cleanup (~0.5–0.75 day)
+
+**Goal:** an expired set-password link becomes a one-click "email me a fresh link" instead of a dead end; token generation/expiry collapses to one helper with a 7-day TTL (Q19-B); the F20 rejection hole closes. No schema changes — existing `approvalToken`/`tokenExpiresAt` columns carry everything.
+
+### WS21.1 `src/lib/setup-token.ts` (new) + tests
+
+```ts
+import crypto from "crypto";
+
+/** Single source of truth for setup-link lifetime (Q19-B; was 48h hardcoded at 3 sites). */
+export const SETUP_TOKEN_TTL_DAYS = 7;
+
+export function generateSetupToken() {
+  return {
+    token: crypto.randomBytes(32).toString("hex"),
+    tokenExpiresAt: new Date(Date.now() + SETUP_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000),
+  };
+}
+
+/** Null expiry counts as EXPIRED (the stricter of the two semantics that existed; see Part 9 notes). */
+export function isSetupTokenExpired(u: { tokenExpiresAt: Date | null }): boolean {
+  return !u.tokenExpiresAt || u.tokenExpiresAt < new Date();
+}
+
+/**
+ * Who may be (re)issued a setup link. Written against the real state machine (F19):
+ * an admin-approved signup founder is PENDING + token; an invited user is APPROVED + token.
+ * PENDING with no token = still awaiting admin approval — must NOT be able to mint a link.
+ */
+export function canResendSetupLink(u: {
+  passwordHash: string | null;
+  status: string;
+  approvalToken: string | null;
+}): boolean {
+  if (u.passwordHash) return false;
+  if (u.status === "REJECTED") return false;
+  return u.status === "APPROVED" || u.approvalToken !== null;
+}
+```
+
+`src/lib/__tests__/setup-token.test.ts` (pure, no mocks — house style of route-access tests): TTL lands ~7 days out; null/past/future `tokenExpiresAt` → expired/expired/valid; `canResendSetupLink` truth table — the six states that matter: PENDING+token+no-hash ✓ (the F19 population), APPROVED+no-hash ✓ (invited), PENDING+no-token ✗ (approval bypass guard), REJECTED+token ✗ (F20), any state with `passwordHash` ✗, APPROVED+no-token+no-hash ✓ (defensive).
+
+### WS21.2 Replace the three generation sites with the helper
+
+- `api/admin/approvals/[id]/approve/route.ts`: drop the `randomUUID` import; lines 33-34 become `const { token: approvalToken, tokenExpiresAt } = generateSetupToken();` (JC12).
+- `api/companies/[id]/members/invite/route.ts`: delete the local `generateToken()` (lines 8-13), import `generateSetupToken` and use it at all four call sites (59, 107, 171, 195); replace the inline expiry check at 99-100 with `isSetupTokenExpired(existingUser)`.
+- `api/auth/signup/route.ts`: in the stuck-state branch, replace the inline generation (46-52) with the helper and the expiry check (40-41) with `isSetupTokenExpired`; fix the F19-unreachable gate — line 39's `existing.status === "APPROVED" && !existing.passwordHash` becomes `canResendSetupLink(existing)` (re-submitting the signup form now also rescues approved-but-PENDING founders, matching the branch's original intent).
+
+### WS21.3 Email copy: "48 hours" → interpolated TTL
+
+`src/lib/email.ts`: import `SETUP_TOKEN_TTL_DAYS`; the three hardcoded `<strong>48 hours</strong>` strings (lines 148, 300, 328) become `<strong>${SETUP_TOKEN_TTL_DAYS} days</strong>`. No other template mentions the lifetime (verified by grep).
+
+### WS21.4 `api/auth/set-password/route.ts` — error codes, REJECTED guard, status precheck
+
+- POST: not-found 400 (line 37-42) gains `code: "TOKEN_INVALID"`; expired 400 (45-50) uses `isSetupTokenExpired(user)` and gains `code: "TOKEN_EXPIRED"` (JC13). New guard between them: `if (user.status === "REJECTED")` → the same `TOKEN_INVALID` response (F20 half 1 — indistinguishable from nonexistence, like the F16 doc proxy).
+- New `GET` handler in the same file — the page's on-load precheck, so the expired card shows on arrival rather than after the founder has typed a password. Rate-limited on its own bucket (`checkRateLimit("token-status", clientIp(req), 30)` — separate from POST's bucket so page loads can't burn submit attempts). Reads `token` from `req.nextUrl.searchParams`. Returns `{ valid: false, code: "TOKEN_INVALID" }` for missing/unknown tokens and REJECTED users; `{ valid: false, code: "TOKEN_EXPIRED" }` when `isSetupTokenExpired`; else `{ valid: true }`. **Deliberately mirrors POST validity, not resend eligibility** — member-added reset links belong to users who already have a password (invite:167-182) and must still validate here.
+
+### WS21.5 `api/admin/approvals/[id]/reject/route.ts` — kill outstanding tokens
+
+Line 32-36's update data becomes `{ status: "REJECTED", approvalToken: null, tokenExpiresAt: null }` (F20 half 2 — belt to WS21.4's braces).
+
+### WS21.6 `api/auth/set-password/resend/route.ts` (new) — the self-serve endpoint
+
+Under `/api/auth` → already public (route-access.ts:34), no middleware change. Follows the signup route's structure and email-guard conventions:
+
+```ts
+export async function POST(req: NextRequest) {
+  if (!(await checkRateLimit("resend-setup", clientIp(req), 5))) {
+    return NextResponse.json({ error: "Too many attempts. Please try again in an hour." }, { status: 429 });
+  }
+  const { token } = await req.json();
+  if (typeof token === "string" && token.length > 0) {
+    const user = await db.user.findUnique({ where: { approvalToken: token } });
+    if (user && canResendSetupLink(user)) {
+      const { token: fresh, tokenExpiresAt } = generateSetupToken();
+      await db.user.update({ where: { id: user.id }, data: { approvalToken: fresh, tokenExpiresAt } });
+      try {
+        if (process.env.RESEND_API_KEY) {
+          const { sendApprovalEmail } = await import("@/lib/email");
+          await sendApprovalEmail(user.email, fresh); // stored address only — never client-supplied (JC10/JC11)
+        }
+      } catch (e) { console.error("Failed to resend setup email:", e); }
+    }
+  }
+  return NextResponse.json({ ok: true }); // always neutral — success is indistinguishable from no-op
+}
+```
+
+Limit is 5/hr/IP (it triggers outbound email — tighter than the 10/hr auth forms). Ineligible/unknown tokens fall through silently to the neutral response.
+
+### WS21.7 `src/app/set-password/page.tsx` — expired-state UI
+
+Add `tokenState: "checking" | "valid" | "expired" | "invalid"` (initial `"checking"` when a token is present; `"invalid"` when absent — absorbing the existing missing-token card) and `resendState: "idle" | "sending" | "sent"`.
+
+- On mount (`useEffect`, token present): `fetch("/api/auth/set-password?token=" + encodeURIComponent(token))` → set state from `valid`/`code`. While `"checking"`, render the existing centered "Loading..." (same as the Suspense fallback).
+- `"valid"` → the existing form, unchanged. If a POST still fails with `code === "TOKEN_EXPIRED"` (token aged out between load and submit), flip to `"expired"` rather than showing the dead-end message.
+- `"expired"` → a card in the existing invalid-card layout: heading "This link has expired", copy "Setup links expire after 7 days. We can email you a fresh one — it goes to the address this link was issued for.", a full-width Button "Email me a new link" → `POST /api/auth/set-password/resend { token }`; on ok, swap to a confirmation ("If this link was eligible for renewal, a fresh one is on its way — check your inbox.") with two muted links: "Back to login" and `mailto:` support (mirror the `/investors` page's `SUPPORT_EMAIL` usage). On 429, surface the error inline. `"sending"` disables the button.
+- `"invalid"` → the existing invalid-link card (no resend button — there is no token row to renew; copy keeps the support contact).
+
+### WS21.8 Bookkeeping
+
+- `ROADMAP.md`: line 29 gains the resend endpoint mention; line 58's "48hr expiry" → "7-day expiry"; fold the shipped feature into "Existing Features" (Authentication & Access) per convention.
+- Route-access regression: add `"/api/auth/set-password/resend"` to the public-path expectations in `route-access.test.ts` (one line, the F15-family ritual even though the prefix already covers it).
+
+**WS21 acceptance checklist**
+- [ ] `npm run typecheck && npm run lint && npm test` green; new `setup-token.test.ts` covers the six-state truth table
+- [ ] Live (production, post-deploy): visit `/set-password?token=garbage` → invalid card, no resend button; `curl -s -o /dev/null -w "%{http_code}" 'https://molly.dfslab.net/api/auth/set-password?token=x'` → 200 not 307 (F15-family check)
+- [ ] Live with a real expired token (the waiting founder's, or manufacture one by backdating `tokenExpiresAt` on a test user): page shows the expired card on load *without* typing a password; one click → fresh email arrives at the stored address; new link sets the password and auto-signs-in; the old token no longer works
+- [ ] Resend with an already-passworded user's stale token → neutral `{ ok: true }`, no email state change that grants anything (account unchanged)
+- [ ] Reject an approved-but-unset test user → their outstanding link immediately dies (both the cleared token and the status guard verified)
+- [ ] 6th resend POST from one IP inside an hour → 429
+- [ ] Approval/invite/member-added emails all say "7 days"; approve → set-password within the window still works end-to-end (token format change is invisible)
+
+**UX impact:** additive only — the happy path (valid token → form → dashboard) is byte-identical; the previously dead expired/invalid states gain recovery UI; three email templates change one phrase. **Cost impact:** none — existing Postgres rate-limit table, existing Resend templates, no new services. **Schema:** none.
+
+## WS22 — Admin "Awaiting password setup" queue (~0.5 day, Q20 gates)
+
+**Goal:** approved-but-never-set-password users become visible on `/admin/approvals`, with an audit-logged per-user resend — the team can answer "please send another link" emails (and pre-empt them) without the invite-flow workaround.
+
+### WS22.1 `GET api/admin/approvals/awaiting/route.ts` (new)
+
+`requireAdmin`; return users matching the Prisma mirror of `canResendSetupLink` ∧ no password:
+
+```ts
+where: {
+  passwordHash: null,
+  status: { not: "REJECTED" },
+  OR: [{ status: "APPROVED" }, { approvalToken: { not: null } }],
+},
+orderBy: { tokenExpiresAt: "asc" }, // most-expired first
+select: { id, email, name, status, tokenExpiresAt, createdAt, memberships: { include: { company: { select: { id, name } } } } }
+```
+
+Kept as a sibling endpoint rather than reshaping the existing `GET /api/admin/approvals` response (whose client reads `data.data ?? data` — additive beats clever here).
+
+### WS22.2 `POST api/admin/approvals/[id]/resend/route.ts` (new)
+
+Sibling of approve/reject, same skeleton: `requireAdmin`; 404 if no user; 400 `"User is not awaiting password setup"` if `!canResendSetupLink(user)`; else `generateSetupToken()` → update → `sendApprovalEmail` (RESEND_API_KEY-guarded try/catch, per siblings) → `logAdminAction(actor!, "SETUP_LINK_RESENT", { targetType: "User", targetId: id, metadata: { email: user.email } })` → return the updated user summary.
+
+### WS22.3 `/admin/approvals/page.tsx` — second section
+
+Below the pending list (and independent of its empty state): heading "Awaiting password setup" with a one-line description ("Approved accounts that haven't finished setup. Resend replaces the old link."). Loads WS22.1 alongside the existing fetch. Each row: wrap-row Card (Part 6 Pattern B, same as the pending cards) — name/email/company on the left; on the right a mono expiry note (`link expired {formatDate}` in `text-laterite` when past, else `expires {formatDate}` muted) and a per-row "Resend link" Button with the page's existing per-id `actionStates` pattern (loading → "Sent ✓" / inline error). Section hidden when the list is empty (the page's existing all-clear empty state stays authoritative).
+
+### WS22.4 Bookkeeping
+
+`ROADMAP.md`: replace the false line-35 claim (F21 annotation added 2026-07-09) with the now-true statement: pending queue = awaiting admin decision; a separate "Awaiting password setup" section lists approved-but-unset accounts with audit-logged resend. Fold into "Existing Features" (Admin Features → Approvals) when shipped.
+
+**WS22 acceptance checklist**
+- [ ] The waiting founder (and any other stuck accounts — expect ≥1 row on first deploy) appears in the new section with an expired-link marker
+- [ ] Resend → founder receives a fresh 7-day link; `SETUP_LINK_RESENT` row visible in `/admin/audit` with the email in metadata; button shows "Sent ✓"
+- [ ] Resend against a user who completed setup meanwhile → clean 400 surfaced inline, no email
+- [ ] A PENDING user with no token (awaiting approval) appears **only** in the pending queue, never in awaiting-setup; a REJECTED user appears in neither
+- [ ] Pending approve/reject flows byte-identical; section absent when empty; 375px: rows wrap per Pattern B, no horizontal scroll
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** additive admin-only section; founder/investor surfaces untouched. **Cost impact:** none. **Schema:** none.
+
+## Part 9 sequencing & effort
+
+WS21 → WS22, same batch, combined **~1–1.25 days**. WS21 is the founder-facing fix and ships first; WS22 (if Q20-A confirmed) lands the same day and is the fastest way to push the waiting founder a fresh link without any action on their side. Out of scope, noted for the roadmap conversation: there is **no forgot-password flow at all** for users who *have* passwords (verified — the only `/set-password` senders are approval/invite/member-added). Today's accidental substitute is the member-added reset link. A proper `/forgot-password` reuses ~80% of WS21's machinery (token helper, neutral resend, rate limit, expired-state UI) if/when it's prioritized.
