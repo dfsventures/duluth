@@ -82,7 +82,7 @@ function emailWrapper(content: string): string {
             <td style="padding: 20px 4px 0;">
               <p style="margin: 0; font-family: ${FONT_BODY}; font-size: 12px; color: ${C.muted}; line-height: 1.6;">
                 ${ORG_NAME} &mdash; Molly Portfolio Platform<br>
-                This is an automated message. Please do not reply directly to this email.
+                Questions? Just reply to this email &mdash; it reaches a human.
               </p>
             </td>
           </tr>
@@ -136,12 +136,14 @@ export async function sendApprovalEmail(email: string, token: string) {
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: email,
     subject: "You're approved — set up your Molly account",
     html: emailWrapper(`
       ${eyebrow("Access Approved")}
-      ${heading("Welcome to Molly")}
-      <p style="margin: 0 0 24px;">Your account has been approved by the ${ORG_NAME} team. Set your password to get started.</p>
+      ${heading("Welcome aboard")}
+      <p style="margin: 0 0 16px;">Good news &mdash; you're in. We're glad to have you on Molly.</p>
+      <p style="margin: 0 0 24px;">Set a password and you're ready to go: share updates, track your metrics, and keep your investors in the loop from one place.</p>
 
       <p>${primaryButton(link, "Set Your Password →")}</p>
 
@@ -157,12 +159,13 @@ export async function sendApprovalEmail(email: string, token: string) {
 export async function sendRejectionEmail(email: string) {
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: email,
     subject: "Update on your Molly access request",
     html: emailWrapper(`
       ${eyebrow("Access Request", C.laterite)}
       ${heading("Thanks for your interest")}
-      <p style="margin: 0 0 16px;">We reviewed your request for access to Molly and are unable to approve it at this time.</p>
+      <p style="margin: 0 0 16px;">Thank you for applying for access to Molly. We took a careful look, and we're not able to approve your request right now.</p>
       <p style="margin: 0 0 24px;">If you think this was a mistake or have questions, reach out to us directly at <a href="mailto:${SUPPORT_EMAIL}" style="color: ${C.sky}; text-decoration: none; font-weight: 500;">${SUPPORT_EMAIL}</a> and we'll be happy to help.</p>
       <p style="margin: 0; color: ${C.tide};">&mdash; The ${ORG_NAME} Team</p>
     `),
@@ -207,6 +210,7 @@ export async function sendUpdatePublishedEmail(opts: {
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: TEAM_EMAIL,
     subject: `[${opts.companyName}] ${opts.title} — ${opts.period}`,
     html: emailWrapper(`
@@ -233,6 +237,7 @@ export async function sendNewSignupNotification(founderEmail: string, founderNam
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: TEAM_EMAIL,
     subject: `New access request: ${founderName || founderEmail}`,
     html: emailWrapper(`
@@ -260,13 +265,14 @@ export async function sendUpdateReminderEmail(opts: {
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: opts.toEmail,
     subject: `Time for a ${opts.companyName} update`,
     html: emailWrapper(`
       ${eyebrow("Reminder")}
       ${heading("Time for an update")}
       <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${opts.founderName.split(" ")[0]}` : ""},</p>
-      <p style="margin: 0 0 24px;">It's been <strong>${opts.daysSinceLastUpdate} day${opts.daysSinceLastUpdate === 1 ? "" : "s"}</strong> since <strong>${opts.companyName}</strong> submitted an update. Keeping your portfolio page current helps ${ORG_NAME} support you better — and takes less time than you think.</p>
+      <p style="margin: 0 0 24px;">It's been <strong>${opts.daysSinceLastUpdate} day${opts.daysSinceLastUpdate === 1 ? "" : "s"}</strong> since your last <strong>${opts.companyName}</strong> update, and we'd love to hear how things are going. A few honest lines &mdash; wins, blockers, numbers &mdash; is plenty. It genuinely helps us help you.</p>
 
       ${primaryButton(dashboardLink, "Submit an Update →")}
 
@@ -288,12 +294,13 @@ export async function sendTeamInviteEmail(opts: {
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: opts.toEmail,
     subject: `${opts.companyName} invited you to join Molly`,
     html: emailWrapper(`
       ${eyebrow("Team Invite")}
-      ${heading("You've been invited")}
-      <p style="margin: 0 0 24px;">${opts.inviterName ?? "A teammate"} has invited you to join <strong>${opts.companyName}</strong> on Molly. Set up your account to get started.</p>
+      ${heading("Come join your team")}
+      <p style="margin: 0 0 24px;">${opts.inviterName ?? "A teammate"} invited you to join <strong>${opts.companyName}</strong> on Molly &mdash; the platform the team uses to share updates and stay close to ${ORG_NAME}. Set up your account and you're in.</p>
 
       <p>${primaryButton(link, "Set Up Your Account →")}</p>
 
@@ -316,12 +323,13 @@ export async function sendMemberAddedEmail(opts: {
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: opts.toEmail,
     subject: `You've been added to ${opts.companyName} on Molly`,
     html: emailWrapper(`
       ${eyebrow("Team Invite")}
-      ${heading("You've been added to a company")}
-      <p style="margin: 0 0 24px;">${opts.inviterName ?? "A teammate"} added you to <strong>${opts.companyName}</strong> on Molly. Set up your access to log in.</p>
+      ${heading("You're on the team")}
+      <p style="margin: 0 0 24px;">${opts.inviterName ?? "A teammate"} added you to <strong>${opts.companyName}</strong> on Molly. One quick step &mdash; set up your access &mdash; and everything's ready for you.</p>
 
       <p>${primaryButton(link, "Set Up Access →")}</p>
 
@@ -373,6 +381,7 @@ export async function sendWeeklyDigestEmail(opts: {
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: opts.toEmail,
     subject: opts.title,
     html: emailWrapper(`
@@ -409,12 +418,13 @@ export async function sendCommentNotificationEmail(opts: {
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: opts.toEmail,
     subject: `New comment on ${opts.companyName}: ${opts.updateTitle}`,
     html: emailWrapper(`
       ${eyebrow("New Comment")}
-      ${heading("New comment on your update")}
-      <p style="margin: 0 0 24px;"><strong>${opts.commenterName ?? "Someone"}</strong> commented on <strong>${opts.updateTitle}</strong> (${opts.updatePeriod}) for <strong>${opts.companyName}</strong>.</p>
+      ${heading(`Hi${opts.toName ? ` ${opts.toName.split(" ")[0]}` : ""}, you have a reply`)}
+      <p style="margin: 0 0 24px;"><strong>${opts.commenterName ?? "Someone"}</strong> left a comment on <strong>${opts.updateTitle}</strong> (${opts.updatePeriod}) for <strong>${opts.companyName}</strong>:</p>
 
       <div style="border-left: 3px solid ${C.sky}; background: ${C.paper}; padding: 14px 18px; margin: 0 0 28px;">
         <p style="margin: 0; font-size: 14px; line-height: 1.65; color: ${C.tide};">${snippet}</p>
@@ -433,6 +443,7 @@ export async function sendCommentNotificationEmail(opts: {
 export async function sendLpOtpEmail(email: string, code: string) {
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: email,
     subject: `Your ${ORG_NAME} access code`,
     html: emailWrapper(`
@@ -449,23 +460,26 @@ export async function sendLpOtpEmail(email: string, code: string) {
   assertSent(result, "lp-otp");
 }
 
-export async function sendLpReportPublishedEmail(opts: { email: string; fundName: string; reportTitle: string }) {
+export async function sendLpReportPublishedEmail(opts: { email: string; lpName?: string | null; fundName: string; reportTitle: string }) {
   const link = `${BASE_URL}/lp`;
+  const firstName = opts.lpName?.trim() ? opts.lpName.trim().split(" ")[0] : null;
 
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: opts.email,
-    subject: `A new report for ${opts.fundName} is available`,
+    subject: `Your ${opts.fundName} report is here`,
     html: emailWrapper(`
       ${eyebrow("Fund Report")}
-      ${heading("A new report is ready")}
-      <p style="margin: 0 0 24px;"><strong>${opts.reportTitle}</strong> for <strong>${opts.fundName}</strong> is now available in the ${ORG_NAME} LP portal.</p>
+      ${heading(firstName ? `Hi ${firstName},` : "Hello,")}
+      <p style="margin: 0 0 24px;">We've just published <strong>${opts.reportTitle}</strong> &mdash; our latest letter on how <strong>${opts.fundName}</strong> is doing, and a look at the portfolio companies behind the numbers. It's a short read.</p>
 
-      <p>${primaryButton(link, "View the Report →")}</p>
+      <p>${primaryButton(link, "Read the Report →")}</p>
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        Questions? Reach out to us at <a href="mailto:${SUPPORT_EMAIL}" style="color: ${C.sky}; text-decoration: none; font-weight: 500;">${SUPPORT_EMAIL}</a>.
+        If anything in there sparks a question &mdash; or a disagreement &mdash; just hit reply. We read everything.
       </p>
+      <p style="margin: 16px 0 0; color: ${C.tide};">&mdash; The ${ORG_NAME} team</p>
     `),
   });
   assertSent(result, "lp-report-published");
@@ -474,6 +488,7 @@ export async function sendLpReportPublishedEmail(opts: { email: string; fundName
 export async function sendTestEmail(toEmail: string) {
   const result = await resend.emails.send({
     from: FROM,
+    replyTo: SUPPORT_EMAIL,
     to: toEmail,
     subject: "Molly email configuration test",
     html: emailWrapper(`

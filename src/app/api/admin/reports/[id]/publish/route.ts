@@ -78,7 +78,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (notify) {
       const memberships = await db.lpFundMembership.findMany({
         where: { fundId: report.fundId },
-        include: { lp: { select: { email: true } } },
+        include: { lp: { select: { email: true, name: true } } },
       });
       let notified = 0;
       let failed = 0;
@@ -86,6 +86,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         try {
           await sendLpReportPublishedEmail({
             email: m.lp.email,
+            lpName: m.lp.name,
             fundName: report.fund.name,
             reportTitle: report.title,
           });
