@@ -2381,7 +2381,7 @@ Also noted (not contradictions, so no F numbers): the three generation sites use
 
 ---
 
-## WS21 — Self-serve link recovery + token lifecycle cleanup (~0.5–0.75 day)
+## WS21 — Self-serve link recovery + token lifecycle cleanup (~0.5–0.75 day) — SHIPPED 2026-07-09
 
 **Goal:** an expired set-password link becomes a one-click "email me a fresh link" instead of a dead end; token generation/expiry collapses to one helper with a 7-day TTL (Q19-B); the F20 rejection hole closes. No schema changes — existing `approvalToken`/`tokenExpiresAt` columns carry everything.
 

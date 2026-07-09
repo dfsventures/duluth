@@ -33,6 +33,10 @@ export async function POST(
       where: { id },
       data: {
         status: "REJECTED",
+        // F20: kill any outstanding setup token so a rejected user can't
+        // still activate the account via a live link.
+        approvalToken: null,
+        tokenExpiresAt: null,
       },
       select: {
         id: true,

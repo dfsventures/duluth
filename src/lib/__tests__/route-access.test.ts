@@ -17,6 +17,7 @@ describe("decideRoute — public routes", () => {
     "/signup",
     "/set-password",
     "/api/auth/session",
+    "/api/auth/set-password/resend",
     "/share/abc123",
     "/api/cron/reminders",
     "/investors",

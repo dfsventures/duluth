@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { ORG_NAME } from "@/lib/org";
+import { SETUP_TOKEN_TTL_DAYS } from "@/lib/setup-token";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
@@ -145,7 +146,7 @@ export async function sendApprovalEmail(email: string, token: string) {
       <p>${primaryButton(link, "Set Your Password →")}</p>
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        This link expires in <strong>48 hours</strong>. If you didn't apply for a Molly account, you can safely ignore this email.
+        This link expires in <strong>${SETUP_TOKEN_TTL_DAYS} days</strong>. If you didn't apply for a Molly account, you can safely ignore this email.
       </p>
       ${linkFallback(link)}
     `),
@@ -297,7 +298,7 @@ export async function sendTeamInviteEmail(opts: {
       <p>${primaryButton(link, "Set Up Your Account →")}</p>
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        This link expires in <strong>48 hours</strong>. If you weren't expecting this invitation, you can safely ignore this email.
+        This link expires in <strong>${SETUP_TOKEN_TTL_DAYS} days</strong>. If you weren't expecting this invitation, you can safely ignore this email.
       </p>
       ${linkFallback(link)}
     `),
@@ -325,7 +326,7 @@ export async function sendMemberAddedEmail(opts: {
       <p>${primaryButton(link, "Set Up Access →")}</p>
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        This link expires in <strong>48 hours</strong>. If you weren't expecting this, you can safely ignore this email.
+        This link expires in <strong>${SETUP_TOKEN_TTL_DAYS} days</strong>. If you weren't expecting this, you can safely ignore this email.
       </p>
       ${linkFallback(link)}
     `),

@@ -3,14 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { sendTeamInviteEmail, sendMemberAddedEmail } from "@/lib/email";
-import crypto from "crypto";
-
-function generateToken() {
-  return {
-    token: crypto.randomBytes(32).toString("hex"),
-    tokenExpiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
-  };
-}
+import { generateSetupToken, isSetupTokenExpired } from "@/lib/setup-token";
 
 export async function POST(
   request: Request,
@@ -56,7 +49,7 @@ export async function POST(
     if (existingUser) {
       // PENDING or REJECTED: admin is vouching for them — approve and invite
       if (existingUser.status === "PENDING" || existingUser.status === "REJECTED") {
-        const { token, tokenExpiresAt } = generateToken();
+        const { token, tokenExpiresAt } = generateSetupToken();
         await db.user.update({
           where: { id: existingUser.id },
           data: { status: "APPROVED", approvalToken: token, tokenExpiresAt },
@@ -96,15 +89,14 @@ export async function POST(
 
       if (!existingUser.passwordHash) {
         // Account exists but password was never set — generate/reuse setup token
-        const tokenExpired =
-          !existingUser.tokenExpiresAt || existingUser.tokenExpiresAt < new Date();
+        const tokenExpired = isSetupTokenExpired(existingUser);
 
         let activeToken: string;
 
         if (existingUser.approvalToken && !tokenExpired) {
           activeToken = existingUser.approvalToken;
         } else {
-          const { token, tokenExpiresAt } = generateToken();
+          const { token, tokenExpiresAt } = generateSetupToken();
           await db.user.update({
             where: { id: existingUser.id },
             data: { approvalToken: token, tokenExpiresAt },
@@ -168,7 +160,7 @@ export async function POST(
       // This lets recipients access the platform without needing to know their
       // existing credentials — clicking the link sets (or resets) their password
       // and signs them in automatically.
-      const { token: memberToken, tokenExpiresAt: memberTokenExpiresAt } = generateToken();
+      const { token: memberToken, tokenExpiresAt: memberTokenExpiresAt } = generateSetupToken();
       await db.user.update({
         where: { id: existingUser.id },
         data: { approvalToken: memberToken, tokenExpiresAt: memberTokenExpiresAt },
@@ -192,7 +184,7 @@ export async function POST(
     }
 
     // No user found — create account (APPROVED, no password yet) + membership
-    const { token, tokenExpiresAt } = generateToken();
+    const { token, tokenExpiresAt } = generateSetupToken();
 
     const newUser = await db.user.create({
       data: {

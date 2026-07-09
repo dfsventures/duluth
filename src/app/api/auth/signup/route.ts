@@ -1,8 +1,8 @@
 export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "crypto";
 import { db } from "@/lib/db";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { generateSetupToken, isSetupTokenExpired, canResendSetupLink } from "@/lib/setup-token";
 
 export async function POST(req: NextRequest) {
   try {
@@ -35,20 +35,23 @@ export async function POST(req: NextRequest) {
     });
 
     if (existing) {
-      // Stuck state: approved but never set a password — resend the setup email
-      if (existing.status === "APPROVED" && !existing.passwordHash) {
-        const tokenExpired =
-          !existing.tokenExpiresAt || existing.tokenExpiresAt < new Date();
+      // Stuck state: awaiting password setup — resend the setup email.
+      // Written against the real state machine (F19): an admin-approved
+      // signup founder is PENDING + token, not APPROVED, so this must key
+      // off canResendSetupLink() rather than status === "APPROVED" alone.
+      if (canResendSetupLink(existing)) {
+        const tokenExpired = isSetupTokenExpired(existing);
         let activeToken: string;
         if (existing.approvalToken && !tokenExpired) {
           activeToken = existing.approvalToken;
         } else {
-          activeToken = crypto.randomBytes(32).toString("hex");
+          const generated = generateSetupToken();
+          activeToken = generated.token;
           await db.user.update({
             where: { id: existing.id },
             data: {
-              approvalToken: activeToken,
-              tokenExpiresAt: new Date(Date.now() + 48 * 60 * 60 * 1000),
+              approvalToken: generated.token,
+              tokenExpiresAt: generated.tokenExpiresAt,
             },
           });
         }

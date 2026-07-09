@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
-import { randomUUID } from "crypto";
+import { generateSetupToken } from "@/lib/setup-token";
 
 export async function POST(
   _request: Request,
@@ -30,8 +30,7 @@ export async function POST(
       );
     }
 
-    const approvalToken = randomUUID();
-    const tokenExpiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+    const { token: approvalToken, tokenExpiresAt } = generateSetupToken();
 
     const updatedUser = await db.user.update({
       where: { id },
