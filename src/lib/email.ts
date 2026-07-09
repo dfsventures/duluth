@@ -429,6 +429,47 @@ export async function sendCommentNotificationEmail(opts: {
   assertSent(result, "comment-notification");
 }
 
+export async function sendLpOtpEmail(email: string, code: string) {
+  const result = await resend.emails.send({
+    from: FROM,
+    to: email,
+    subject: `Your ${ORG_NAME} access code`,
+    html: emailWrapper(`
+      ${eyebrow("LP Portal Access")}
+      ${heading("Your access code")}
+      <p style="margin: 0 0 24px;">Use this code to sign in to the ${ORG_NAME} fund report portal:</p>
+      <p style="margin: 0 0 24px; text-align: center;">
+        <span style="display: inline-block; padding: 16px 28px; background: ${C.paper}; border: 1px solid ${C.cocoa}; font-family: ${FONT_MONO}; font-size: 32px; font-weight: 600; letter-spacing: 0.15em; color: ${C.obsidian};">${code}</span>
+      </p>
+      <p style="margin: 0 0 8px; font-size: 13px; color: ${C.muted};">This code expires in 10 minutes.</p>
+      <p style="margin: 0; font-size: 13px; color: ${C.muted};">If you didn&rsquo;t request this, you can safely ignore this email.</p>
+    `),
+  });
+  assertSent(result, "lp-otp");
+}
+
+export async function sendLpReportPublishedEmail(opts: { email: string; fundName: string; reportTitle: string }) {
+  const link = `${BASE_URL}/lp`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    to: opts.email,
+    subject: `A new report for ${opts.fundName} is available`,
+    html: emailWrapper(`
+      ${eyebrow("Fund Report")}
+      ${heading("A new report is ready")}
+      <p style="margin: 0 0 24px;"><strong>${opts.reportTitle}</strong> for <strong>${opts.fundName}</strong> is now available in the ${ORG_NAME} LP portal.</p>
+
+      <p>${primaryButton(link, "View the Report →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
+        Questions? Reach out to us at <a href="mailto:${SUPPORT_EMAIL}" style="color: ${C.sky}; text-decoration: none; font-weight: 500;">${SUPPORT_EMAIL}</a>.
+      </p>
+    `),
+  });
+  assertSent(result, "lp-report-published");
+}
+
 export async function sendTestEmail(toEmail: string) {
   const result = await resend.emails.send({
     from: FROM,

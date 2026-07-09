@@ -23,8 +23,22 @@ describe("decideRoute — public routes", () => {
     "/brand/dfs-logo-primary.png",
     "/api/share/abc123",
     "/api/share/abc123/view",
+    "/lp",
+    "/lp/reports/abc123",
+    "/api/lp/auth/request",
+    "/api/lp/auth/verify",
+    "/api/lp/auth/logout",
   ])("allows %s logged out", (path) => {
     expect(decideRoute(path, "", loggedOut)).toEqual({ type: "next" });
+  });
+
+  // Part 7 (WS18) — the fifth member of the "sessionless client hits the
+  // auth middleware" family (/api/cron, /brand, /api/share, inline images).
+  // LPs never have a NextAuth session; the lp_session cookie checked in
+  // lib/lp-auth.ts is their real gate, not this middleware.
+  it("allows /lp and /api/lp with no session (LPs authenticate via lp_session, not NextAuth)", () => {
+    expect(decideRoute("/lp", "", loggedOut)).toEqual({ type: "next" });
+    expect(decideRoute("/api/lp/auth/request", "", loggedOut)).toEqual({ type: "next" });
   });
 
   // Found 2026-07-06 (F15), during WS12 live verification: the page at

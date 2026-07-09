@@ -128,4 +128,33 @@
   .badge-neutral {
     @apply badge bg-muted/50 border-border text-muted-foreground;
   }
+
+  /* Fund-report portfolio-company mentions (Part 7, WS17/WS18) — styles the
+     <span data-portco class="portco-mention"> markup rendered inside
+     ReportView's dangerouslySetInnerHTML body, on both the admin preview
+     and the LP report page. Matches the ProseMirror editor's own styling
+     in rich-editor.tsx so authoring and reading look the same. */
+  .report-body .portco-mention {
+    color: var(--color-accent);
+    text-decoration: underline;
+    text-decoration-color: var(--color-accent);
+    font-weight: 500;
+    cursor: pointer;
+  }
+}
+
+/* ── LP portal print stylesheet (Part 7, WS19, Q11) ──────────
+   The interim paper escape hatch for LPs who want the old PDF format:
+   the browser's Print-to-PDF does the rest. Scoped to `.lp-print-scope`
+   (src/app/lp/layout.tsx) so it never touches any other page. */
+@media print {
+  .lp-print-scope {
+    background: #ffffff !important;
+    color: #14140f !important;
+  }
+
+  .lp-print-scope .report-body .portco-mention {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
 }

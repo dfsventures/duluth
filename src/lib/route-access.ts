@@ -31,7 +31,14 @@ export type RouteDecision =
 // /login and the share page never rendered. The route itself has no
 // CRON_SECRET-style gate because none is needed: a share link's own token
 // is the authorization, exactly like "/share" itself.
-const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/share", "/api/cron", "/investors", "/brand"];
+//
+// "/lp" and "/api/lp" (Part 7, WS18) are the fifth member of this family —
+// LPs have no NextAuth session BY DESIGN (see JC4 in docs/IMPLEMENTATION_PLAN.md
+// Part 7): the real gate is the `lp_session` cookie checked in `lp-auth.ts`'s
+// getLp(), read directly by Server Components (JC5) or the three auth
+// mutation routes under /api/lp/auth. Per this same F15-family lesson, no
+// authenticated route may ever be created under a path starting with "/lp".
+const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/share", "/api/cron", "/investors", "/brand", "/lp", "/api/lp"];
 
 export function decideRoute(pathname: string, search: string, s: SessionInfo): RouteDecision {
   const isAdmin = s.roles.includes("ADMIN");
