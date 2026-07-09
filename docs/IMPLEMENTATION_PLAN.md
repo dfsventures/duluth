@@ -2496,7 +2496,7 @@ Add `tokenState: "checking" | "valid" | "expired" | "invalid"` (initial `"checki
 
 **UX impact:** additive only — the happy path (valid token → form → dashboard) is byte-identical; the previously dead expired/invalid states gain recovery UI; three email templates change one phrase. **Cost impact:** none — existing Postgres rate-limit table, existing Resend templates, no new services. **Schema:** none.
 
-## WS22 — Admin "Awaiting password setup" queue (~0.5 day, Q20 gates)
+## WS22 — Admin "Awaiting password setup" queue (~0.5 day, Q20 gates) — SHIPPED 2026-07-09
 
 **Goal:** approved-but-never-set-password users become visible on `/admin/approvals`, with an audit-logged per-user resend — the team can answer "please send another link" emails (and pre-empt them) without the invite-flow workaround.
 

@@ -9,6 +9,8 @@ import {
   AlertCircle,
   Inbox,
   UserPlus,
+  Clock,
+  Send,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -25,6 +27,16 @@ interface Approval {
   createdAt: string;
 }
 
+interface AwaitingUser {
+  id: string;
+  email: string;
+  name: string | null;
+  status: string;
+  tokenExpiresAt: string | null;
+  createdAt: string;
+  memberships: { company: { id: string; name: string } }[];
+}
+
 export default function ApprovalsPage() {
   const { data: session } = useSession();
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -34,8 +46,15 @@ export default function ApprovalsPage() {
     Record<string, { loading: boolean; result?: "approved" | "rejected"; error?: string }>
   >({});
 
+  const [awaitingUsers, setAwaitingUsers] = useState<AwaitingUser[]>([]);
+  const [awaitingLoading, setAwaitingLoading] = useState(true);
+  const [resendStates, setResendStates] = useState<
+    Record<string, { loading: boolean; result?: "sent"; error?: string }>
+  >({});
+
   useEffect(() => {
     loadApprovals();
+    loadAwaiting();
   }, []);
 
   async function loadApprovals() {
@@ -48,6 +67,45 @@ export default function ApprovalsPage() {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadAwaiting() {
+    try {
+      const res = await fetch("/api/admin/approvals/awaiting");
+      if (!res.ok) throw new Error("Failed to load awaiting-setup users");
+      const data = await res.json();
+      setAwaitingUsers(data.data ?? data ?? []);
+    } catch {
+      // Non-fatal — the pending queue above is the primary view; this
+      // section simply stays empty/hidden if the fetch fails.
+    } finally {
+      setAwaitingLoading(false);
+    }
+  }
+
+  async function handleResend(id: string) {
+    setResendStates((prev) => ({ ...prev, [id]: { loading: true } }));
+
+    try {
+      const res = await fetch(`/api/admin/approvals/${id}/resend`, {
+        method: "POST",
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "Failed to resend link");
+      }
+
+      setResendStates((prev) => ({ ...prev, [id]: { loading: false, result: "sent" } }));
+    } catch (err) {
+      setResendStates((prev) => ({
+        ...prev,
+        [id]: {
+          loading: false,
+          error: err instanceof Error ? err.message : "Failed to resend link",
+        },
+      }));
     }
   }
 
@@ -234,6 +292,70 @@ export default function ApprovalsPage() {
               description="You've reviewed all pending approvals in this session."
             />
           )}
+        </div>
+      )}
+
+      {/* Awaiting password setup — independent of the pending-queue empty
+          state above: approved-but-unset accounts are a separate population
+          (F21). Hidden entirely when empty. */}
+      {!awaitingLoading && awaitingUsers.length > 0 && (
+        <div className="mt-8 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              Awaiting password setup
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Approved accounts that haven&apos;t finished setup. Resend replaces the old link.
+            </p>
+          </div>
+          {awaitingUsers.map((u) => {
+            const state = resendStates[u.id];
+            const companyName = u.memberships?.[0]?.company?.name ?? null;
+            const expired = !u.tokenExpiresAt || new Date(u.tokenExpiresAt) < new Date();
+            return (
+              <Card key={u.id}>
+                <CardContent className="flex flex-wrap items-center gap-2 py-4">
+                  <div className="min-w-48 flex-1">
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
+                      <p className="font-medium">{u.name ?? u.email}</p>
+                    </div>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {u.email}
+                      {companyName && <> &middot; {companyName}</>}
+                    </p>
+                    <p
+                      className={`font-mono text-xs ${expired ? "text-laterite" : "text-muted-foreground"}`}
+                    >
+                      {u.tokenExpiresAt
+                        ? expired
+                          ? `link expired ${formatDate(u.tokenExpiresAt)}`
+                          : `expires ${formatDate(u.tokenExpiresAt)}`
+                        : "no active link"}
+                    </p>
+                    {state?.error && (
+                      <p className="mt-1 text-xs text-destructive">{state.error}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={state?.loading || state?.result === "sent"}
+                      onClick={() => handleResend(u.id)}
+                    >
+                      <Send className="mr-1 h-3.5 w-3.5" />
+                      {state?.loading
+                        ? "Sending..."
+                        : state?.result === "sent"
+                          ? "Sent ✓"
+                          : "Resend link"}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </AppShell>
