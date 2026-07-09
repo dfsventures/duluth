@@ -36,7 +36,24 @@ export default function AdminReportEditorPage() {
   const [notifyLps, setNotifyLps] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  async function handleDeleteDraft() {
+    if (!window.confirm("Delete this draft report? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/reports/${reportId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to delete draft.");
+      }
+      router.push("/admin/reports");
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to delete draft." });
+      setDeleting(false);
+    }
+  }
 
   const loadReport = useCallback(async () => {
     try {
@@ -205,6 +222,11 @@ export default function AdminReportEditorPage() {
         onPublishClick={isDraft ? () => setConfirmPublish(true) : handleUnpublish}
         publishDisabled={isDraft && !canPublish}
         publishing={isDraft ? publishing : unpublishing}
+        overflowItems={
+          isDraft
+            ? [{ label: deleting ? "Deleting..." : "Delete draft", onClick: handleDeleteDraft, disabled: deleting, danger: true }]
+            : undefined
+        }
       />
 
       {message && (

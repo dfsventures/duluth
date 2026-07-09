@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FileText, Plus, X } from "lucide-react";
+import { FileText, Plus, X, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,20 @@ function AdminReportsPageInner() {
   const [newPeriodLabel, setNewPeriodLabel] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleDeleteDraft(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm("Delete this draft report? This cannot be undone.")) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/reports/${id}`, { method: "DELETE" });
+      if (res.ok) setReports((prev) => prev.filter((r) => r.id !== id));
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -160,6 +174,16 @@ function AdminReportsPageInner() {
                   {r.publishedAt && <span>Published {formatDate(r.publishedAt)}</span>}
                 </div>
               </div>
+              {r.status === "DRAFT" && (
+                <button
+                  onClick={(e) => handleDeleteDraft(e, r.id)}
+                  disabled={deletingId === r.id}
+                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
+                  title="Delete draft"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </Link>
           ))}
         </div>
