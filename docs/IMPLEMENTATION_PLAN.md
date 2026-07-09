@@ -2095,7 +2095,7 @@ New file `src/components/report-view.tsx` — a server-renderable component used
 
 ---
 
-## WS18 — LP portal: OTP auth, library, report pages (3–3.5 days)
+## WS18 — LP portal: OTP auth, library, report pages (3–3.5 days) — SHIPPED 2026-07-09
 
 **Goal:** the LP-facing surface — email → OTP → 30-day session → library → report pages with hover cards — styled after www.dfs.vc. **Verify Resend works before starting** (ground rule 3).
 
@@ -2189,7 +2189,7 @@ New file `src/components/mention-cards.tsx` (client island mounted by `ReportVie
 
 ---
 
-## WS19 — Publish notification + polish (0.5–1 day; notification half gated on Q7)
+## WS19 — Publish notification + polish (0.5–1 day; notification half gated on Q7) — SHIPPED 2026-07-09
 
 1. **(Q7 = B, if confirmed)** Email template #12 `sendLpReportPublishedEmail({ email, fundName, reportTitle })` — "A new report for {fundName} is available", one button → `${BASE_URL}/lp`, support-contact line. Publish confirm (WS17.5) gains a "Notify this fund's LPs by email" checkbox (default off); the publish endpoint accepts `{ notify: boolean }` and fans out best-effort per LP (per-recipient try/catch, F12 lesson: one bad address never blocks the rest or the publish; result `{ notified, failed }` in the audit metadata).
 2. **(Q11) Print stylesheet** — in the LP layout, an `@media print` block: hide the top bar/footer/sign-out, white background, Obsidian-on-white text, mention underlines off, page margins. LPs print-to-PDF to recreate the old artifact.
