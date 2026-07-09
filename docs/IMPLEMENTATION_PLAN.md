@@ -7,6 +7,12 @@ _Prepared: 2026-07-03 · Reviewed against `ROADMAP.md` (last updated 2026-07-02)
 > **Part 4 (added later the same day)** contains the follow-up batch WS6–WS8, from a follow-up product review. **Shipped and verified on production 2026-07-03.**
 >
 > **Part 5 (added 2026-07-06)** is the plan for the P2 tier of `ROADMAP.md` (WS9–WS12, with Comment Threading explicitly deferred). **Shipped and verified on production 2026-07-06** — all four workstreams (WS9 → WS10 → WS11 → WS12) live on `molly.dfslab.net`.
+>
+> **Part 6 (added 2026-07-07)** is the mobile-width layout hardening batch (WS14–WS15). **Shipped and verified 2026-07-07.**
+>
+> **Part 7 (added 2026-07-08)** plans the **LP Fund-Report Portal** (WS16–WS19) — funds/deals/LP management, snapshot-frozen fund reports with portfolio-company hover cards, and an OTP-authenticated LP surface styled after www.dfs.vc. **Planned, not yet started.** Open decisions Q6–Q14 await user answers (recommendations attached).
+>
+> **Part 8 (added 2026-07-08)** plans the **Medium-style draft composer** (WS20) — chromeless, distraction-free draft pages for updates (and the Part 7 report editor), per a user-supplied Medium screenshot. **Planned, not yet started**; decisions Q15–Q18 open, and the screenshot itself still needs to be checked against the design-target list (it did not reach the planner).
 
 This document is the output of a full codebase-vs-roadmap review. It has five parts:
 
@@ -1662,3 +1668,652 @@ WS14 → WS15, independent commits. No schema pushes, no env changes, no product
 `ROADMAP.md` updated alongside this plan: a **Mobile-Width Layout Hardening** row added to P2 (pointing here), and the P3 **Mobile-Optimized Update Flow** row annotated to reconcile the two — that item is a founder-flow *interaction redesign* (simplified metric entry, mobile-first composer); this Part is app-wide *layout correctness* at phone widths and neither replaces nor depends on it.
 
 **Done (2026-07-07):** WS14 and WS15 both shipped same-day; the P2 row was folded into "Existing Features" → Design & Branding in `ROADMAP.md`, and the P3 Mobile-Optimized Update Flow annotation was updated from "planned" to "shipped" to reflect that layout correctness is now live.
+
+---
+
+# Part 7 — LP Fund-Report Portal (WS16–WS19)
+
+_Added 2026-07-08. The largest feature since the platform was built: a web-native replacement for DFS Lab's twice-yearly PDF fund reports to LPs. Same hard constraints as Parts 1–6: **no new cost lines** (existing Vercel/Neon/S3/Resend/Anthropic + free tooling), **no UX regressions** (everything here is a new surface — founders, admins, and investor-link recipients see nothing change until they opt in), **additive-only schema changes** (all new tables; two back-relation fields on existing models, which add no DB columns)._
+
+**Every infrastructure claim below was re-verified against the working tree on 2026-07-08**, and the source spreadsheet was re-parsed from scratch (openpyxl) rather than trusting the briefing — which turned out to matter; see F17.
+
+## What this feature is
+
+DFS Lab runs multiple funds/vehicles (FUND1–3, FUND4, FUND5, CAF1, plus a MISC bucket of one-off SPVs). Twice a year each fund's LPs get a letter-style report narrating fund performance and highlighting portfolio companies. Today that's a PDF; this makes it web pages in Molly:
+
+1. **One page per fund report** — letter-style prose; portfolio companies mentioned in the text are highlighted, and hovering (tapping, on mobile) a company name shows a card with the markup on its valuation vs. when DFS invested.
+2. **LP access** — an LP enters their email at `/lp`, receives a one-time code, verifies, and lands on a library listing every published report across all funds they're in. Sessions last ~30 days.
+3. **Aesthetic** — the LP surface takes its look from www.dfs.vc (the public site), not Molly's app chrome.
+4. **Admin side** — manage LPs, funds, deals/valuations; author reports in the existing TipTap editor with an explicit company-mention picker; publish.
+
+### Decisions already made by the user (2026-07-08) — baked in throughout
+
+| Decision | How the plan implements it |
+|---|---|
+| **Hover markup numbers are frozen at publication** | `FundReportMention.snapshot` (Json) is computed from `Deal` rows and written at publish time; LP pages read only the snapshot. Draft previews compute live; the next report re-freezes fresh numbers. |
+| **Molly is the source of truth after a one-time import** | WS16's importer is a run-once script; all ongoing edits happen through admin CRUD on funds/deals/valuations. No recurring upload workflow. |
+| **Explicit mention picker, not name auto-detection** | `@tiptap/extension-mention` in the report editor; typing `@` opens a picker scoped to the fund's portfolio companies. |
+| **LP sessions last ~30 days** | `LpSession.expiresAt = verify time + 30 days`, fixed (no sliding renewal — simplest honest implementation; sliding is an additive change later). |
+
+## Part 7 ground rules (carry-over + additions)
+
+All Part 2/Part 5 ground rules apply (additive `db push` before code, per the `vercel env pull --environment=production` procedure; match code style; `export const dynamic = "force-dynamic"` on route files; never change existing response shapes; `npm run typecheck && npm run lint && npm test` before every push; one workstream per commit-and-verify cycle on the live deploy). Additions specific to this feature:
+
+1. **CONFIDENTIALITY — the repo is public (MIT, intentionally).** Valuation data, LP names/emails, and the tracker spreadsheet must **never** enter the repo. Concretely:
+   - The importer is code-only: it takes the xlsx path as a CLI argument pointing **outside the repo** (`~/Downloads/...`). No fixtures, no seed files, no committed JSON dumps, no sample rows with real numbers in tests or docs — unit tests use synthetic data only.
+   - Add `*.xlsx` to `.gitignore` (defensive; the file should never be inside the tree anyway — verified `.gitignore` currently has no such guard).
+   - Importer dry-run output prints real valuations to the terminal — never paste it into commits, PR bodies, or issues.
+   - No real LP emails or fund numbers in acceptance-testing screenshots either.
+2. **The LP surface is a sessionless-client family.** This codebase has had **four** bugs from forgetting that middleware gates everything without a NextAuth session (`/api/cron` F1-adjacent, `/brand`, `/api/share` F15, inline images F16). Every LP page and LP API route must be in `PUBLIC_PREFIXES` with its **own** auth layer (the LP session cookie), and WS18 adds regression tests for each — plus a design countermeasure: LP pages are **Server Components that read the DB directly**, so the read path has no client-side API fetches to forget to public-prefix at all. The only client→API calls in the whole LP surface are the three auth endpoints.
+3. **Resend must be verified working before WS18 ships** (key rotated 2026-07-06 per `ROADMAP.md`/memory; re-confirm via `/admin/settings` → Send Test Email). WS16–WS17 don't touch email.
+4. **New free tooling used** (allowed — free, MIT): `@tiptap/extension-mention@^3` (runtime dep, pairs with the installed TipTap 3.19), and `xlsx` + `tsx` as devDependencies for the one-time importer. No new services, no new cost lines.
+
+## Part 7 review findings
+
+Continuing the F-numbering (Part 5/6 ended at F16):
+
+**F17 — The briefing's spreadsheet parse was wrong in ways that would have corrupted the import (HIGH for the importer, found by re-parsing the file 2026-07-08).**
+The tracker (`DFS Lab Investment Tracker [External-Confidential].xlsx`, sheets `Deals` + `IRR Calc`) does hold ~50 companies across 7 vehicles as described, but four specifics in the briefing don't survive contact with the file:
+
+1. **There are no canonical FUND5 or CAF1 blocks in "IRR Calc".** Row 2 block headers are: FUND1 (col B), FUND2 (P), FUND3 (AD), `FUND1 + FUND2 + FUND3` (AR, aggregate), ALL (BF, aggregate), FUND4 (BU), CUSTOM (CR, aggregate), MISC (DK), `3 YRS+` (DZ, aggregate). FUND5's 2 deals and CAF1's 4 deals exist **only inside the ALL aggregate**. Worse, the standalone FUND4 block is **stale** — 12 deals vs. 19 in ALL (missing all seven 2025–26 FUND4 deals: Northwind ×2, Contoso, Fabrikam, Globex, Initech, and one Umbrella tranche). The briefing's importer strategy ("read only the canonical vehicle blocks") would have silently dropped 13 deals.
+2. **The "Deals" sheet is not a derivable summary — it is the best import source in the file.** Rows 16–91 are a clean flat deal table (header row 15: `Company / Vehicle / Investment / Date / Country / Amount / Instrument / Valuation-Cap(post) / Current Valuation / Markups / Implied Value / Notes` in cols C–N): **76 deals, 50 unique companies, all 7 vehicles, zero malformed cells, plus a Notes column** ("Includes $50m in dilution", "Sufficient Capital", …) that exists nowhere else. Verified: its 76 (company, vehicle, type, date, amount) keys **exactly equal** the IRR-Calc ALL block after excluding ALL's 12 leading negative-cashflow helper rows (IRR plumbing that duplicates MISC deals as dated outflows). The importer reads the Deals sheet, full stop.
+3. **The IRR-Calc ALL block is partially corrupted and must not be the source.** Eleven of its current-valuation cells (BN67–BN81 region) are number-formatted as dates; openpyxl surfaces them as `#VALUE!`/`datetime.time` garbage. The same deals are numerically clean in the Deals sheet.
+4. **The per-deal "as-of date" column is `=TODAY()`** — every cell reads as the file-open date (2026-07-08). It is not a stored data point and must not be imported as a valuation date; the importer stamps `valuationAsOf` with the import run date instead.
+
+Also material for schema/UI design, confirmed from the flat table: follow-ons are widespread — 30 of 76 rows are `Follow-On` (note the hyphen; the briefing wrote "Follow On"), across far more companies than the briefing's "Widgetco, Bluewave, Greenfield at least". Two companies (Northstar, Southgate) each have **two `Initial` rows** in the same vehicle (same amount/cap, different 2024 dates) — so no uniqueness constraint on (company, fund, type) is possible, and the importer should surface such near-duplicates in its dry-run report for a human eyeball rather than dedupe them. Instrument strings are free text with typos (`Prefered Shares` alongside `Preferred Shares`, plus `Secondary`, `Modified YC SAFE (KEN)`, `Priced Round`) — store as free text, don't enumerate. The Deals sheet also carries per-fund metadata worth importing once: vehicle group labels (row 3: "African Multi-Asset Cohort Funds" over FUND1–3, "Blockchain Fund" over FUND4, "2026 Vintage" over FUND5/CAF1, "Single SPVs" over MISC), First Deal Date (row 5), Deployed (row 6), and AUM (row 7) per vehicle column (row 4, cols B–H; ignore TOTAL and the aggregate columns I–L). Derived columns (Markups, Implied Value, MOIC/TVPI/IRR) are **not** imported — Molly computes multiples from stored valuations.
+
+**F18 — ROADMAP.md's P3 "Portfolio Export / LP Report PDF" row overlaps this feature (docs drift, annotate now).**
+That row promises "multi-company polished PDF for LP reporting." This portal is the deliberate successor to the PDF workflow — the row must be annotated so nobody builds a parallel PDF pipeline; the LP-facing print stylesheet (WS19, decision Q11) is the interim escape hatch for LPs who want paper. Annotated in `ROADMAP.md` alongside this plan.
+
+**Infrastructure verification (all confirmed in the working tree 2026-07-08):** `src/lib/email.ts` has exactly 10 `send*` templates — the OTP email becomes #11. `src/lib/rate-limit.ts` exists as described (`checkRateLimit(bucket, identifier, limit)`, 1-hour fixed windows, **fails open** on DB errors — fine for its current auth buckets, but OTP verification needs a fail-closed layer, so WS18 caps attempts on the OTP row itself). `PUBLIC_PREFIXES` in `src/lib/route-access.ts:34` currently lists 10 prefixes; `/lp` + `/api/lp` will be #11–12. `ShareableLink` tokens use `crypto.randomBytes(24).toString("hex")` (`api/links/route.ts:82`) — the LP session token reuses the pattern at 32 bytes. TipTap is `^3.19.0` (8 packages); `@tiptap/extension-mention` is **not installed** (new free dep, noted in ground rule 4); `RichEditor` (`src/components/ui/rich-editor.tsx`) already has the external-value sync fix and takes no extensions prop — WS17 adds one additively. Three daily crons exist (`vercel.json`); **this feature needs zero crons** (OTP/session expiry is enforced at read time; stale-row cleanup piggybacks opportunistically, same trick as `rate-limit.ts:24`). Route namespaces `/lp`, `/admin/funds`, `/admin/lps`, `/admin/reports` are all free (checked `src/app/`). `scripts/` exists (raw SQL precedent) — the importer lives there. `Company.aliases String[]` exists and is used for import-time company matching. The dfs.vc aesthetic was studied from the local `~/GitHub/dfsweb` source + the brand skill (`~/.claude/skills/dfs-brand-style`), since the live site 403s automated fetches; the app already loads all three brand fonts globally in `src/app/layout.tsx`, so the LP surface needs no font work. One briefing claim I could not independently verify without pulling prod credentials: that Contoso and Lantern already exist as Molly `Company` rows — the import plan treats matches as suggestions regardless, so nothing depends on it.
+
+## Part 7 technical judgment calls (made here, flagged per protocol — each with a cheap reversal)
+
+- **JC4 — LP auth is a separate opaque-token cookie, NOT a NextAuth audience.** NextAuth's JWT carries `roles`/`status` that the middleware (`route-access.ts`) and `auth-guard.ts` interpret for founder/admin gating; grafting a fourth audience onto it risks the exact security surface WS2 exists to protect, and NextAuth's middleware runs on the edge where Prisma can't go anyway. Instead: `LpSession` table (random 32-byte hex token, 30-day expiry, revocable by row deletion), `lp_session` httpOnly/secure/sameSite=lax cookie, checked in pages/routes via `src/lib/lp-auth.ts` — Postgres-backed, zero new deps, same philosophy as the ShareableLink token and the Postgres rate limiter. Reversal: the helper is one function; swapping its internals for anything else later touches no callers.
+- **JC5 — LP pages are Server Components reading the DB directly** (modeled on `admin/settings/page.tsx` / `admin/audit/page.tsx`), not client pages fetching APIs. This is the structural fix for the four-bug F15 family (ground rule 2): the read path can't forget a public prefix it doesn't have. Only the three auth mutations (`request`, `verify`, `logout`) are client-called APIs. Reversal: standard Next.js either way.
+- **JC6 — the mention picker is scoped to portfolio companies with deals in the report's fund.** Mentioning a company the fund never invested in would render a hover card with no numbers — nonsense in an LP report. If a report ever needs to name a non-fund company, the author just types the name without mentioning it. Reversal: delete one `where` clause.
+- **JC7 — anti-enumeration on OTP request.** `POST /api/lp/auth/request` returns the same generic 200 whether or not the email belongs to an LP (LP lists are confidential; the repo — and thus the endpoint's existence — is public). Failure to send (Resend down) is logged but still returns the generic 200. Reversal: one branch.
+- **JC8 — importer deps as devDependencies** (`xlsx` for parsing, `tsx` for running TS scripts) rather than a Python sidecar: one language, one script, reviewable in the repo, useful to forks importing their own trackers. Reversal: `npm remove`.
+- **JC9 — `RichEditor` gains one optional prop** (`extraExtensions?: AnyExtension[]`, default `[]`, spread into the extensions array) instead of a forked editor component. Founders' editor is byte-identical when the prop is absent; the report editor passes the configured Mention extension. Reversal: revert one prop.
+
+## Part 7 open product decisions (Q6–Q14 — answer before the gated workstream ships)
+
+> **All decided 2026-07-08 (user review). Two answers differ from the recommendations:**
+> **Q6 = since-first-check headline** (not blended): the hover card leads with the multiple from the earliest deal's entry valuation to the current valuation, e.g. "4.6x since first check (Oct 2020)", with the per-deal breakdown beneath. Blended math is not shown.
+> **Q7 = B** (opt-in notify checkbox) · **Q8 = start fresh** · **Q9 = `/lp`** · **Q10 = edit-in-place + session revoke** · **Q11 = print stylesheet** · **Q12 = A** (MISC stays one fund) · **Q13 = A** (unpublish-to-edit, republish re-freezes) · **Q14 = exact-match auto-link only**.
+> **WS17.2 hover-card detail flag = FULL detail** (differs from the plan's multiples-first conservatism): cards show DFS check sizes, multiples, AND entry → current company valuations in dollars (e.g. "$4M → $18.5M"). LPs see everything the spreadsheet's Deals sheet knows about a position.
+> Nothing remains gated; WS16 can start.
+
+Per protocol these are the user's calls; recommendations attached. **Q6, Q12–Q14 gate WS16/17 details; Q7–Q11 gate WS18/19.** None block starting WS16 if the recommendations are acceptable defaults.
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q6** | **Follow-on presentation in the hover card.** 22+ companies have multiple deals (30 of 76 rows are follow-ons; Northstar/Southgate even have two Initials each). What does the card headline say? | **A.** Blended multiple headline (Σ implied value ÷ Σ invested across the fund's deals in that company), with a small per-deal breakdown beneath. **B.** Per-deal rows only. **C.** Initial-deal multiple only. | **A.** The headline answers the LP's real question ("how is our money in this company doing") in one number; the per-deal rows keep it honest. C misleads whenever follow-ons dominate; B has no headline. |
+| **Q7** | **Notify LPs by email when a report publishes?** | **A.** No email — LPs visit `/lp` when told out-of-band. **B.** Optional "Notify LPs of this fund" checkbox on the publish confirm (template #12); no unsubscribe mechanism in v1. **C.** Automatic email on every publish + unsubscribe link. | **B.** Twice-yearly, relationship-based investor mail from their own fund manager doesn't need self-serve unsubscribe machinery in v1 (the email includes the support contact); automatic-with-no-opt-out (C) removes admin control, and A makes the portal undiscoverable. If you want zero email risk at launch, A is fine and B is purely additive later — WS19 isolates it. |
+| **Q8** | **Backfill old PDF reports as historical entries?** | Start fresh / backfill as attached PDFs / retype old reports as web pages | **Start fresh.** The schema doesn't preclude a later `pdfDocumentId` on `FundReport`; retyping history has no reader demand yet, and attaching PDFs needs an admin upload surface this plan doesn't otherwise build. |
+| **Q9** | **URL namespace.** | `/lp` (+ `/api/lp`) vs. `/reports` | **`/lp`.** Short, audience-honest, zero collision risk (`/updates` already means founder updates; a founder-visible word like "reports" invites future clashes). Note: `PUBLIC_PREFIXES` matches by `startsWith`, so **no authenticated route may ever be created under a path starting with `/lp`** — same discipline the existing 10 prefixes already require. |
+| **Q10** | **LP email change.** | Admin edits the email in place / delete + recreate | **Edit in place** on `/admin/lps` (audit-logged with old→new in metadata), **revoking the LP's active sessions** in the same transaction (`deleteMany LpSession`) — the old inbox must not retain access via a live cookie. Fund memberships and report visibility are keyed to the LP row and survive untouched. |
+| **Q11** | **Print/PDF escape hatch for LPs who want the old format?** | None / `@media print` stylesheet / real PDF generation | **Print stylesheet** (WS19, ~half a page of CSS): hides chrome, sets a print-safe white background and readable serif-free text; the browser's Print-to-PDF does the rest. Real PDF generation is the P3 roadmap item this feature supersedes (F18) — don't build it here. |
+| **Q12** | **How to model the MISC bucket.** The spreadsheet lumps all one-off SPVs into one "MISC" vehicle, but in reality each single-deal SPV likely has its own distinct LP set. | **A.** Import MISC as one `Fund` like the others; simply don't author reports for it until needed. **B.** Split into per-deal funds at import. | **A.** It keeps the import faithful to the source and costs nothing; if DFS ever reports to single-SPV LPs, splitting is additive admin CRUD work (create fund, reassign deal). B invents 12 funds and their LP rosters from data the spreadsheet doesn't contain. |
+| **Q13** | **Published-report lifecycle.** Can a published report be edited? | **A.** Unpublish-to-edit: published reports are read-only; "Unpublish" flips to DRAFT (report disappears from `/lp`), edit, republish **re-freezes snapshots as of republish time**. **B.** Allow in-place edits of published body text without touching frozen snapshots. | **A.** One mental model — *published = frozen, both prose and numbers* — matches the user's snapshot decision and avoids the "the text says 4× but the card says 5×" divergence B invites. The brief unpublish window is invisible in practice (LPs check the portal rarely). |
+| **Q14** | **Auto-link imported portfolio companies to existing Molly `Company` rows?** | Suggestions only (admin links manually later) / auto-link exact matches / fuzzy auto-link | **Auto-link only unambiguous exact matches** (case-insensitive on `Company.name` and `Company.aliases`), print everything else as suggestions in the dry-run report, and expose the link as an editable field on the admin portfolio-company form. Linkage is cosmetic in v1 (future: pull logo/website into hover cards) — nothing breaks if it's wrong or absent, but fuzzy auto-linking wrong is embarrassing in an LP-facing surface later. |
+
+---
+
+## WS16 — Foundation: schema, one-time importer, admin funds/LPs/deals management (3–3.5 days)
+
+**Goal:** the data layer exists, the spreadsheet's 76 deals / 50 companies / 7 funds are in production Postgres, and admins can CRUD all of it. Admin-only — founders and investors see nothing. No email, no LP surface yet.
+
+**Confirmed decisions baked in:** Molly is the post-import source of truth; Q12 = A and Q14 = auto-link-exact recommended defaults (adjust if the user overrides).
+
+### WS16.1 Schema (additive — all new tables + two relation-list fields; `db push` before code)
+
+Append to `prisma/schema.prisma`:
+
+```prisma
+// ─── LP Fund-Report Portal ────────────────────────────────
+
+model Fund {
+  id            String    @id @default(cuid())
+  slug          String    @unique // import key, e.g. "FUND1" — never shown to LPs
+  name          String    // display name, editable, e.g. "FUND1" or "DFS Lab SPV I"
+  groupLabel    String?   // e.g. "African Multi-Asset Cohort Funds" (Deals sheet row 3)
+  firstDealDate DateTime?
+  aumUsd        Decimal?
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  deals   Deal[]
+  lps     LpFundMembership[]
+  reports FundReport[]
+
+  @@map("funds")
+}
+
+model PortfolioCompany {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  country   String?
+  companyId String?  @unique // optional link to an operational Molly Company (Q14)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deals    Deal[]
+  mentions FundReportMention[]
+
+  @@map("portfolio_companies")
+}
+
+model Deal {
+  id                 String    @id @default(cuid())
+  fundId             String
+  portfolioCompanyId String
+  investmentType     String    // "INITIAL" | "FOLLOW_ON"
+  dealDate           DateTime
+  country            String?
+  amountUsd          Decimal
+  instrument         String?   // free text — source data has typos/variants (F17)
+  entryValuation     Decimal?  // valuation/cap (post) at investment
+  currentValuation   Decimal?  // admin-maintained after import; 0 = written off
+  valuationAsOf      DateTime? // when currentValuation was last set (import date initially, F17.4)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  fund             Fund             @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([fundId])
+  @@index([portfolioCompanyId])
+  @@map("deals")
+}
+
+model LimitedPartner {
+  id        String   @id @default(cuid())
+  email     String   @unique // stored lowercased/trimmed
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  funds    LpFundMembership[]
+  sessions LpSession[]
+  otpCodes LpOtpCode[]
+
+  @@map("limited_partners")
+}
+
+model LpFundMembership {
+  id        String   @id @default(cuid())
+  lpId      String
+  fundId    String
+  createdAt DateTime @default(now())
+
+  lp   LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+  fund Fund           @relation(fields: [fundId], references: [id], onDelete: Cascade)
+
+  @@unique([lpId, fundId])
+  @@map("lp_fund_memberships")
+}
+
+model LpOtpCode {
+  id         String    @id @default(cuid())
+  lpId       String
+  codeHash   String    // sha256 hex of the 6-digit code — never store the code
+  expiresAt  DateTime  // request time + 10 minutes
+  attempts   Int       @default(0) // fail-closed cap of 5 (rate limiter fails open — this doesn't)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  lp LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+
+  @@index([lpId, createdAt])
+  @@map("lp_otp_codes")
+}
+
+model LpSession {
+  id         String   @id @default(cuid())
+  token      String   @unique // crypto.randomBytes(32).toString("hex")
+  lpId       String
+  expiresAt  DateTime // verify time + 30 days, fixed
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  lp LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+
+  @@index([lpId])
+  @@map("lp_sessions")
+}
+
+model FundReport {
+  id          String    @id @default(cuid())
+  fundId      String
+  title       String    // e.g. "FUND1 — H1 2026 Report"
+  periodLabel String?   // e.g. "H1 2026"
+  body        String    @db.Text // TipTap HTML incl. mention spans (data-portco)
+  status      String    @default("DRAFT") // "DRAFT" | "PUBLISHED"
+  publishedAt DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  fund      Fund                @relation(fields: [fundId], references: [id])
+  createdBy User                @relation("CreatedFundReports", fields: [createdById], references: [id])
+  mentions  FundReportMention[]
+
+  @@index([fundId, status])
+  @@map("fund_reports")
+}
+
+model FundReportMention {
+  id                 String   @id @default(cuid())
+  reportId           String
+  portfolioCompanyId String
+  companyName        String   // display name frozen at publish
+  snapshot           Json     // frozen at publish — shape in WS17.2
+  createdAt          DateTime @default(now())
+
+  report           FundReport       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, portfolioCompanyId])
+  @@map("fund_report_mentions")
+}
+```
+
+Back-relations (no DB columns — still additive): on `Company` add `portfolioCompany PortfolioCompany?`; on `User` add `createdFundReports FundReport[] @relation("CreatedFundReports")`.
+
+Strings, not enums, for `investmentType`/`status` — house convention (`AuditLog.action`, `Document.docType`, `MetricAlert.rule`). `Decimal` for money, matching `MetricValue.value`.
+
+### WS16.2 One-time importer (`scripts/import-investment-tracker.ts`)
+
+`npm install -D xlsx tsx`. Run as:
+
+```bash
+# dry-run (default): parse + validate + print what WOULD be written; touches nothing
+npx tsx scripts/import-investment-tracker.ts ~/Downloads/"DFS Lab Investment Tracker [External-Confidential].xlsx"
+# real run against prod (env pulled per the Part 2 ground-rule procedure):
+DATABASE_URL="<from .env.local>" npx tsx scripts/import-investment-tracker.ts <path> --write
+```
+
+Parsing rules (all verified against the actual file — F17):
+
+1. **Source: the `Deals` sheet flat table only.** Find the header row by scanning column C for the cell `"Company"` (row 15 today — scan, don't hardcode); data rows follow until the first row with a non-string company cell. Columns (0-indexed from A): C=name, D=vehicle, E=investment type (`"Initial"`/`"Follow-On"` → `INITIAL`/`FOLLOW_ON`), F=date, G=country, H=amount, I=instrument (free text, trimmed, imported verbatim — typos included), J=entry valuation, K=current valuation, N=notes. **Skip columns L/M (Markups, Implied Value — derived) and O–Q (segmentation helpers).** Expect exactly 76 rows / 50 distinct companies / vehicles `{FUND1, FUND2, FUND3, FUND4, FUND5, CAF1, MISC}` — hard-fail with a diff if the file has drifted from these verified counts, so a stale re-run can't half-import.
+2. **Fund metadata from the same sheet's header block**: vehicle slugs in row 4 cols B–H (ignore `TOTAL` col I and aggregate cols J–L), `firstDealDate` row 5, `aumUsd` row 7, `groupLabel` best-effort from the merged row-3 labels (null if the merge lookup is awkward — it's an editable display field). `sortOrder` = column order.
+3. **Never read the `IRR Calc` sheet** (stale FUND4 block, `#VALUE!`-corrupted valuation cells, duplicated MISC helper rows — F17.1/.3).
+4. `valuationAsOf` = the import run timestamp, not the sheet's `=TODAY()` column (F17.4).
+5. **Idempotent**: upsert `Fund` by `slug`, `PortfolioCompany` by `name` (trimmed); for `Deal`, find-first on `(fundId, portfolioCompanyId, investmentType, dealDate, amountUsd)` and only create when absent (re-running after a partial failure is safe; the schema deliberately has no unique constraint here because genuine near-duplicate tranches exist — Northstar/Southgate, F17).
+6. **Company matching (Q14)**: for each `PortfolioCompany`, look up Molly `Company` where `name` matches case-insensitively or appears in `aliases`; auto-link only single unambiguous matches (`--write` sets `companyId`), print all candidates in the report.
+7. **Dry-run report** (terminal only — confidential, ground rule 1): per-fund deal/company counts, total invested per fund vs. the sheet's `Deployed` row as a checksum, the near-duplicate rows (same company+fund+type, e.g. the double-Initials) flagged for human review, unmatched/matched Molly companies, and any row skipped with its reason. `--write` prints the same, then writes inside a transaction.
+
+### WS16.3 Admin API routes
+
+All `requireAdmin`, guard→validate→act pattern, `force-dynamic`, audit-logged via `logAdminAction`:
+
+- `src/app/api/admin/funds/route.ts` — GET (list, incl. `_count` of deals/lps/reports), POST (create: `slug` unique + non-empty ≤40 chars, `name` non-empty ≤120). `FUND_CREATED`.
+- `src/app/api/admin/funds/[id]/route.ts` — PATCH (name/groupLabel/aumUsd/firstDealDate/sortOrder; slug immutable), DELETE (**409 unless the fund has zero deals, LPs, and reports** — no destructive cascades from a misclick). `FUND_UPDATED` / `FUND_DELETED`.
+- `src/app/api/admin/portfolio-companies/route.ts` — GET (list; optional `?fundId=` filters to companies with deals in that fund — WS17's picker reuses this), POST (create: name unique). `PORTCO_CREATED`.
+- `src/app/api/admin/portfolio-companies/[id]/route.ts` — PATCH (name/country/companyId link), DELETE (409 unless zero deals and zero mentions). `PORTCO_UPDATED` / `PORTCO_DELETED`.
+- `src/app/api/admin/deals/route.ts` — POST (create: fundId + portfolioCompanyId exist, `investmentType` ∈ {INITIAL, FOLLOW_ON}, dealDate parseable, amountUsd > 0; valuations optional ≥ 0). `DEAL_CREATED`.
+- `src/app/api/admin/deals/[id]/route.ts` — PATCH (any field; **setting `currentValuation` also sets `valuationAsOf: new Date()`** — this is the ongoing valuation-maintenance path now that Molly is the source of truth), DELETE (hard delete with confirm in UI). `DEAL_UPDATED` (metadata: old→new valuation) / `DEAL_DELETED`.
+- `src/app/api/admin/lps/route.ts` — GET (list with fund memberships), POST (create: email valid per the WS1.3 regex, lowercased, unique; optional name + fundIds[]). `LP_CREATED`.
+- `src/app/api/admin/lps/[id]/route.ts` — PATCH (name; **email change lowercases, revokes all `LpSession` rows in the same transaction, audit metadata `{ from, to }`** — Q10), DELETE (cascade removes memberships/sessions/OTPs; confirm dialog in UI). `LP_UPDATED` / `LP_DELETED`.
+- `src/app/api/admin/lps/[id]/funds/route.ts` — POST `{ fundId }` / DELETE `{ fundId }` to assign/unassign (upsert on the `@@unique`). `LP_FUND_ASSIGNED` / `LP_FUND_UNASSIGNED`.
+
+### WS16.4 Admin UI
+
+- **`src/app/admin/funds/page.tsx`** (client, modeled on `admin/providers/page.tsx`): fund cards/table — name, slug badge, group label, AUM, deal/LP/report counts; New Fund modal; row click → detail.
+- **`src/app/admin/funds/[id]/page.tsx`** (client, modeled on `admin/companies/[id]/page.tsx` tabs): header (editable fund fields) + three tabs:
+  - **Deals** — table (company, type badge, date, amount, instrument, entry val, current val, multiple *computed client-side* as current/entry, valuationAsOf), Add Deal modal (portfolio-company `<select>` with an inline "New company…" option, native inputs per house convention), edit/delete per row. Pattern A (scrollable table with min-width) from Part 6 for phone widths.
+  - **LPs** — membership list; assign-existing `<select>` + create-new-LP inline form; remove button.
+  - **Reports** — list of this fund's reports with status badges, linking into WS17's editor (empty until WS17 ships; render the tab from the start with an EmptyState).
+- **`src/app/admin/lps/page.tsx`** (client): LP table (email, name, fund chips, created), New LP modal, edit modal (email change shows a "this signs the LP out everywhere" note), delete with confirm.
+- **Sidebar** (`src/components/layout/sidebar.tsx` `adminNav`): `{ label: "Funds", href: "/admin/funds", icon: Landmark }` and `{ label: "LPs", href: "/admin/lps", icon: Handshake }` (both icons exist in lucide-react), inserted after "Companies".
+
+**WS16 acceptance checklist**
+- [ ] `db push` applied additively; existing app behavior unchanged (spot-check dashboard, updates, share link)
+- [ ] Importer dry-run against the real xlsx prints 76 deals / 50 companies / 7 funds, per-fund invested totals matching the sheet's `Deployed` row, and flags the Northstar/Southgate double-Initial rows for review
+- [ ] Importer `--write` against prod populates the tables; **re-running it creates zero new rows** (idempotency)
+- [ ] No spreadsheet data anywhere in the repo: `git status` clean of xlsx/JSON artifacts; `*.xlsx` in `.gitignore`; tests contain only synthetic numbers
+- [ ] Admin can create/edit a fund, add a deal, edit a current valuation (and `valuationAsOf` updates), create an LP, assign them to two funds; every mutation appears in `/admin/audit`
+- [ ] Deleting a fund with deals → 409 with readable message; empty fund deletes
+- [ ] LP email change revokes sessions (verify after WS18; until then, assert the `deleteMany` is in the transaction via code review + unit test)
+- [ ] Founders get 401/403 from every `/api/admin/funds|lps|deals|portfolio-companies` route; `/admin/funds` redirects founders to `/dashboard` (existing middleware `/admin` gating)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** admin-only additions (two sidebar entries, three new pages); founders/investors see nothing. **Cost impact:** none — two devDeps, small tables, no services. **Schema:** additive (8 new tables + 2 relation-list fields).
+
+---
+
+## WS17 — Report authoring, mentions, snapshot publishing (2.5–3 days)
+
+**Goal:** admins write letter-style fund reports in the existing editor, mention portfolio companies via an explicit `@` picker, preview exactly what LPs will see, and publish — freezing valuation snapshots at that instant. Still admin-only; nothing is LP-visible until WS18.
+
+**Gated on:** Q6 (blended-multiple recommendation assumed), Q13 (unpublish-to-edit assumed).
+
+### WS17.1 Mention extension
+
+`npm install @tiptap/extension-mention` (v3, matches the installed TipTap 3.19 packages). New file `src/components/ui/portco-mention.ts`:
+
+```ts
+import Mention from "@tiptap/extension-mention";
+
+/**
+ * Portfolio-company mention for fund reports.
+ * Deterministic HTML so the server can extract ids with one regex:
+ *   <span data-portco="<id>" class="portco-mention"><name></span>
+ */
+export function portcoMention(fetchItems: (query: string) => Promise<{ id: string; label: string }[]>) {
+  return Mention.configure({
+    renderHTML({ node }) {
+      return ["span", { "data-portco": node.attrs.id, class: "portco-mention" }, node.attrs.label];
+    },
+    // parseHTML so editing an existing report round-trips the spans back into mention nodes
+    suggestion: {
+      char: "@",
+      items: ({ query }) => fetchItems(query),
+      render: /* dropdown positioned under the caret; style like the app's native selects;
+                 arrow keys + Enter select; Esc closes — follow the tiptap-mention docs example,
+                 plain DOM, no new UI dep */
+    },
+  });
+}
+```
+
+Add the JC9 prop to `src/components/ui/rich-editor.tsx`: `extraExtensions?: AnyExtension[]` (default `[]`), spread after the existing extensions. **No other RichEditor change** — founder surfaces pass nothing and render byte-identically.
+
+### WS17.2 Pure snapshot + extraction helpers (tested)
+
+New file `src/lib/report-snapshot.ts` — pure functions, `route-access.ts` extract-and-test pattern:
+
+```ts
+export interface DealInput {
+  investmentType: string;      // "INITIAL" | "FOLLOW_ON"
+  dealDate: Date;
+  amountUsd: number;           // caller Number()s Prisma Decimals, house convention
+  entryValuation: number | null;
+  currentValuation: number | null;
+}
+
+export interface MentionSnapshot {
+  companyName: string;
+  country: string | null;
+  totalInvestedUsd: number;
+  totalImpliedValueUsd: number;   // Σ amount × per-deal multiple (deals with unknown multiple contribute their amount at 1×? NO — they are excluded from both totals and listed as "n/a"; see rules)
+  blendedMultiple: number | null; // totalImplied / totalInvested over deals with known multiples; null if none
+  firstDealDate: string;          // ISO date
+  deals: Array<{
+    investmentType: string;
+    dealDate: string;             // ISO
+    amountUsd: number;
+    multiple: number | null;      // currentValuation / entryValuation; 0 = written off; null = unknown
+  }>;
+}
+
+export function buildMentionSnapshot(companyName: string, country: string | null, deals: DealInput[]): MentionSnapshot;
+
+/** Extract distinct portfolio-company ids from report HTML (matches WS17.1's renderHTML). */
+export function extractMentionIds(html: string): string[]; // /data-portco="([^"]+)"/g, deduped
+```
+
+Rules (unit-test each): per-deal `multiple` = `entryValuation > 0 && currentValuation != null ? currentValuation / entryValuation : null` (so `currentValuation === 0` → multiple `0`, rendered "written off" — real case: Redwood, Ironclad, Bluewave); deals with `null` multiple are excluded from both blended totals (never silently counted at 1×) and shown as "n/a" rows; blended multiple = Σ(amount×multiple)/Σ(amount) over included deals, `null` when none; per-deal rows are the raw material for Q6's presentation either way, so a Q6 override only changes the LP-page rendering, not this shape. **The hover card intentionally shows multiples and relative dates, not raw valuations** — flag: if the user wants dollar valuations visible to LPs, that's a one-line rendering addition, but multiples leak less if a link/session ever escapes.
+
+Tests (`src/lib/__tests__/report-snapshot.test.ts`, synthetic data only): single initial deal; initial + follow-on blending; written-off (current 0); null entry → n/a excluded from blend; all-null → blendedMultiple null; extraction on empty body / duplicated mentions / attribute-order robustness.
+
+### WS17.3 Report API routes
+
+All `requireAdmin` + audit-logged:
+
+- `src/app/api/admin/reports/route.ts` — GET (list, `?fundId=` filter, include fund name + mention count), POST (create DRAFT: fundId exists, title non-empty ≤200). `REPORT_CREATED`.
+- `src/app/api/admin/reports/[id]/route.ts` — GET (full row for the editor), PATCH (title/periodLabel/body; **only while DRAFT — 400 "Unpublish first" on PUBLISHED**, Q13; fundId immutable after creation), DELETE (DRAFT only; 409 on PUBLISHED). `REPORT_UPDATED` / `REPORT_DELETED`.
+- `src/app/api/admin/reports/[id]/publish/route.ts` — POST: load report (must be DRAFT); `extractMentionIds(body)`; verify every id is a `PortfolioCompany` **with ≥1 deal in the report's fund** (JC6 — 400 listing offenders otherwise); in one transaction: delete existing `FundReportMention` rows for the report, `create` one per mentioned company with `buildMentionSnapshot(...)` over the fund-scoped deals (Number()-ing Decimals), set `status: "PUBLISHED", publishedAt: new Date()`. `REPORT_PUBLISHED` (metadata: mention count).
+- `src/app/api/admin/reports/[id]/unpublish/route.ts` — POST: PUBLISHED → DRAFT (keep `publishedAt` for reference; mentions stay until the next publish overwrites them — LP pages only read PUBLISHED reports, so stale drafts leak nothing). `REPORT_UNPUBLISHED`.
+
+### WS17.4 Shared report renderer
+
+New file `src/components/report-view.tsx` — a server-renderable component used by **both** the admin preview and the WS18 LP page (one renderer = preview is honest): takes `{ title, periodLabel, publishedAt, fundName, bodyHtml, mentions: MentionSnapshot[] }`, renders the letter layout (WS18.4 styling) with `dangerouslySetInnerHTML` for the body (admin-authored, same trust model as the share page's founder-authored bodies) and mounts the `MentionCards` client island (WS18.5). Draft previews pass **live-computed** snapshots; published pages pass frozen ones — the component can't tell the difference, by design.
+
+### WS17.5 Admin authoring UI
+
+- **`src/app/admin/reports/page.tsx`** — all reports: title, fund, status badge (DRAFT ochre / PUBLISHED acacia, house tokens), periodLabel, publishedAt; fund filter `<select>`; "New Report" (fund + title + optional period label).
+- **`src/app/admin/reports/[id]/page.tsx`** — editor: title/period inputs; `RichEditor` with `extraExtensions={[portcoMention(fetch from /api/admin/portfolio-companies?fundId=<report.fundId>)]}`; a muted helper line "Type @ to mention a portfolio company — mentioned companies get a valuation hover card in the LP view"; Save (PATCH, drafts only); **Preview** link; **Publish** button with confirm ("Publishing freezes today's valuation numbers into this report. Continue?"); on PUBLISHED: read-only body + "Unpublish to edit" button. Mention spans styled in-editor (Sky underline) via the editor's `<style>` block.
+- **`src/app/admin/reports/[id]/preview/page.tsx`** — Server Component (`requireAdmin` guard pattern from `admin/settings/page.tsx`): loads the report, computes live snapshots for current mentions, renders `<ReportView>` full-bleed in the LP chrome with a "PREVIEW — draft, numbers not frozen" banner.
+- Fund detail's Reports tab (WS16.4) now lists + links into these pages.
+
+**WS17 acceptance checklist**
+- [ ] Founder update editor renders byte-identical (no `extraExtensions` passed) — spot-check `/updates/new`
+- [ ] Typing `@` in a report shows only companies with deals in that report's fund; selecting inserts a highlighted mention; save/reload round-trips it (parseHTML works)
+- [ ] Publish freezes snapshots: publish, then change a deal's `currentValuation` in `/admin/funds/[id]`, re-open the published preview — card numbers unchanged; a **new** report mentioning the same company shows the updated number in its draft preview
+- [ ] Mentioning a company, deleting its fund deal, then publishing → 400 with the offending company named
+- [ ] PATCH on a PUBLISHED report → 400; unpublish → edit → republish re-freezes (numbers update)
+- [ ] Written-off (current valuation 0) renders "written off", not "0×–ish" garbage; null-entry deals render "n/a" and don't skew the blend (unit tests + one manual check)
+- [ ] All report mutations in `/admin/audit`; founders 403 on every reports route
+- [ ] `npm run typecheck && npm run lint && npm test` green (new snapshot/extraction tests included)
+
+**UX impact:** admin-only; the single shared-surface touch is the additive `RichEditor` prop (default = today's behavior). **Cost impact:** none — one MIT npm package. **Schema:** none beyond WS16's.
+
+---
+
+## WS18 — LP portal: OTP auth, library, report pages (3–3.5 days)
+
+**Goal:** the LP-facing surface — email → OTP → 30-day session → library → report pages with hover cards — styled after www.dfs.vc. **Verify Resend works before starting** (ground rule 3).
+
+### WS18.1 LP auth library
+
+New file `src/lib/lp-auth.ts` (JC4):
+
+```ts
+import { cookies } from "next/headers";
+import { db } from "@/lib/db";
+import crypto from "crypto";
+
+export const LP_COOKIE = "lp_session";
+export const LP_SESSION_DAYS = 30;
+export const OTP_TTL_MS = 10 * 60 * 1000;
+export const OTP_MAX_ATTEMPTS = 5;
+
+export function sha256(s: string) { return crypto.createHash("sha256").update(s).digest("hex"); }
+export function newSessionToken() { return crypto.randomBytes(32).toString("hex"); }
+export function newOtpCode() { return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0"); }
+
+/** Server-component/route helper: the logged-in LP (with fund memberships) or null. */
+export async function getLp() {
+  const token = cookies().get(LP_COOKIE)?.value;
+  if (!token) return null;
+  const session = await db.lpSession.findUnique({
+    where: { token },
+    include: { lp: { include: { funds: { select: { fundId: true } } } } },
+  });
+  if (!session || session.expiresAt < new Date()) return null;
+  // touch lastUsedAt at most hourly, best-effort (never blocks the page)
+  if (Date.now() - session.lastUsedAt.getTime() > 60 * 60 * 1000) {
+    db.lpSession.update({ where: { id: session.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+  }
+  return { session, lp: session.lp, fundIds: session.lp.funds.map((f) => f.fundId) };
+}
+```
+
+Pure decision logic (expiry check, attempt-cap check) lives in small exported functions so it's unit-testable with mocked `db`, mirroring `auth-guard.test.ts`.
+
+### WS18.2 Auth API routes (the only client-called LP endpoints — JC5)
+
+All three under `src/app/api/lp/auth/`, `force-dynamic`, public-prefixed (WS18.6), rate-limited via the existing `checkRateLimit`:
+
+- **`request/route.ts`** POST `{ email }`: validate format (WS1.3 regex), lowercase/trim; rate-limit `("lp-otp-ip", clientIp, 10)` **and** `("lp-otp-email", email, 5)` → 429 with "Too many requests — try again in an hour"; look up `LimitedPartner`; **if found**: create `LpOtpCode` (`codeHash: sha256(code)`, `expiresAt: now + OTP_TTL_MS`) and `sendLpOtpEmail(email, code)` (send failure → `console.error`, still generic response); **always** return `{ ok: true }` with identical timing-insensitive body whether or not the LP exists (JC7). Opportunistically delete expired OTP rows (~1% of calls, `rate-limit.ts:24` trick).
+- **`verify/route.ts`** POST `{ email, code }`: rate-limit `("lp-verify-ip", clientIp, 20)` + `("lp-verify-email", email, 10)`; find the LP, then the **newest unconsumed, unexpired** `LpOtpCode`; if none → 400 `"That code is invalid or has expired."` (one generic message for every failure mode — no oracle). **Increment `attempts` before comparing** (fail-closed — the rate limiter fails open, this cannot); if `attempts > OTP_MAX_ATTEMPTS` → same generic 400. Compare `sha256(code)` with `crypto.timingSafeEqual`. On success, in a transaction: set `consumedAt`, create `LpSession` (30 days); set the cookie on the response: `httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: 30 * 24 * 3600`. Return `{ ok: true }`.
+- **`logout/route.ts`** POST: read cookie; delete the session row if present; clear the cookie; `{ ok: true }`.
+
+### WS18.3 OTP email — template #11
+
+`src/lib/email.ts`: `sendLpOtpEmail(email: string, code: string)` using the existing header/footer/`C` tokens: subject `Your ${ORG_NAME} access code`, the 6-digit code in a large JetBrains-Mono block (match the existing template aesthetics), "This code expires in 10 minutes.", and "If you didn't request this, you can ignore this email." — no links needed (the LP is already on the verify screen).
+
+### WS18.4 LP layout + pages (Server Components, dfs.vc aesthetic)
+
+Design source: `~/GitHub/dfsweb` (`assets/css/styles.css`, `index.html`) + the brand skill. The translation, using tokens/fonts already in `globals.css`/`layout.tsx` (no new fonts, no new assets — the DFS logo already ships at `public/brand/`, already public-prefixed):
+
+- Paper background, Obsidian text, generous whitespace, left-aligned everything, 0–2px corners.
+- Mono **eyebrow labels** with wide letter-spacing (`font-mono text-xs tracking-[0.12em] uppercase text-muted-foreground`) above headings — the dfs.vc signature.
+- Space Grotesk display headings with tight tracking (`font-display tracking-tight`).
+- Sky as the single accent: mention highlights, links, the `_` underscore mark.
+- Line dividers (Bone), no cards/shadows; footer mirroring dfs.vc's: logo, one-line tagline, contact column.
+
+Files:
+
+- **`src/app/lp/layout.tsx`** — minimal public chrome (NOT `AppShell`): top bar with the DFS logo image (`/brand/...`, email-header asset) linking to `/lp`, a "Sign out" button (client island POSTing logout) shown only when a session exists; dfs.vc-style footer; `export const metadata = { robots: { index: false, follow: false } }` (**noindex — confidential surface on a public web app**).
+- **`src/app/lp/page.tsx`** — Server Component, `force-dynamic`: `const ctx = await getLp()`. **No session** → render the entry screen (eyebrow `LP PORTAL`, heading "Fund reports for our limited partners.", and the `<LpLoginForm />` client island: email field → POST request → code field → POST verify → `router.refresh()`; generic success copy "If this address receives fund reports from us, a code is on its way."; verify errors show the API's generic message). **Session** → the library: reports where `status: "PUBLISHED"` and `fundId ∈ ctx.fundIds`, grouped by fund (fund `sortOrder`, then `publishedAt` desc), each row = title, period label, published date → `/lp/reports/[id]`; EmptyState "No reports yet." for LPs in funds with nothing published.
+- **`src/app/lp/reports/[id]/page.tsx`** — Server Component, `force-dynamic`: `getLp()` → no session: `redirect("/lp")`. Load the report; **404 (`notFound()`) unless `status === "PUBLISHED"` AND `report.fundId ∈ ctx.fundIds`** — membership failures are indistinguishable from nonexistence, like the F16 doc proxy. Render `<ReportView>` (WS17.4) with the **frozen** `FundReportMention` snapshots. Letter styling: narrow measure (`max-w-2xl`), eyebrow = fund name + period, title, published date in mono, prose body (mirror the share page's update-body prose classes), mention spans Sky-underlined.
+
+### WS18.5 Hover cards
+
+New file `src/components/mention-cards.tsx` (client island mounted by `ReportView`): receives `MentionSnapshot[]`; on mount, `querySelectorAll('[data-portco]')` within the report body and binds `mouseenter`/`focus` (desktop) and `click` toggle (touch); renders one absolutely-positioned card near the active span (plain DOM/React state — no new UI dep; Radix popovers need declarative triggers we don't have inside `dangerouslySetInnerHTML`). Card content (Q6 = A): company name; headline `{blendedMultiple}× since {firstDealDate year}` in Space Grotesk (or "Written off" when blended = 0, "—" when null); beneath, one mono row per deal: `{Initial|Follow-on} · {MMM yyyy} · {multiple}×` (n/a for null). Progressive enhancement: no JS → mentions are just highlighted text; keyboard: spans get `tabindex="0"` and show on focus, Esc dismisses.
+
+### WS18.6 Route access + tests
+
+`src/lib/route-access.ts`: append `"/lp"` and `"/api/lp"` to `PUBLIC_PREFIXES` with a comment continuing the F15-family documentation (LPs have no NextAuth session **by design**; the `lp_session` cookie checked in `lp-auth.ts` is the real gate). Tests in `route-access.test.ts`: `/lp`, `/lp/reports/abc`, `/api/lp/auth/request` logged-out → `next` (the regression tests this codebase has earned four times over). New `src/lib/__tests__/lp-auth.test.ts` (mocked db): expired session → null; missing cookie → null; valid → lp with fundIds. Extend rate-limit usage tests only if patterns diverge (they shouldn't).
+
+**WS18 acceptance checklist**
+- [ ] Resend test email confirmed working before starting; OTP email arrives with the code, on-brand
+- [ ] Full flow live: enter LP email → code → library shows exactly the funds that LP belongs to; a second LP in two funds sees both funds' reports
+- [ ] Non-LP email gets the identical "code is on its way" response and no email; nothing distinguishes it from the LP path externally
+- [ ] Wrong code 5× → 6th attempt rejected even with the correct code (fail-closed cap); requesting a fresh code recovers
+- [ ] 11th OTP request from one IP in an hour → 429; 6th for one email → 429
+- [ ] Session cookie: revisit after closing the browser still logged in; deleting the `LpSession` row (or admin email-change, Q10) signs the LP out on next request; logout works
+- [ ] Direct URL to a report in a fund the LP is **not** in → 404; DRAFT report URL → 404 even for a fund member; logged-out report URL → redirect to `/lp`
+- [ ] Hover card shows frozen numbers (change a valuation post-publish, card unchanged); works on tap at 375px; page has no horizontal scroll at 375px (Part 6 standards)
+- [ ] `curl` checks: `/lp` 200 logged-out; `/api/lp/auth/request` 200 (not 307-to-login!) — the F15-family check, plus the route-access unit tests
+- [ ] LP pages send noindex metadata; founder/admin/investor surfaces byte-identical throughout
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** entirely new audience surface; zero change for founders, admins (beyond WS16/17's opt-in pages), and investor-link recipients. **Cost impact:** none — OTP email volume is tens of sends twice a year; three small tables. **Schema:** none beyond WS16's.
+
+---
+
+## WS19 — Publish notification + polish (0.5–1 day; notification half gated on Q7)
+
+1. **(Q7 = B, if confirmed)** Email template #12 `sendLpReportPublishedEmail({ email, fundName, reportTitle })` — "A new report for {fundName} is available", one button → `${BASE_URL}/lp`, support-contact line. Publish confirm (WS17.5) gains a "Notify this fund's LPs by email" checkbox (default off); the publish endpoint accepts `{ notify: boolean }` and fans out best-effort per LP (per-recipient try/catch, F12 lesson: one bad address never blocks the rest or the publish; result `{ notified, failed }` in the audit metadata).
+2. **(Q11) Print stylesheet** — in the LP layout, an `@media print` block: hide the top bar/footer/sign-out, white background, Obsidian-on-white text, mention underlines off, page margins. LPs print-to-PDF to recreate the old artifact.
+3. **Docs** — `README.md`: LP portal section (audience model, `/lp`, OTP, 30-day sessions, confidentiality note for forks); `SETUP.md`: importer usage (with the confidentiality warnings); no new env vars anywhere in this feature (verify + state it).
+4. **ROADMAP bookkeeping** — fold shipped workstreams into "Existing Features"; resolve the F18 annotation.
+
+**WS19 acceptance checklist**
+- [ ] (Q7) Publishing with notify on emails every LP of that fund once; a bounced address doesn't block others or the publish; audit row carries `{ notified, failed }`
+- [ ] Browser print preview of a report page: clean letter, no chrome
+- [ ] README/SETUP updated; `grep` confirms no new env vars introduced by Part 7
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** additive. **Cost impact:** none. **Schema:** none.
+
+---
+
+## Part 7 sequencing, batch split & effort
+
+**Recommended phasing — two release batches:**
+
+- **Batch A (admin-only, zero LP exposure): WS16 → WS17.** Ships the data layer, the import, and authoring. The team can enter/verify all data and draft the first real report while the LP surface is still being built. Nothing outside `/admin` changes.
+- **Batch B (LP-facing): WS18 → WS19.** Gate: Resend re-verified, Q7/Q9/Q11 answered (Q9's `/lp` recommendation is needed *before* WS18's first file is created). Go live, then send the first real report's link to a friendly LP as the pilot before announcing broadly.
+
+Vertical-slice alternatives were considered and rejected: auth-first has nothing to show; report-page-first has no data. The dependency chain is genuinely schema → content → audience.
+
+| WS | Item | Effort | Schema push | Gated on |
+|---|---|---|---|---|
+| WS16 | Schema + importer + admin funds/LPs/deals | 3–3.5d | 8 new tables | Q12/Q14 (defaults recommended) |
+| WS17 | Report authoring, mentions, snapshot publish | 2.5–3d | — | Q6, Q13 (defaults recommended) |
+| WS18 | LP portal: OTP auth, library, report pages | 3–3.5d | — | **Q9**; Resend verified; Q10 semantics |
+| WS19 | Publish notification + print + docs | 0.5–1d | — | **Q7** (notification half), Q11 |
+
+**Total: ~9–11 junior-engineer days** — consistent with "biggest feature since the platform was built" (P0+P1 were ~8–10d combined).
+
+## Part 7 roadmap bookkeeping
+
+Done alongside this plan: `ROADMAP.md` gains a "Next up — LP Fund-Report Portal" pointer to this Part, and the P3 "Portfolio Export / LP Report PDF" row is annotated per F18. As each workstream ships, fold it into "Existing Features" per the file's convention; the P3 row should be resolved (superseded-by-portal, print-stylesheet interim) when WS19 lands.
+
+---
+
+# Part 8 — Medium-Style Draft Composer (WS20)
+
+_Added 2026-07-08, from a user request: a screenshot of a Medium draft page, with "I'd like all our draft pages for posts and updates to look this clean."_
+
+> ⚠️ **The referenced screenshot did not reach the planner** — the image was not attached to the planning context. This Part plans against Medium's canonical, well-known draft-page conventions (verified against the current Molly composer code, which is their opposite in every respect). Before implementation starts, someone should hold the actual screenshot up against the "Design target" list below and flag any trait it shows that the list misses (e.g. if the screenshot features Medium's left-margin **+** insert button, or a specific top-bar arrangement, say so — those change WS20.2's shape).
+
+## What "Medium draft clean" means (design target)
+
+Medium's draft page is defined by what it removes:
+
+1. **No boxes.** No card borders, no labeled form fields, no section headers around the writing surface. The page *is* the document.
+2. **A thin utility top bar**, not an app header: "Draft in {publication} · Saved" on the left, a Publish button and overflow on the right. Everything else is canvas.
+3. **A huge borderless title** — a bare text input styled as display type, placeholder "Title", no label.
+4. **A chromeless body** — placeholder "Tell your story…", no permanent toolbar; formatting appears contextually (a bubble toolbar over selected text).
+5. **A narrow centered measure** (~680–740px) with generous whitespace.
+6. **An ambient save state** ("Saved") instead of a prominent Save button.
+
+DFS-brand translation (per the brand skill: restrained, structured-by-content, Obsidian-on-Paper): keep Molly's tokens and fonts — the title becomes `font-display` Space Grotesk with tight tracking, the save state and period render in JetBrains Mono, Sky stays the single accent. "Medium's layout discipline, DFS's skin."
+
+## Current state (verified 2026-07-08 — the gap is large)
+
+- **`src/app/updates/new/page.tsx`** — the founder composer is a boxed form: `AppShell` + `PageHeader` ("New Update" + description), then one `Card` titled "Create New Update" (lines 247–253) containing labeled Period/Title inputs in a 2-col grid (280–297), a labeled `RichEditor` (299–307), a labeled metric-input grid (310–332), a dashed attachments box (335–345), and a bordered action row (357–398) with Save as Draft / Publish plus the schedule disclosure (400–443). Every one of these is a box inside a box — the anti-Medium.
+- **`src/app/updates/[id]/page.tsx`** — draft **edit** mode (`editing` state, lines 513–581) is the same pattern: a `Card` with labeled Period/Title inputs, `RichEditor`, metric grid, and a Save/Cancel row. (View mode for published updates is out of scope — the request is about *draft* pages.)
+- **`src/app/admin/companies/[id]/updates/new/page.tsx`** — an admin compose-on-behalf-of-a-company page with the same boxed pattern (found via the `RichEditor` call-site sweep; it was not previously catalogued in this doc).
+- **`src/components/ui/rich-editor.tsx`** — one shared editor with a **permanent 20-button toolbar** in a bordered container (line 164), used by five call sites: the three composers above, `admin/templates/page.tsx`, and `admin/companies/[id]/page.tsx` (notes). Any restyle must therefore be an **opt-in variant** — templates and notes are short utility forms where the boxed look is right, and silently restyling them would be a real regression.
+- TipTap v3's `BubbleMenu` (for the contextual toolbar) ships in `@tiptap/react/menus` and wants `@floating-ui/dom`; `@floating-ui/core` is already present transitively (package-lock line 1177, via Radix) — the exact missing piece is a free MIT install to confirm at implementation time.
+
+**Constraint note (flagged, per protocol):** this is a deliberate, user-requested redesign of an existing founder-facing surface — the exact category the no-UX-regression rule protects. The rule is read here as: **visual redesign is authorized by the request; capability regression is not.** Every current capability (template prefill, per-period metrics, attachments, publish-confirm, schedule-for-later, draft save) must survive relocation. The acceptance checklist enforces capability parity item by item.
+
+## Part 8 open product decisions (Q15–Q18)
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q15** | **Scope of "all our draft pages for posts and updates."** Molly has no "posts" entity — candidates: founder `/updates/new`, founder draft-edit on `/updates/[id]`, the admin per-company composer, the WS17 fund-report editor (Part 7, not yet built), the admin templates editor, company notes. | Any subset | **The three update composers + the WS17 report editor** (born clean rather than restyled later — see sequencing). **Exclude** templates and notes: short utility forms, not writing surfaces. Confirm whether "posts" meant the fund reports. |
+| **Q16** | **Autosave, or keep explicit save?** Medium's "Saved" implies background autosave. Molly's new-update page has no row to save into until first save; the edit page PATCHes an existing draft. | **A.** Keep explicit save; add an ambient "Saved · 2:41 PM" mono indicator after each save. **B.** A + debounced autosave (~30s after typing stops) **for existing drafts only** (edit page, and the new page after first save). **C.** Full Medium: auto-create the draft as soon as there's a title. | **B.** Delivers the "Saved" feel without C's side effect (drafts materializing that the founder never asked for, polluting the updates list). A is the fallback if B's edge cases (autosave racing a publish click) eat the budget — B must suppress autosave while `submitting`/`confirmPublish` is true. |
+| **Q17** | **How much chrome disappears?** Medium hides all navigation on the draft page. | **A.** Keep the AppShell sidebar; restyle only the content area. **B.** Full-bleed composer: no sidebar; a thin top bar ("← Updates · Draft in {Company} · Saved" left; Schedule/Publish right). | **B** — it *is* the Medium look, and the composer's own top bar keeps the exit path ("← Updates" is exactly where the current back-link at `updates/new/page.tsx:216-222` already goes). Cheap reversal: the shell is one component; re-wrapping in `AppShell` is a one-line change per page. |
+| **Q18** | **Toolbar model.** | **A.** Bubble toolbar on text selection only, with image insert kept reachable via a minimal persistent affordance. **B.** Permanent but visually slimmed toolbar (borderless, appears on editor focus). | **A**, with B as the tested fallback if the TipTap v3 bubble-menu integration fights the budget. Image insert and text-align currently live in the permanent toolbar; A must keep both reachable — **this is the spot where seeing the actual screenshot matters most** (Medium uses a left-margin "+" button for inserts; match what the screenshot shows). |
+
+## WS20 — Chromeless draft composer (2.5–3 days, assumes Q15–Q18 recommendations)
+
+### WS20.1 `RichEditor` chromeless variant (additive prop, same pattern as JC9)
+
+`src/components/ui/rich-editor.tsx`: add `variant?: "boxed" | "chromeless"` (default `"boxed"` → byte-identical for templates/notes and every caller that doesn't opt in).
+
+- `chromeless`: outer container drops `rounded-md border border-input bg-background`; the permanent toolbar is not rendered; instead render TipTap v3's `BubbleMenu` (from `@tiptap/react/menus`; install `@floating-ui/dom` if the build asks — free/MIT) with the core marks (Bold, Italic, Underline, H2, H3, quote, link) as a small Obsidian-on-Paper floating bar; image upload + divider + alignment per Q18. Editor prose gains a larger base size (`prose`, not `prose-sm`) and `min-h-[50vh]`; placeholder "Tell your investors what happened…" (per-call-site overridable, as today).
+- Composes with the existing `extraExtensions` prop (Part 7 JC9): the WS17 report editor will use `variant="chromeless"` + the mention extension.
+
+### WS20.2 Composer shell
+
+New file `src/components/layout/composer-shell.tsx` — the Q17-B full-bleed layout for all in-scope composers. Paper background, `max-w-[46rem]` centered column; sticky thin top bar: left = back link (`← Updates`, or `← {Company}` in the admin composer), mono muted `Draft in {companyName}` + save-state indicator (`Saved · 2:41 PM` / `Saving…` / `Unsaved changes` — JetBrains Mono, muted); right = secondary "Schedule" (the existing disclosure's content, relocated into a small panel) and primary "Publish" (existing confirm flow relocated: confirm renders as a slim banner under the top bar, reusing current copy and button pair). Mobile: top bar wraps per Part 6 Pattern C; the canvas is already single-column.
+
+### WS20.3 `/updates/new` rework
+
+A layout transplant — all state/handlers (`handleSubmit`, template logic, metric inputs, schedule) survive verbatim; lines 214–447 restructure onto the shell:
+
+1. Canvas order: **Title** (borderless input, `font-display text-4xl tracking-tight`, placeholder "Title"), a small mono **Period** input inline beneath it (placeholder `2026-Q3` — required data rendered as a byline detail, not a form field), then the chromeless body.
+2. **Template picker** (only when templates exist): one muted line under the title while the body is empty — "Start from a template ▾" (borderless native select) — hidden once the body has content. Same `applyTemplate` confirm logic (line 106–116).
+3. **Metrics + attachments** move below the canvas into a collapsed disclosure `Details — metrics & attachments` (chevron pattern copied from the schedule disclosure, lines 403–415). Expanded content = the existing metric grid and upload box, unchanged. Medium's model is write-first, configure-second; the fields keep 100% of their function one click away.
+4. Error/success messages render as the slim banner under the top bar (existing `message` state + styling).
+
+### WS20.4 `/updates/[id]` draft-edit rework + admin composer parity
+
+- Edit mode (lines 513–581) adopts the same shell/canvas (identical relocation; Save/Cancel become top-bar actions; Q16-B autosave wires into `handleSaveEdit` with a debounce, suppressed while `saving`). Published-view mode untouched.
+- `src/app/admin/companies/[id]/updates/new/page.tsx`: same transplant; back link → the company detail page.
+
+### WS20.5 Save-state + autosave (Q16-B)
+
+Small hook `useDraftAutosave({ enabled, dirty, onSave })` colocated with the shell: 30s debounce after last change; disabled until the draft exists (new page: after first manual save); disabled during `submitting`/`confirmPublish`/schedule submission; exposes `saveState` for the top-bar indicator. **No schema or API changes** — it calls the existing POST/PATCH endpoints.
+
+### WS20 sequencing vs Part 7
+
+WS20 is independent of Part 7's data work but **should land before WS17 builds the report editor**, so that editor is born on the composer shell instead of being restyled a week later. Recommended combined order: WS16 → **WS20** → WS17 → WS18 → WS19. If WS20's decisions stall, WS17 proceeds on the boxed pattern and adopts the shell in a later pass (cheap: WS17.5 already isolates its editor page).
+
+**WS20 acceptance checklist**
+- [ ] **Screenshot check:** the shipped composer matches the user's Medium screenshot in structure (top bar, borderless title, chromeless body, ambient save state) — reviewed by the user against the real image
+- [ ] Capability parity, every item exercised on the live deploy: template prefill (incl. overwrite confirm), period required-validation, metric values saved with a draft AND with a publish, attachment upload, publish confirm + team email, schedule-for-later (create + cancel), plain draft save, 3-day edit-window rules unchanged
+- [ ] Templates editor (`/admin/templates`) and company-notes editor render byte-identical (default `variant="boxed"`)
+- [ ] Bubble toolbar: bold/italic/underline/H2/H3/quote/link on selection; image insert reachable (Q18); Cmd-B/Cmd-I shortcuts still work
+- [ ] Autosave: typing in an existing draft → "Saving…" → "Saved · time" within ~30s; no autosave fires mid-publish; the new-update page never creates a row before first explicit save
+- [ ] 375px: no horizontal scroll on any composer (Part 6 standard); top bar wraps cleanly
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** a deliberate, user-requested redesign of the three update composers (and the future report editor); every capability preserved, relocated at most one click away. Templates/notes editors and all published-view pages unchanged. **Cost impact:** none (at most one free MIT dep, `@floating-ui/dom`). **Schema:** none.
+
+## Part 8 roadmap bookkeeping
+
+`ROADMAP.md`: add the composer redesign as a planned P2 row pointing here, and annotate the P3 "Mobile-Optimized Update Flow" row — WS20 delivers the *visual/layout* half of a composer rethink; that P3 item's remaining scope narrows to mobile-specific *interaction* work (simplified metric entry). Fold into "Existing Features" when shipped.
