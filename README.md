@@ -38,6 +38,13 @@ Built by [DFS Lab](https://www.dfs.vc) and open source under MIT so other invest
 - Manage a service-provider directory: founders submit and endorse providers, admins vet them
 - Configure per-company update reminder frequency (weekly, bi-weekly, monthly, quarterly)
 
+### LP Fund-Report Portal
+A separate, third audience alongside founders/admins and investor-link recipients: **limited partners** of DFS Lab's funds (FUND1–3, FUND4, FUND5, CAF1, MISC). Admins manage funds, portfolio companies, and per-fund deals/valuations (imported once from a spreadsheet, then Molly is the source of truth — see `scripts/import-investment-tracker.ts` in SETUP.md), and author letter-style reports per fund with an explicit `@`-mention picker for portfolio companies. Publishing **freezes** valuation snapshots into the report (the LP-facing numbers never silently drift after the fact); re-publishing after an edit re-freezes fresh ones.
+
+LPs have no account and no NextAuth session. They authenticate at `/lp` with a one-time, 6-digit email code (10-minute validity, fail-closed attempt cap) and land on a ~30-day session; from there they see a library of every published report across the funds they belong to, and each report page renders portfolio-company mentions as hover/tap cards showing the multiple and dollar detail since DFS's first check. The whole `/lp` surface is public at the routing layer (`PUBLIC_PREFIXES` in `src/lib/route-access.ts`) by design — the `lp_session` cookie is the real, separate gate, checked directly by Server Components rather than by any client-side API fetch. **No new env vars or paid services are needed** — reuses the existing Resend integration and the Postgres-backed rate limiter.
+
+Forks: the LP tables (`Fund`, `PortfolioCompany`, `Deal`, `LimitedPartner`, `LpSession`, `LpOtpCode`, `FundReport`, `FundReportMention`) are entirely additive and dormant until an admin creates a fund — no migration risk to running an unmodified instance without ever using this feature. The importer is a one-time CLI script; it never runs automatically and never reads or writes anything outside the path you give it.
+
 ## Tech Stack
 
 | Layer | Technology |
@@ -81,15 +88,19 @@ src/
       documents/          # File upload and download
       admin/              # Approvals, dashboard, company management, digest
       providers/          # Service-provider directory
+      lp/                 # LP portal auth (request/verify/logout OTP endpoints)
     login/                # Login page
     signup/               # Founder sign-up
     dashboard/            # Founder dashboard
     admin/                # Admin dashboard, approvals, companies, digest, settings
+    lp/                   # LP portal (library + report pages, its own layout)
   components/             # Reusable UI and layout components
-  lib/                    # Server-side utilities (auth, db, email, S3)
+  lib/                    # Server-side utilities (auth, db, email, S3, lp-auth)
   types/                  # TypeScript type definitions
 prisma/
   schema.prisma           # Database schema
+scripts/
+  import-investment-tracker.ts   # One-time LP fund/deal spreadsheet importer (see SETUP.md)
 ```
 
 ## Deployment

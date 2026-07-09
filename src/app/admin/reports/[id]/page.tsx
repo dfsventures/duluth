@@ -33,6 +33,7 @@ export default function AdminReportEditorPage() {
   const [body, setBody] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
+  const [notifyLps, setNotifyLps] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -105,13 +106,23 @@ export default function AdminReportEditorPage() {
     setPublishing(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/reports/${reportId}/publish`, { method: "POST" });
+      const res = await fetch(`/api/admin/reports/${reportId}/publish`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notify: notifyLps }),
+      });
       if (!res.ok) {
         const d = await res.json().catch(() => null);
         throw new Error(d?.error ?? "Failed to publish");
       }
+      const data: { notifyResult?: { notified: number; failed: number } } = await res.json();
       setConfirmPublish(false);
-      setMessage({ type: "success", text: "Report published — valuation snapshots frozen." });
+      const notifyText = data.notifyResult
+        ? ` Notified ${data.notifyResult.notified} LP${data.notifyResult.notified === 1 ? "" : "s"}${
+            data.notifyResult.failed > 0 ? ` (${data.notifyResult.failed} failed)` : ""
+          }.`
+        : "";
+      setMessage({ type: "success", text: `Report published — valuation snapshots frozen.${notifyText}` });
       await loadReport();
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to publish." });
@@ -208,14 +219,25 @@ export default function AdminReportEditorPage() {
       )}
 
       {confirmPublish && (
-        <div className="mb-6 flex flex-wrap items-center justify-end gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
           <span className="text-sm text-ochre">Publishing freezes today&apos;s valuation numbers into this report. Continue?</span>
-          <Button variant="secondary" size="sm" disabled={publishing} onClick={() => setConfirmPublish(false)}>
-            Cancel
-          </Button>
-          <Button size="sm" disabled={publishing} onClick={handlePublish}>
-            {publishing ? "Publishing..." : "Confirm Publish"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm text-ochre">
+              <input
+                type="checkbox"
+                checked={notifyLps}
+                onChange={(e) => setNotifyLps(e.target.checked)}
+                className="h-4 w-4 rounded-sm border-ochre/50"
+              />
+              Notify this fund&apos;s LPs by email
+            </label>
+            <Button variant="secondary" size="sm" disabled={publishing} onClick={() => setConfirmPublish(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={publishing} onClick={handlePublish}>
+              {publishing ? "Publishing..." : "Confirm Publish"}
+            </Button>
+          </div>
         </div>
       )}
 

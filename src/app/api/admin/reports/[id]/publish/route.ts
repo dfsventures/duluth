@@ -4,14 +4,18 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { extractMentionIds, buildMentionSnapshot } from "@/lib/report-snapshot";
+import { sendLpReportPublishedEmail } from "@/lib/email";
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const { user, error } = await requireAdmin();
     if (error) return error;
 
-    const report = await db.fundReport.findUnique({ where: { id } });
+    const body = await request.json().catch(() => ({}));
+    const notify = body?.notify === true;
+
+    const report = await db.fundReport.findUnique({ where: { id }, include: { fund: { select: { name: true } } } });
     if (!report) return NextResponse.json({ error: "Report not found" }, { status: 404 });
     if (report.status !== "DRAFT") {
       return NextResponse.json({ error: "Only a draft report can be published." }, { status: 400 });
@@ -67,12 +71,39 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       });
     });
 
+    // WS19 (Q7 = B): opt-in notification, off by default. Best-effort per
+    // recipient — one bad address must never block the others or the
+    // publish itself (the F12 lesson).
+    let notifyResult: { notified: number; failed: number } | undefined;
+    if (notify) {
+      const memberships = await db.lpFundMembership.findMany({
+        where: { fundId: report.fundId },
+        include: { lp: { select: { email: true } } },
+      });
+      let notified = 0;
+      let failed = 0;
+      for (const m of memberships) {
+        try {
+          await sendLpReportPublishedEmail({
+            email: m.lp.email,
+            fundName: report.fund.name,
+            reportTitle: report.title,
+          });
+          notified++;
+        } catch (emailError) {
+          console.error(`Failed to send LP report-published email to ${m.lp.email}:`, emailError);
+          failed++;
+        }
+      }
+      notifyResult = { notified, failed };
+    }
+
     await logAdminAction(user!, "REPORT_PUBLISHED", {
       targetType: "FundReport",
       targetId: id,
-      metadata: { mentionCount: mentionedIds.length },
+      metadata: { mentionCount: mentionedIds.length, notify, ...(notifyResult ? { notifyResult } : {}) },
     });
-    return NextResponse.json(published);
+    return NextResponse.json({ ...published, notifyResult });
   } catch (err) {
     console.error("POST /api/admin/reports/[id]/publish error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

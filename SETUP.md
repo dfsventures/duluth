@@ -124,6 +124,22 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Click "Sign in with Google" using a `@dfslab.net` account.
 3. The system will automatically create your admin account.
 
+## 5b. LP Fund-Report Portal (optional — one-time import)
+
+The LP portal (`/lp`) needs no setup to run — its tables are dormant until an admin creates a fund via `/admin/funds`. If you're bootstrapping DFS Lab's own data (or a fork's equivalent investment tracker), there's a one-time importer:
+
+```bash
+# Dry-run (default) — parses, validates, and prints what WOULD be written. Touches nothing.
+npx tsx scripts/import-investment-tracker.ts ~/Downloads/"Your Investment Tracker.xlsx"
+
+# Real run — pass --write once the dry-run report looks right.
+DATABASE_URL="<your DATABASE_URL>" npx tsx scripts/import-investment-tracker.ts <path> --write
+```
+
+**Confidentiality note (this repo is public/MIT):** the importer takes the spreadsheet path as a CLI argument pointing *outside* the repo — never commit the source file, a fixture derived from it, or its dry-run terminal output (which prints real valuations). `*.xlsx` is already in `.gitignore` as a defensive backstop. The importer is idempotent (safe to re-run; it upserts funds/companies and only creates a deal row if an identical one doesn't already exist), so a partial failure can simply be re-run with `--write` again.
+
+No new environment variables are required for the LP portal or the importer — it reuses `DATABASE_URL` and the existing Resend configuration (for the OTP email LPs receive when signing in at `/lp`).
+
 ## 6. Test the founder flow
 
 1. Go to `http://localhost:3000/signup`.
