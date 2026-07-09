@@ -75,6 +75,8 @@
   "devDependencies": {
     "eslint": "^8.57.1",
     "eslint-config-next": "^14.2.35",
-    "vitest": "^4.1.9"
+    "tsx": "^4.23.0",
+    "vitest": "^4.1.9",
+    "xlsx": "^0.18.5"
   }
 }

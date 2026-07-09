@@ -71,6 +71,7 @@ model User {
   submittedProviders   ServiceProvider[]        @relation("SubmittedProviders")
   providerEndorsements ProviderEndorsement[]
   createdTemplates     UpdateTemplate[]         @relation("CreatedTemplates")
+  createdFundReports   FundReport[]             @relation("CreatedFundReports")
 
   @@map("users")
 }
@@ -104,6 +105,7 @@ model Company {
   shareableLinks    ShareableLinkCompany[]
   notes             CompanyNote[]
   metricAlerts      MetricAlert[]
+  portfolioCompany  PortfolioCompany?
 
   @@map("companies")
 }
@@ -469,4 +471,154 @@ model MetricAlert {
 
   @@index([resolvedAt, firedAt])
   @@map("metric_alerts")
+}
+
+// ─── LP Fund-Report Portal ────────────────────────────────
+
+model Fund {
+  id            String    @id @default(cuid())
+  slug          String    @unique // import key, e.g. "FUND1" — never shown to LPs
+  name          String    // display name, editable, e.g. "FUND1" or "DFS Lab SPV I"
+  groupLabel    String?   // e.g. "African Multi-Asset Cohort Funds" (Deals sheet row 3)
+  firstDealDate DateTime?
+  aumUsd        Decimal?
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  deals   Deal[]
+  lps     LpFundMembership[]
+  reports FundReport[]
+
+  @@map("funds")
+}
+
+model PortfolioCompany {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  country   String?
+  companyId String?  @unique // optional link to an operational Molly Company (Q14)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deals    Deal[]
+  mentions FundReportMention[]
+
+  @@map("portfolio_companies")
+}
+
+model Deal {
+  id                 String    @id @default(cuid())
+  fundId             String
+  portfolioCompanyId String
+  investmentType     String    // "INITIAL" | "FOLLOW_ON"
+  dealDate           DateTime
+  country            String?
+  amountUsd          Decimal
+  instrument         String?   // free text — source data has typos/variants (F17)
+  entryValuation     Decimal?  // valuation/cap (post) at investment
+  currentValuation   Decimal?  // admin-maintained after import; 0 = written off
+  valuationAsOf      DateTime? // when currentValuation was last set (import date initially, F17.4)
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  fund             Fund             @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([fundId])
+  @@index([portfolioCompanyId])
+  @@map("deals")
+}
+
+model LimitedPartner {
+  id        String   @id @default(cuid())
+  email     String   @unique // stored lowercased/trimmed
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  funds    LpFundMembership[]
+  sessions LpSession[]
+  otpCodes LpOtpCode[]
+
+  @@map("limited_partners")
+}
+
+model LpFundMembership {
+  id        String   @id @default(cuid())
+  lpId      String
+  fundId    String
+  createdAt DateTime @default(now())
+
+  lp   LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+  fund Fund           @relation(fields: [fundId], references: [id], onDelete: Cascade)
+
+  @@unique([lpId, fundId])
+  @@map("lp_fund_memberships")
+}
+
+model LpOtpCode {
+  id         String    @id @default(cuid())
+  lpId       String
+  codeHash   String    // sha256 hex of the 6-digit code — never store the code
+  expiresAt  DateTime  // request time + 10 minutes
+  attempts   Int       @default(0) // fail-closed cap of 5 (rate limiter fails open — this doesn't)
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  lp LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+
+  @@index([lpId, createdAt])
+  @@map("lp_otp_codes")
+}
+
+model LpSession {
+  id         String   @id @default(cuid())
+  token      String   @unique // crypto.randomBytes(32).toString("hex")
+  lpId       String
+  expiresAt  DateTime // verify time + 30 days, fixed
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  lp LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+
+  @@index([lpId])
+  @@map("lp_sessions")
+}
+
+model FundReport {
+  id          String    @id @default(cuid())
+  fundId      String
+  title       String    // e.g. "FUND1 — H1 2026 Report"
+  periodLabel String?   // e.g. "H1 2026"
+  body        String    @db.Text // TipTap HTML incl. mention spans (data-portco)
+  status      String    @default("DRAFT") // "DRAFT" | "PUBLISHED"
+  publishedAt DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  fund      Fund                @relation(fields: [fundId], references: [id])
+  createdBy User                @relation("CreatedFundReports", fields: [createdById], references: [id])
+  mentions  FundReportMention[]
+
+  @@index([fundId, status])
+  @@map("fund_reports")
+}
+
+model FundReportMention {
+  id                 String   @id @default(cuid())
+  reportId           String
+  portfolioCompanyId String
+  companyName        String   // display name frozen at publish
+  snapshot           Json     // frozen at publish — shape in WS17.2
+  createdAt          DateTime @default(now())
+
+  report           FundReport       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, portfolioCompanyId])
+  @@map("fund_report_mentions")
 }

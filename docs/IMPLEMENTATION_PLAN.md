@@ -1760,7 +1760,7 @@ Per protocol these are the user's calls; recommendations attached. **Q6, Q12–Q
 
 ---
 
-## WS16 — Foundation: schema, one-time importer, admin funds/LPs/deals management (3–3.5 days)
+## WS16 — Foundation: schema, one-time importer, admin funds/LPs/deals management (3–3.5 days) — SHIPPED 2026-07-08
 
 **Goal:** the data layer exists, the spreadsheet's 76 deals / 50 companies / 7 funds are in production Postgres, and admins can CRUD all of it. Admin-only — founders and investors see nothing. No email, no LP surface yet.
 
