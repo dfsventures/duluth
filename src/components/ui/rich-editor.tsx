@@ -27,7 +27,7 @@ import {
   Undo,
   Redo,
 } from "lucide-react";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface RichEditorProps {
   value: string;
@@ -35,6 +35,15 @@ interface RichEditorProps {
   placeholder?: string;
   className?: string;
   companyId?: string; // for image uploads
+  /**
+   * "boxed" (default) is byte-identical to the original editor — bordered
+   * container, permanent toolbar. "chromeless" (WS20) drops the box and
+   * restyles the toolbar as a slim, borderless bar that dims until the
+   * editor is focused; it keeps every button (nothing moved into a bubble
+   * or floating menu — Part 8 decision Q18 = B). Templates/notes callers
+   * never pass this, so they render exactly as before.
+   */
+  variant?: "boxed" | "chromeless";
 }
 
 export function RichEditor({
@@ -43,8 +52,10 @@ export function RichEditor({
   placeholder = "Write your update here...",
   className,
   companyId,
+  variant = "boxed",
 }: RichEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [focused, setFocused] = useState(false);
 
   const editor = useEditor({
     extensions: [
@@ -66,10 +77,14 @@ export function RichEditor({
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
     editorProps: {
       attributes: {
         class:
-          "prose prose-sm max-w-none min-h-[300px] p-4 focus:outline-none",
+          variant === "chromeless"
+            ? "prose max-w-none min-h-[50vh] focus:outline-none"
+            : "prose prose-sm max-w-none min-h-[300px] p-4 focus:outline-none",
       },
     },
   });
@@ -160,10 +175,22 @@ export function RichEditor({
     </button>
   );
 
+  const chromeless = variant === "chromeless";
+
   return (
-    <div className={cn("rounded-md border border-input bg-background", className)}>
-      {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-0.5 border-b p-2">
+    <div className={cn(chromeless ? "" : "rounded-md border border-input bg-background", className)}>
+      {/* Toolbar — chromeless: borderless, slim, and persistent (always in the
+          DOM, never a selection/bubble popup) but dims to a quiet baseline
+          until the editor is focused, matching "slim persistent toolbar,
+          appearing on focus" (Part 8, Q18 = B). */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-0.5 transition-opacity",
+          chromeless
+            ? cn("mb-3 gap-1", focused ? "opacity-100" : "opacity-50 hover:opacity-90")
+            : "border-b p-2"
+        )}
+      >
         {/* Undo / Redo */}
         <ToolbarButton
           onClick={() => editor.chain().focus().undo().run()}

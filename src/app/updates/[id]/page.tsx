@@ -15,7 +15,6 @@ import {
   Paperclip,
   Pencil,
   X,
-  Save,
   Calendar,
   ChevronDown,
   ChevronUp,
@@ -32,6 +31,10 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { DOC_TYPES } from "@/lib/constants";
 import { ORG_NAME } from "@/lib/org";
+import { ComposerTopBar } from "@/components/composer/composer-top-bar";
+import { ComposerTitleField } from "@/components/composer/composer-title-field";
+import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
+import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 
 interface MetricDefinition {
   id: string;
@@ -105,6 +108,33 @@ export default function UpdateDetailPage() {
   const [editBody, setEditBody] = useState("");
   const [editMetrics, setEditMetrics] = useState<Record<string, string>>({});
   const [metricDefs, setMetricDefs] = useState<MetricDefinition[]>([]);
+  const [editDirty, setEditDirty] = useState(false);
+
+  // Autosave (Part 8, Q16 = B) — existing drafts only, suppressed while a
+  // manual save/publish/schedule is already in flight.
+  const autosave = useDraftAutosave({
+    enabled: editing,
+    dirty: editDirty,
+    suppressed: saving || sending || scheduling || confirmPublish,
+    onSave: () => handleSaveEdit({ silent: true }),
+  });
+
+  function handleEditTitleChange(v: string) {
+    setEditTitle(v);
+    setEditDirty(true);
+  }
+  function handleEditPeriodChange(v: string) {
+    setEditPeriod(v);
+    setEditDirty(true);
+  }
+  function handleEditBodyChange(v: string) {
+    setEditBody(v);
+    setEditDirty(true);
+  }
+  function handleEditMetricChange(metricId: string, value: string) {
+    setEditMetrics((prev) => ({ ...prev, [metricId]: value }));
+    setEditDirty(true);
+  }
 
   // Comment form
   const [newComment, setNewComment] = useState("");
@@ -150,11 +180,13 @@ export default function UpdateDetailPage() {
       }
     }
 
+    setEditDirty(false);
     setEditing(true);
   }
 
   function cancelEdit() {
     setEditing(false);
+    setEditDirty(false);
     setMessage(null);
   }
 
@@ -180,15 +212,18 @@ export default function UpdateDetailPage() {
     }
   }
 
-  async function handleSaveEdit() {
+  async function handleSaveEdit(opts: { silent?: boolean } = {}) {
+    const silent = opts.silent ?? false;
     if (!update) return;
     if (!editTitle.trim() || !editPeriod.trim()) {
-      setMessage({ type: "error", text: "Title and period are required." });
-      return;
+      if (!silent) setMessage({ type: "error", text: "Title and period are required." });
+      throw new Error("Title and period are required.");
     }
 
-    setSaving(true);
-    setMessage(null);
+    if (!silent) {
+      setSaving(true);
+      setMessage(null);
+    }
 
     try {
       const metricValues = Object.entries(editMetrics)
@@ -215,16 +250,22 @@ export default function UpdateDetailPage() {
         throw new Error(err?.error ?? "Failed to save");
       }
 
-      setEditing(false);
-      setMessage({ type: "success", text: "Update saved." });
-      await loadUpdate();
+      setEditDirty(false);
+      if (!silent) {
+        setEditing(false);
+        setMessage({ type: "success", text: "Update saved." });
+        await loadUpdate();
+      }
     } catch (err) {
-      setMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : "Failed to save.",
-      });
+      if (!silent) {
+        setMessage({
+          type: "error",
+          text: err instanceof Error ? err.message : "Failed to save.",
+        });
+      }
+      throw err;
     } finally {
-      setSaving(false);
+      if (!silent) setSaving(false);
     }
   }
 
@@ -370,43 +411,37 @@ export default function UpdateDetailPage() {
 
   return (
     <AppShell>
-      <PageHeader
-        title={editing ? "Edit Update" : update.title}
-        description={
-          editing
-            ? isEditablePublished
-              ? `Editing a published update · ${editHoursLeft}h left to make changes`
-              : "Make changes to your draft below."
-            : `${formatPeriod(update.period)} · Created ${formatDate(update.createdAt)}`
-        }
-        action={
-          <div className="flex flex-wrap items-center gap-3">
-            <Badge variant={update.status === "SENT" ? "success" : "warning"}>
-              {update.status === "SENT"
-                ? "Published"
-                : update.scheduledFor
-                  ? `Scheduled · ${formatDate(update.scheduledFor)}`
-                  : "Draft"}
-            </Badge>
-            {!editing && (
-              <>
-                {canEdit && (
-                  <Button variant="secondary" size="sm" onClick={enterEditMode}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit
-                  </Button>
-                )}
-                <Link href={`/updates/${updateId}/download`}>
-                  <Button variant="secondary" size="sm">
-                    <Download className="mr-2 h-4 w-4" />
-                    Download PDF
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
-        }
-      />
+      {/* Edit mode replaces the page header with the composer top bar below
+          (Part 8, WS20.4) — view mode keeps the original header untouched. */}
+      {!editing && (
+        <PageHeader
+          title={update.title}
+          description={`${formatPeriod(update.period)} · Created ${formatDate(update.createdAt)}`}
+          action={
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge variant={update.status === "SENT" ? "success" : "warning"}>
+                {update.status === "SENT"
+                  ? "Published"
+                  : update.scheduledFor
+                    ? `Scheduled · ${formatDate(update.scheduledFor)}`
+                    : "Draft"}
+              </Badge>
+              {canEdit && (
+                <Button variant="secondary" size="sm" onClick={enterEditMode}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+              <Link href={`/updates/${updateId}/download`}>
+                <Button variant="secondary" size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Download PDF
+                </Button>
+              </Link>
+            </div>
+          }
+        />
+      )}
 
       {message && (
         <div
@@ -509,37 +544,49 @@ export default function UpdateDetailPage() {
 
       {/* ── EDIT MODE ─────────────────────────────────── */}
       {editing ? (
-        <div className="space-y-6">
-          <Card>
-            <CardContent className="space-y-4 pt-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Input
-                  id="edit-period"
-                  label="Period"
-                  value={editPeriod}
-                  onChange={(e) => setEditPeriod(e.target.value)}
-                  placeholder="e.g. 2025-Q1"
-                />
-                <Input
-                  id="edit-title"
-                  label="Title"
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  placeholder="Q1 2025 Update"
-                />
-              </div>
+        <div>
+          <ComposerTopBar
+            draftLabel={isEditablePublished ? `Editing published · ${editHoursLeft}h left` : "Draft"}
+            saveStateLabel={autosave.label}
+            secondaryActions={
+              <Button variant="secondary" size="sm" onClick={cancelEdit} disabled={saving}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            }
+            publishLabel={saving ? "Saving..." : "Save Changes"}
+            onPublishClick={() => handleSaveEdit()}
+            publishDisabled={!editTitle.trim() || !editPeriod.trim()}
+            publishing={saving}
+          />
 
-              <div className="space-y-1">
-                <label className="label">Update Body</label>
-                <RichEditor
-                  value={editBody}
-                  onChange={setEditBody}
-                  placeholder="Share your progress, challenges, and plans..."
-                  companyId={update.companyId}
-                />
-              </div>
+          {/* Validation errors repeat next to the buttons that trigger them —
+              the top-of-page banner is out of view on this long form */}
+          {message?.type === "error" && (
+            <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+              <AlertCircle className="h-4 w-4" />
+              {message.text}
+            </div>
+          )}
 
-              {metricDefs.length > 0 && (
+          <div className="mx-auto max-w-3xl">
+            <ComposerTitleField
+              title={editTitle}
+              onTitleChange={handleEditTitleChange}
+              period={editPeriod}
+              onPeriodChange={handleEditPeriodChange}
+            />
+
+            <RichEditor
+              variant="chromeless"
+              value={editBody}
+              onChange={handleEditBodyChange}
+              placeholder="Tell your investors what happened…"
+              companyId={update.companyId}
+            />
+
+            {metricDefs.length > 0 && (
+              <ComposerDisclosure label="Details — metrics & attachments" defaultOpen>
                 <div>
                   <p className="mb-3 text-sm font-medium">Metric Values</p>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -551,36 +598,14 @@ export default function UpdateDetailPage() {
                         type="number"
                         step="any"
                         value={editMetrics[m.id] ?? ""}
-                        onChange={(e) =>
-                          setEditMetrics((prev) => ({ ...prev, [m.id]: e.target.value }))
-                        }
+                        onChange={(e) => handleEditMetricChange(m.id, e.target.value)}
                         placeholder="Enter value"
                       />
                     ))}
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Validation errors repeat next to the buttons that trigger them —
-              the top-of-page banner is out of view on this long form */}
-          {message?.type === "error" && (
-            <div className="flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
-              <AlertCircle className="h-4 w-4" />
-              {message.text}
-            </div>
-          )}
-
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={cancelEdit} disabled={saving}>
-              <X className="mr-2 h-4 w-4" />
-              Cancel
-            </Button>
-            <Button onClick={handleSaveEdit} disabled={saving}>
-              <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
+              </ComposerDisclosure>
+            )}
           </div>
         </div>
       ) : (

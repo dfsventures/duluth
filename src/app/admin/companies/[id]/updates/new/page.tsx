@@ -3,20 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Send,
-  Save,
-  AlertCircle,
-  CheckCircle2,
-  ArrowLeft,
-  Plus,
-} from "lucide-react";
+import { AlertCircle, CheckCircle2, ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { RichEditor } from "@/components/ui/rich-editor";
+import { ComposerTopBar } from "@/components/composer/composer-top-bar";
+import { ComposerTitleField } from "@/components/composer/composer-title-field";
+import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 
 interface MetricDefinition {
   id: string;
@@ -144,20 +138,29 @@ export default function AdminCreateUpdatePage() {
     );
   }
 
+  const canPublish = period.trim() !== "" && title.trim() !== "";
+
   return (
     <AppShell>
-      <PageHeader
-        title={`Create Update${company ? ` for ${company.name}` : ""}`}
-        description="Create an update on behalf of this company."
-        action={
-          <Button
-            variant="ghost"
-            onClick={() => router.push(`/admin/companies/${companyId}`)}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Company
+      <button
+        onClick={() => router.push(`/admin/companies/${companyId}`)}
+        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Company
+      </button>
+
+      <ComposerTopBar
+        draftLabel={company ? `Draft in ${company.name}` : "Draft"}
+        secondaryActions={
+          <Button variant="secondary" size="sm" disabled={submitting} onClick={() => handleSubmit("DRAFT")}>
+            {submitting ? "Saving..." : "Save as Draft"}
           </Button>
         }
+        publishLabel="Send Update"
+        onPublishClick={() => handleSubmit("SENT")}
+        publishDisabled={!canPublish}
+        publishing={submitting}
       />
 
       {message && (
@@ -177,49 +180,21 @@ export default function AdminCreateUpdatePage() {
         </div>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            New Update
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              id="period"
-              label="Period"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              placeholder="e.g. 2025-Q1"
-              required
-            />
-            <Input
-              id="title"
-              label="Title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Q1 2025 Update"
-              required
-            />
-          </div>
+      <div className="mx-auto max-w-3xl">
+        <ComposerTitleField title={title} onTitleChange={setTitle} period={period} onPeriodChange={setPeriod} />
 
-          <div className="space-y-1">
-            <label className="label">Update Body</label>
-            <RichEditor
-              value={body}
-              onChange={setBody}
-              placeholder="Share progress, challenges, and plans..."
-              companyId={companyId}
-            />
-          </div>
+        <RichEditor
+          variant="chromeless"
+          value={body}
+          onChange={setBody}
+          placeholder="Share progress, challenges, and plans…"
+          companyId={companyId}
+        />
 
-          {/* Metric inputs */}
-          {metrics.length > 0 && (
+        {metrics.length > 0 && (
+          <ComposerDisclosure label="Details — metrics">
             <div>
-              <p className="mb-3 text-sm font-medium">
-                Metric Values for This Period
-              </p>
+              <p className="mb-3 text-sm font-medium">Metric Values for This Period</p>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {metrics.map((metric) => (
                   <Input
@@ -229,36 +204,15 @@ export default function AdminCreateUpdatePage() {
                     type="number"
                     step="any"
                     value={metricInputs[metric.id] ?? ""}
-                    onChange={(e) =>
-                      updateMetricInput(metric.id, e.target.value)
-                    }
+                    onChange={(e) => updateMetricInput(metric.id, e.target.value)}
                     placeholder="Enter value"
                   />
                 ))}
               </div>
             </div>
-          )}
-
-          {/* Action buttons */}
-          <div className="flex justify-end gap-3 border-t pt-4">
-            <Button
-              variant="secondary"
-              disabled={submitting}
-              onClick={() => handleSubmit("DRAFT")}
-            >
-              <Save className="mr-2 h-4 w-4" />
-              {submitting ? "Saving..." : "Save as Draft"}
-            </Button>
-            <Button
-              disabled={submitting}
-              onClick={() => handleSubmit("SENT")}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              {submitting ? "Sending..." : "Send Update"}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+          </ComposerDisclosure>
+        )}
+      </div>
     </AppShell>
   );
 }
