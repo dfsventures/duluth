@@ -12,7 +12,7 @@ _Prepared: 2026-07-03 · Reviewed against `ROADMAP.md` (last updated 2026-07-02)
 >
 > **Part 7 (added 2026-07-08)** plans the **LP Fund-Report Portal** (WS16–WS19) — funds/deals/LP management, snapshot-frozen fund reports with portfolio-company hover cards, and an OTP-authenticated LP surface styled after www.dfs.vc. **Planned, not yet started.** Open decisions Q6–Q14 await user answers (recommendations attached).
 >
-> **Part 8 (added 2026-07-08)** plans the **Medium-style draft composer** (WS20) — chromeless, distraction-free draft pages for updates (and the Part 7 report editor), per a user-supplied Medium screenshot. **Planned, not yet started**; decisions Q15–Q18 open, and the screenshot itself still needs to be checked against the design-target list (it did not reach the planner).
+> **Part 8 (added 2026-07-08)** plans the **Medium-style draft composer** (WS20) — chromeless, distraction-free draft pages for updates (and the Part 7 report editor), per a user-supplied Medium screenshot. **Planned, not yet started.** The screenshot was received and reviewed the same day (after several failed delivery attempts) — it confirmed the design targets and resolved Q18 (bubble toolbar + left-margin "+" insert); decisions Q15–Q17 remain open (recommendations attached).
 
 This document is the output of a full codebase-vs-roadmap review. It has five parts:
 
@@ -2234,7 +2234,7 @@ Done alongside this plan: `ROADMAP.md` gains a "Next up — LP Fund-Report Porta
 
 _Added 2026-07-08, from a user request: a screenshot of a Medium draft page, with "I'd like all our draft pages for posts and updates to look this clean."_
 
-> ⚠️ **The referenced screenshot did not reach the planner** — the image was not attached to the planning context. This Part plans against Medium's canonical, well-known draft-page conventions (verified against the current Molly composer code, which is their opposite in every respect). Before implementation starts, someone should hold the actual screenshot up against the "Design target" list below and flag any trait it shows that the list misses (e.g. if the screenshot features Medium's left-margin **+** insert button, or a specific top-bar arrangement, say so — those change WS20.2's shape).
+> ✅ **Screenshot received and reviewed 2026-07-08** (`~/Downloads/medium-draft.png`, after several delivery attempts failed). It confirms the design-target list below and **resolves the two items that were flagged as screenshot-dependent**: (1) the top bar is *wordmark + quiet grey "Draft" label* on the left and *a pale, disabled-until-publishable Publish button, overflow "···", and account cluster* on the right — no back arrow, the wordmark is the exit; (2) **the left-margin circled "+" insert button IS present** next to the empty body paragraph, alongside the selection bubble toolbar (shown in the screenshot's onboarding hint: B, i, link | large-T, small-T, blockquote, indent — over selected text). The screenshot also shows a **dismissible first-run hint** ("Select text to change formatting, add headers, or create links.") — adopted as optional WS20.6. Q18 is therefore effectively answered by the source material; WS20.1/WS20.2 below have been updated to match.
 
 ## What "Medium draft clean" means (design target)
 
@@ -2261,12 +2261,16 @@ DFS-brand translation (per the brand skill: restrained, structured-by-content, O
 
 ## Part 8 open product decisions (Q15–Q18)
 
+> **All decided 2026-07-08 (user review). Q17 and Q18 diverge from the recommendations, and both reduce scope:**
+> **Q15 = three update composers + the WS17 report editor** (recommended) · **Q16 = B** (debounced autosave for existing drafts only, suppressed while submitting/confirming; recommended) · **Q17 = A — KEEP the AppShell sidebar**, restyle only the content area (diverges from the full-bleed rec; WS20.2's top-bar design shrinks to an in-content header row) · **Q18 = B — slim persistent toolbar**, borderless, appearing on focus (the user chose B explicitly even after the screenshot resolved the rec toward A — no bubble menu, no floating "+", no @tiptap/react/menus or floating-ui work; image insert and alignment stay in the persistent toolbar, restyled).
+> **Consequence:** WS20 sheds its two riskiest integrations (BubbleMenu + FloatingMenu) and the full-bleed shell; effort lands at or under the low end (~2–2.5d). Sequencing unchanged: WS16 → WS20 → WS17 → WS18 → WS19.
+
 | # | Question | Options | Recommendation |
 |---|---|---|---|
 | **Q15** | **Scope of "all our draft pages for posts and updates."** Molly has no "posts" entity — candidates: founder `/updates/new`, founder draft-edit on `/updates/[id]`, the admin per-company composer, the WS17 fund-report editor (Part 7, not yet built), the admin templates editor, company notes. | Any subset | **The three update composers + the WS17 report editor** (born clean rather than restyled later — see sequencing). **Exclude** templates and notes: short utility forms, not writing surfaces. Confirm whether "posts" meant the fund reports. |
 | **Q16** | **Autosave, or keep explicit save?** Medium's "Saved" implies background autosave. Molly's new-update page has no row to save into until first save; the edit page PATCHes an existing draft. | **A.** Keep explicit save; add an ambient "Saved · 2:41 PM" mono indicator after each save. **B.** A + debounced autosave (~30s after typing stops) **for existing drafts only** (edit page, and the new page after first save). **C.** Full Medium: auto-create the draft as soon as there's a title. | **B.** Delivers the "Saved" feel without C's side effect (drafts materializing that the founder never asked for, polluting the updates list). A is the fallback if B's edge cases (autosave racing a publish click) eat the budget — B must suppress autosave while `submitting`/`confirmPublish` is true. |
 | **Q17** | **How much chrome disappears?** Medium hides all navigation on the draft page. | **A.** Keep the AppShell sidebar; restyle only the content area. **B.** Full-bleed composer: no sidebar; a thin top bar ("← Updates · Draft in {Company} · Saved" left; Schedule/Publish right). | **B** — it *is* the Medium look, and the composer's own top bar keeps the exit path ("← Updates" is exactly where the current back-link at `updates/new/page.tsx:216-222` already goes). Cheap reversal: the shell is one component; re-wrapping in `AppShell` is a one-line change per page. |
-| **Q18** | **Toolbar model.** | **A.** Bubble toolbar on text selection only, with image insert kept reachable via a minimal persistent affordance. **B.** Permanent but visually slimmed toolbar (borderless, appears on editor focus). | **A**, with B as the tested fallback if the TipTap v3 bubble-menu integration fights the budget. Image insert and text-align currently live in the permanent toolbar; A must keep both reachable — **this is the spot where seeing the actual screenshot matters most** (Medium uses a left-margin "+" button for inserts; match what the screenshot shows). |
+| **Q18** | **Toolbar model.** ~~Open~~ → **resolved by the screenshot (2026-07-08)**: it shows both Medium mechanisms — the selection bubble toolbar (B, i, link, large-T, small-T, blockquote, indent) *and* the left-margin circled "+" insert button on the empty paragraph. | **A.** Bubble toolbar + left-margin "+" (the screenshot's model). **B.** Permanent slimmed toolbar (fallback). | **A, now concrete:** bubble toolbar on selection for marks/headings/quote/link; a floating left-margin "+" (TipTap v3 `FloatingMenu`, same `@tiptap/react/menus` module as `BubbleMenu`) on the empty active paragraph for inserts — image upload and divider. Text-align (in Molly's current toolbar, absent from Medium's) moves into the bubble toolbar to preserve capability. B remains the tested fallback only if the floating-ui integration eats the budget. |
 
 ## WS20 — Chromeless draft composer (2.5–3 days, assumes Q15–Q18 recommendations)
 
@@ -2274,12 +2278,20 @@ DFS-brand translation (per the brand skill: restrained, structured-by-content, O
 
 `src/components/ui/rich-editor.tsx`: add `variant?: "boxed" | "chromeless"` (default `"boxed"` → byte-identical for templates/notes and every caller that doesn't opt in).
 
-- `chromeless`: outer container drops `rounded-md border border-input bg-background`; the permanent toolbar is not rendered; instead render TipTap v3's `BubbleMenu` (from `@tiptap/react/menus`; install `@floating-ui/dom` if the build asks — free/MIT) with the core marks (Bold, Italic, Underline, H2, H3, quote, link) as a small Obsidian-on-Paper floating bar; image upload + divider + alignment per Q18. Editor prose gains a larger base size (`prose`, not `prose-sm`) and `min-h-[50vh]`; placeholder "Tell your investors what happened…" (per-call-site overridable, as today).
+- `chromeless`: outer container drops `rounded-md border border-input bg-background`; the permanent toolbar is not rendered. Instead, two contextual controls (both from `@tiptap/react/menus`; install `@floating-ui/dom` if the build asks — free/MIT), matching the screenshot exactly:
+  - **`BubbleMenu` on text selection** — Bold, Italic, Underline (Molly capability, not in Medium's bar — keep), link, H2, H3, blockquote, alignment; rendered as a small Obsidian bar with Paper icons (Medium's is dark-on-light-page too).
+  - **`FloatingMenu` left-margin "+"** — a circled `+` beside the empty active paragraph (screenshot-confirmed) that expands to the insert actions: image upload (existing `handleImageUpload` flow) and divider.
+  Editor prose gains a larger base size (`prose`, not `prose-sm`) and `min-h-[50vh]`; placeholder "Tell your investors what happened…" (per-call-site overridable, as today).
 - Composes with the existing `extraExtensions` prop (Part 7 JC9): the WS17 report editor will use `variant="chromeless"` + the mention extension.
 
 ### WS20.2 Composer shell
 
-New file `src/components/layout/composer-shell.tsx` — the Q17-B full-bleed layout for all in-scope composers. Paper background, `max-w-[46rem]` centered column; sticky thin top bar: left = back link (`← Updates`, or `← {Company}` in the admin composer), mono muted `Draft in {companyName}` + save-state indicator (`Saved · 2:41 PM` / `Saving…` / `Unsaved changes` — JetBrains Mono, muted); right = secondary "Schedule" (the existing disclosure's content, relocated into a small panel) and primary "Publish" (existing confirm flow relocated: confirm renders as a slim banner under the top bar, reusing current copy and button pair). Mobile: top bar wraps per Part 6 Pattern C; the canvas is already single-column.
+New file `src/components/layout/composer-shell.tsx` — the Q17-B full-bleed layout for all in-scope composers, mirroring the screenshot's top-bar grammar. Paper background, `max-w-[46rem]` centered column; sticky thin top bar:
+
+- **Left** (screenshot: wordmark + quiet grey "Draft"): the `LogoMark` as the exit link (destination: `/updates`, or the company detail page in the admin composer — Medium uses its wordmark as the only way out, but keep a small `← Updates` text link too if testing shows founders miss it; micro-call for the implementer), then mono muted `Draft in {companyName}` + the save-state indicator (`Saved · 2:41 PM` / `Saving…` / `Unsaved changes` — JetBrains Mono, muted; the screenshot's empty draft shows just "Draft", which is the pre-first-save state here).
+- **Right** (screenshot: pale Publish · "···" · account cluster): a **Publish button that renders muted/disabled until the draft is publishable** (period + title non-empty — exactly the screenshot's pale-green disabled Publish), and an overflow "···" menu holding the secondary actions: **Schedule for later** (the existing disclosure's content in a small panel) and, on the edit page, **Delete draft** (existing flow). The publish confirm renders as a slim banner under the top bar, reusing the current copy and button pair.
+
+Mobile: top bar wraps per Part 6 Pattern C; the canvas is already single-column.
 
 ### WS20.3 `/updates/new` rework
 
@@ -2299,15 +2311,20 @@ A layout transplant — all state/handlers (`handleSubmit`, template logic, metr
 
 Small hook `useDraftAutosave({ enabled, dirty, onSave })` colocated with the shell: 30s debounce after last change; disabled until the draft exists (new page: after first manual save); disabled during `submitting`/`confirmPublish`/schedule submission; exposes `saveState` for the top-bar indicator. **No schema or API changes** — it calls the existing POST/PATCH endpoints.
 
+### WS20.6 First-run formatting hint (optional, from the screenshot)
+
+The screenshot shows Medium's dismissible onboarding hint ("Select text to change formatting, add headers, or create links." as a bottom sheet with a toolbar illustration). Contextual toolbars are invisible until discovered, so some hint is worth having — but a bottom-sheet carousel is over-built for Molly. Cheap version: a single muted line under the empty body (`Select text to format · type on an empty line for the + insert button`), dismissed by an `×` and remembered in `localStorage` (`molly:composer-hint-dismissed`), never shown again and never shown when the body already has content. ~20 lines; cut first if the budget runs out.
+
 ### WS20 sequencing vs Part 7
 
 WS20 is independent of Part 7's data work but **should land before WS17 builds the report editor**, so that editor is born on the composer shell instead of being restyled a week later. Recommended combined order: WS16 → **WS20** → WS17 → WS18 → WS19. If WS20's decisions stall, WS17 proceeds on the boxed pattern and adopts the shell in a later pass (cheap: WS17.5 already isolates its editor page).
 
 **WS20 acceptance checklist**
-- [ ] **Screenshot check:** the shipped composer matches the user's Medium screenshot in structure (top bar, borderless title, chromeless body, ambient save state) — reviewed by the user against the real image
-- [ ] Capability parity, every item exercised on the live deploy: template prefill (incl. overwrite confirm), period required-validation, metric values saved with a draft AND with a publish, attachment upload, publish confirm + team email, schedule-for-later (create + cancel), plain draft save, 3-day edit-window rules unchanged
+- [ ] **Screenshot check (source received 2026-07-08, `~/Downloads/medium-draft.png`):** the shipped composer matches its structure — quiet top bar (wordmark exit + "Draft in {Company}" + save state left; muted-until-publishable Publish + overflow right), borderless serif-scale title, chromeless body, left-margin "+" on the empty paragraph, bubble toolbar on selection — final look reviewed by the user
+- [ ] Capability parity, every item exercised on the live deploy: template prefill (incl. overwrite confirm), period required-validation, metric values saved with a draft AND with a publish, attachment upload, publish confirm + team email, schedule-for-later (create + cancel, now via the overflow menu), plain draft save, 3-day edit-window rules unchanged
 - [ ] Templates editor (`/admin/templates`) and company-notes editor render byte-identical (default `variant="boxed"`)
-- [ ] Bubble toolbar: bold/italic/underline/H2/H3/quote/link on selection; image insert reachable (Q18); Cmd-B/Cmd-I shortcuts still work
+- [ ] Bubble toolbar: bold/italic/underline/H2/H3/quote/link/alignment on selection; left-margin "+" inserts image (upload round-trips) and divider; Cmd-B/Cmd-I shortcuts still work
+- [ ] Publish button is muted/disabled until period + title are filled, then enables (screenshot behavior); first-run hint (WS20.6, if built) dismisses and stays dismissed
 - [ ] Autosave: typing in an existing draft → "Saving…" → "Saved · time" within ~30s; no autosave fires mid-publish; the new-update page never creates a row before first explicit save
 - [ ] 375px: no horizontal scroll on any composer (Part 6 standard); top bar wraps cleanly
 - [ ] `npm run typecheck && npm run lint && npm test` green
