@@ -1691,7 +1691,7 @@ DFS Lab runs multiple funds/vehicles (FUND1–3, FUND4, FUND5, CAF1, plus a MISC
 | Decision | How the plan implements it |
 |---|---|
 | **Hover markup numbers are frozen at publication** | `FundReportMention.snapshot` (Json) is computed from `Deal` rows and written at publish time; LP pages read only the snapshot. Draft previews compute live; the next report re-freezes fresh numbers. |
-| **Molly is the source of truth after a one-time import** | WS16's importer is a run-once script; all ongoing edits happen through admin CRUD on funds/deals/valuations. No recurring upload workflow. |
+| **Molly is the source of truth after a one-time import** | WS16's importer is a run-once script; all ongoing edits happen through admin CRUD on funds/deals/valuations. No recurring upload workflow. **Partially superseded 2026-07-15 (Part 10, Q22-B):** during a sheet-backed transition period, sheet-owned deal/valuation fields sync one-way from the Deals sheet and become read-only in admin CRUD *while sync is enabled* (WS27.5); Molly remains the analytical read layer and the long-term source of truth, and forks/deploys without Google env vars keep this row's original behavior exactly. |
 | **Explicit mention picker, not name auto-detection** | `@tiptap/extension-mention` in the report editor; typing `@` opens a picker scoped to the fund's portfolio companies. |
 | **LP sessions last ~30 days** | `LpSession.expiresAt = verify time + 30 days`, fixed (no sliding renewal — simplest honest implementation; sliding is an additive change later). |
 
@@ -2541,3 +2541,337 @@ Below the pending list (and independent of its empty state): heading "Awaiting p
 ## Part 9 sequencing & effort
 
 WS21 → WS22, same batch, combined **~1–1.25 days**. WS21 is the founder-facing fix and ships first; WS22 (if Q20-A confirmed) lands the same day and is the fastest way to push the waiting founder a fresh link without any action on their side. Out of scope, noted for the roadmap conversation: there is **no forgot-password flow at all** for users who *have* passwords (verified — the only `/set-password` senders are approval/invite/member-added). Today's accidental substitute is the member-added reset link. A proper `/forgot-password` reuses ~80% of WS21's machinery (token helper, neutral resend, rate limit, expired-state UI) if/when it's prioritized.
+
+---
+
+# Part 10 — Portfolio Ledger, Cross-Fund Views, Derived Metrics & Sheet Ingestion (WS23–WS27)
+
+_Added 2026-07-15, derived from the user's PRD ("LP Platform / Portfolio Tracker") after a full review pass (claims verified against the working tree 2026-07-15; findings F22–F25 below). Scope = the PRD's Phases 1–3 equivalent; the PRD's Phase 4 ("decide what deserves native product workflows") is deliberately **not planned here** — it is a future product decision. Same hard constraints as every prior Part: **no new cost lines**, **no UX regressions** (LP/founder/investor surfaces unchanged except where a decision below explicitly says otherwise), **additive-only schema changes** via the house `db push` procedure._
+
+## What this Part is
+
+The PRD's core judgment is correct: the LP-facing flow is directionally right, and the real work is underneath — evolving the snapshot-style deal tracker into a ledger that can support round-level history, dilution-aware valuation, and scripted IRR/TVPI, with Google Sheets as a **short-term, one-way** input source. Three PRD premises did not survive verification (F22, F23, F25), which reshapes the phasing: the PRD's Phase 1 collapses to two cosmetic fixes plus one decided session change (WS23), its "unified dataset" ask is already shipped so Phase 2's real content is cross-fund *views* (WS25) on top of the new ledger tables (WS24), metrics are Phase 3 (WS26), and the Sheets sync — the highest-risk, most-external item — goes **last** (WS27), not second.
+
+## Decisions Q21–Q27 — all answered by the user 2026-07-15 (every recommendation accepted)
+
+> **Q21** — LP sessions: **keep the shipped 30-day persistent sessions** (PRD A5 was misinformed — F22) **and add idle-timeout enforcement** on the existing `LpSession.lastUsedAt` column. Exact window delegated to Felix: **7 days** (JC14, flagged).
+> **Q22 = B** — **One-way Sheet→Molly sync** for the transition period. Sheet-owned deal/valuation fields become **read-only in admin CRUD while sync is enabled**; Molly remains the analytical read layer and the long-term destination (the PRD itself frames Sheets as short-term). This supersedes Part 7's "Molly is the source of truth after a one-time import" ground rule **for synced fields only, while sync is enabled** — annotated in Part 7's decision table.
+> **Q23** — IRR/TVPI and all derived metrics are **admin-only in v1**. Nothing on `/lp` changes; hover-card semantics (Q6 since-first-check headline, WS17.2 FULL detail) are untouched.
+> **Q24** — Ownership/dilution is **optional-when-known**: nullable fields, never required, SAFE conversion events modeled. The team commits to adding round-size / ownership columns to the Deals sheet **going forward** (no historical backfill of data that was never recorded).
+> **Q25** — Publish notification stays the **opt-in checkbox** (Q7-B). PRD A2's "must email LPs when a report is published" was loose drafting, not a re-decision.
+> **Q26** — Both operational commitments confirmed: synced fields read-only (see Q22), and **the team adds and maintains a stable ID column in the Deals sheet** (never reused, never reordered-away) — without it, change detection is unsound and WS27 does not ship.
+> **Q27** — Publish confirm gains a **data-staleness banner + one-click "Sync now"** (visible only when sync is enabled), so frozen snapshots are never unknowingly minted from week-old marks.
+
+## Part 10 ground rules (carry-over + additions)
+
+All Part 2/5/7 ground rules apply (additive `db push` before code per the `vercel env pull --environment=production` procedure; `export const dynamic = "force-dynamic"` on route files; never change existing response shapes; `npm run typecheck && npm run lint && npm test` before every push; one workstream per commit-and-verify cycle). Additions:
+
+1. **CONFIDENTIALITY — unchanged and extended.** The repo is public. Valuations, LP data, the tracker spreadsheet, **and now the spreadsheet's ID** never enter git: the spreadsheet ID, service-account email, and private key are Vercel env vars only (`.env.example` gets names, never values). Sync diffs contain real valuations → they live in the DB (`SheetSyncRun.summary`, admin-gated UI), **not** in console logs where avoidable, and never in commits/PR bodies/screenshots. All tests use synthetic data.
+2. **Frozen `MentionSnapshot` backward compatibility is non-negotiable.** Published `FundReportMention.snapshot` rows keep their WS17.2 shape forever; every renderer (`mention-cards.tsx`, `report-view.tsx`, print CSS) must continue to render old rows byte-identically. Nothing in this Part adds fields to the snapshot or changes what `buildMentionSnapshot` reads (per-deal `entryValuation`/`currentValuation` stay authoritative — see JC16).
+3. **The LP surface does not change.** Except WS23.1's idle timeout (explicitly decided, Q21), no LP-visible pixel or number moves. Acceptance checklists include a grep-able guard: no WS in this Part touches `src/app/lp/**`, `mention-cards.tsx`, `report-view.tsx`, or `report-snapshot.ts`'s snapshot shape.
+4. **Fork story: the Sheets feature is OFF when env vars are absent.** No Google env vars → no cron effect (route no-ops), no `/admin/sync` nav item, no staleness banner, no read-only field locking — a fork that never touches Google gets today's behavior exactly. This is a hard acceptance item, not a nice-to-have.
+5. **New deps: none planned.** The Sheets client is hand-rolled on `crypto` + `fetch` (JC15). If that judgment call is reversed, the fallback (`googleapis` or `google-auth-library`) is free/Apache-2.0 — still no cost line, but it must be called out in the shipping commit.
+
+## Part 10 review findings
+
+Continuing the F-numbering (Part 9 ended at F21). F22–F25 come from the PRD review (2026-07-15); every claim below was verified against the working tree.
+
+**F22 — PRD A5 ("current behavior does not persist sessions across visits… intentional") contradicts shipped, decided behavior — and the PRD's own open-questions list inherits the false premise.** `src/lib/lp-auth.ts:14` (`LP_SESSION_DAYS = 30`), `src/app/api/lp/auth/verify/route.ts:64-77` (DB session = verify + 30 days; **persistent** cookie with `maxAge: LP_SESSION_DAYS * 24 * 60 * 60`), `prisma/schema.prisma:581`, decided as a Part 7 ground rule 2026-07-08. Sessions are fixed-expiry; `lastUsedAt` is touched at-most-hourly, best-effort, and enforced nowhere (`lp-auth.ts:76-79`). The PRD's risk item "whether session persistence should remain **disabled** long term" asks about a state that does not exist. **Resolved by Q21**: keep 30-day persistence, add idle enforcement (WS23.1).
+
+**F23 — PRD A7 / Phase 1's "fix report publishing dependencies around company existence" targets a bug that does not exist.** The company-existence chain is guarded end to end: the mention picker only offers companies with ≥1 deal in the report's fund (`api/admin/portfolio-companies/route.ts:18`, `deals: { some: { fundId } }`); publish re-validates and 400s with named offenders (`api/admin/reports/[id]/publish/route.ts:26-40`, the JC6 check); `PortfolioCompany` DELETE 409s while any deals **or mentions** exist (`api/admin/portfolio-companies/[id]/route.ts:51-56`), making the schema's mention cascade unreachable through the API; published mentions are frozen JSON untouched by later deal edits. A7 read as a *requirement* is already satisfied. The PRD's Phase 1 therefore reduces to F24 plus a small draft-integrity affordance (WS23.2/23.3).
+
+**F24 — The publish offenders message can print a raw cuid instead of a name.** `publish/route.ts:35`: `byId.get(oid)?.name ?? oid` — when a draft still contains a mention span for a company that was since deleted (possible only for zero-deal companies, per the F23 guards), the admin sees an opaque id. Cosmetic; fixed in WS23.2.
+
+**F25 — PRD problem statement #1 ("No unified cross-fund source of truth… too fund-specific") and requirement B1 misdiagnose the layer.** The shipped **data layer is already unified and cross-fund**: one `deals` table spanning all funds, one global `PortfolioCompany` table (`prisma/schema.prisma:496-533`); companies already appear across funds. What's genuinely missing is cross-fund *views and analytics* — there is no all-deals screen and no per-company-across-funds screen. Real complaint, wrong diagnosis; WS25 builds the views, and WS24's "normalization" scope is correspondingly small (rounds/marks/cashflows are *new* structures, not a re-normalization of deals).
+
+**Infrastructure verification (working tree, 2026-07-15):** route namespaces `/admin/portfolio` and `/admin/sync` are free (checked `src/app/admin/`); lib names `portfolio-metrics.ts`, `sheets.ts`, `sheet-sync.ts` are free (checked `src/lib/`). Three crons exist in `vercel.json` — the weekly sync becomes #4. `/api/cron` is already in `PUBLIC_PREFIXES` (`route-access.ts:41`) so the sync cron needs **no middleware change** (no new F15-family surface); the cron route reuses the alerts cron's shared GET+POST `CRON_SECRET` handler pattern (`api/cron/alerts/route.ts`). `AuditLog.actorId` is nullable with a required `actorEmail` string (`schema.prisma:424-436`) and `logAdminAction` accepts `{ id?, email? }` — a cron-triggered sync can write audit rows as `{ email: "sheets-sync@cron" }` with no schema change (JC20). The publish confirm lives in `admin/reports/[id]/page.tsx` (`confirmPublish` state, `handlePublish` at line 122) — the Q27 banner slots into that existing dialog. `Deal.notes` exists and is sheet-sourced today; `Fund`/`PortfolioCompany` back-relation additions in WS24 are relation-list fields only (no DB columns). `xlsx`/`tsx` devDeps from WS16 remain available for the backfill script.
+
+## Part 10 technical judgment calls (flagged per protocol — each with a cheap reversal)
+
+- **JC14 — LP idle window = 7 days exactly** (Q21 delegated the number). Rationale: LPs engage in bursts around report publications; 7 days keeps a session alive through an engaged week while cutting the shared-device exposure window from 30 days to ≤7 after last use. The at-most-hourly `lastUsedAt` touch granularity is noise at this scale, and the touch being best-effort (`.catch(() => {})`) can only *shorten* effective idle life, never extend it. Reversal: one constant (`LP_IDLE_DAYS`).
+- **JC15 — Zero-dependency Google Sheets client.** Service-account auth is a signed RS256 JWT (`crypto.createSign`) exchanged at `oauth2.googleapis.com/token`, then one `fetch` to the Sheets v4 `values.get` endpoint — ~60 lines total, read-only scope (`spreadsheets.readonly`). No `googleapis` (heavy) or `google-auth-library` dep; better for a fork-friendly repo (fewer supply-chain surfaces, and forks that don't use Sheets carry zero extra code weight). Reversal: swap `src/lib/sheets.ts` internals for `googleapis` — callers unchanged.
+- **JC16 — `ValuationMark` is company-level *history*; the per-deal `currentValuation` remains the authoritative render path.** Writing a new mark (manual or sync) fans out to that company's deals' `currentValuation` + `valuationAsOf` in the same transaction — exactly what an admin edit does today. This preserves the shipped hover-card/snapshot semantics byte-identically (ground rule 2) while gaining the ledger history the PRD wants. Reversal: a later WS can flip readers to `ValuationMark` directly; until then no reader changes.
+- **JC17 — The backfill synthesizes one `FinancingRound` per existing deal (no grouping), `kind: "UNKNOWN"`, `source: "BACKFILL"`.** Grouping same-company/same-date rows into shared rounds would have to guess through the known Northstar/Southgate duplicate-Initial rows (F17); one-per-deal is mechanical, honest, and admins can merge rounds later via CRUD. Reversal: the script's `--revert` deletes `source: "BACKFILL"` rows and nulls the pointers (the reversibility requirement).
+- **JC18 — "Fund-company position" (the PRD's entity) is a computed view, not a table.** Positions are derivable by grouping deals on (fund, company); persisting them invites drift. Reversal: nothing persisted, so a future materialized table costs nothing to add.
+- **JC19 — Sync scope v1 = deals + valuations only; never destructive.** The sync creates/updates `Deal` rows (and auto-creates `PortfolioCompany` rows for exact-new names, flagged in the diff) but **never deletes anything and never creates funds** — an unknown vehicle column or a sheet-ID that disappears becomes a report line for a human, not a mutation. Reversal: widen scope in a later WS.
+- **JC20 — Cron-triggered syncs write audit rows as actor `{ email: "sheets-sync@cron" }`** (nullable `actorId` verified above); manual syncs log the clicking admin. Reversal: cosmetic relabel.
+
+---
+
+## WS23 — LP session idle timeout + report-draft integrity polish (~0.5–0.75 day)
+
+**Goal:** Q21 ships (7-day idle enforcement on the existing column), and the PRD's Phase 1 residue — F24 and the stale-mention affordance — closes. No schema changes.
+
+### WS23.1 Idle timeout in `src/lib/lp-auth.ts` (+ tests)
+
+- Add `export const LP_IDLE_DAYS = 7;` beside `LP_SESSION_DAYS` (JC14).
+- `isSessionValid` gains the idle check, additively — the param type widens to `{ expiresAt: Date; lastUsedAt?: Date }`:
+
+```ts
+export function isSessionValid(
+  session: { expiresAt: Date; lastUsedAt?: Date } | null | undefined,
+  now: Date = new Date()
+): boolean {
+  if (!session || session.expiresAt.getTime() <= now.getTime()) return false;
+  if (session.lastUsedAt && now.getTime() - session.lastUsedAt.getTime() > LP_IDLE_DAYS * 24 * 60 * 60 * 1000) {
+    return false; // idle-expired (Q21/JC14); callers already treat invalid as logged-out
+  }
+  return true;
+}
+```
+
+- `getLp()` already passes the full session row, so the enforcement is automatic; the hourly `lastUsedAt` touch (lines 76-79) is unchanged and is what keeps active users alive. The 30-day cookie/`expiresAt` hard cap is untouched.
+- Extend `lp-auth` unit tests: fresh session valid; `lastUsedAt` 8 days ago → invalid even with future `expiresAt`; `lastUsedAt` absent (legacy callers/tests) → hard-expiry-only behavior preserved; boundary at exactly 7 days.
+
+### WS23.2 F24 fix — name deleted companies honestly in the publish error
+
+`api/admin/reports/[id]/publish/route.ts:35`: offenders that are missing from `byId` (deleted companies) render as `"a company that no longer exists"` instead of the raw cuid; offenders present-but-dealless keep their names. One-line message split; no shape change (still `{ error }`, 400).
+
+### WS23.3 Draft-integrity affordance — "Mentioned companies" summary in the report editor
+
+`admin/reports/[id]/page.tsx`: under the editor (near the existing `@`-hint at line ~289), a muted list computed client-side — `extractMentionIds(body)` (pure regex, safe to import client-side from `@/lib/report-snapshot`) matched against the picker's fetch results (`/api/admin/portfolio-companies?fundId=`). Each mentioned company renders as a small chip; ids with no match render a `text-laterite` chip "unknown company — remove this mention from the text". This surfaces the F23 edge (deleted-while-drafted) *before* the publish 400, and doubles as an at-a-glance list of which hover cards the report will carry. No new API.
+
+**WS23 acceptance checklist**
+- [ ] `npm run typecheck && npm run lint && npm test` green; lp-auth idle tests cover the four cases above
+- [ ] Live: an LP session with `lastUsedAt` backdated 8 days (SQL against a test LP) → `/lp` redirects to the login step; a fresh OTP works; an active session is untouched
+- [ ] Publish a draft mentioning a since-deleted zero-deal test company → 400 message says "no longer exists", no cuid; the editor shows the red chip for it beforehand
+- [ ] Grep guard: no diffs under `src/app/lp/**` except none (WS23.1 is lib-only), no changes to `mention-cards.tsx`/`report-view.tsx`/snapshot shape
+
+**UX impact:** LPs idle >7 days re-authenticate via OTP (explicitly decided, Q21 — the only intentional behavior change in this Part for any non-admin); admin report editor gains an additive summary strip. **Cost impact:** none. **Schema:** none.
+
+## WS24 — Ledger schema + reversible backfill of the 76 production deals (~2–2.5 days)
+
+**Goal:** the round/mark/cashflow ledger exists (additive tables + nullable `Deal` columns), and every production deal is linked to a synthesized round with `--revert` available. Admin-only, and in this WS *invisible* — no UI reads the new tables yet (WS25 does).
+
+### WS24.1 Schema (additive — `db push` per house procedure before code)
+
+Append to `prisma/schema.prisma` (back-relations on `PortfolioCompany`/`Fund`/`Deal` are relation-list or nullable-FK fields):
+
+```prisma
+model FinancingRound {
+  id                 String   @id @default(cuid())
+  portfolioCompanyId String
+  label              String?  // free text: "Seed", "Series A", "SAFE (2024)" — mirrors Deal.instrument's free-text convention (F17)
+  kind               String   @default("UNKNOWN") // "PRICED" | "SAFE" | "CONVERSION" | "OTHER" | "UNKNOWN"
+  roundDate          DateTime
+  raisedUsd          Decimal? // FULL round size, all investors — optional-when-known (Q24)
+  preMoneyUsd        Decimal?
+  postMoneyUsd       Decimal? // valuation or cap (post)
+  source             String   @default("MANUAL") // "MANUAL" | "BACKFILL" | "SHEET"
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+  deals            Deal[]           @relation("RoundDeals")
+  conversions      Deal[]           @relation("ConvertedDeals")
+
+  @@index([portfolioCompanyId, roundDate])
+  @@map("financing_rounds")
+}
+
+model ValuationMark {
+  id                 String   @id @default(cuid())
+  portfolioCompanyId String
+  valuationUsd       Decimal  // company valuation; 0 = written off (house convention)
+  asOf               DateTime
+  source             String   @default("MANUAL") // "MANUAL" | "BACKFILL" | "SHEET"
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioCompanyId, asOf])
+  @@map("valuation_marks")
+}
+
+model FundCashflow {
+  id                 String   @id @default(cuid())
+  fundId             String
+  portfolioCompanyId String?  // set for company-attributed distributions/exits
+  kind               String   // "CAPITAL_CALL" | "DISTRIBUTION" | "FEE" | "OTHER"
+  date               DateTime
+  amountUsd          Decimal  // always positive; direction is implied by kind
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  fund             Fund              @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany? @relation(fields: [portfolioCompanyId], references: [id], onDelete: SetNull)
+
+  @@index([fundId, date])
+  @@map("fund_cashflows")
+}
+```
+
+`Deal` gains three nullable columns (additive) + relations: `roundId String?` (→ `FinancingRound` `"RoundDeals"`), `convertedInRoundId String?` (→ `FinancingRound` `"ConvertedDeals"` — which priced round a SAFE converted in, Q24), `ownershipPct Decimal?` (fund's ownership after this deal's round, 0–100, optional-when-known, Q24). **Deliberately absent:** any position table (JC18), any change to `currentValuation`/`valuationAsOf` semantics (JC16), any snapshot-shape change (ground rule 2).
+
+### WS24.2 `scripts/backfill-rounds.ts` (tsx; dry-run default, `--apply`, `--revert`)
+
+Same conventions as `import-investment-tracker.ts` (local run against prod per the env-pull procedure; output prints valuations — never paste it anywhere).
+
+- **Apply** (idempotent — skips deals with `roundId` already set): per deal, create `FinancingRound { portfolioCompanyId, roundDate: dealDate, postMoneyUsd: entryValuation, label: instrument, kind: "UNKNOWN", source: "BACKFILL" }` and set `deal.roundId` (JC17). Then per company, one `ValuationMark { valuationUsd, asOf, source: "BACKFILL" }` from the company's most recent non-null (`currentValuation`, `valuationAsOf`) deal pair; companies whose deals disagree on `currentValuation` are printed for a human eyeball (expected: the Northstar/Southgate F17 near-dupes).
+- **Revert**: null all `Deal.roundId`/`convertedInRoundId` pointing at `source: "BACKFILL"` rounds, then delete `BACKFILL` rounds and marks. Refuses (with a list) if any `BACKFILL` round has acquired non-backfill references (e.g. a manually-set `convertedInRoundId`) — reversibility must not destroy human work.
+- Dry-run prints per-company round/mark counts and the disagreement list; apply re-run prints "0 to do".
+
+### WS24.3 Bookkeeping
+
+`.gitignore` already guards `*.xlsx`; nothing else. No ROADMAP change yet (nothing user-visible until WS25).
+
+**WS24 acceptance checklist**
+- [ ] `npx prisma db push` clean against prod (additive only — verify no drop statements in the diff preview); `npm run typecheck && npm run lint && npm test` green
+- [ ] Dry-run against prod: exactly 76 rounds planned (one per deal), ~50 marks, disagreement list reviewed by the user before `--apply`
+- [ ] Apply → re-run dry-run prints 0; spot-check one multi-deal company in Prisma Studio (rounds carry the deal dates/caps)
+- [ ] `--revert` on a **local/branch DB copy** restores nulls and deletes backfill rows (do not revert prod; the flag exists as the escape hatch)
+- [ ] Published report hover cards byte-identical before/after (frozen snapshots + JC16 — verify one live report page)
+- [ ] Grep guard: no changes under `src/app/**` in this WS (schema + script only)
+
+**UX impact:** none — no surface reads the new tables yet. **Cost impact:** none. **Schema:** 3 new tables + 3 nullable `Deal` columns, all additive.
+
+## WS25 — Cross-fund portfolio views + rounds/marks/cashflows CRUD (~2–2.5 days)
+
+**Goal:** the F25 gap closes — admins get an all-deals view and a per-company cross-fund view — and the WS24 ledger becomes maintainable (rounds/marks/cashflows CRUD, audit-logged). Admin-only.
+
+### WS25.1 APIs (all `requireAdmin`, house route conventions, audit-logged)
+
+- `GET /api/admin/portfolio` — all deals joined with fund + company (+ round label), filterable `?fundId=&portfolioCompanyId=&investmentType=&q=`; plus a summary object (totalInvested, dealCount, companyCount, fundCount). Decimal → `Number()` per house convention.
+- `GET /api/admin/portfolio/companies/[id]` — one company: deals across funds, rounds (dated), marks (dated), computed per-fund position groups (JC18 — computed in the route, not stored).
+- Rounds: `POST /api/admin/rounds`, `PATCH/DELETE /api/admin/rounds/[id]` (`ROUND_CREATED/UPDATED/DELETED`; DELETE 409s if any deal points at it — repoint first, mirroring the F23 delete-guard pattern).
+- Marks: `POST /api/admin/portfolio-companies/[id]/marks` — creates the mark **and fans out** `currentValuation`/`valuationAsOf` to that company's deals in one transaction (JC16), `MARK_CREATED` with old→new metadata; `DELETE /api/admin/marks/[id]` removes history only (no fan-out reversal — deliberate; the current valuation is corrected by writing a new mark, never by deleting history).
+- Cashflows: `POST /api/admin/funds/[id]/cashflows`, `PATCH/DELETE /api/admin/cashflows/[id]` (`CASHFLOW_*`). Validation: kind ∈ enum, amount > 0.
+- The existing deal PATCH (`api/admin/deals/[id]`) additionally accepts `roundId`, `convertedInRoundId`, `ownershipPct` (nullable; 0–100 check) — additive fields on an existing route, response shape extended additively.
+
+### WS25.2 `/admin/portfolio` page (+ sidebar link)
+
+Summary strip (4 stat cards, `grid-cols-1 sm:grid-cols-2 lg:grid-cols-4` — the WS14.7 base-class lesson), filters (native `<select>` per house convention: fund, type; text search), all-deals table (Part 6 Pattern A scrollable), each row linking company → WS25.3 and fund → `/admin/funds/[id]`. Admin sidebar gains "Portfolio" next to "Funds".
+
+### WS25.3 `/admin/portfolio/[id]` company page
+
+Header (name, country, operational-Company link chip per Q14); deals-across-funds table (Pattern A) with inline round assignment (native `<select>` of the company's rounds) and optional `ownershipPct` input; rounds timeline section (create/edit/delete; fields per WS24.1, all optional except date); marks history (dated list, newest first; "Record new mark" form → WS25.1 fan-out, with helper text "updates the current valuation on all of this company's deals"); computed positions block (per fund: invested, deal count, latest multiple).
+
+### WS25.4 `/admin/funds/[id]` additions
+
+A "Cashflows" section (Pattern B wrap-row cards: kind badge, date, amount, optional company, notes; add/edit/delete). Below it, a placeholder note where WS26's performance card will land. Existing deals table/inline-valuation UI unchanged in this WS.
+
+**WS25 acceptance checklist**
+- [ ] All new/changed routes 307 without session, 403 for founders, 200 for admin (live curl, F15-family ritual)
+- [ ] `/admin/portfolio` totals reconcile with the fund pages' numbers (spot-check FUND1); filters compose
+- [ ] Recording a mark updates every deal of that company (verify a multi-fund company) and writes `MARK_CREATED` with old→new; round delete with attached deals → 409
+- [ ] Deal PATCH round/ownership fields round-trip; setting `ownershipPct: 150` → 400
+- [ ] 375px: portfolio table scrolls (Pattern A), stat cards stack, cashflow rows wrap (Pattern B)
+- [ ] Frozen published-report cards still byte-identical (JC16 fan-out equals today's admin-edit path); grep guard on LP files holds
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** additive admin pages/sections; founder/LP/investor surfaces untouched. **Cost impact:** none. **Schema:** none (WS24's).
+
+## WS26 — Derived metrics engine, admin-only (~1.5–2 days)
+
+**Goal:** IRR/TVPI/DPI and dilution-aware values are computed by code from ledger records (PRD B5/B6), shown **only** on admin surfaces (Q23). Pure lib + tests first, house style.
+
+### WS26.1 `src/lib/portfolio-metrics.ts` (pure, unit-tested — the route-access/share-metrics/report-snapshot pattern)
+
+- `xirr(flows: { date: Date; amount: number }[]): number | null` — Newton's method with bisection fallback and guard rails (needs ≥1 negative and ≥1 positive flow, clamp to (-0.9999, 10], `null` on non-convergence — never NaN/Infinity out). **Acceptance fixtures are synthetic** (ground rule 1) and hand-computed; the spreadsheet's IRR blocks are explicitly NOT a reference — F17 documented them as stale/corrupted.
+- `fundFlows(deals, cashflows, impliedNav, asOf)` — assembles the gross cashflow series: deal amounts as dated outflows, `DISTRIBUTION` inflows, `CAPITAL_CALL`/`FEE` per kind, plus a terminal NAV inflow at `asOf`.
+- `tvpi/dpi/rvpi(paidIn, distributions, nav)` — with the explicit fallback: when a fund has zero `CAPITAL_CALL` rows, `paidIn = Σ deal amounts` and the result carries `approximate: true` (rendered as "≈, no capital calls recorded" — never silently precise).
+- `positionValue(deal, latestMark)` — dilution-aware when `ownershipPct != null` (`ownershipPct × latestMark`), else zero-dilution implied value (`amountUsd × multiple`, the shipped assumption) with `dilutionAware: false` so the UI can badge it. Reuses `computeMultiple` from `report-snapshot.ts` — no duplicate multiple math.
+
+### WS26.2 Admin surfaces
+
+- `/admin/funds/[id]`: "Performance" card — invested, implied value, TVPI (≈-badged when approximate), DPI, gross IRR (dash + tooltip when `null`), asOf = latest mark date. Mono figures, muted "admin-only estimate; gross of fees unless FEE rows are recorded" footnote.
+- `/admin/portfolio`: summary strip gains blended implied value; table rows show position value with a "no dilution data" dot-badge where `dilutionAware: false` (expected: everywhere, until Q24's new sheet columns flow in).
+- `/admin/portfolio/[id]`: per-position values with the same badging.
+
+**WS26 acceptance checklist**
+- [ ] `portfolio-metrics.test.ts`: xirr two-flow exact case, multi-flow fixture, non-convergent → `null`, empty/one-sided → `null`; tvpi approximate flag; positionValue both branches; all synthetic numbers
+- [ ] Live: FUND1 performance card renders; with no cashflow rows TVPI shows the ≈ badge; after adding a test `DISTRIBUTION` on a test fund, DPI moves and IRR recomputes
+- [ ] **Q23 guard:** grep confirms `portfolio-metrics` is imported only under `src/app/admin/**` and `src/app/api/admin/**`; `/lp` pages and share/hover-card code untouched (ground rule 3)
+- [ ] `npm run typecheck && npm run lint && npm test` green; 375px check on the new cards
+
+**UX impact:** additive admin cards/columns. **Cost impact:** none (pure computation). **Schema:** none.
+
+## WS27 — Google Sheets one-way sync + staleness affordances (~2.5–3 days) — gated, ships LAST
+
+**Goal:** the Deals sheet becomes a recurring one-way input (Q22-B): weekly cron + manual "Sync now", diff-first with a persistent run/diff surface at `/admin/sync`, sheet-owned fields read-only while enabled, staleness banner on publish (Q27). Entirely env-gated (ground rule 4).
+
+**Gates (all three, before the first line of code):** (1) the team has added the stable **ID column** to the Deals sheet and backfilled it for all 76 rows (Q26); (2) a Google Cloud service account exists, the sheet is shared with its email read-only, and `GOOGLE_SA_EMAIL` / `GOOGLE_SA_PRIVATE_KEY` / `SHEETS_SPREADSHEET_ID` are set in Vercel (user provisions; names-only in `.env.example`); (3) the new go-forward columns for round size / ownership are named and positioned (Q24 — sync maps them to `FinancingRound.raisedUsd` / `Deal.ownershipPct` when present, skips them cleanly when absent).
+
+### WS27.1 Schema (additive; `db push`)
+
+`Deal.sheetRowId String? @unique` (the sheet-ID ↔ deal identity), plus:
+
+```prisma
+model SheetSyncRun {
+  id         String    @id @default(cuid())
+  trigger    String    // "CRON" | "MANUAL" | "DRY_RUN"
+  status     String    // "SUCCESS" | "FAILED"
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  summary    Json?     // diff: creates/updates(field old→new)/newCompanies/errors — confidential, admin-gated reads only
+  error      String?
+
+  @@index([startedAt])
+  @@map("sheet_sync_runs")
+}
+```
+
+### WS27.2 `src/lib/sheets.ts` — env gate + zero-dep client (JC15)
+
+`sheetsSyncEnabled()` = all three env vars present (the single switch every UI/route checks); `getSheetRows()` = SA-JWT → token → `values.get` on the Deals range; returns raw string rows. ~60 lines; scope `spreadsheets.readonly`.
+
+### WS27.3 `src/lib/sheet-sync.ts` — pure diff engine + tests
+
+`computeSheetDiff(sheetRows, dbDeals, knownFunds, knownCompanies)` → `{ creates, updates: [{ sheetRowId, field, from, to }...], newCompanies, errors: { duplicateIds, missingIds, unknownVehicles, badCells } }`. Carries the F17 lessons as code: Deals-sheet layout (header row 15, cols C–N + the new ID/round-size/ownership columns), `"Follow-On"` literal, the `=TODAY()` as-of column ignored, free-text instruments preserved. Unit-tested on synthetic rows (ground rule 1) including: duplicate ID → error not mutation; reordered rows → zero diff (identity is the ID, not position); a valuation change → one field-level update.
+
+`applySheetDiff(diff, actor)` — per JC19 never destructive: creates deals (+ exact-name `PortfolioCompany` auto-creates, flagged), applies field updates; a `Current Valuation` change writes `ValuationMark { source: "SHEET" }` + JC16 fan-out + `DEAL_UPDATED` audit metadata, all in a transaction per company; unknown vehicles/missing IDs stay in the report. Writes the `SheetSyncRun` row (status, summary) win or lose.
+
+### WS27.4 Routes
+
+- `GET+POST /api/cron/sheets-sync` — alerts-cron skeleton (shared `CRON_SECRET` handler); no-ops with a logged skip when `!sheetsSyncEnabled()`. `vercel.json` gains `{ "path": "/api/cron/sheets-sync", "schedule": "0 8 * * 1" }` (weekly, Monday 08:00 UTC — before the 09:00 daily crons). Audit actor per JC20.
+- `POST /api/admin/sheets-sync` — `requireAdmin`; body `{ dryRun?: boolean }`; dry-run computes + stores the diff (`trigger: "DRY_RUN"`) without applying — the preview affordance; returns the run id + summary counts.
+
+### WS27.5 Read-only enforcement (Q22-B/Q26) — the transition contract
+
+When `sheetsSyncEnabled()` **and** `deal.sheetRowId != null`: `api/admin/deals/[id]` PATCH rejects sheet-owned fields (`investmentType`, `dealDate`, `amountUsd`, `instrument`, `entryValuation`, `currentValuation`, `notes`) with 409 "This deal is synced from the tracker sheet — edit it there; changes arrive on the next sync." and DELETE 409s likewise; `roundId`/`convertedInRoundId`/`ownershipPct` (ledger-side, WS25) stay editable. Marks POST (WS25.1) similarly 409s for companies whose deals are all sheet-synced (valuations are sheet-owned). UI: fund-page inline valuation edit and the deal edit/delete buttons are replaced by a muted "synced from sheet" chip for such deals. **Deals without `sheetRowId` (manually created — e.g. a future fund not in the sheet) keep full CRUD, and forks with sync disabled see zero change** (ground rule 4 — this conditional is the no-UX-regression proof).
+
+### WS27.6 `/admin/sync` page + Q27 publish affordance
+
+- `/admin/sync` (sidebar item, rendered only when enabled): status header (last successful run, next cron slot), "Sync now" + "Preview changes (dry run)" buttons, run-history table (Pattern A), expandable latest-diff detail (field-level old→new rows, new companies, error list).
+- Publish confirm (`admin/reports/[id]/page.tsx`, the existing `confirmPublish` dialog): when enabled, a line "Portfolio data last synced {date} ({n} days ago)" — `text-ochre` when >7 days or never — with an inline "Sync now" button that runs the manual sync and refreshes the preview numbers before the admin confirms (Q27). Absent entirely when sync is disabled.
+
+### WS27.7 Docs + bookkeeping
+
+`SETUP.md`: an optional "Google Sheets ingestion" section (SA creation, share-the-sheet, the three env vars, the ID-column contract, explicit "skip this entirely if you don't use Sheets"). `.env.example`: the three names with placeholder values. `ROADMAP.md` per the Part 10 bookkeeping note below.
+
+**WS27 acceptance checklist**
+- [ ] `sheet-sync.test.ts` green (synthetic rows: reorder-invariance, duplicate-ID error, field-level valuation diff)
+- [ ] **Fork story (ground rule 4):** with the three env vars absent on a preview deploy — cron route 200-no-ops, `/admin/sync` nav absent, publish dialog banner absent, all deals fully editable (byte-identical to pre-WS27 behavior)
+- [ ] Live with creds: dry-run against the real sheet → diff of 0 changes after the team's ID-column backfill (or exactly the expected deltas); "Sync now" applies; run row + audit rows visible; `curl` cron route with `CRON_SECRET` → 200, without → 401
+- [ ] Edit a real sheet valuation → manual sync → `ValuationMark(source: "SHEET")` created, deals fan-out updated, `/admin/audit` shows the change, next report *draft preview* reflects it while an already-published report's frozen card does not (ground rule 2 proof)
+- [ ] Synced deal PATCH on a sheet-owned field → 409 with the pointer message; `ownershipPct` PATCH on the same deal → 200; a manually-created deal keeps full CRUD
+- [ ] Publish confirm shows the staleness line; inline Sync now refreshes it; >7-day staleness renders the warning tint (backdate a run row to verify)
+- [ ] No spreadsheet ID/valuations in any commit, PR body, or client bundle (grep the build output for the env names)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** admin-only, and gated behind env vars — forks and a creds-less deploy are pixel-identical to today. For DFS admins the one deliberate change is Q22-B's read-only lock on sheet-owned deal fields (decided 2026-07-15; the sheet is where those edits now happen). **Cost impact:** none — Google Sheets API read-only usage is free-tier, no new paid services, no new deps (JC15). **Schema:** 1 new table + 1 nullable unique `Deal` column, additive.
+
+## Part 10 sequencing, batch split & effort
+
+**Three release batches:**
+
+- **Batch A — WS23 alone** (same-day ship): the only LP-adjacent change (idle timeout) plus the Phase-1 residue. Isolating it keeps the ledger work off the LP surface's critical path.
+- **Batch B — WS24 → WS25 → WS26** (admin ledger, views, metrics): zero LP exposure, zero external dependencies, each WS independently shippable. The WS24 backfill's dry-run disagreement list needs a user eyeball before `--apply` (expected: the F17 Northstar/Southgate near-dupes).
+- **Batch C — WS27** (Sheets sync): gated on the three operational items (ID column, service account + env vars, new-column names). Batch B does not wait for these; if the gates stall, Batches A/B still deliver the PRD's ledger and analytics value with Molly-native editing exactly as today.
+
+| WS | Item | Effort | Schema push | Gated on |
+|---|---|---|---|---|
+| WS23 | LP idle timeout (Q21/JC14) + F24 + mention summary | 0.5–0.75d | — | — |
+| WS24 | Ledger schema + reversible 76-deal backfill | 2–2.5d | 3 tables + 3 `Deal` columns | user eyeball on backfill dry-run |
+| WS25 | Cross-fund views + rounds/marks/cashflows CRUD | 2–2.5d | — | WS24 |
+| WS26 | Derived metrics (admin-only, Q23) | 1.5–2d | — | WS24 (WS25 surfaces host it) |
+| WS27 | Sheets one-way sync + Q27 affordances | 2.5–3d | 1 table + 1 `Deal` column | **ID column · SA creds/env vars · new-column names** |
+
+**Total: ~9–11 junior-engineer days** — comparable to Part 7. Deliberately **not** planned (PRD Phase 4): whether raw data entry eventually goes native and the sheet retires — revisit after WS27 has run for a few cycles.
+
+## Part 10 roadmap bookkeeping
+
+Done alongside this plan: `ROADMAP.md` gains a "Next up — Part 10" blockquote under "Roadmap", and the shipped Funds/LPs/Deals bullet is annotated with the Q22-B transition pointer; Part 7's "Molly is the source of truth" decision row is annotated as partially superseded (synced fields, while sync is enabled). As each WS ships, fold into "Existing Features" per convention. Open user inputs mid-implementation, none of which block Batches A/B: (1) provision the Google service account + set the three env vars; (2) add + backfill the sheet's ID column; (3) name the go-forward round-size/ownership columns; (4) eyeball the WS24 backfill dry-run before `--apply`. One flagged delegation to confirm whenever convenient: **the 7-day idle window (JC14)** — one constant if you want a different number.
