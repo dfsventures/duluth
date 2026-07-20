@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, Suspense } from "react";
 import Link from "next/link";
-import { Landmark, Plus, X, FileText, Handshake, Layers } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Landmark, Plus, X, FileText, Handshake, Layers, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { SyncPanel } from "@/components/admin/sync-panel";
 import { formatDate } from "@/lib/utils";
+
+type FundsTab = "funds" | "sync";
 
 interface Fund {
   id: string;
@@ -23,6 +27,18 @@ interface Fund {
 }
 
 export default function AdminFundsPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminFundsPageInner />
+    </Suspense>
+  );
+}
+
+function AdminFundsPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab") === "sync" ? "sync" : "funds";
+
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
@@ -30,6 +46,34 @@ export default function AdminFundsPage() {
   const [newName, setNewName] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+
+  // Part 11, WS28 (Q30-B) — Sync used to be its own sidebar item/page; it's
+  // a global integration (one spreadsheet, every fund), so it's now a tab
+  // here rather than duplicated per-fund. Mirrors the same lightweight
+  // enabled-check the sidebar used to gate its old nav item, so a fork with
+  // no Sheets env vars never sees the tab at all.
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [activeTab, setActiveTab] = useState<FundsTab>(requestedTab);
+
+  useEffect(() => {
+    fetch("/api/admin/sheets-sync")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { enabled?: boolean } | null) => setSyncEnabled(Boolean(data?.enabled)))
+      .catch(() => setSyncEnabled(false));
+  }, []);
+
+  // If ?tab=sync was requested but sync turns out to be disabled, fall
+  // back to the Funds tab rather than showing a tab button that isn't there.
+  useEffect(() => {
+    if (requestedTab === "sync" && !syncEnabled) {
+      setActiveTab("funds");
+    }
+  }, [requestedTab, syncEnabled]);
+
+  function selectTab(tab: FundsTab) {
+    setActiveTab(tab);
+    router.replace(tab === "sync" ? "/admin/funds?tab=sync" : "/admin/funds");
+  }
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -81,14 +125,45 @@ export default function AdminFundsPage() {
         title="Funds"
         description="DFS Lab's investment vehicles — deals, LPs, and fund reports."
         action={
-          <Button onClick={openNew}>
-            <Plus className="h-4 w-4" />
-            New Fund
-          </Button>
+          activeTab === "funds" ? (
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4" />
+              New Fund
+            </Button>
+          ) : undefined
         }
       />
 
-      {loading ? (
+      {syncEnabled && (
+        <div className="mb-6 flex gap-1 overflow-x-auto border-b">
+          <button
+            onClick={() => selectTab("funds")}
+            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === "funds"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
+            }`}
+          >
+            <Landmark className="h-4 w-4" />
+            Funds
+          </button>
+          <button
+            onClick={() => selectTab("sync")}
+            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === "sync"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
+            }`}
+          >
+            <RefreshCw className="h-4 w-4" />
+            Sync
+          </button>
+        </div>
+      )}
+
+      {activeTab === "sync" ? (
+        <SyncPanel />
+      ) : loading ? (
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-20 rounded-md bg-muted animate-pulse" />

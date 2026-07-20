@@ -6,7 +6,8 @@ import { sheetsSyncEnabled } from "@/lib/sheets";
 import { runSheetSync } from "@/lib/sheet-sync-runner";
 
 // Part 10, WS27.4/27.6 — manual "Sync now" / "Preview changes (dry run)"
-// plus the run-history feed for /admin/sync and the publish-confirm
+// plus the run-history feed for the Sync tab on /admin/funds (relocated
+// from its own /admin/sync page in Part 11, WS28) and the publish-confirm
 // staleness banner. requireAdmin-gated: SheetSyncRun.summary carries real
 // valuations (ground rule 1), so it must never be reachable without a
 // session, and never logged server-side beyond aggregate counts.

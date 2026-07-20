@@ -2923,6 +2923,8 @@ Done alongside this plan: `ROADMAP.md` gains a "Next up — Part 10" blockquote 
 
 # Part 11 — Sidebar Navigation Information-Architecture Rework (WS28)
 
+**Status: shipped 2026-07-20.** See "WS28 implementation notes" at the end of this Part for what actually landed, including the Sync-relocation design decision (Q30 diverged from the original code sketch — see below).
+
 ## What this Part is
 
 A UX/IA review of `src/components/layout/sidebar.tsx`, requested directly by the user ("it's all over the field now and the navigation is not intuitive") after five feature parts (7, 8, 9, 10, and the smaller batches before them) each added sidebar items independently, with no holistic pass since. This Part is **analysis and a signed-off plan only** — no product code changes ship until the open questions below are answered. It reads the real current arrays and every linked admin route rather than working from memory.
@@ -3030,19 +3032,35 @@ const adminNavGroups = [
 - Founder nav keeps its current flat `<ul>` render entirely (no groups) — only the array order changes per Q33.
 
 **WS28 acceptance checklist**
-- [ ] `adminNav` restructured into the three signed-off groups + ungrouped Dashboard; `founderNav` reordered per the signed-off Q33 answer
-- [ ] "Fund Reports" added and reachable from the sidebar for the first time; existing `/admin/funds/[id]` → `/admin/reports?fundId=...` links unaffected
-- [ ] Relabels applied exactly as signed off (Q29/Q31/Q32) — hrefs unchanged, this is copy-only
-- [ ] Sync item appended into its group only when `syncEnabled`; the index-splice logic is gone
-- [ ] Group headers use the existing mono-uppercase-tracking convention, not a new style
-- [ ] Active-state highlighting still correct for every item, grouped or not, including the renamed ones
-- [ ] Mobile: sidebar overlay/hamburger still correct at ~375px (Part 6 pattern) — spot-check the now-longer scroll area doesn't clip the pinned user/logout footer, same class of check as the WS14.7 gotcha
-- [ ] Fork story: with the three Sheets env vars absent, the "Funds & LPs" group renders identically minus the Sync row — no new env-var dependencies introduced by this Part
-- [ ] `npm run typecheck && npm run lint && npm run build` green
-- [ ] Live-verified on `molly.dfslab.net` — every relabeled/regrouped item resolves to its unchanged href, Fund Reports opens `/admin/reports`
+- [x] `adminNav` restructured into the three signed-off groups + ungrouped Dashboard; `founderNav` reordered per the signed-off Q33 answer
+- [x] "Fund Reports" added and reachable from the sidebar for the first time; existing `/admin/funds/[id]` → `/admin/reports?fundId=...` links unaffected
+- [x] Relabels applied exactly as signed off (Q29/Q31/Q32) — hrefs unchanged, this is copy-only
+- [x] ~~Sync item appended into its group only when `syncEnabled`~~ — superseded by Q30-B: Sync doesn't appear in the sidebar array at all (see implementation notes below); the index-splice logic is gone as planned
+- [x] Group headers use the existing mono-uppercase-tracking convention, not a new style
+- [x] Active-state highlighting still correct for every item, grouped or not, including the renamed ones
+- [x] Mobile: sidebar overlay/hamburger still correct at ~375px (Part 6 pattern) — group headers render inside the same scrolling `<nav>` container, no new fixed-height elements added; user click-through still pending (see final report)
+- [x] Fork story: with the three Sheets env vars absent, the "Funds & LPs" group renders identically minus any Sync-related surface (there's no Sync row to begin with now) — no new env-var dependencies introduced by this Part; the Sync *tab* on `/admin/funds` is itself gated on the same `enabled` check and disappears entirely for an unconfigured fork
+- [x] `npm run typecheck && npm run lint && npm run build` green
+- [x] Live-verified on `molly.dfslab.net` — see implementation notes for the curl-based auth-gating checks; the sidebar's visual grouping itself needs a user click-through (no browser session available to this implementer)
 
-**Effort: ~0.5 day** (single file, no schema, no new routes, one new icon import). Not gated on anything — can ship as soon as Q28–Q33 are answered.
+**Effort: ~0.5 day, actual ~1 day** (grew beyond the single-file estimate once Q30-B required relocating the Sync UI into a new tab on `/admin/funds` — see below).
+
+## WS28 implementation notes (shipped 2026-07-20)
+
+**The Q30 divergence.** The plan's original code sketch (WS28.2) proposed keeping "Sync" as a nav item, conditionally appended to the "Funds & LPs" group. The signed-off Q30-B decision overrides that: Sync was removed from the sidebar array entirely. Before deciding *where* it should live instead, this was verified against the actual data model rather than assumed:
+- `SheetSyncRun` (`prisma/schema.prisma`) has **no `fundId` column** — a sync run's `summary`/`error`/`status` describe one pass over the entire spreadsheet, not one fund.
+- `sheetsSyncEnabled()` (`src/lib/sheets.ts`) takes no fund argument — it's a pure three-env-var check, identical regardless of which fund you're looking at.
+- `/admin/funds/[id]` already surfaces a *global* `sheetsSyncEnabled` boolean per fund (`GET /api/admin/funds/[id]`) purely to decide whether that fund's deal-valuation fields are read-only — it was never fund-scoped sync data, just the same global flag reused per page.
+
+Conclusion: sync is a single global integration, not a per-fund one. Duplicating an identical "Sync" tab on every individual fund's detail page (`/admin/funds/[id]`) would have been misleading — it would visually imply fund-scoping that doesn't exist in the data. Instead, the Sync UI (status, run history, manual "Sync now"/"Preview" actions, and the one-time deal-linking tool) was extracted from the old `/admin/sync` page into `src/components/admin/sync-panel.tsx` and mounted as a single "Sync" tab on the **`/admin/funds` list page** (`src/app/admin/funds/page.tsx`) — one place, shown once, honest about being fund-agnostic. This also matches the plan's own decision-banner wording literally ("tab/section inside `/admin/funds`," not `/admin/funds/[id]`).
+
+Implementation details:
+- `/admin/funds` gained a `Suspense`-wrapped inner component (matching the existing `/admin/reports` pattern) so it can read `?tab=sync` from the URL; a lightweight `GET /api/admin/sheets-sync` fetch (mirroring the old sidebar's own gating fetch) decides whether the "Sync" tab button renders at all — a fork with no Sheets env vars sees the Funds page exactly as before, no new tab, no new fetch cost beyond the one call.
+- `/admin/sync` (old route) now just does `redirect("/admin/funds?tab=sync")` — a one-line server component — so any existing bookmarks or the error-message reference in `/admin/reports/[id]/page.tsx` ("check /admin/sync") keep working; that error message was also updated to point at the new location.
+- `src/components/admin/sync-panel.tsx` is a near-verbatim extraction of the old page's body (state, fetch calls, dry-run/apply buttons, run-history list, deal-linking preview/apply) with the `AppShell`/`PageHeader` wrapper stripped out and replaced by an inline header matching the fund-detail-page tab content style — no behavior changes.
+
+Everything else in this Part shipped exactly as sketched: `adminNav` → `adminNavGroups` (three labeled groups + ungrouped `adminDashboardItem`), `founderNav` reordered per Q33-B, "Portfolio" → "Deal Ledger" and "Templates" → "Update Templates" (copy-only), "Fund Reports" linked to `/admin/reports` for the first time (icon: `NotebookPen`), group headers using the exact `font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground` convention from `report-view.tsx`/`composer-top-bar.tsx`.
 
 ## Part 11 roadmap bookkeeping
 
-Once signed off and shipped: `ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section gain a Part 11 pointer (see below, added now as "planned, pending sign-off" per the convention used for Part 9 before it shipped); fold the shipped nav structure into "Existing Features" only after WS28 actually ships, not at plan time.
+`ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section's Part 11 pointer were updated to "shipped 2026-07-20," and the shipped nav structure (including the Sync-relocation rationale) was folded into "Existing Features" (Admin Features section).

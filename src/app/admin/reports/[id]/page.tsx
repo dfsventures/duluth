@@ -84,7 +84,7 @@ export default function AdminReportEditorPage() {
       if (!res.ok) throw new Error("Sync failed");
       await loadSyncStatus();
     } catch {
-      setMessage({ type: "error", text: "Sync failed — try again or check /admin/sync." });
+      setMessage({ type: "error", text: "Sync failed — try again or check the Sync tab on /admin/funds." });
     } finally {
       setSyncingNow(false);
     }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -24,34 +23,63 @@ import {
   Landmark,
   Handshake,
   PieChart,
-  RefreshCw,
+  NotebookPen,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 
+// Part 11, WS28 (Q33-B) — recurring actions first, setup-once items pushed down.
 const founderNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Company Profile", href: "/company/profile", icon: Building2 },
-  { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
   { label: "Updates", href: "/updates", icon: FileText },
+  { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
   { label: "Investor Links", href: "/links", icon: Link2 },
+  { label: "Company Profile", href: "/company/profile", icon: Building2 },
   { label: "Team", href: "/team", icon: Users },
   { label: "Service Providers", href: "/providers", icon: Briefcase },
 ];
 
-const adminNav = [
-  { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
-  { label: "Approvals", href: "/admin/approvals", icon: Shield },
-  { label: "Companies", href: "/admin/companies", icon: Building2 },
-  { label: "Funds", href: "/admin/funds", icon: Landmark },
-  { label: "Portfolio", href: "/admin/portfolio", icon: PieChart },
-  { label: "LPs", href: "/admin/lps", icon: Handshake },
-  { label: "Updates", href: "/admin/updates", icon: FileText },
-  { label: "Templates", href: "/admin/templates", icon: LayoutTemplate },
-  { label: "Investor Links", href: "/admin/links", icon: Link2 },
-  { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
-  { label: "Service Providers", href: "/admin/providers", icon: Briefcase },
-  { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
-  { label: "Settings", href: "/admin/settings", icon: Settings },
+// Dashboard sits ungrouped above the labeled clusters below (Q28-A).
+const adminDashboardItem = { label: "Dashboard", href: "/admin", icon: LayoutDashboard };
+
+// Part 11, WS28 — admin nav regrouped into three labeled clusters
+// (Q28-A) after five parts of unrelated feature growth left this a flat,
+// 13-14 item list with no grouping cue (see docs/IMPLEMENTATION_PLAN.md
+// Part 11 findings). "Portfolio" -> "Deal Ledger" (Q29-B) and "Templates"
+// -> "Update Templates" (Q32-B) are copy-only renames; hrefs unchanged.
+// "Fund Reports" (Q31-A) is newly linked here — it previously had zero
+// sidebar presence. "Sync" deliberately does NOT appear anywhere in this
+// file (Q30-B): it's a genuinely global integration (one spreadsheet,
+// every fund — see src/components/admin/sync-panel.tsx), so it now lives
+// as a tab on /admin/funds instead of a nav item.
+const adminNavGroups = [
+  {
+    label: "Company Operations",
+    items: [
+      { label: "Approvals", href: "/admin/approvals", icon: Shield },
+      { label: "Companies", href: "/admin/companies", icon: Building2 },
+      { label: "Updates", href: "/admin/updates", icon: FileText },
+      { label: "Update Templates", href: "/admin/templates", icon: LayoutTemplate },
+      { label: "Investor Links", href: "/admin/links", icon: Link2 },
+    ],
+  },
+  {
+    label: "Funds & LPs",
+    items: [
+      { label: "Funds", href: "/admin/funds", icon: Landmark },
+      { label: "Deal Ledger", href: "/admin/portfolio", icon: PieChart },
+      { label: "LPs", href: "/admin/lps", icon: Handshake },
+      { label: "Fund Reports", href: "/admin/reports", icon: NotebookPen },
+    ],
+  },
+  {
+    label: "Admin Tools",
+    items: [
+      { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
+      { label: "Service Providers", href: "/admin/providers", icon: Briefcase },
+      { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
+      { label: "Settings", href: "/admin/settings", icon: Settings },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -76,24 +104,33 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   // Dual-role users see admin nav on /admin paths, founder nav everywhere else
   const useAdminNav = isAdminPath || (isAdmin && !isFounder);
 
-  // Part 10, WS27.6 — "Sync" only shows up once sheets sync is actually
-  // configured (ground rule 4: a fork with no Google env vars sees today's
-  // nav exactly). Fetched client-side since the three env vars are
-  // server-only; defaults to hidden until this resolves.
-  const [syncEnabled, setSyncEnabled] = useState(false);
-  useEffect(() => {
-    if (!useAdminNav) return;
-    fetch("/api/admin/sheets-sync")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { enabled?: boolean } | null) => setSyncEnabled(Boolean(data?.enabled)))
-      .catch(() => setSyncEnabled(false));
-  }, [useAdminNav]);
+  function isActive(href: string) {
+    return href === "/admin" || href === "/dashboard"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + "/");
+  }
 
-  const nav = useAdminNav
-    ? syncEnabled
-      ? [...adminNav.slice(0, 4), { label: "Sync", href: "/admin/sync", icon: RefreshCw }, ...adminNav.slice(4)]
-      : adminNav
-    : founderNav;
+  function renderItem(item: { label: string; href: string; icon: typeof LayoutDashboard }) {
+    const active = isActive(item.href);
+    return (
+      <li key={item.href}>
+        <Link
+          href={item.href}
+          onClick={onClose}
+          className={cn(
+            "flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
+            active
+              ? "bg-primary-50 text-primary-600"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <item.icon className="h-4 w-4" />
+          {item.label}
+          {active && <ChevronRight className="ml-auto h-4 w-4" />}
+        </Link>
+      </li>
+    );
+  }
 
   return (
     <aside
@@ -121,32 +158,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
       {/* Nav links */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <ul className="space-y-1">
-          {nav.map((item) => {
-            const isActive =
-              item.href === "/admin" || item.href === "/dashboard"
-                ? pathname === item.href
-                : pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  onClick={onClose}
-                  className={cn(
-                    "flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-primary-50 text-primary-600"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                  {isActive && <ChevronRight className="ml-auto h-4 w-4" />}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        {useAdminNav ? (
+          <>
+            <ul className="space-y-1">{renderItem(adminDashboardItem)}</ul>
+            {adminNavGroups.map((group) => (
+              <div key={group.label} className="mt-4">
+                <p className="mb-1.5 px-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                  {group.label}
+                </p>
+                <ul className="space-y-1">{group.items.map(renderItem)}</ul>
+              </div>
+            ))}
+          </>
+        ) : (
+          <ul className="space-y-1">{founderNav.map(renderItem)}</ul>
+        )}
       </nav>
 
       {/* User footer */}
