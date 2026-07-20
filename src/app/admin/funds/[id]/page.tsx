@@ -50,6 +50,18 @@ interface Cashflow {
   notes: string | null;
 }
 
+interface Performance {
+  invested: number;
+  impliedValue: number;
+  dilutionAware: boolean;
+  paidIn: number;
+  approximate: boolean;
+  tvpi: number | null;
+  dpi: number | null;
+  grossIrr: number | null;
+  asOf: string;
+}
+
 interface FundDetail {
   id: string;
   slug: string;
@@ -61,6 +73,7 @@ interface FundDetail {
   lps: { id: string; lp: { id: string; email: string; name: string | null } }[];
   reports: { id: string; title: string; periodLabel: string | null; status: string; publishedAt: string | null; createdAt: string }[];
   cashflows: Cashflow[];
+  performance: Performance;
 }
 
 const CASHFLOW_KINDS = ["CAPITAL_CALL", "DISTRIBUTION", "FEE", "OTHER"] as const;
@@ -442,6 +455,43 @@ export default function AdminFundDetailPage() {
         )}
       </div>
 
+      {/* Performance (WS26, admin-only estimate — Q23) */}
+      <div className="mb-6 rounded-md border border-border bg-card p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="font-semibold">Performance</h3>
+          <span className="text-xs text-muted-foreground">As of {formatDate(fund.performance.asOf)}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div>
+            <p className="text-xs text-muted-foreground">Invested</p>
+            <p className="font-mono text-lg font-semibold">${fund.performance.invested.toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Implied Value{fund.performance.dilutionAware ? "" : " *"}</p>
+            <p className="font-mono text-lg font-semibold">${Math.round(fund.performance.impliedValue).toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">TVPI{fund.performance.approximate ? " ≈" : ""}</p>
+            <p className="font-mono text-lg font-semibold">{fund.performance.tvpi !== null ? `${fund.performance.tvpi.toFixed(2)}x` : "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">DPI{fund.performance.approximate ? " ≈" : ""}</p>
+            <p className="font-mono text-lg font-semibold">{fund.performance.dpi !== null ? `${fund.performance.dpi.toFixed(2)}x` : "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Gross IRR</p>
+            <p className="font-mono text-lg font-semibold" title={fund.performance.grossIrr === null ? "Doesn't converge with the cashflow data recorded so far" : undefined}>
+              {fund.performance.grossIrr !== null ? `${(fund.performance.grossIrr * 100).toFixed(1)}%` : "—"}
+            </p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Admin-only estimate; gross of fees unless FEE cashflow rows are recorded.
+          {fund.performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
+          {!fund.performance.dilutionAware && " * Implied value assumes zero dilution (no ownership % recorded on these deals yet)."}
+        </p>
+      </div>
+
       <div className="mb-6 flex gap-1 overflow-x-auto border-b">
         {tabs.map((tab) => (
           <button
@@ -627,7 +677,7 @@ export default function AdminFundDetailPage() {
       {activeTab === "cashflows" && (
         <div>
           <div className="mb-4 rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-            Fund performance (TVPI/DPI/IRR, computed from these cashflows) lands here in a later workstream (Part 10, WS26) — recording capital calls, distributions, and fees now means that math has real data to run on once it ships.
+            Recording capital calls, distributions, and fees here feeds the Performance card above (Part 10, WS26) — DPI moves as distributions are added, and TVPI/DPI drop their &quot;≈&quot; badge once a capital call is recorded.
           </div>
           <form onSubmit={handleAddCashflow} className="mb-4 rounded-md border border-border bg-card p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

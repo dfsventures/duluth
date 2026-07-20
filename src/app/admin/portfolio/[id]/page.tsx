@@ -26,6 +26,8 @@ interface Deal {
   roundId: string | null;
   round: { id: string; label: string | null; kind: string } | null;
   ownershipPct: number | null;
+  positionValue: number | null;
+  dilutionAware: boolean;
 }
 
 interface Round {
@@ -53,6 +55,8 @@ interface Position {
   invested: number;
   dealCount: number;
   latestMultiple: number | null;
+  impliedValue: number;
+  dilutionAware: boolean;
 }
 
 interface CompanyDetail {
@@ -308,6 +312,10 @@ export default function AdminPortfolioCompanyPage() {
                   <span>${p.invested.toLocaleString()} invested</span>
                   <span>{p.dealCount} deal{p.dealCount !== 1 ? "s" : ""}</span>
                   <span>{multipleLabel(p.latestMultiple)}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    ${Math.round(p.impliedValue).toLocaleString()} implied
+                    {!p.dilutionAware && <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data recorded" />}
+                  </span>
                 </div>
               </div>
             ))}
@@ -334,6 +342,7 @@ export default function AdminPortfolioCompanyPage() {
                   <th className="px-3 py-2 font-medium">Amount</th>
                   <th className="px-3 py-2 font-medium">Round</th>
                   <th className="px-3 py-2 font-medium">Ownership %</th>
+                  <th className="px-3 py-2 font-medium">Position Value</th>
                 </tr>
               </thead>
               <tbody>
@@ -378,6 +387,14 @@ export default function AdminPortfolioCompanyPage() {
                         placeholder="—"
                         className="w-20 rounded-sm border border-input bg-card px-2 py-1 text-xs"
                       />
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
+                        {!d.dilutionAware && d.positionValue !== null && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data — zero-dilution assumption (amount x multiple)" />
+                        )}
+                      </span>
                     </td>
                   </tr>
                 ))}

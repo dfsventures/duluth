@@ -2766,7 +2766,9 @@ A "Cashflows" section (Pattern B wrap-row cards: kind badge, date, amount, optio
 
 **UX impact:** additive admin pages/sections; founder/LP/investor surfaces untouched. **Cost impact:** none. **Schema:** none (WS24's).
 
-## WS26 — Derived metrics engine, admin-only (~1.5–2 days)
+## WS26 — Derived metrics engine, admin-only (~1.5–2 days) — SHIPPED 2026-07-20
+
+**Implementation note (deviation flagged, cheap to reverse):** the plan text for `fundFlows` said "deal amounts as dated outflows, DISTRIBUTION inflows, CAPITAL_CALL/FEE per kind" without spelling out CAPITAL_CALL's sign. Shipped behavior: CAPITAL_CALL rows are **excluded** from the XIRR flow series (deal amounts already represent the capital-deployed outflow; adding CAPITAL_CALL too would double-count), and instead feed `computePaidIn`'s TVPI/DPI override when a fund has any recorded. FEE rows are an additional outflow. Documented in `portfolio-metrics.ts`; the only change needed to reverse this is inside `fundFlows`.
 
 **Goal:** IRR/TVPI/DPI and dilution-aware values are computed by code from ledger records (PRD B5/B6), shown **only** on admin surfaces (Q23). Pure lib + tests first, house style.
 

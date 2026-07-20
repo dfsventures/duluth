@@ -23,6 +23,8 @@ interface PortfolioDeal {
   valuationAsOf: string | null;
   round: { id: string; label: string | null; kind: string } | null;
   ownershipPct: number | null;
+  positionValue: number | null;
+  dilutionAware: boolean;
 }
 
 interface Summary {
@@ -30,6 +32,8 @@ interface Summary {
   dealCount: number;
   companyCount: number;
   fundCount: number;
+  blendedImpliedValue: number;
+  anyDilutionAware: boolean;
 }
 
 function multipleLabel(entry: number | null, current: number | null): string {
@@ -83,7 +87,7 @@ export default function AdminPortfolioPage() {
         description="Every deal across every fund — the cross-fund view the per-fund pages don't give you."
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -93,6 +97,18 @@ export default function AdminPortfolioPage() {
           </CardHeader>
           <CardContent>
             <p className="text-2xl font-semibold">{summary ? `$${summary.totalInvested.toLocaleString()}` : "—"}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+              <DollarSign className="h-4 w-4" />
+              Implied Value{summary && !summary.anyDilutionAware ? " *" : ""}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-semibold">{summary ? `$${Math.round(summary.blendedImpliedValue).toLocaleString()}` : "—"}</p>
+            <p className="text-xs text-muted-foreground">Admin-only estimate</p>
           </CardContent>
         </Card>
         <Card>
@@ -186,6 +202,7 @@ export default function AdminPortfolioPage() {
                 <th className="px-3 py-2 font-medium">Current Val.</th>
                 <th className="px-3 py-2 font-medium">Multiple</th>
                 <th className="px-3 py-2 font-medium">Ownership</th>
+                <th className="px-3 py-2 font-medium">Position Value</th>
               </tr>
             </thead>
             <tbody>
@@ -213,6 +230,14 @@ export default function AdminPortfolioPage() {
                   <td className="px-3 py-2 whitespace-nowrap">{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</td>
                   <td className="px-3 py-2">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
                   <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">{d.ownershipPct !== null ? `${d.ownershipPct}%` : "—"}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
+                      {!d.dilutionAware && d.positionValue !== null && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data — zero-dilution assumption (amount x multiple)" />
+                      )}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
