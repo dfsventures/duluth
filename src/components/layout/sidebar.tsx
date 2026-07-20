@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
@@ -23,6 +24,7 @@ import {
   Landmark,
   Handshake,
   PieChart,
+  RefreshCw,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 
@@ -73,7 +75,25 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
   // Dual-role users see admin nav on /admin paths, founder nav everywhere else
   const useAdminNav = isAdminPath || (isAdmin && !isFounder);
-  const nav = useAdminNav ? adminNav : founderNav;
+
+  // Part 10, WS27.6 — "Sync" only shows up once sheets sync is actually
+  // configured (ground rule 4: a fork with no Google env vars sees today's
+  // nav exactly). Fetched client-side since the three env vars are
+  // server-only; defaults to hidden until this resolves.
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  useEffect(() => {
+    if (!useAdminNav) return;
+    fetch("/api/admin/sheets-sync")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { enabled?: boolean } | null) => setSyncEnabled(Boolean(data?.enabled)))
+      .catch(() => setSyncEnabled(false));
+  }, [useAdminNav]);
+
+  const nav = useAdminNav
+    ? syncEnabled
+      ? [...adminNav.slice(0, 4), { label: "Sync", href: "/admin/sync", icon: RefreshCw }, ...adminNav.slice(4)]
+      : adminNav
+    : founderNav;
 
   return (
     <aside

@@ -67,6 +67,16 @@ describe("decideRoute — public routes", () => {
     expect(decideRoute("/api/cron/reminders", "", loggedOut)).toEqual({ type: "next" });
   });
 
+  // Part 10, WS27.4 — the weekly Sheets-sync cron is the fourth cron route,
+  // and the third-through-fourth instance of the "no-session client hits
+  // auth middleware" bug family this codebase has already hit three times
+  // (/api/cron/reminders, /brand, /api/share). It needs no PUBLIC_PREFIXES
+  // change (the "/api/cron" prefix already covers it), but this regression
+  // test pins that so a future prefix refactor can't silently regress it.
+  it("allows /api/cron/sheets-sync with no session (auth is enforced by CRON_SECRET in the route)", () => {
+    expect(decideRoute("/api/cron/sheets-sync", "", loggedOut)).toEqual({ type: "next" });
+  });
+
   // Regression: the February bug matched "/" as a prefix, which made
   // isPublic true for every pathname (since every pathname starts with "/").
   // These two cases would have silently passed under that bug.

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { fundFlows, xirr, computePaidIn, tvpi, dpi, positionValue } from "@/lib/portfolio-metrics";
+import { sheetsSyncEnabled } from "@/lib/sheets";
 
 // GET is not in the original WS16 route list but is required by the admin
 // fund-detail page (deals/LPs/reports tabs) — additive, same guard pattern.
@@ -88,6 +89,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       sortOrder: fund.sortOrder,
       createdAt: fund.createdAt,
       updatedAt: fund.updatedAt,
+      // Part 10, WS27.5: sheetsSyncEnabled surfaced alongside each deal's
+      // sheetRowId so the UI can gate the "synced from sheet" chip on
+      // BOTH conditions, matching the API's own enforcement (ground rule 4
+      // — a fork with no Google env vars sees zero change even if a
+      // sheetRowId were ever set).
+      sheetsSyncEnabled: sheetsSyncEnabled(),
       deals: fund.deals.map((d) => ({
         id: d.id,
         portfolioCompanyId: d.portfolioCompanyId,
@@ -101,6 +108,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
         valuationAsOf: d.valuationAsOf,
         notes: d.notes,
+        sheetRowId: d.sheetRowId,
       })),
       lps: fund.lps.map((m) => ({ id: m.id, lp: m.lp })),
       reports: fund.reports.map((r) => ({

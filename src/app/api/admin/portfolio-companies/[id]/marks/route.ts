@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { sheetsSyncEnabled } from "@/lib/sheets";
 
 // WS25.1 / JC16 — recording a mark also fans out currentValuation +
 // valuationAsOf to every one of this company's deals, in one transaction.
@@ -15,8 +16,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { user, error } = await requireAdmin();
     if (error) return error;
 
-    const company = await db.portfolioCompany.findUnique({ where: { id }, include: { deals: { select: { id: true, currentValuation: true } } } });
+    const company = await db.portfolioCompany.findUnique({ where: { id }, include: { deals: { select: { id: true, currentValuation: true, sheetRowId: true } } } });
     if (!company) return NextResponse.json({ error: "Portfolio company not found" }, { status: 404 });
+
+    // Part 10, WS27.5 — if every one of this company's deals is sheet-owned
+    // while sync is enabled, its valuation is sheet-owned too (edits happen
+    // in the tracker; the next sync writes the mark). A company with any
+    // manually-created deal keeps full mark-recording.
+    if (sheetsSyncEnabled() && company.deals.length > 0 && company.deals.every((d) => d.sheetRowId)) {
+      return NextResponse.json(
+        { error: "This company's valuation is synced from the tracker sheet — edit it there; changes arrive on the next sync." },
+        { status: 409 }
+      );
+    }
 
     const body = await request.json();
     if (body.valuationUsd === undefined || body.valuationUsd === null || body.valuationUsd === "") {

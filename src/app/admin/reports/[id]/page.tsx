@@ -11,6 +11,15 @@ import { portcoMention } from "@/components/ui/portco-mention";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { extractMentionIds } from "@/lib/report-snapshot";
 
+function daysSinceSync(lastSyncedAt: string | null): number | null {
+  if (!lastSyncedAt) return null;
+  return Math.floor((Date.now() - new Date(lastSyncedAt).getTime()) / (24 * 60 * 60 * 1000));
+}
+
+function formatSyncDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 interface ReportDetail {
   id: string;
   title: string;
@@ -40,6 +49,46 @@ export default function AdminReportEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [fundCompanies, setFundCompanies] = useState<{ id: string; name: string }[]>([]);
+
+  // Part 10, WS27.6 (Q27) — staleness banner + inline "Sync now" on the
+  // publish confirm. Entirely absent when sync is disabled (ground rule 4).
+  const [syncEnabled, setSyncEnabled] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [syncingNow, setSyncingNow] = useState(false);
+
+  const loadSyncStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/sheets-sync");
+      if (!res.ok) return;
+      const data: { enabled: boolean; runs: { status: string; trigger: string; startedAt: string }[] } = await res.json();
+      setSyncEnabled(data.enabled);
+      const lastSuccess = data.runs.find((r) => r.status === "SUCCESS" && r.trigger !== "DRY_RUN");
+      setLastSyncedAt(lastSuccess?.startedAt ?? null);
+    } catch {
+      // Non-critical — the banner just won't show.
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSyncStatus();
+  }, [loadSyncStatus]);
+
+  async function handleSyncNow() {
+    setSyncingNow(true);
+    try {
+      const res = await fetch("/api/admin/sheets-sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dryRun: false }),
+      });
+      if (!res.ok) throw new Error("Sync failed");
+      await loadSyncStatus();
+    } catch {
+      setMessage({ type: "error", text: "Sync failed — try again or check /admin/sync." });
+    } finally {
+      setSyncingNow(false);
+    }
+  }
 
   async function handleDeleteDraft() {
     if (!window.confirm("Delete this draft report? This cannot be undone.")) return;
@@ -256,24 +305,38 @@ export default function AdminReportEditorPage() {
       )}
 
       {confirmPublish && (
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
-          <span className="text-sm text-ochre">Publishing freezes today&apos;s valuation numbers into this report. Continue?</span>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm text-ochre">
-              <input
-                type="checkbox"
-                checked={notifyLps}
-                onChange={(e) => setNotifyLps(e.target.checked)}
-                className="h-4 w-4 rounded-sm border-ochre/50"
-              />
-              Notify this fund&apos;s LPs by email
-            </label>
-            <Button variant="secondary" size="sm" disabled={publishing} onClick={() => setConfirmPublish(false)}>
-              Cancel
-            </Button>
-            <Button size="sm" disabled={publishing} onClick={handlePublish}>
-              {publishing ? "Publishing..." : "Confirm Publish"}
-            </Button>
+        <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
+          {/* Part 10, WS27.6 (Q27) — absent entirely when sync is disabled. */}
+          {syncEnabled && (
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-ochre/20 pb-2">
+              <span className={`text-sm ${daysSinceSync(lastSyncedAt) === null || daysSinceSync(lastSyncedAt)! > 7 ? "text-ochre font-medium" : "text-muted-foreground"}`}>
+                Portfolio data last synced{" "}
+                {lastSyncedAt ? `${formatSyncDate(lastSyncedAt)} (${daysSinceSync(lastSyncedAt)} day${daysSinceSync(lastSyncedAt) === 1 ? "" : "s"} ago)` : "never"}
+              </span>
+              <Button variant="secondary" size="sm" disabled={syncingNow} onClick={handleSyncNow}>
+                {syncingNow ? "Syncing..." : "Sync now"}
+              </Button>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm text-ochre">Publishing freezes today&apos;s valuation numbers into this report. Continue?</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-ochre">
+                <input
+                  type="checkbox"
+                  checked={notifyLps}
+                  onChange={(e) => setNotifyLps(e.target.checked)}
+                  className="h-4 w-4 rounded-sm border-ochre/50"
+                />
+                Notify this fund&apos;s LPs by email
+              </label>
+              <Button variant="secondary" size="sm" disabled={publishing} onClick={() => setConfirmPublish(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={publishing} onClick={handlePublish}>
+                {publishing ? "Publishing..." : "Confirm Publish"}
+              </Button>
+            </div>
           </div>
         </div>
       )}

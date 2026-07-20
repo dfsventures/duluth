@@ -3,8 +3,18 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { sheetsSyncEnabled } from "@/lib/sheets";
 
 const VALID_TYPES = ["INITIAL", "FOLLOW_ON"];
+
+// Part 10, WS27.5 (Q22-B/Q26) — while sync is enabled, a deal linked to a
+// sheet row (sheetRowId set) has these fields owned by the tracker sheet;
+// edits happen there and arrive on the next sync. Ledger-side fields
+// (roundId/convertedInRoundId/ownershipPct) stay editable always — they
+// don't exist in the sheet. Ground rule 4: a fork with no Google env vars,
+// or a manually-created deal (sheetRowId null), sees zero change here.
+const SHEET_OWNED_DEAL_FIELDS = ["investmentType", "dealDate", "amountUsd", "instrument", "entryValuation", "currentValuation", "notes"];
+const SYNCED_DEAL_MESSAGE = "This deal is synced from the tracker sheet — edit it there; changes arrive on the next sync.";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,6 +26,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!existing) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
 
     const body = await request.json();
+
+    if (sheetsSyncEnabled() && existing.sheetRowId) {
+      const attemptedSheetField = SHEET_OWNED_DEAL_FIELDS.find((f) => body[f] !== undefined);
+      if (attemptedSheetField) {
+        return NextResponse.json({ error: SYNCED_DEAL_MESSAGE }, { status: 409 });
+      }
+    }
     const data: {
       investmentType?: string;
       dealDate?: Date;
@@ -122,6 +139,10 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
 
     const existing = await db.deal.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+
+    if (sheetsSyncEnabled() && existing.sheetRowId) {
+      return NextResponse.json({ error: SYNCED_DEAL_MESSAGE }, { status: 409 });
+    }
 
     await db.deal.delete({ where: { id } });
 

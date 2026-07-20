@@ -38,6 +38,7 @@ interface Deal {
   currentValuation: number | null;
   valuationAsOf: string | null;
   notes: string | null;
+  sheetRowId: string | null;
 }
 
 interface Cashflow {
@@ -74,6 +75,7 @@ interface FundDetail {
   reports: { id: string; title: string; periodLabel: string | null; status: string; publishedAt: string | null; createdAt: string }[];
   cashflows: Cashflow[];
   performance: Performance;
+  sheetsSyncEnabled: boolean;
 }
 
 const CASHFLOW_KINDS = ["CAPITAL_CALL", "DISTRIBUTION", "FEE", "OTHER"] as const;
@@ -538,7 +540,12 @@ export default function AdminFundDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {fund.deals.map((d) => (
+                  {fund.deals.map((d) => {
+                    // Part 10, WS27.5 — both conditions, mirroring the API's
+                    // own enforcement: a fork with sync disabled, or a
+                    // manually-created deal (no sheetRowId), is unaffected.
+                    const isSynced = fund.sheetsSyncEnabled && Boolean(d.sheetRowId);
+                    return (
                     <tr key={d.id} className="border-b last:border-0">
                       <td className="px-3 py-2 font-medium">{d.portfolioCompanyName}</td>
                       <td className="px-3 py-2">
@@ -551,7 +558,9 @@ export default function AdminFundDetailPage() {
                       <td className="px-3 py-2">{d.instrument ?? "—"}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{d.entryValuation !== null ? `$${d.entryValuation.toLocaleString()}` : "—"}</td>
                       <td className="px-3 py-2 whitespace-nowrap">
-                        {editingDealId === d.id ? (
+                        {isSynced ? (
+                          <span>{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</span>
+                        ) : editingDealId === d.id ? (
                           <div className="flex items-center gap-1">
                             <input
                               type="number"
@@ -576,12 +585,19 @@ export default function AdminFundDetailPage() {
                       <td className="px-3 py-2">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">{d.valuationAsOf ? formatDate(d.valuationAsOf) : "—"}</td>
                       <td className="px-3 py-2">
-                        <button onClick={() => handleDeleteDeal(d.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {isSynced ? (
+                          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" title="Sheet-owned fields are read-only while sync is enabled">
+                            synced from sheet
+                          </span>
+                        ) : (
+                          <button onClick={() => handleDeleteDeal(d.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
