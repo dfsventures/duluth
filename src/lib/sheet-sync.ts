@@ -21,27 +21,37 @@ const INVESTMENT_TYPE_MAP: Record<string, string> = {
   "follow on": "FOLLOW_ON",
 };
 
+// Keyed on the month name's first 3 letters, so both abbreviated ("Nov")
+// and full ("November") forms resolve identically — the live sheet
+// genuinely mixes both across its 76 rows (different people typed dates
+// differently over time; confirmed 2026-07-20 by reading the sheet
+// directly: 56 rows abbreviated, 20 full). A month-keyed-by-full-name-only
+// lookup silently dropped every abbreviated row from both this sync and
+// the one-time linking step (src/lib/sheet-link.ts) — "May" was the only
+// month that accidentally worked, since its abbreviated and full forms
+// are identical, which is what made the bug look like a 27/49 split
+// instead of an obvious total failure.
 const MONTHS: Record<string, number> = {
-  january: 0,
-  february: 1,
-  march: 2,
-  april: 3,
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
   may: 4,
-  june: 5,
-  july: 6,
-  august: 7,
-  september: 8,
-  october: 9,
-  november: 10,
-  december: 11,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
 };
 
-/** Parses the sheet's "May 8, 2019" date-string format. Deliberately not `new Date(string)` (locale/engine-dependent) — an explicit, testable parser. */
+/** Parses the sheet's "May 8, 2019" / "Nov 9, 2019" date-string format (both abbreviated and full month names). Deliberately not `new Date(string)` (locale/engine-dependent) — an explicit, testable parser. */
 export function parseSheetDate(raw: string | undefined): Date | null {
   if (!raw) return null;
   const m = raw.trim().match(/^([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})$/);
   if (!m) return null;
-  const month = MONTHS[m[1].toLowerCase()];
+  const month = MONTHS[m[1].toLowerCase().slice(0, 3)];
   if (month === undefined) return null;
   const day = Number(m[2]);
   const year = Number(m[3]);

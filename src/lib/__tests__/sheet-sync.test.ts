@@ -52,6 +52,20 @@ describe("parseSheetDate", () => {
     expect(parseSheetDate("December 31, 2025")?.toISOString()).toBe("2025-12-31T00:00:00.000Z");
   });
 
+  // Regression (found 2026-07-20 live against the production sheet, which
+  // genuinely mixes both forms across its 76 rows): a full-name-only month
+  // lookup silently dropped every abbreviated row from both the sync and
+  // the one-time linking step, and "May" being identical either way made
+  // it look like a partial match rate instead of an obvious total failure.
+  it("REGRESSION: parses abbreviated month names identically to full ones", () => {
+    expect(parseSheetDate("Nov 9, 2019")?.toISOString()).toBe(parseSheetDate("November 9, 2019")?.toISOString());
+    expect(parseSheetDate("Oct 26, 2020")?.toISOString()).toBe("2020-10-26T00:00:00.000Z");
+    expect(parseSheetDate("Dec 10, 2020")?.toISOString()).toBe("2020-12-10T00:00:00.000Z");
+    expect(parseSheetDate("Jan 11, 2021")?.toISOString()).toBe("2021-01-11T00:00:00.000Z");
+    expect(parseSheetDate("Sep 1, 2023")?.toISOString()).toBe("2023-09-01T00:00:00.000Z");
+    expect(parseSheetDate("Sept 1, 2023")?.toISOString()).toBe("2023-09-01T00:00:00.000Z");
+  });
+
   it("returns null for garbage or empty input", () => {
     expect(parseSheetDate("not a date")).toBeNull();
     expect(parseSheetDate("")).toBeNull();
