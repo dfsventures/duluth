@@ -537,6 +537,13 @@ model Deal {
   convertedInRoundId String?
   ownershipPct       Decimal?
 
+  // Part 10 / WS27 (additive): the Deals-sheet row identity, once synced.
+  // Set only when a sheet sync has matched this deal to a "Stable ID
+  // column" value (JC19 — sync never deletes/reassigns this). Non-null
+  // makes sheet-owned fields read-only in admin CRUD while sync is
+  // enabled (Q22-B/Q26, WS27.5).
+  sheetRowId String? @unique
+
   fund             Fund             @relation(fields: [fundId], references: [id], onDelete: Cascade)
   portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
   round            FinancingRound?  @relation("RoundDeals", fields: [roundId], references: [id], onDelete: SetNull)
@@ -607,6 +614,23 @@ model FundCashflow {
 
   @@index([fundId, date])
   @@map("fund_cashflows")
+}
+
+// Part 10, WS27: one row per Google Sheets sync attempt (cron or manual,
+// including dry-run previews). `summary` carries the diff (creates/
+// updates/newCompanies/errors) — real valuations, so admin-gated reads
+// only, never logged to the console where avoidable (ground rule 1).
+model SheetSyncRun {
+  id         String    @id @default(cuid())
+  trigger    String    // "CRON" | "MANUAL" | "DRY_RUN"
+  status     String    // "SUCCESS" | "FAILED"
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  summary    Json?
+  error      String?
+
+  @@index([startedAt])
+  @@map("sheet_sync_runs")
 }
 
 model LimitedPartner {
