@@ -486,9 +486,10 @@ model Fund {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  deals   Deal[]
-  lps     LpFundMembership[]
-  reports FundReport[]
+  deals     Deal[]
+  lps       LpFundMembership[]
+  reports   FundReport[]
+  cashflows FundCashflow[]
 
   @@map("funds")
 }
@@ -504,6 +505,9 @@ model PortfolioCompany {
   company  Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
   deals    Deal[]
   mentions FundReportMention[]
+  rounds    FinancingRound[]
+  marks     ValuationMark[]
+  cashflows FundCashflow[]
 
   @@map("portfolio_companies")
 }
@@ -524,12 +528,85 @@ model Deal {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
+  // Part 10 / WS24 (additive): ledger pointers. roundId links this deal to
+  // the FinancingRound it was part of; convertedInRoundId records which
+  // PRICED round a SAFE deal converted in (Q24). ownershipPct is the fund's
+  // ownership after this deal's round, optional-when-known (Q24) — never
+  // required, never read by any existing renderer (JC16).
+  roundId            String?
+  convertedInRoundId String?
+  ownershipPct       Decimal?
+
   fund             Fund             @relation(fields: [fundId], references: [id], onDelete: Cascade)
   portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+  round            FinancingRound?  @relation("RoundDeals", fields: [roundId], references: [id], onDelete: SetNull)
+  convertedInRound FinancingRound?  @relation("ConvertedDeals", fields: [convertedInRoundId], references: [id], onDelete: SetNull)
 
   @@index([fundId])
   @@index([portfolioCompanyId])
   @@map("deals")
+}
+
+// ─── Portfolio Ledger (Part 10, WS24) ─────────────────────
+// Additive: financing rounds, valuation-mark history, and fund cashflows.
+// None of this is read by any existing renderer — `Deal.currentValuation`/
+// `valuationAsOf` remain the authoritative render path for frozen report
+// snapshots and the LP surface (JC16). No position table (JC18) — fund/
+// company positions are a computed view, not persisted.
+
+model FinancingRound {
+  id                 String   @id @default(cuid())
+  portfolioCompanyId String
+  label              String?  // free text: "Seed", "Series A", "SAFE (2024)" — mirrors Deal.instrument's free-text convention (F17)
+  kind               String   @default("UNKNOWN") // "PRICED" | "SAFE" | "CONVERSION" | "OTHER" | "UNKNOWN"
+  roundDate          DateTime
+  raisedUsd          Decimal? // FULL round size, all investors — optional-when-known (Q24)
+  preMoneyUsd        Decimal?
+  postMoneyUsd       Decimal? // valuation or cap (post)
+  source             String   @default("MANUAL") // "MANUAL" | "BACKFILL" | "SHEET"
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+  deals            Deal[]           @relation("RoundDeals")
+  conversions      Deal[]           @relation("ConvertedDeals")
+
+  @@index([portfolioCompanyId, roundDate])
+  @@map("financing_rounds")
+}
+
+model ValuationMark {
+  id                 String   @id @default(cuid())
+  portfolioCompanyId String
+  valuationUsd       Decimal  // company valuation; 0 = written off (house convention)
+  asOf               DateTime
+  source             String   @default("MANUAL") // "MANUAL" | "BACKFILL" | "SHEET"
+  notes              String?
+  createdAt          DateTime @default(now())
+
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@index([portfolioCompanyId, asOf])
+  @@map("valuation_marks")
+}
+
+model FundCashflow {
+  id                 String   @id @default(cuid())
+  fundId             String
+  portfolioCompanyId String?  // set for company-attributed distributions/exits
+  kind               String   // "CAPITAL_CALL" | "DISTRIBUTION" | "FEE" | "OTHER"
+  date               DateTime
+  amountUsd          Decimal  // always positive; direction is implied by kind
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  fund             Fund              @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany? @relation(fields: [portfolioCompanyId], references: [id], onDelete: SetNull)
+
+  @@index([fundId, date])
+  @@map("fund_cashflows")
 }
 
 model LimitedPartner {

@@ -2639,7 +2639,9 @@ export function isSessionValid(
 
 **UX impact:** LPs idle >7 days re-authenticate via OTP (explicitly decided, Q21 — the only intentional behavior change in this Part for any non-admin); admin report editor gains an additive summary strip. **Cost impact:** none. **Schema:** none.
 
-## WS24 — Ledger schema + reversible backfill of the 76 production deals (~2–2.5 days)
+## WS24 — Ledger schema + reversible backfill of the 76 production deals (~2–2.5 days) — SHIPPED 2026-07-20
+
+**Verified result:** dry-run before apply confirmed 76 deals / 50 portfolio companies (the correct, verified count — two test deals that had inflated it to 78/52 were identified, confirmed as test entries by the user, and deleted with explicit sign-off before this backfill ran). Apply created 76 `FinancingRound` rows (one per deal) and 50 `ValuationMark` rows (one per company), linked all 76 deals via `roundId`, and reported zero valuation disagreements. Re-run dry-run after apply confirmed full idempotency ("0 to do" everywhere).
 
 **Goal:** the round/mark/cashflow ledger exists (additive tables + nullable `Deal` columns), and every production deal is linked to a synthesized round with `--revert` available. Admin-only, and in this WS *invisible* — no UI reads the new tables yet (WS25 does).
 
