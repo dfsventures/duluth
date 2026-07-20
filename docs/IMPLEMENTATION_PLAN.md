@@ -3064,3 +3064,116 @@ Everything else in this Part shipped exactly as sketched: `adminNav` → `adminN
 ## Part 11 roadmap bookkeeping
 
 `ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section's Part 11 pointer were updated to "shipped 2026-07-20," and the shipped nav structure (including the Sync-relocation rationale) was folded into "Existing Features" (Admin Features section).
+
+---
+
+# Part 12 — Sidebar Visual Hierarchy, Accessibility & Icon Legibility (WS29)
+
+**Status: planned 2026-07-20 — awaiting decisions Q34–Q36 below. No product code has shipped for this Part.**
+
+## What this Part is
+
+A follow-on UX review of the *already-shipped* WS28 grouped sidebar, requested directly by the user together with a collaborating design-review pass. WS28 (Part 11) fixed the label-confusion problem (Companies/Portfolio, Investor Links/LPs) by introducing three labeled groups; this Part asks whether the grouping *reads* as grouping once rendered, and whether the nav's fixed-length, always-expanded structure holds up as more items get added — five of the last five Parts added at least one nav item apiece. This Part started from a pixel-faithful static mockup rendered from the real compiled Tailwind CSS and screenshotted at 1280px and 390px, then every finding below was re-verified against the live `src/components/layout/sidebar.tsx` source, `src/app/globals.css`, and a grep of the whole app's existing divider/accessibility conventions — nothing here is taken on the strength of the screenshot alone.
+
+## Part 12 review findings (verified against the current code, not just the rendered screenshots)
+
+1. **Grouping is structurally present but visually underweight, and it's measurably weaker than the app's own established label convention — confirmed, not just an eyeballing artifact.** The group header (sidebar.tsx:166) is `mb-1.5 px-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground` — no font-weight class at all, so it renders at the browser default (400/normal). The app already has a purpose-built small-caps label style for exactly this job: `.label` in `globals.css:109-112` is `text-xs font-semibold uppercase tracking-widest text-muted-foreground font-mono`. The sidebar header is lighter-weight than the app's own label convention, not just "could be bolder" — this reads as an unintentional omission from WS28, not a considered lighter-weight choice. Group-to-group separation is `mt-4` (16px top margin, sidebar.tsx:165) with **no divider line**; item-to-item spacing inside a group is `space-y-1` (4px). The 4× ratio matters less than the fact it's whitespace-only, at a font weight that doesn't otherwise signal structure elsewhere in the app.
+2. **Zero ARIA/semantic grouping — confirmed, but the sidebar is not an outlier.** Group headers are plain `<p>` tags (sidebar.tsx:166-168): no `role="group"`, no `aria-labelledby`, no heading element. But a grep of the *entire* app turns up `aria-*` attributes in only 7 files total (password show/hide toggle, two icon-only buttons, two composer field labels) and **zero** uses of `role="group"` or `aria-labelledby` anywhere in the codebase. The `<nav>` landmark itself is present and correctly used (sidebar.tsx:160). Reframed: this is a real, cheap-to-fix gap, but it's consistent with — not a regression relative to — the rest of the app's current accessibility maturity. Worth fixing here since we're already in the file; not evidence the sidebar specifically needs urgent remediation relative to everything else. A broader app-wide accessibility pass is out of scope for this Part.
+3. **No "which section am I in" reinforcement beyond the active row itself — confirmed.** Only `renderItem`'s active branch (sidebar.tsx:122-123, `bg-primary-50 text-primary-600`) signals state; the group header above it gets no acknowledgment.
+4. **Nav length/scroll headroom — confirmed by direct measurement of the real Tailwind classes, not just visual impression.** Item rows are `py-2` + `text-sm` line-height ≈ 36px, with 4px inter-item gaps (`space-y-1`). Today's admin nav: Dashboard (36px) + group 1/5 items (≈234px) + group 2/4 items (≈194px) + group 3/4 items (≈194px), plus header (64px), footer (≈72px), and nav padding (32px) ≈ **826px** of content before the nav's own `overflow-y-auto` region needs to scroll. This lines up with the "barely fits around 900px" read from the screenshot — the finding holds up under measurement, it isn't overstated. 15 destinations today (1 ungrouped + 14 grouped); every one of the last five Parts added at least one sidebar item, so this is a real trend, not a hypothetical.
+5. **Icon distinctiveness at 16px — confirmed as a legitimate (if minor) finding.** `Deal Ledger` uses `PieChart` (sidebar.tsx:25,69) — reads as "analytics," not "ledger," and `PieChart` is used nowhere else in the app so it's safe to retire. `LPs` (`Handshake`, line 70/24) and `Service Providers` (`Briefcase`, line 78/20) are both filled, roughly-square, blocky glyphs at `h-4 w-4` (16px, line 127) — a real but low-severity at-a-glance confusion risk. Note `Briefcase` is shared between `founderNav` (line 38, "Service Providers") and `adminNavGroups` (line 78, same label) — the two never render simultaneously (role-gated), but if it's swapped it should swap in both places for concept/icon consistency.
+6. **Dashboard tier gap — confirmed identical to inter-group spacing.** Same `mt-4` (16px) is used both above the first group and between every subsequent group (sidebar.tsx:165) — no extra weight distinguishes the Dashboard/Company-Operations boundary from any other group boundary.
+
+## Corrections to the original brief
+
+- **The proposed `hairline()` reuse target (`src/lib/email.ts:109`) is the wrong file.** Verified: that function emits a raw inline-styled `<div>` HTML string for transactional emails — a separate rendering pipeline (Resend HTML emails), not importable into a React/Tailwind component. It does establish the *visual concept* (1px `bone`-colored divider) but not a reusable code path. The actual established in-app convention for this exact visual is `border-t border-border` (used repeatedly: `mention-cards.tsx:82`, `sync-panel.tsx:360`, `providers/page.tsx:458,483`, `lp/layout.tsx:33`, `share/[token]/page.tsx` ×4, `company/metrics/page.tsx:288`, `admin/companies/[id]/page.tsx:832`) or `divide-y`/`divide-bone` for list separators (`admin/links/page.tsx:343`, `links/page.tsx:261`, `lp/page.tsx:68`). **Use `border-t border-border`, not `hairline()`.**
+- The `.label` utility class (`globals.css:109-112`) is the closer existing pattern for "how this app makes small-caps text read as a structural header" — recommend the group header adopt `font-semibold` to match it, rather than inventing a new weight/size/color treatment. This is a one-class addition, not new design.
+- Finding #2's accessibility gap is real but should be scoped and prioritized as "cheap, do it here" rather than "the sidebar is uniquely broken" — see finding #2 above.
+
+## Part 12 open product decisions (Q34–Q36)
+
+> **All three decided 2026-07-20 (user review): every recommendation accepted.**
+> **Q34 = A** (swap both icons: Deal Ledger `PieChart`→`Rows3`, Service Providers `Briefcase`→`Wrench`, in both `founderNav` and `adminNavGroups`) · **Q35 = B** (defer proposal C — collapsible/auto-expanding groups — no codebase precedent, real unresolved interaction question, nav still measurably fits; revisit at ~20 items or an actual scrolling complaint) · **Q36 = A** (one-line "someday" note in `ROADMAP.md` for the cmd+K idea).
+> WS29 is fully unblocked — ships the grouping/a11y/icon polish only, per the scoped plan below.
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q34** | **Icon swaps for at-a-glance distinctiveness** (finding #5). Changes visual muscle memory for admins who already recognize the current shapes, so it's a real (if small) taste call, not a pure bug fix. | **A.** Swap both — `Deal Ledger`: `PieChart` → `Rows3` (tabular-ledger-rows metaphor, silhouette distinct from `ScrollText`/`NotebookPen`/`PieChart` already in use); `Service Providers`: `Briefcase` → `Wrench` (linear/diagonal silhouette, clearly distinct from `Handshake`'s clasped-hands blob), applied to **both** `founderNav` and `adminNavGroups` for concept consistency. **B.** Swap `Deal Ledger` only (`PieChart` → `Rows3`); leave `Handshake`/`Briefcase` as-is since they're a minor confusion, not a mislabel. **C.** No icon changes — the current set is legible enough, not worth the retraining cost for a team this size. | **A.** `PieChart` is a genuine mismatch (reads as analytics, not ledger) independent of the Handshake/Briefcase question, so it should move regardless. The Handshake/Briefcase pair is lower-severity but `Wrench` is a materially more distinct silhouette at 16px and the swap is free once we're touching icon imports either way. |
+| **Q35** | **Proposal C — auto-expand-active-group / collapse-others / persist via `localStorage`.** The one with real engineering + interaction cost; see the dedicated section below for full reasoning. | **A.** Build it now. **B.** Defer — ship the grouping/a11y/icon polish (this Part) now; revisit collapse/expand only if the nav crosses roughly 20 items, or if scrolling becomes a user-reported complaint rather than a measured-but-not-yet-felt risk. | **B — defer.** See "On proposal C" below for the full reasoning; short version: 15 items still fits without scrolling on a typical desktop viewport, the codebase has zero existing collapsible-nav precedent to build on (this would be new interaction machinery, not a reuse), and the auto-expand-on-navigate vs. manually-collapsed-by-the-admin conflict is a real unresolved UX question, not just an implementation detail. |
+| **Q36** | **Proposal D — cmd+K command palette.** Explicitly flagged by the reviewer as a stretch/future idea, not a fix for the stated complaint. | **A.** Add one line under a "Someday / P3" heading in `ROADMAP.md` so the idea isn't lost. **B.** Leave it out entirely — it's a small enough idea to re-propose fresh if it ever becomes relevant. | **A**, weakly. It's a one-line cost to preserve the idea for a small expert team that might genuinely want it later, and "someday" notes are already a house convention in this doc (see Part 9's Comment Threading deferral). But this is genuinely low-stakes either way — happy to go with B if you'd rather keep `ROADMAP.md` free of speculative entries. |
+
+### On proposal C specifically
+
+Recommend **not building it in this pass** (Q35-B). Reasoning:
+
+- **The problem it solves isn't fully felt yet.** Finding #4 measured today's nav at ≈826px of content, which fits inside a typical ~900px+ desktop viewport without scrolling; it's tight, not broken. Mobile already scrolls the sidebar inside its overlay (an accepted Part 6 pattern, not a regression). Collapse/expand is the right tool for a nav that has *outgrown* its space — this one is approaching that line, not past it.
+- **There is no existing collapsible-nav precedent anywhere in this codebase to build on** (confirmed by grep: no Accordion/Collapsible component, no `aria-expanded` usage, no `useState`-driven collapse pattern anywhere in `src/components`). This would be genuinely new interaction machinery, not a reuse of an established pattern — real design and testing surface, not a small add-on. The `localStorage` *persistence* mechanism itself does have precedent (`src/context/company-context.tsx` persists the selected company the same way), so that specific piece is low-risk; the collapsible-group UI and its state machine are the actual new cost.
+- **The auto-expand/collapse interaction has a genuine unresolved UX question, not just an implementation detail:** if an admin manually collapses "Company Operations" and later navigates to `/admin/approvals` via a bookmark or an email link, does the group auto-re-expand (undoing their preference every time) or stay collapsed (silently hiding the active-page context)? Either answer is defensible, but it needs a real decision, and it's exactly the kind of edge case that's cheap to spec now and expensive to discover after shipping.
+- **The stated workflow risk cuts against it too.** The brief itself raises the concern that admins who "genuinely move between all three domains daily" would pay a collapse/expand tax for a benefit (vertical space) that isn't costing them anything yet. For a small internal team using an app they already know well, that tradeoff likely isn't worth it today.
+- If we do build it later, the trigger conditions worth watching for: the nav crossing roughly 20 items, a fourth group being added, or an actual user complaint about scrolling — any of those would flip the cost/benefit and this section can be pulled forward wholesale.
+
+## Judgment calls (flagged, cheap, reversible — no sign-off needed)
+
+- **JC17** — Group header gains `font-semibold` (matching the app's own `.label` convention) and a `border-t border-border` divider before every group except the first (Dashboard already sits above group 1 with its own gap — see JC19). Text/tracking/size/color otherwise unchanged.
+- **JC18** — `role="group"` + `aria-labelledby` on each group's wrapping `<div>`, pointing at an `id` added to the header `<p>`; `aria-current="page"` added to the active nav link (`renderItem`, sidebar.tsx:117) alongside the existing visual highlight — standard practice for assistive tech to announce the current page reliably, and a natural pairing with the `role="group"` fix since both are "finish what WS28 started" accessibility work.
+- **JC19** — Dashboard-to-first-group gap increased (e.g. `mt-6`/`mt-8` instead of the shared `mt-4`) so it visually commits to being its own tier, independent of the inter-group `mt-4` from JC17.
+- **JC20** — When the active route belongs to a group, that group's header renders in `text-foreground` instead of `text-muted-foreground` (computed the same way `isActive` already is, just OR'd across `group.items`) — closes finding #3 for sighted users at near-zero cost, using data the component already has.
+
+## WS29 — Sidebar visual hierarchy, accessibility & icon polish (~0.5–1 day)
+
+**Goal:** ship JC17–JC20 plus whichever of Q34/Q36 gets signed off, entirely within `src/components/layout/sidebar.tsx` (+ `globals.css` if the `.label`-adjacent class needs a shared home rather than an inline Tailwind string — implementer's call, no visible difference either way). No route changes, no schema changes, no changes to `founderNav`'s flat (non-grouped) rendering beyond the Q34-A icon swap if accepted.
+
+### WS29.1 Proposed group rendering sketch (JC17/JC18/JC19/JC20 combined)
+
+```tsx
+{adminNavGroups.map((group, i) => {
+  const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
+  const groupActive = group.items.some((item) => isActive(item.href));
+  return (
+    <div
+      key={group.label}
+      role="group"
+      aria-labelledby={headingId}
+      className={cn(i === 0 ? "mt-6" : "mt-4", i > 0 && "border-t border-border pt-4")}
+    >
+      <p
+        id={headingId}
+        className={cn(
+          "mb-1.5 px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em]",
+          groupActive ? "text-foreground" : "text-muted-foreground"
+        )}
+      >
+        {group.label}
+      </p>
+      <ul className="space-y-1">{group.items.map(renderItem)}</ul>
+    </div>
+  );
+})}
+```
+
+`renderItem` additionally sets `aria-current={active ? "page" : undefined}` on the `<Link>` (sidebar.tsx:117-119).
+
+### WS29.2 Icon swap (only if Q34 = A or B)
+
+`Deal Ledger`: `PieChart` → `Rows3` in `adminNavGroups` (sidebar.tsx:69) and the import list (line 25). If Q34-A: also `Service Providers`: `Briefcase` → `Wrench` in **both** `founderNav` (line 38) and `adminNavGroups` (line 78), plus the import list.
+
+**WS29 acceptance checklist**
+- [ ] Group headers render `font-semibold`, matching (not diverging from) the app's `.label` convention
+- [ ] `border-t border-border` divider renders between groups (not above the first group, which instead gets the wider Dashboard-tier gap per JC19)
+- [ ] Dashboard-to-group-1 gap is visually distinct from inter-group gaps
+- [ ] Active group's header renders in `text-foreground`; inactive groups stay `text-muted-foreground`
+- [ ] `role="group"`/`aria-labelledby` present on every group; `aria-current="page"` present on the active link — spot-check with a screen reader or the browser accessibility tree, not just visual inspection
+- [ ] Icon swap(s) applied exactly per the signed-off Q34 answer, both `founderNav` and `adminNavGroups` if Q34-A; unused `PieChart`/`Briefcase` imports removed if fully retired
+- [ ] Mobile overlay at ~375px unaffected — this Part only restyles content already inside the existing scrolling `<nav>` container (per Part 11's own "not a problem" note); no change to `AppShell`'s `sidebarOpen` state or the `-translate-x-full` toggle
+- [ ] `npm run typecheck && npm run lint && npm run build` green
+- [ ] Live-verified on `molly.dfslab.net`: desktop screenshot shows visibly separated groups with a divider line; mobile screenshot at 390px still renders correctly; keyboard/screen-reader spot check confirms group announcements
+
+**Effort: ~0.5–1 day.** Single file, no schema/route changes, no new dependencies (no accordion/collapsible library needed since Q35 defers proposal C).
+
+## Part 12 sequencing
+
+WS29 has no dependency on Part 11 beyond it already being shipped (it is). Blocked only on Q34/Q36 sign-off; Q35 doesn't block WS29 either way since it's a "not now" recommendation, not a prerequisite decision — WS29 ships the same regardless of how Q35 lands, it just determines whether a *future* Part gets opened for proposal C.
+
+## Part 12 roadmap bookkeeping
+
+Once Q34/Q36 are answered and WS29 ships: `ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section gain a Part 12 pointer (mirroring the Part 11 entry), and the existing Part 11 sidebar bullet under "Existing Features" gets a short addendum noting the visual/a11y polish rather than a new bullet, since it's the same feature area. Until then, `ROADMAP.md` gets a "Next up — Part 12" blockquote per convention (added alongside this plan).
