@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Eye, AlertCircle, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Eye, AlertCircle, CheckCircle2, Link2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,42 @@ interface SyncRun {
   error: string | null;
 }
 
+// Part 10, WS27 one-time linking step — matches Molly's existing Deal rows
+// to the sheet's "Stable ID column" values by content, so the recurring
+// sync above can recognize them instead of treating them as new. See
+// src/lib/sheet-link.ts / src/app/api/admin/sheets-sync/link/route.ts.
+
+interface DealLinkMatch {
+  dealId: string;
+  companyName: string;
+  vehicleName: string;
+  stableId: string | null;
+  status: "matched" | "ambiguous" | "unmatched" | "already-linked";
+  detail?: string;
+}
+
+interface LinkCounts {
+  total: number;
+  matched: number;
+  alreadyLinked: number;
+  ambiguous: number;
+  unmatched: number;
+}
+
+interface LinkPreviewResponse {
+  applied: boolean;
+  matches: DealLinkMatch[];
+  counts: LinkCounts;
+  error?: string;
+}
+
+const LINK_STATUS_VARIANT: Record<DealLinkMatch["status"], "success" | "danger" | "warning" | "neutral"> = {
+  matched: "success",
+  "already-linked": "neutral",
+  ambiguous: "warning",
+  unmatched: "danger",
+};
+
 function errorCount(errors: SyncErrorSummary): number {
   return errors.duplicateIds.length + errors.missingIds.length + errors.unknownVehicles.length + errors.badCells.length;
 }
@@ -58,6 +94,11 @@ export default function AdminSyncPage() {
   const [previewing, setPreviewing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [linkPreview, setLinkPreview] = useState<LinkPreviewResponse | null>(null);
+  const [linkPreviewing, setLinkPreviewing] = useState(false);
+  const [linkApplying, setLinkApplying] = useState(false);
+  const [linkMessage, setLinkMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -103,6 +144,46 @@ export default function AdminSyncPage() {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Sync failed." });
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function previewLink() {
+    setLinkPreviewing(true);
+    setLinkMessage(null);
+    try {
+      const res = await fetch("/api/admin/sheets-sync/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apply: false }),
+      });
+      const data: LinkPreviewResponse = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Preview failed");
+      setLinkPreview(data);
+    } catch (err) {
+      setLinkPreview(null);
+      setLinkMessage({ type: "error", text: err instanceof Error ? err.message : "Preview failed." });
+    } finally {
+      setLinkPreviewing(false);
+    }
+  }
+
+  async function applyLink() {
+    setLinkApplying(true);
+    setLinkMessage(null);
+    try {
+      const res = await fetch("/api/admin/sheets-sync/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apply: true }),
+      });
+      const data: LinkPreviewResponse = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Apply failed");
+      setLinkPreview(data);
+      setLinkMessage({ type: "success", text: `Linked ${data.counts.matched} deal(s) to their sheet row. ${data.counts.alreadyLinked} were already linked.` });
+    } catch (err) {
+      setLinkMessage({ type: "error", text: err instanceof Error ? err.message : "Apply failed." });
+    } finally {
+      setLinkApplying(false);
     }
   }
 
@@ -168,6 +249,85 @@ export default function AdminSyncPage() {
           {message.text}
         </div>
       )}
+
+      <div className="mb-6 rounded-md border border-border bg-card p-4">
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">Link existing deals to sheet rows</h3>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" disabled={linkPreviewing} onClick={previewLink}>
+              <Eye className="mr-2 h-3.5 w-3.5" />
+              {linkPreviewing ? "Previewing..." : "Preview matches"}
+            </Button>
+            <Button
+              size="sm"
+              disabled={linkApplying || !linkPreview || linkPreview.counts.ambiguous > 0 || linkPreview.counts.unmatched > 0 || linkPreview.counts.matched === 0}
+              onClick={applyLink}
+            >
+              <Link2 className="mr-2 h-3.5 w-3.5" />
+              {linkApplying ? "Applying..." : "Apply links"}
+            </Button>
+          </div>
+        </div>
+        <p className="mb-3 text-sm text-muted-foreground">
+          One-time step: matches each of Molly&apos;s existing deals to a row in the live sheet by company, vehicle, investment type, and date, then
+          writes the sheet&apos;s Stable ID onto the deal. Required once before the recurring sync above can recognize existing deals instead of
+          treating them as new. Idempotent — already-linked deals are always skipped. Refuses to apply if any deal is ambiguous or unmatched.
+        </p>
+
+        {linkMessage && (
+          <div
+            className={`mb-3 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
+              linkMessage.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
+            }`}
+          >
+            {linkMessage.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+            {linkMessage.text}
+          </div>
+        )}
+
+        {linkPreview && (
+          <div>
+            <div className="mb-2 flex flex-wrap gap-2 text-xs">
+              <Badge variant="success">{linkPreview.counts.matched} matched</Badge>
+              <Badge variant="neutral">{linkPreview.counts.alreadyLinked} already linked</Badge>
+              <Badge variant="warning">{linkPreview.counts.ambiguous} ambiguous</Badge>
+              <Badge variant="danger">{linkPreview.counts.unmatched} unmatched</Badge>
+            </div>
+            {linkPreview.counts.ambiguous === 0 && linkPreview.counts.unmatched === 0 && linkPreview.counts.matched === 0 && (
+              <p className="mb-2 text-sm text-muted-foreground">All deals are already linked — nothing to apply.</p>
+            )}
+            {(linkPreview.counts.ambiguous > 0 || linkPreview.counts.unmatched > 0) && (
+              <p className="mb-2 text-sm text-ochre">
+                Apply is disabled until every deal is matched or already-linked — this is all-or-nothing by design for a one-time operation.
+              </p>
+            )}
+            <div className="max-h-80 overflow-y-auto rounded-md border border-border">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="border-b border-border text-left">
+                    <th className="p-2 font-medium">Company</th>
+                    <th className="p-2 font-medium">Vehicle</th>
+                    <th className="p-2 font-medium">Status</th>
+                    <th className="p-2 font-medium">Stable ID / detail</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linkPreview.matches.map((m) => (
+                    <tr key={m.dealId} className="border-b border-border last:border-0">
+                      <td className="p-2">{m.companyName}</td>
+                      <td className="p-2">{m.vehicleName}</td>
+                      <td className="p-2">
+                        <Badge variant={LINK_STATUS_VARIANT[m.status]}>{m.status}</Badge>
+                      </td>
+                      <td className="p-2 font-mono text-muted-foreground">{m.stableId ?? m.detail ?? ""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
 
       <h3 className="mb-3 font-semibold">Run history</h3>
       {runs.length === 0 ? (
