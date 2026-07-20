@@ -2918,3 +2918,131 @@ The last missing piece: each of the 76 `Deal` rows needs its `sheetRowId` popula
 ## Part 10 roadmap bookkeeping
 
 Done alongside this plan: `ROADMAP.md` gains a "Next up — Part 10" blockquote under "Roadmap", and the shipped Funds/LPs/Deals bullet is annotated with the Q22-B transition pointer; Part 7's "Molly is the source of truth" decision row is annotated as partially superseded (synced fields, while sync is enabled). As each WS ships, fold into "Existing Features" per convention. Open user inputs mid-implementation, none of which block Batches A/B: (1) provision the Google service account + set the three env vars; (2) add + backfill the sheet's ID column; (3) name the go-forward round-size/ownership columns; (4) eyeball the WS24 backfill dry-run before `--apply`. One flagged delegation to confirm whenever convenient: **the 7-day idle window (JC14)** — one constant if you want a different number.
+
+---
+
+# Part 11 — Sidebar Navigation Information-Architecture Rework (WS28)
+
+## What this Part is
+
+A UX/IA review of `src/components/layout/sidebar.tsx`, requested directly by the user ("it's all over the field now and the navigation is not intuitive") after five feature parts (7, 8, 9, 10, and the smaller batches before them) each added sidebar items independently, with no holistic pass since. This Part is **analysis and a signed-off plan only** — no product code changes ship until the open questions below are answered. It reads the real current arrays and every linked admin route rather than working from memory.
+
+## Part 11 review findings
+
+**The current state, read directly from `src/components/layout/sidebar.tsx` (2026-07-20):**
+
+- `founderNav`: 7 items, unchanged since 2026-07-03 — Dashboard, Company Profile, Metrics, Updates, Investor Links, Team, Service Providers. Confirmed no drift: `src/app/{company,dashboard,links,team,providers,updates}` has grown no new top-level surfaces. Founder nav is not the problem.
+- `adminNav`: **13 flat items**, growing to **14** when `syncEnabled` (Dashboard, Approvals, Companies, Funds, [Sync], Portfolio, LPs, Updates, Templates, Investor Links, Weekly Digest, Service Providers, Audit Log, Settings). No section headers, no dividers, one `<ul>`. Order is the order features shipped in (P0/P1 → providers/templates/digest/audit → Part 7 Funds/LPs → Part 10 Portfolio/Sync), not a deliberate information architecture.
+
+**Specific, named problems:**
+
+1. **"Companies" and "Portfolio" are two different models wearing confusingly similar labels, and they sit two items apart in the list — worse than if they were far apart.** Confirmed directly from `prisma/schema.prisma`: `Company` (line 81) is the founder-account model — signup, members, updates, metrics, documents — driving `/admin/companies` (grid view, search, add, bulk CSV import, editable profile). `PortfolioCompany` (line 497) is a wholly separate ledger entity — `name`, `country`, an *optional* `companyId` link back to `Company` — driving `/admin/portfolio`, which renders `Deal`/`Fund`/`FinancingRound`/`ValuationMark` rows (invested amounts, instruments, entry/current valuation, IRR/TVPI/DPI). A `PortfolioCompany` can exist with no linked `Company` at all (and vice versa). Reading top-to-bottom — Dashboard, Approvals, **Companies**, Funds, **Portfolio**, LPs — a first-time admin has every reason to assume "Portfolio" is a filtered or expanded view of "Companies" (this is also how VCs colloquially use the word "portfolio" — "our portfolio companies"). It is not; it's the deal ledger. This is the single clearest case in the whole nav of the hypothesis in the task brief, confirmed rather than assumed.
+2. **A second, quieter version of the same problem: "Investor Links" and "LPs" are also two unrelated models.** `Investor Links` (`/admin/links`) manages `ShareableLink` — ad hoc, tokenable, per-company-or-bulk read-only links to founder updates, no account involved. `LPs` (`/admin/lps`) manages the `LP`/`LpFundMembership` models — real limited partners with email/name who authenticate via OTP at `/lp` and read fund reports (Part 7/10). Both are "give an external investor read access to something," but to genuinely different content (company updates vs. fund reports) through genuinely different mechanisms (token vs. login session). Sitting four rows apart with no grouping cue, a skimming admin has no signal these are different systems.
+3. **A real, frequently-used feature has zero sidebar presence.** `/admin/reports` (Fund Report authoring, shipped Part 7 WS17 — the letter-style LP reports with the mention picker and frozen valuation snapshots) is not in `adminNav` at all. It's reachable today only by opening a specific fund at `/admin/funds/[id]` and clicking a "View reports" link scoped to that fund (`src/app/admin/funds/[id]/page.tsx:658,668,678`). Authoring LP reports is one of the two or three things this app exists to help DFS do (per the task brief's own framing: "reporting to LPs") and it is currently the most hidden surface in the product — more hidden than the Audit Log.
+4. **"Sync" is positioned by array-splice mechanics, not by meaning.** The code inserts it with `[...adminNav.slice(0, 4), syncItem, ...adminNav.slice(4)]` (sidebar.tsx:94) — i.e., "after whatever the 4th item happens to be," which today puts it between Funds and Portfolio only because that's where index 4 lands. `/admin/sync` itself is a status/action page for keeping `Deal` rows current from the source spreadsheet — closer in nature to a tab on the ledger area than to a global peer of Dashboard or Approvals, and it's also the rarest-use item in the entire nav (weekly cron + occasional manual runs).
+5. **No grouping signal anywhere, so unrelated jobs interleave.** Reading the current order top to bottom mixes: account gatekeeping (Approvals), day-to-day company/update operations (Companies, Updates, Templates, Investor Links), the fund/LP ledger and reporting arc (Funds, Portfolio, LPs), and internal-only tooling (Weekly Digest, Service Providers, Audit Log, Settings) — four genuinely different jobs an admin does, presented as one undifferentiated list of 13–14 items. This is the "flat list that grew by when it was built, not what it's for" pattern named in the task brief, and it's visible as soon as you group the items by job (see proposal below) — almost every item slots cleanly into one of four clusters.
+6. **Ordering doesn't track usage.** `Templates`, `Weekly Digest`, and `Audit Log` — all low-frequency, internal-facing tools — sit ahead of nothing in particular; there's no attempt to put daily-use items near the top and occasional-use items near the bottom within the flat list.
+
+**Not a problem:** the mobile overlay/hamburger behavior from Part 6 (WS14–WS15) needs no changes. `<nav className="flex-1 overflow-y-auto px-3 py-4">` already scrolls independently of the fixed header/footer rows; adding section headers or dividers just extends content inside that existing scroll container. Nothing here fights the `h-dvh`/fixed-overlay/`-translate-x-full` pattern documented in Part 6.
+
+## Part 11 open product decisions (Q28–Q33)
+
+> **All six decided 2026-07-20 (user review). Five recommendations accepted; Q30 diverges:**
+> **Q28 = A** (labeled groups: "Company Operations" / "Funds & LPs" / "Admin Tools", Dashboard ungrouped) · **Q29 = B** ("Portfolio" → "Deal Ledger", copy-only) · **Q30 = B — Sync moves OUT of the top-level sidebar entirely**, becoming a tab/section inside `/admin/funds` instead of a grouped nav item (WS28.2's proposed `adminNav` sketch must drop the conditional "Sync" append shown at line ~3006; WS28.3+ needs a new step adding the Sync tab/section to the fund detail page) · **Q31 = A** ("Fund Reports") · **Q32 = B** ("Update Templates") · **Q33 = B** (frequency-ordered founder nav).
+> **Consequence for the implementer:** the WS28.2 `adminNav` sketch is otherwise correct as written (three labeled groups + ungrouped Dashboard, per Q28/Q29/Q31/Q32), but must NOT include a "Sync" entry anywhere in the sidebar array — that surface relocates into the fund detail page's own UI, a small additional step beyond the original "single file, copy/structure only" scope. Everything else in WS28 (effort, no schema/route changes, mobile-overlay compatibility) stands.
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q28** | **Group header wording for the four admin clusters.** | **A.** "Company Operations" / "Funds & LPs" / "Admin Tools" (Dashboard ungrouped at top). **B.** Shorter: "Companies" / "Funds" / "Tools". **C.** No visible labels, unlabeled dividers only (like many flat sidebars use). | **A.** Three short labeled groups plus an ungrouped Dashboard at top. Given problems #1 and #2 above are specifically about labels sounding alike, a *silent* divider (C) doesn't fix the confusion — the header text is doing the disambiguating work, not just the visual break. |
+| **Q29** | **Rename "Portfolio" (`/admin/portfolio`, the deal ledger).** This is the single most confusable label (finding #1). | **A.** Keep "Portfolio," rely on the new "Funds & LPs" group header to disambiguate. **B.** Rename to "Deal Ledger." **C.** Rename to "Investments." | **B — "Deal Ledger."** Grouping alone (A) helps but a skimming eye reads the item label first and the group header second; "Portfolio" is also the term of art for the *cluster itself* ("our portfolio"), so it's a bad fit for one specific sub-view within it even when grouped. "Deal Ledger" matches the underlying model names (`Deal`, `FinancingRound`, `ValuationMark`) and reads as clearly distinct from "Companies." Route/href unchanged — copy-only. |
+| **Q30** | **Where does "Sync" live** (finding #4)? | **A.** Keep as its own top-level nav item, just moved into the "Funds & LPs" group (last position) instead of spliced at index 4. **B.** Remove from the sidebar entirely; surface only as a tab/section inside `/admin/funds`. | **A.** It's genuinely rare-use, but its whole job is *oversight* — an admin needs to notice when a sync run failed or is stale without first thinking to open a specific fund. Grouping it under "Funds & LPs" already demotes it appropriately; fully hiding it (B) risks the exact "forgot this exists" failure mode `/admin/reports` fell into (finding #3). |
+| **Q31** | **Exact label for the newly-added Fund Reports item** (finding #3 — adding *some* entry isn't in question, the wording is). | **A.** "Fund Reports." **B.** "LP Reports." **C.** "Reports." | **A — "Fund Reports."** Matches the model name (`FundReport`) and the existing `/admin/funds/[id]` link copy ("View reports"); "LP Reports" (B) risks the same LP/Investor-Links ambiguity as finding #2; "Reports" alone (C) is too generic once Audit Log and Weekly Digest are also technically "reports." |
+| **Q32** | **"Templates" → "Update Templates"?** Once grouped near Companies/Updates it's less ambiguous, but "Templates" alone is still generic in a product that also has Fund Reports. | **A.** Keep "Templates." **B.** Rename "Update Templates." | **B.** Cheap, and it's specifically the kind of one-word label that reads fine in isolation but gets vaguer as the app adds more document types (fund reports, digests). |
+| **Q33** | **Founder nav order** — currently Dashboard, Company Profile, Metrics, Updates, Investor Links, Team, Service Providers. Not broken, but not frequency-ordered either: Company Profile and Team are edit-rarely items ranked above Updates, which is the recurring core loop. | **A.** Leave order as-is. **B.** Reorder to Dashboard, Updates, Metrics, Investor Links, Company Profile, Team, Service Providers — recurring actions first, setup-once items pushed down. | **B**, but this is the lowest-stakes call in this Part — 7 items is small enough that order barely matters for scanability; only worth doing because it's nearly free alongside the admin rework. |
+
+One item I'm **not** turning into a question: whether "Service Providers" belongs under "Company Operations" or "Admin Tools." It's founder-facing (a directory founders submit to) but admin-vetted and not part of the Company/Update/Investor-Links loop those other items share — I'm placing it under "Admin Tools" below since vetting submissions is closer to internal ops than day-to-day company management, but flagging the reasoning here in case that reads wrong once you see it grouped.
+
+## WS28 — Sidebar reorganization (~0.5 day)
+
+**Goal:** replace the two flat arrays in `src/components/layout/sidebar.tsx` with a grouped structure (admin) and a reordered flat list (founder, per Q33), add the missing Fund Reports entry, and relabel per Q29/Q31/Q32 — all pending the answers above. No route changes except linking to the already-existing `/admin/reports`; every other href is unchanged, so this is copy/structure only, not a routing change.
+
+### WS28.1 Proposed `founderNav` (per Q33-B; revert to current order if Q33-A)
+
+```ts
+const founderNav = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Updates", href: "/updates", icon: FileText },
+  { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
+  { label: "Investor Links", href: "/links", icon: Link2 },
+  { label: "Company Profile", href: "/company/profile", icon: Building2 },
+  { label: "Team", href: "/team", icon: Users },
+  { label: "Service Providers", href: "/providers", icon: Briefcase },
+];
+```
+
+### WS28.2 Proposed `adminNav` — grouped (per Q28-A/Q29-B/Q30-A/Q31-A/Q32-B; substitute the other options if the sign-off differs)
+
+```ts
+const adminNav = [
+  { label: "Dashboard", href: "/admin", icon: LayoutDashboard }, // ungrouped, sits above the first header
+];
+
+const adminNavGroups = [
+  {
+    label: "Company Operations",
+    items: [
+      { label: "Approvals", href: "/admin/approvals", icon: Shield },
+      { label: "Companies", href: "/admin/companies", icon: Building2 },
+      { label: "Updates", href: "/admin/updates", icon: FileText },
+      { label: "Update Templates", href: "/admin/templates", icon: LayoutTemplate },
+      { label: "Investor Links", href: "/admin/links", icon: Link2 },
+    ],
+  },
+  {
+    label: "Funds & LPs",
+    items: [
+      { label: "Funds", href: "/admin/funds", icon: Landmark },
+      { label: "Deal Ledger", href: "/admin/portfolio", icon: PieChart },
+      { label: "LPs", href: "/admin/lps", icon: Handshake },
+      { label: "Fund Reports", href: "/admin/reports", icon: NotebookPen }, // new — closes finding #3
+      // "Sync" appended here only when syncEnabled, per Q30-A — see WS28.3
+    ],
+  },
+  {
+    label: "Admin Tools",
+    items: [
+      { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
+      { label: "Service Providers", href: "/admin/providers", icon: Briefcase },
+      { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
+      { label: "Settings", href: "/admin/settings", icon: Settings },
+    ],
+  },
+];
+```
+
+`NotebookPen` (or an equivalent lucide-react "authoring" icon — verify against the installed lucide-react version; `FileSignature`/`ClipboardList` are reasonable fallbacks) is the only new icon import needed; every other icon is already imported in the file today.
+
+### WS28.3 Render changes
+
+- Replace the `[...adminNav.slice(0, 4), syncItem, ...adminNav.slice(4)]` splice (sidebar.tsx:92-96) with appending the Sync item into the "Funds & LPs" group's `items` array only when `syncEnabled` — removes the index-4 fragility named in finding #4 as a side effect.
+- The `<nav>` render (sidebar.tsx:123-150) maps groups instead of a flat array: render the ungrouped Dashboard row, then for each group render a header row followed by its items. Group header styling reuses the existing DFS mono-label convention already used elsewhere in the app (`font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground`, e.g. `src/components/report-view.tsx:30`, `src/components/composer/composer-top-bar.tsx:60`) rather than inventing a new style.
+- `isActive` logic (sidebar.tsx:126-129) is per-item and grouping-agnostic — no change needed there.
+- Founder nav keeps its current flat `<ul>` render entirely (no groups) — only the array order changes per Q33.
+
+**WS28 acceptance checklist**
+- [ ] `adminNav` restructured into the three signed-off groups + ungrouped Dashboard; `founderNav` reordered per the signed-off Q33 answer
+- [ ] "Fund Reports" added and reachable from the sidebar for the first time; existing `/admin/funds/[id]` → `/admin/reports?fundId=...` links unaffected
+- [ ] Relabels applied exactly as signed off (Q29/Q31/Q32) — hrefs unchanged, this is copy-only
+- [ ] Sync item appended into its group only when `syncEnabled`; the index-splice logic is gone
+- [ ] Group headers use the existing mono-uppercase-tracking convention, not a new style
+- [ ] Active-state highlighting still correct for every item, grouped or not, including the renamed ones
+- [ ] Mobile: sidebar overlay/hamburger still correct at ~375px (Part 6 pattern) — spot-check the now-longer scroll area doesn't clip the pinned user/logout footer, same class of check as the WS14.7 gotcha
+- [ ] Fork story: with the three Sheets env vars absent, the "Funds & LPs" group renders identically minus the Sync row — no new env-var dependencies introduced by this Part
+- [ ] `npm run typecheck && npm run lint && npm run build` green
+- [ ] Live-verified on `molly.dfslab.net` — every relabeled/regrouped item resolves to its unchanged href, Fund Reports opens `/admin/reports`
+
+**Effort: ~0.5 day** (single file, no schema, no new routes, one new icon import). Not gated on anything — can ship as soon as Q28–Q33 are answered.
+
+## Part 11 roadmap bookkeeping
+
+Once signed off and shipped: `ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section gain a Part 11 pointer (see below, added now as "planned, pending sign-off" per the convention used for Part 9 before it shipped); fold the shipped nav structure into "Existing Features" only after WS28 actually ships, not at plan time.
