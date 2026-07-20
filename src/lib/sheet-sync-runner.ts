@@ -206,6 +206,22 @@ export async function runSheetSync(trigger: SyncTrigger, actor: { id?: string; e
 
     let applied = { dealsCreated: 0, companiesCreated: 0, fieldsUpdated: 0, marksCreated: 0 };
     if (trigger !== "DRY_RUN") {
+      // INCIDENT SAFETY GATE (added 2026-07-20, live post-incident): a live
+      // cron/manual invocation was run against prod BEFORE the one-time
+      // sheetRowId linking step, and applySheetDiff correctly-but-harmfully
+      // treated all 76 sheet rows as "creates" (no deal had a sheetRowId
+      // yet to match against), producing 27 duplicate Deal rows before this
+      // guard existed. Non-dry-run applies are refused until a human sets
+      // SHEETS_SYNC_APPLY_ENABLED=true in Vercel — a deliberate, separate
+      // switch from sheetsSyncEnabled() (which only gates dry-run/preview
+      // and stays on). Remove this gate only after: (1) the 27 duplicate
+      // rows are cleaned up, and (2) the real linking step has populated
+      // sheetRowId for the legitimate 76 deals and been verified.
+      if (process.env.SHEETS_SYNC_APPLY_ENABLED !== "true") {
+        throw new Error(
+          "Sheets sync apply is temporarily disabled pending incident cleanup (see sheet-sync-runner.ts) — dry-run previews still work. Set SHEETS_SYNC_APPLY_ENABLED=true to re-enable once the sheetRowId linking step is verified complete."
+        );
+      }
       applied = await applySheetDiff(diff, actor);
     }
 
