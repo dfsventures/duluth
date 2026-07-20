@@ -32,7 +32,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const byId = new Map(mentionedCompanies.map((c) => [c.id, c]));
     const offenders = mentionedIds.filter((mid) => !byId.get(mid) || byId.get(mid)!.deals.length === 0);
     if (offenders.length > 0) {
-      const names = offenders.map((oid) => byId.get(oid)?.name ?? oid);
+      // F24: a mention span can point at a company deleted since the draft was
+      // written (only reachable for zero-deal companies — see F23's delete
+      // guard). Say so honestly instead of leaking the raw cuid.
+      const names = offenders.map((oid) => byId.get(oid)?.name ?? "a company that no longer exists");
       return NextResponse.json(
         { error: `These mentioned companies have no deal in this report's fund: ${names.join(", ")}` },
         { status: 400 }

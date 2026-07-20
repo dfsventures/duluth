@@ -2598,7 +2598,7 @@ Continuing the F-numbering (Part 9 ended at F21). F22–F25 come from the PRD re
 
 ---
 
-## WS23 — LP session idle timeout + report-draft integrity polish (~0.5–0.75 day)
+## WS23 — LP session idle timeout + report-draft integrity polish (~0.5–0.75 day) — SHIPPED 2026-07-20
 
 **Goal:** Q21 ships (7-day idle enforcement on the existing column), and the PRD's Phase 1 residue — F24 and the stale-mention affordance — closes. No schema changes.
 

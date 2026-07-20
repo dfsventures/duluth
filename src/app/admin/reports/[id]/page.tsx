@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { portcoMention } from "@/components/ui/portco-mention";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
+import { extractMentionIds } from "@/lib/report-snapshot";
 
 interface ReportDetail {
   id: string;
@@ -38,6 +39,7 @@ export default function AdminReportEditorPage() {
   const [unpublishing, setUnpublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [fundCompanies, setFundCompanies] = useState<{ id: string; name: string }[]>([]);
 
   async function handleDeleteDraft() {
     if (!window.confirm("Delete this draft report? This cannot be undone.")) return;
@@ -74,6 +76,19 @@ export default function AdminReportEditorPage() {
   useEffect(() => {
     loadReport();
   }, [loadReport]);
+
+  // WS23.3: draft-integrity affordance — the same fund-scoped, has-a-deal
+  // filter the publish 400 (F23's JC6 check) uses, so "not in this list"
+  // means "will fail to publish" before the admin ever hits Publish.
+  useEffect(() => {
+    if (!report) return;
+    fetch(`/api/admin/portfolio-companies?fundId=${report.fundId}`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((companies: { id: string; name: string }[]) => setFundCompanies(companies))
+      .catch(() => setFundCompanies([]));
+  }, [report]);
+
+  const mentionedIds = useMemo(() => extractMentionIds(body), [body]);
 
   const fetchMentionItems = useCallback(
     async (query: string) => {
@@ -288,6 +303,29 @@ export default function AdminReportEditorPage() {
             <p className="mb-3 text-xs text-muted-foreground">
               Type <span className="font-mono">@</span> to mention a portfolio company — mentioned companies get a valuation hover card in the LP view.
             </p>
+            {mentionedIds.length > 0 && (
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Mentioned companies:</span>
+                {mentionedIds.map((mid) => {
+                  const match = fundCompanies.find((c) => c.id === mid);
+                  return match ? (
+                    <span
+                      key={mid}
+                      className="rounded-sm border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs text-foreground"
+                    >
+                      {match.name}
+                    </span>
+                  ) : (
+                    <span
+                      key={mid}
+                      className="rounded-sm border border-laterite/30 bg-laterite/10 px-2 py-0.5 font-mono text-xs text-laterite"
+                    >
+                      unknown company — remove this mention from the text
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             <RichEditor variant="chromeless" value={body} onChange={setBody} placeholder="Dear limited partners…" extraExtensions={extraExtensions} />
           </>
         ) : (

@@ -12,6 +12,11 @@ import { db } from "@/lib/db";
 
 export const LP_COOKIE = "lp_session";
 export const LP_SESSION_DAYS = 30;
+// Q21/JC14 (2026-07-15): the 30-day cookie/expiresAt hard cap stays, but a
+// session idle for more than this many days is treated as logged-out even
+// before expiresAt — cuts the shared-device exposure window. Reversal: this
+// one constant.
+export const LP_IDLE_DAYS = 7;
 export const OTP_TTL_MS = 10 * 60 * 1000;
 export const OTP_MAX_ATTEMPTS = 5;
 
@@ -30,12 +35,16 @@ export function newOtpCode(): string {
   return crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
 }
 
-/** Pure: is this session row still valid right now? */
+/** Pure: is this session row still valid right now? (hard expiry + Q21 idle timeout) */
 export function isSessionValid(
-  session: { expiresAt: Date } | null | undefined,
+  session: { expiresAt: Date; lastUsedAt?: Date } | null | undefined,
   now: Date = new Date()
 ): boolean {
-  return !!session && session.expiresAt.getTime() > now.getTime();
+  if (!session || session.expiresAt.getTime() <= now.getTime()) return false;
+  if (session.lastUsedAt && now.getTime() - session.lastUsedAt.getTime() > LP_IDLE_DAYS * 24 * 60 * 60 * 1000) {
+    return false; // idle-expired (Q21/JC14); callers already treat invalid as logged-out
+  }
+  return true;
 }
 
 /**

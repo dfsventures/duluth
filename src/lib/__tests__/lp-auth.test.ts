@@ -25,6 +25,7 @@ import {
   isOtpUsable,
   getLp,
   OTP_MAX_ATTEMPTS,
+  LP_IDLE_DAYS,
 } from "@/lib/lp-auth";
 
 describe("isSessionValid", () => {
@@ -41,6 +42,33 @@ describe("isSessionValid", () => {
 
   it("is true while expiresAt is in the future", () => {
     expect(isSessionValid({ expiresAt: new Date("2026-08-01T00:00:00Z") }, now)).toBe(true);
+  });
+
+  // Q21/JC14: 7-day idle timeout, additive on top of the hard 30-day expiry.
+  it("is true with a fresh lastUsedAt", () => {
+    expect(
+      isSessionValid({ expiresAt: new Date("2026-08-01T00:00:00Z"), lastUsedAt: now }, now)
+    ).toBe(true);
+  });
+
+  it("is false once lastUsedAt is more than LP_IDLE_DAYS ago, even with a future expiresAt", () => {
+    const staleLastUsed = new Date(now.getTime() - (LP_IDLE_DAYS + 1) * 24 * 60 * 60 * 1000);
+    expect(
+      isSessionValid({ expiresAt: new Date("2026-08-01T00:00:00Z"), lastUsedAt: staleLastUsed }, now)
+    ).toBe(false);
+  });
+
+  it("is true at exactly the LP_IDLE_DAYS boundary (not yet over)", () => {
+    const boundaryLastUsed = new Date(now.getTime() - LP_IDLE_DAYS * 24 * 60 * 60 * 1000);
+    expect(
+      isSessionValid({ expiresAt: new Date("2026-08-01T00:00:00Z"), lastUsedAt: boundaryLastUsed }, now)
+    ).toBe(true);
+  });
+
+  it("falls back to hard-expiry-only behavior when lastUsedAt is absent (legacy callers)", () => {
+    expect(
+      isSessionValid({ expiresAt: new Date("2026-08-01T00:00:00Z") }, now)
+    ).toBe(true);
   });
 });
 
