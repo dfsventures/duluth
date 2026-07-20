@@ -17,12 +17,12 @@ import {
   Settings,
   Users,
   BookOpen,
-  Briefcase,
+  Wrench,
   ScrollText,
   LayoutTemplate,
   Landmark,
   Handshake,
-  PieChart,
+  Rows3,
   NotebookPen,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
@@ -35,7 +35,7 @@ const founderNav = [
   { label: "Investor Links", href: "/links", icon: Link2 },
   { label: "Company Profile", href: "/company/profile", icon: Building2 },
   { label: "Team", href: "/team", icon: Users },
-  { label: "Service Providers", href: "/providers", icon: Briefcase },
+  { label: "Service Providers", href: "/providers", icon: Wrench },
 ];
 
 // Dashboard sits ungrouped above the labeled clusters below (Q28-A).
@@ -66,7 +66,7 @@ const adminNavGroups = [
     label: "Funds & LPs",
     items: [
       { label: "Funds", href: "/admin/funds", icon: Landmark },
-      { label: "Deal Ledger", href: "/admin/portfolio", icon: PieChart },
+      { label: "Deal Ledger", href: "/admin/portfolio", icon: Rows3 },
       { label: "LPs", href: "/admin/lps", icon: Handshake },
       { label: "Fund Reports", href: "/admin/reports", icon: NotebookPen },
     ],
@@ -75,7 +75,7 @@ const adminNavGroups = [
     label: "Admin Tools",
     items: [
       { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
-      { label: "Service Providers", href: "/admin/providers", icon: Briefcase },
+      { label: "Service Providers", href: "/admin/providers", icon: Wrench },
       { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
       { label: "Settings", href: "/admin/settings", icon: Settings },
     ],
@@ -117,6 +117,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         <Link
           href={item.href}
           onClick={onClose}
+          aria-current={active ? "page" : undefined}
           className={cn(
             "flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
             active
@@ -161,14 +162,29 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {useAdminNav ? (
           <>
             <ul className="space-y-1">{renderItem(adminDashboardItem)}</ul>
-            {adminNavGroups.map((group) => (
-              <div key={group.label} className="mt-4">
-                <p className="mb-1.5 px-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                  {group.label}
-                </p>
-                <ul className="space-y-1">{group.items.map(renderItem)}</ul>
-              </div>
-            ))}
+            {adminNavGroups.map((group, i) => {
+              const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
+              const groupActive = group.items.some((item) => isActive(item.href));
+              return (
+                <div
+                  key={group.label}
+                  role="group"
+                  aria-labelledby={headingId}
+                  className={cn(i === 0 ? "mt-6" : "mt-4", i > 0 && "border-t border-border pt-4")}
+                >
+                  <p
+                    id={headingId}
+                    className={cn(
+                      "mb-1.5 px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em]",
+                      groupActive ? "text-foreground" : "text-muted-foreground"
+                    )}
+                  >
+                    {group.label}
+                  </p>
+                  <ul className="space-y-1">{group.items.map(renderItem)}</ul>
+                </div>
+              );
+            })}
           </>
         ) : (
           <ul className="space-y-1">{founderNav.map(renderItem)}</ul>

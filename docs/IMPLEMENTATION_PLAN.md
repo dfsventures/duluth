@@ -3069,7 +3069,7 @@ Everything else in this Part shipped exactly as sketched: `adminNav` → `adminN
 
 # Part 12 — Sidebar Visual Hierarchy, Accessibility & Icon Legibility (WS29)
 
-**Status: planned 2026-07-20 — awaiting decisions Q34–Q36 below. No product code has shipped for this Part.**
+**Status: shipped 2026-07-20.** See "WS29 implementation notes" at the end of this Part for what actually landed.
 
 ## What this Part is
 
@@ -3174,6 +3174,15 @@ Recommend **not building it in this pass** (Q35-B). Reasoning:
 
 WS29 has no dependency on Part 11 beyond it already being shipped (it is). Blocked only on Q34/Q36 sign-off; Q35 doesn't block WS29 either way since it's a "not now" recommendation, not a prerequisite decision — WS29 ships the same regardless of how Q35 lands, it just determines whether a *future* Part gets opened for proposal C.
 
+## WS29 implementation notes (shipped 2026-07-20)
+
+Shipped exactly per the WS29.1 sketch and WS29.2, no deviations:
+- Group rendering: `role="group"` + `aria-labelledby={headingId}` on each group's wrapping `<div>`, `id={headingId}` on the header `<p>` (`sidebar-group-<slug>`), `groupActive` computed via `group.items.some((item) => isActive(item.href))` and used to switch the header between `text-foreground` (active) and `text-muted-foreground` (inactive). Header gained `font-semibold`. First group gets `mt-6` (vs. the shared `mt-4` used for Dashboard-to-group-1 previously); groups after the first additionally get `border-t border-border pt-4` as the inter-group divider — the first group has no divider since Dashboard isn't itself a labeled group.
+- `renderItem`'s `<Link>` gained `aria-current={active ? "page" : undefined}`, alongside the pre-existing `bg-primary-50`/`text-primary-600` visual active state — unchanged.
+- Icon swaps (Q34-A, both nav lists): `Deal Ledger` (`adminNavGroups`) `PieChart` → `Rows3`; `Service Providers` `Briefcase` → `Wrench` in both `founderNav` and `adminNavGroups`. `PieChart` and `Briefcase` were fully unused elsewhere in the file after the swap, so both were dropped from the `lucide-react` import list and replaced with `Wrench`/`Rows3`.
+- No `globals.css` changes were needed — the group-header treatment stayed a plain Tailwind string (`.label`'s exact classes weren't reused as a shared class since the header also needs the conditional `text-foreground`/`text-muted-foreground` swap, which `.label` doesn't parameterize).
+- Quality gates: `npm run typecheck`, `npm run lint`, `npm run test` (172 tests, 15 files), `npm run build` all green. No route/schema changes, so no live-endpoint re-verification was needed beyond a visual/DOM check on the deployed sidebar.
+
 ## Part 12 roadmap bookkeeping
 
-Once Q34/Q36 are answered and WS29 ships: `ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section gain a Part 12 pointer (mirroring the Part 11 entry), and the existing Part 11 sidebar bullet under "Existing Features" gets a short addendum noting the visual/a11y polish rather than a new bullet, since it's the same feature area. Until then, `ROADMAP.md` gets a "Next up — Part 12" blockquote per convention (added alongside this plan).
+`ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section's Part 12 pointer were updated to "shipped 2026-07-20" (mirroring the Part 11 entry), the existing Part 11 sidebar bullet under "Existing Features" got a short addendum noting the visual/a11y polish rather than a new bullet, and a one-line P3 "someday" row for the cmd+K command palette (Q36-A) was added to the P3 table.
