@@ -26,6 +26,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       currentValuation?: number | null;
       valuationAsOf?: Date;
       notes?: string | null;
+      roundId?: string | null;
+      convertedInRoundId?: string | null;
+      ownershipPct?: number | null;
     } = {};
 
     if (body.investmentType !== undefined) {
@@ -57,6 +60,37 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
     if (body.notes !== undefined) data.notes = body.notes?.trim() || null;
 
+    // WS25.1 (additive): ledger pointers on the existing deal PATCH.
+    if (body.roundId !== undefined) {
+      if (body.roundId) {
+        const round = await db.financingRound.findUnique({ where: { id: body.roundId } });
+        if (!round || round.portfolioCompanyId !== existing.portfolioCompanyId) {
+          return NextResponse.json({ error: "roundId must reference a round belonging to this deal's portfolio company." }, { status: 400 });
+        }
+      }
+      data.roundId = body.roundId || null;
+    }
+    if (body.convertedInRoundId !== undefined) {
+      if (body.convertedInRoundId) {
+        const round = await db.financingRound.findUnique({ where: { id: body.convertedInRoundId } });
+        if (!round || round.portfolioCompanyId !== existing.portfolioCompanyId) {
+          return NextResponse.json({ error: "convertedInRoundId must reference a round belonging to this deal's portfolio company." }, { status: 400 });
+        }
+      }
+      data.convertedInRoundId = body.convertedInRoundId || null;
+    }
+    if (body.ownershipPct !== undefined) {
+      if (body.ownershipPct === null || body.ownershipPct === "") {
+        data.ownershipPct = null;
+      } else {
+        const pct = Number(body.ownershipPct);
+        if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+          return NextResponse.json({ error: "ownershipPct must be between 0 and 100." }, { status: 400 });
+        }
+        data.ownershipPct = pct;
+      }
+    }
+
     const deal = await db.deal.update({ where: { id }, data });
 
     await logAdminAction(user!, "DEAL_UPDATED", {
@@ -72,6 +106,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       amountUsd: Number(deal.amountUsd),
       entryValuation: deal.entryValuation !== null ? Number(deal.entryValuation) : null,
       currentValuation: deal.currentValuation !== null ? Number(deal.currentValuation) : null,
+      ownershipPct: deal.ownershipPct !== null ? Number(deal.ownershipPct) : null,
     });
   } catch (err) {
     console.error("PATCH /api/admin/deals/[id] error:", err);

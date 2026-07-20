@@ -21,6 +21,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         },
         lps: { include: { lp: { select: { id: true, email: true, name: true } } } },
         reports: { orderBy: { createdAt: "desc" } },
+        cashflows: {
+          include: { portfolioCompany: { select: { id: true, name: true } } },
+          orderBy: { date: "desc" },
+        },
       },
     });
     if (!fund) return NextResponse.json({ error: "Fund not found" }, { status: 404 });
@@ -57,6 +61,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         status: r.status,
         publishedAt: r.publishedAt,
         createdAt: r.createdAt,
+      })),
+      cashflows: fund.cashflows.map((c) => ({
+        id: c.id,
+        kind: c.kind,
+        date: c.date,
+        amountUsd: Number(c.amountUsd),
+        portfolioCompanyId: c.portfolioCompanyId,
+        portfolioCompanyName: c.portfolioCompany?.name ?? null,
+        notes: c.notes,
       })),
     });
   } catch (err) {

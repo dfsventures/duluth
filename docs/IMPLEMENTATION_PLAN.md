@@ -2730,7 +2730,7 @@ Same conventions as `import-investment-tracker.ts` (local run against prod per t
 
 **UX impact:** none — no surface reads the new tables yet. **Cost impact:** none. **Schema:** 3 new tables + 3 nullable `Deal` columns, all additive.
 
-## WS25 — Cross-fund portfolio views + rounds/marks/cashflows CRUD (~2–2.5 days)
+## WS25 — Cross-fund portfolio views + rounds/marks/cashflows CRUD (~2–2.5 days) — SHIPPED 2026-07-20
 
 **Goal:** the F25 gap closes — admins get an all-deals view and a per-company cross-fund view — and the WS24 ledger becomes maintainable (rounds/marks/cashflows CRUD, audit-logged). Admin-only.
 

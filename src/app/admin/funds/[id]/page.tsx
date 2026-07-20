@@ -13,6 +13,7 @@ import {
   Pencil,
   Trash2,
   Check,
+  DollarSign,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -22,7 +23,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 
-type Tab = "deals" | "lps" | "reports";
+type Tab = "deals" | "lps" | "reports" | "cashflows";
 
 interface Deal {
   id: string;
@@ -39,6 +40,16 @@ interface Deal {
   notes: string | null;
 }
 
+interface Cashflow {
+  id: string;
+  kind: "CAPITAL_CALL" | "DISTRIBUTION" | "FEE" | "OTHER";
+  date: string;
+  amountUsd: number;
+  portfolioCompanyId: string | null;
+  portfolioCompanyName: string | null;
+  notes: string | null;
+}
+
 interface FundDetail {
   id: string;
   slug: string;
@@ -49,7 +60,16 @@ interface FundDetail {
   deals: Deal[];
   lps: { id: string; lp: { id: string; email: string; name: string | null } }[];
   reports: { id: string; title: string; periodLabel: string | null; status: string; publishedAt: string | null; createdAt: string }[];
+  cashflows: Cashflow[];
 }
+
+const CASHFLOW_KINDS = ["CAPITAL_CALL", "DISTRIBUTION", "FEE", "OTHER"] as const;
+const CASHFLOW_LABELS: Record<string, string> = {
+  CAPITAL_CALL: "Capital Call",
+  DISTRIBUTION: "Distribution",
+  FEE: "Fee",
+  OTHER: "Other",
+};
 
 interface PortfolioCompanyOption {
   id: string;
@@ -112,6 +132,11 @@ export default function AdminFundDetailPage() {
   // Assign LP
   const [assignLpId, setAssignLpId] = useState("");
   const [assigning, setAssigning] = useState(false);
+
+  // Cashflows (WS25.4)
+  const [cashflowForm, setCashflowForm] = useState({ kind: "CAPITAL_CALL" as Cashflow["kind"], date: "", amountUsd: "", portfolioCompanyId: "", notes: "" });
+  const [savingCashflow, setSavingCashflow] = useState(false);
+  const [cashflowError, setCashflowError] = useState("");
 
   const loadFund = useCallback(async () => {
     setLoading(true);
@@ -293,6 +318,41 @@ export default function AdminFundDetailPage() {
     loadFund();
   }
 
+  async function handleAddCashflow(e: React.FormEvent) {
+    e.preventDefault();
+    setSavingCashflow(true);
+    setCashflowError("");
+    try {
+      const res = await fetch(`/api/admin/funds/${fundId}/cashflows`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: cashflowForm.kind,
+          date: cashflowForm.date,
+          amountUsd: cashflowForm.amountUsd,
+          portfolioCompanyId: cashflowForm.portfolioCompanyId || null,
+          notes: cashflowForm.notes.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.error ?? "Failed to add cashflow");
+      }
+      setCashflowForm({ kind: "CAPITAL_CALL", date: "", amountUsd: "", portfolioCompanyId: "", notes: "" });
+      loadFund();
+    } catch (err) {
+      setCashflowError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingCashflow(false);
+    }
+  }
+
+  async function handleDeleteCashflow(id: string) {
+    if (!window.confirm("Delete this cashflow record? This cannot be undone.")) return;
+    await fetch(`/api/admin/cashflows/${id}`, { method: "DELETE" });
+    loadFund();
+  }
+
   if (loading) {
     return (
       <AppShell>
@@ -321,6 +381,7 @@ export default function AdminFundDetailPage() {
     { key: "deals", label: `Deals (${fund.deals.length})`, icon: <Layers className="h-4 w-4" /> },
     { key: "lps", label: `LPs (${fund.lps.length})`, icon: <Handshake className="h-4 w-4" /> },
     { key: "reports", label: `Reports (${fund.reports.length})`, icon: <FileText className="h-4 w-4" /> },
+    { key: "cashflows", label: `Cashflows (${fund.cashflows.length})`, icon: <DollarSign className="h-4 w-4" /> },
   ];
 
   return (
@@ -557,6 +618,79 @@ export default function AdminFundDetailPage() {
                   </div>
                   <Badge variant={r.status === "PUBLISHED" ? "success" : "warning"}>{r.status === "PUBLISHED" ? "Published" : "Draft"}</Badge>
                 </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "cashflows" && (
+        <div>
+          <div className="mb-4 rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+            Fund performance (TVPI/DPI/IRR, computed from these cashflows) lands here in a later workstream (Part 10, WS26) — recording capital calls, distributions, and fees now means that math has real data to run on once it ships.
+          </div>
+          <form onSubmit={handleAddCashflow} className="mb-4 rounded-md border border-border bg-card p-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="label mb-1.5 block">Kind</label>
+                <select
+                  value={cashflowForm.kind}
+                  onChange={(e) => setCashflowForm((f) => ({ ...f, kind: e.target.value as Cashflow["kind"] }))}
+                  className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                >
+                  {CASHFLOW_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {CASHFLOW_LABELS[k]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Input label="Date *" type="date" required value={cashflowForm.date} onChange={(e) => setCashflowForm((f) => ({ ...f, date: e.target.value }))} />
+              <Input label="Amount (USD) *" type="number" required value={cashflowForm.amountUsd} onChange={(e) => setCashflowForm((f) => ({ ...f, amountUsd: e.target.value }))} />
+              <div>
+                <label className="label mb-1.5 block">Company (optional)</label>
+                <select
+                  value={cashflowForm.portfolioCompanyId}
+                  onChange={(e) => setCashflowForm((f) => ({ ...f, portfolioCompanyId: e.target.value }))}
+                  className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
+                >
+                  <option value="">None</option>
+                  {portfolioCompanies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="mt-3">
+              <Input label="Notes" value={cashflowForm.notes} onChange={(e) => setCashflowForm((f) => ({ ...f, notes: e.target.value }))} />
+            </div>
+            {cashflowError && <p className="mt-2 text-sm text-laterite">{cashflowError}</p>}
+            <div className="mt-3 flex justify-end">
+              <Button type="submit" size="sm" disabled={savingCashflow}>
+                {savingCashflow ? "Adding..." : "Add Cashflow"}
+              </Button>
+            </div>
+          </form>
+
+          {fund.cashflows.length === 0 ? (
+            <EmptyState icon={<DollarSign className="h-8 w-8" />} title="No cashflows recorded" description="Capital calls, distributions, and fees show up here." />
+          ) : (
+            <div className="space-y-2">
+              {fund.cashflows.map((c) => (
+                <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Badge variant={c.kind === "DISTRIBUTION" ? "success" : c.kind === "CAPITAL_CALL" ? "info" : "neutral"}>{CASHFLOW_LABELS[c.kind]}</Badge>
+                    <span className="text-sm font-medium">${c.amountUsd.toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground">{formatDate(c.date)}</span>
+                    {c.portfolioCompanyName && <span className="text-xs text-muted-foreground">{c.portfolioCompanyName}</span>}
+                    {c.notes && <span className="text-xs text-muted-foreground">{c.notes}</span>}
+                  </div>
+                  <button onClick={() => handleDeleteCashflow(c.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}

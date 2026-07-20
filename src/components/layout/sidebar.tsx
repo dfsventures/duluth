@@ -22,6 +22,7 @@ import {
   LayoutTemplate,
   Landmark,
   Handshake,
+  PieChart,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 
@@ -40,6 +41,7 @@ const adminNav = [
   { label: "Approvals", href: "/admin/approvals", icon: Shield },
   { label: "Companies", href: "/admin/companies", icon: Building2 },
   { label: "Funds", href: "/admin/funds", icon: Landmark },
+  { label: "Portfolio", href: "/admin/portfolio", icon: PieChart },
   { label: "LPs", href: "/admin/lps", icon: Handshake },
   { label: "Updates", href: "/admin/updates", icon: FileText },
   { label: "Templates", href: "/admin/templates", icon: LayoutTemplate },
