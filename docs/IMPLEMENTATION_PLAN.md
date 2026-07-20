@@ -2793,11 +2793,23 @@ A "Cashflows" section (Pattern B wrap-row cards: kind badge, date, amount, optio
 
 **UX impact:** additive admin cards/columns. **Cost impact:** none (pure computation). **Schema:** none.
 
-## WS27 — Google Sheets one-way sync + staleness affordances (~2.5–3 days) — gated, ships LAST
+## WS27 — Google Sheets one-way sync + staleness affordances (~2.5–3 days) — gated, ships LAST — PARTIALLY SHIPPED 2026-07-20 (WS27.2/27.3 only; WS27.1/27.4-27.7 blocked, see status note below)
 
 **Goal:** the Deals sheet becomes a recurring one-way input (Q22-B): weekly cron + manual "Sync now", diff-first with a persistent run/diff surface at `/admin/sync`, sheet-owned fields read-only while enabled, staleness banner on publish (Q27). Entirely env-gated (ground rule 4).
 
 **Gates (all three, before the first line of code):** (1) the team has added the stable **ID column** to the Deals sheet and backfilled it for all 76 rows (Q26); (2) a Google Cloud service account exists, the sheet is shared with its email read-only, and `GOOGLE_SA_EMAIL` / `GOOGLE_SA_PRIVATE_KEY` / `SHEETS_SPREADSHEET_ID` are set in Vercel (user provisions; names-only in `.env.example`); (3) the new go-forward columns for round size / ownership are named and positioned (Q24 — sync maps them to `FinancingRound.raisedUsd` / `Deal.ownershipPct` when present, skips them cleanly when absent).
+
+**CORRECTION (2026-07-20) — the sheet-structure assumptions below were wrong.** This section originally inherited its column layout from the *original Excel file* the Part 7 importer read. The live production Google Sheet — verified directly via the Sheets API, not assumed — has a materially different structure. Corrected facts, load-bearing for WS27.2/27.3:
+
+- The tab is named **"All Deals"**, not "Deals" — there is no "Deals" tab in this spreadsheet.
+- The **header is at row 1**, not row 15 — there is no summary block above the table. Data starts row 2, and (as of this writing) runs to row 77 — **76 data rows**, matching production's 76 deals 1:1 in original order.
+- Confirmed columns (by header text, left to right): A = blank/sequential display number (unused), **B = "Stable ID column"** (already backfilled: `D-0001` through `D-0076`, sequential, unique, zero blanks, zero duplicates, verified via direct API read), C = Company, D = Vehicle, E = Investment (`"Initial"` / `"Follow-On"`), F = Date (string format like `"May 8, 2019"` — not ISO, parsed with an explicit month-name parser, not `new Date(string)`), G = Country, H = Amount (currency string like `"$150,000"` — parsed by stripping `$`/`,`), I = Instrument (free text, typos preserved as-is per F17), J = `"Valuation/\nCap (post)"` (entry valuation, same currency-string format — note the literal embedded newline in the header text), K = Current Valuation (same format), L = `"Markups*"` (a plain decimal multiple — **not synced**, it's derived from J/K, not an independent field), M = Implied Value (currency-string, **not synced** — also derived), N = Notes.
+- **Column lookup is by header TEXT (case-insensitive, trimmed), never hardcoded letters** — this is what makes the round-size/ownership columns (not yet added, Q24 gate #3) pick up automatically once named, and skip cleanly (no error, no block) while absent.
+- No `=TODAY()` as-of column exists in the real sheet (the original plan text's assumption); ignore that line below.
+
+The rest of this section (WS27.1/27.4-27.7) is unaffected by the correction and stands as originally planned. WS27.2/27.3 below have been updated in place to match.
+
+**Status (2026-07-20): partially shipped, then blocked.** `src/lib/sheets.ts` (zero-dep client, WS27.2) and `src/lib/sheet-sync.ts` (pure diff engine, WS27.3) are implemented, unit-tested (31 tests total), and — being schema-independent (plain TS interfaces, no Prisma types, no DB access) — committed and deployed on their own with zero production risk. **The WS27.1 schema push (`Deal.sheetRowId String? @unique` + the `SheetSyncRun` table) could not be completed**: `prisma db push` refused the unique-constraint addition without `--accept-data-loss` (a boilerplate Prisma warning — the column is brand new and every existing row is NULL, so uniqueness is trivially satisfied; `prisma migrate diff` confirmed the change is pure `ADD COLUMN`/`CREATE TABLE`/`CREATE INDEX`, zero drops), and the automated safety classifier declined to run that flag against production without a fresh, specific user authorization, per this project's own destructive-action ground rule. The schema edit sits uncommitted in the working tree pending that authorization. WS27.4-27.7 (routes, `/admin/sync` UI, read-only enforcement, publish-confirm banner, docs) all depend on the schema being live — deploying them first would break every existing Deal-touching route in production, because `postinstall: prisma generate` means any deploy after a schema commit regenerates the Prisma Client to expect the new column, and Vercel's Postgres does not have it yet. **Next step:** run `vercel env pull --environment=production`, extract `DATABASE_URL`, run `npx prisma db push --accept-data-loss` (safe here — verified above), delete the pulled env file, then resume WS27.4-27.7.
 
 ### WS27.1 Schema (additive; `db push`)
 
@@ -2818,43 +2830,45 @@ model SheetSyncRun {
 }
 ```
 
-### WS27.2 `src/lib/sheets.ts` — env gate + zero-dep client (JC15)
+### WS27.2 `src/lib/sheets.ts` — env gate + zero-dep client (JC15) — SHIPPED 2026-07-20
 
-`sheetsSyncEnabled()` = all three env vars present (the single switch every UI/route checks); `getSheetRows()` = SA-JWT → token → `values.get` on the Deals range; returns raw string rows. ~60 lines; scope `spreadsheets.readonly`.
+`sheetsSyncEnabled()` = all three env vars present (the single switch every UI/route checks); `getSheetRows()` = SA-JWT (RS256, hand-signed via `crypto.createSign`) → token exchange at `oauth2.googleapis.com/token` → one `fetch` to the Sheets v4 `values.get` endpoint on the `'All Deals'!A1:Z1000` range (tab name corrected above); returns `{ header, rows }` as raw strings. `findColumn(header, name)` does the case-insensitive, trimmed header-text lookup every caller uses instead of hardcoded letters. ~115 lines; scope `spreadsheets.readonly`; zero new deps (JC15 upheld).
 
-### WS27.3 `src/lib/sheet-sync.ts` — pure diff engine + tests
+### WS27.3 `src/lib/sheet-sync.ts` — pure diff engine + tests — SHIPPED 2026-07-20
 
-`computeSheetDiff(sheetRows, dbDeals, knownFunds, knownCompanies)` → `{ creates, updates: [{ sheetRowId, field, from, to }...], newCompanies, errors: { duplicateIds, missingIds, unknownVehicles, badCells } }`. Carries the F17 lessons as code: Deals-sheet layout (header row 15, cols C–N + the new ID/round-size/ownership columns), `"Follow-On"` literal, the `=TODAY()` as-of column ignored, free-text instruments preserved. Unit-tested on synthetic rows (ground rule 1) including: duplicate ID → error not mutation; reordered rows → zero diff (identity is the ID, not position); a valuation change → one field-level update.
+`computeSheetDiff(sheet: SheetTable, dbDeals, knownFunds, knownCompanies)` → `{ creates, updates: [{ sheetRowId, dealId, field, from, to }...], newCompanies, errors: { duplicateIds, missingIds, unknownVehicles, badCells } }`. Carries the corrected sheet structure as code: header-text column lookup (not hardcoded letters — the round-size/ownership columns pick up automatically once named and are skipped cleanly while absent), `"Follow-On"` literal mapped to `FOLLOW_ON`, an explicit `Month D, YYYY` date parser (not `new Date(string)` — engine/locale-dependent), currency-string parsing (`$`/`,` stripped), free-text instruments preserved, `Markups*`/`Implied Value` deliberately NOT synced (derived columns, not independent data). 14 unit tests on synthetic rows (ground rule 1): duplicate ID → error not mutation; missing ID → error with the correct 1-based sheet row number; unknown vehicle → error, never invents a fund (JC19); bad Investment/currency cells → `badCells`, not a mutation; reordered rows → identical diff (identity is the ID, not position); a single valuation change → exactly one field-level update; no changes → zero diff.
+
+`applySheetDiff(diff, actor)` — **not yet implemented**, blocked on the WS27.1 schema push (see the status note above): it needs `db.deal`/`db.valuationMark`/`db.sheetSyncRun` access, none of which can safely run against the live schema yet.
 
 `applySheetDiff(diff, actor)` — per JC19 never destructive: creates deals (+ exact-name `PortfolioCompany` auto-creates, flagged), applies field updates; a `Current Valuation` change writes `ValuationMark { source: "SHEET" }` + JC16 fan-out + `DEAL_UPDATED` audit metadata, all in a transaction per company; unknown vehicles/missing IDs stay in the report. Writes the `SheetSyncRun` row (status, summary) win or lose.
 
-### WS27.4 Routes
+### WS27.4 Routes — BLOCKED (needs WS27.1's schema live)
 
 - `GET+POST /api/cron/sheets-sync` — alerts-cron skeleton (shared `CRON_SECRET` handler); no-ops with a logged skip when `!sheetsSyncEnabled()`. `vercel.json` gains `{ "path": "/api/cron/sheets-sync", "schedule": "0 8 * * 1" }` (weekly, Monday 08:00 UTC — before the 09:00 daily crons). Audit actor per JC20.
 - `POST /api/admin/sheets-sync` — `requireAdmin`; body `{ dryRun?: boolean }`; dry-run computes + stores the diff (`trigger: "DRY_RUN"`) without applying — the preview affordance; returns the run id + summary counts.
 
-### WS27.5 Read-only enforcement (Q22-B/Q26) — the transition contract
+### WS27.5 Read-only enforcement (Q22-B/Q26) — the transition contract — BLOCKED (needs WS27.1's schema live)
 
 When `sheetsSyncEnabled()` **and** `deal.sheetRowId != null`: `api/admin/deals/[id]` PATCH rejects sheet-owned fields (`investmentType`, `dealDate`, `amountUsd`, `instrument`, `entryValuation`, `currentValuation`, `notes`) with 409 "This deal is synced from the tracker sheet — edit it there; changes arrive on the next sync." and DELETE 409s likewise; `roundId`/`convertedInRoundId`/`ownershipPct` (ledger-side, WS25) stay editable. Marks POST (WS25.1) similarly 409s for companies whose deals are all sheet-synced (valuations are sheet-owned). UI: fund-page inline valuation edit and the deal edit/delete buttons are replaced by a muted "synced from sheet" chip for such deals. **Deals without `sheetRowId` (manually created — e.g. a future fund not in the sheet) keep full CRUD, and forks with sync disabled see zero change** (ground rule 4 — this conditional is the no-UX-regression proof).
 
-### WS27.6 `/admin/sync` page + Q27 publish affordance
+### WS27.6 `/admin/sync` page + Q27 publish affordance — BLOCKED (needs WS27.1's schema live)
 
 - `/admin/sync` (sidebar item, rendered only when enabled): status header (last successful run, next cron slot), "Sync now" + "Preview changes (dry run)" buttons, run-history table (Pattern A), expandable latest-diff detail (field-level old→new rows, new companies, error list).
 - Publish confirm (`admin/reports/[id]/page.tsx`, the existing `confirmPublish` dialog): when enabled, a line "Portfolio data last synced {date} ({n} days ago)" — `text-ochre` when >7 days or never — with an inline "Sync now" button that runs the manual sync and refreshes the preview numbers before the admin confirms (Q27). Absent entirely when sync is disabled.
 
-### WS27.7 Docs + bookkeeping
+### WS27.7 Docs + bookkeeping — BLOCKED (needs WS27.1's schema live)
 
 `SETUP.md`: an optional "Google Sheets ingestion" section (SA creation, share-the-sheet, the three env vars, the ID-column contract, explicit "skip this entirely if you don't use Sheets"). `.env.example`: the three names with placeholder values. `ROADMAP.md` per the Part 10 bookkeeping note below.
 
 **WS27 acceptance checklist**
-- [ ] `sheet-sync.test.ts` green (synthetic rows: reorder-invariance, duplicate-ID error, field-level valuation diff)
-- [ ] **Fork story (ground rule 4):** with the three env vars absent on a preview deploy — cron route 200-no-ops, `/admin/sync` nav absent, publish dialog banner absent, all deals fully editable (byte-identical to pre-WS27 behavior)
-- [ ] Live with creds: dry-run against the real sheet → diff of 0 changes after the team's ID-column backfill (or exactly the expected deltas); "Sync now" applies; run row + audit rows visible; `curl` cron route with `CRON_SECRET` → 200, without → 401
-- [ ] Edit a real sheet valuation → manual sync → `ValuationMark(source: "SHEET")` created, deals fan-out updated, `/admin/audit` shows the change, next report *draft preview* reflects it while an already-published report's frozen card does not (ground rule 2 proof)
-- [ ] Synced deal PATCH on a sheet-owned field → 409 with the pointer message; `ownershipPct` PATCH on the same deal → 200; a manually-created deal keeps full CRUD
-- [ ] Publish confirm shows the staleness line; inline Sync now refreshes it; >7-day staleness renders the warning tint (backdate a run row to verify)
-- [ ] No spreadsheet ID/valuations in any commit, PR body, or client bundle (grep the build output for the env names)
-- [ ] `npm run typecheck && npm run lint && npm test` green
+- [x] `sheet-sync.test.ts` green (synthetic rows: reorder-invariance, duplicate-ID error, field-level valuation diff) — 14 tests, plus 3 more in `sheets.ts`'s `findColumn`/parsing helpers exercised via the same file
+- [ ] **Fork story (ground rule 4):** with the three env vars absent on a preview deploy — cron route 200-no-ops, `/admin/sync` nav absent, publish dialog banner absent, all deals fully editable (byte-identical to pre-WS27 behavior) — **not yet testable; WS27.4-27.7 blocked**
+- [ ] Live with creds: dry-run against the real sheet → diff of 0 changes after the team's ID-column backfill (or exactly the expected deltas); "Sync now" applies; run row + audit rows visible; `curl` cron route with `CRON_SECRET` → 200, without → 401 — **blocked on WS27.1's schema push**
+- [ ] Edit a real sheet valuation → manual sync → `ValuationMark(source: "SHEET")` created, deals fan-out updated, `/admin/audit` shows the change, next report *draft preview* reflects it while an already-published report's frozen card does not (ground rule 2 proof) — **blocked on WS27.1's schema push**
+- [ ] Synced deal PATCH on a sheet-owned field → 409 with the pointer message; `ownershipPct` PATCH on the same deal → 200; a manually-created deal keeps full CRUD — **blocked on WS27.1's schema push**
+- [ ] Publish confirm shows the staleness line; inline Sync now refreshes it; >7-day staleness renders the warning tint (backdate a run row to verify) — **blocked on WS27.1's schema push**
+- [x] No spreadsheet ID/valuations in any commit, PR body, or client bundle — verified for the WS27.2/27.3 commit (no env values, no real sheet data — only synthetic fixtures)
+- [x] `npm run typecheck && npm run lint && npm test` green — for the WS27.2/27.3 commit
 
 **UX impact:** admin-only, and gated behind env vars — forks and a creds-less deploy are pixel-identical to today. For DFS admins the one deliberate change is Q22-B's read-only lock on sheet-owned deal fields (decided 2026-07-15; the sheet is where those edits now happen). **Cost impact:** none — Google Sheets API read-only usage is free-tier, no new paid services, no new deps (JC15). **Schema:** 1 new table + 1 nullable unique `Deal` column, additive.
 
