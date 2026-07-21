@@ -3186,3 +3186,149 @@ Shipped exactly per the WS29.1 sketch and WS29.2, no deviations:
 ## Part 12 roadmap bookkeeping
 
 `ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section's Part 12 pointer were updated to "shipped 2026-07-20" (mirroring the Part 11 entry), the existing Part 11 sidebar bullet under "Existing Features" got a short addendum noting the visual/a11y polish rather than a new bullet, and a one-line P3 "someday" row for the cmd+K command palette (Q36-A) was added to the P3 table.
+
+---
+
+# Part 13 — Deal Ledger Table Density & Navigation Cues, Select/Spacing Follow-ups (WS30–WS31)
+
+Third item from the same round of annotated live-screenshot feedback that produced commit `e7c2262` (Update Templates moved under Updates; the `Select` component built and applied to `/admin/updates`; that page's card gap widened `space-y-3` → `space-y-4`). The user's annotation on `/admin/portfolio` (the "Deal Ledger" table, 76 deals × 11 columns): *"We need to do better with display of tables. This feels cramped with no clear navigation cues."* This Part also resolves the two follow-ups that commit deliberately left open rather than silently expanding: the `Select` component's rollout scope, and whether `space-y-3` (12px list-item spacing) should widen everywhere or stay a one-page fix.
+
+Every finding below was re-verified against the live production database (`vercel env pull --environment=production`, direct Prisma queries — see finding #2/#3) and the actual current source, not just the flagged screenshot.
+
+## Part 13 review findings (verified against the current code and live production data)
+
+1. **Deal Ledger markup, confirmed as described.** `src/app/admin/portfolio/page.tsx:191-245` — plain `<table>`, `overflow-x-auto rounded-md border border-border` wrapper, `<thead>` with `bg-muted/40` (not sticky), no row hover state, no sortable columns, `px-3 py-2` cell padding, 11 columns, 76 rows, only the outer container border providing visual structure. 76 rows are fetched in one unpaginated request (`GET /api/admin/portfolio` → `db.deal.findMany` with no `take`/`skip`) and held entirely in client state — confirmed a sort feature would be a pure client-side concern, no API/pagination changes needed.
+2. **Ownership column: confirmed 100% empty in production, exactly as the screenshot showed — 0 of 76 deals have `ownershipPct` set.** This isn't a data-quality bug: the field's own schema comment (`prisma/schema.prisma`, `Deal.ownershipPct`, added Part 10/WS24) calls it "optional-when-known... never required, never read by any existing renderer." It's designed to fill in gradually as ownership data becomes known, not expected to be populated at import time.
+3. **Round column — correction to the original brief.** The brief's screenshot read guessed Round was sparse "like Ownership." Verified against live data: it's the opposite — **76 of 76 deals have a populated round with a non-null label.** But every single one is **byte-identical to that same deal's `instrument` field** (0 mismatches across all 76 rows: "YC SAFE" ×64, "Convertible Note" ×3, "Priced Round" ×3, "Preferred Shares"/"Prefered Shares" ×4, "Modified YC SAFE (KEN)" ×1, "Secondary" ×1). Additionally, **all 76 `FinancingRound` rows are 1:1 with deals** — zero rounds are currently shared by more than one deal — and `round.kind` is `"UNKNOWN"` on all 76 (the kind classification was never backfilled). So today, in this specific table, Round carries zero information beyond what Instrument already shows. This is a stronger finding than "sparse, deserves de-emphasis" — it's **currently pure duplication**, a candidate for removal from the ledger view rather than a tooltip-collapse. (`FinancingRound` itself is a real, richer entity — label/kind/date/raised/pre/post-money, fully editable — but that detail lives on the per-company drill-down, `src/app/admin/portfolio/[id]/page.tsx`, which is unaffected by anything in this Part.)
+4. **Both sparse/redundant columns are already de-emphasized in the current code** — worth noting since it means the existing implementation isn't naive: `Round` (line 229) and `Ownership` (line 232) already render `text-xs text-muted-foreground` while every other column renders plain-weight text. The existing author clearly anticipated "these two columns carry less signal." That existing treatment is sound for Ownership (JC23 below); it's Round specifically whose *duplication*, not just its visual weight, is the real finding (Q37 below).
+5. **Table-shell pattern census, precise count (grepped all `<table` usages across `src/app`, then verified each thead's actual classes rather than trusting the first grep pass).** Nine files contain `<table>`, but only **four** — `admin/portfolio/page.tsx` (the flagged one), `admin/portfolio/[id]/page.tsx`, `admin/lps/page.tsx`, `admin/funds/[id]/page.tsx` — share the exact same shell: `overflow-x-auto rounded-md border border-border` wrapper + `<tr className="border-b bg-muted/40 text-left text-muted-foreground">` header + `px-3 py-2` cells. The other five are each a genuinely different shape: `admin/audit/page.tsx` uses `rounded-xl` + uppercase-tracking-wide header, no `bg-muted`, on a simple 5-column, always-time-ordered, 100-row-capped log with no sort need; `admin/page.tsx` (×2 tables) and `admin/companies/[id]/page.tsx` (×2 tables) and `company/metrics/page.tsx` and `updates/[id]/page.tsx` all use a small, borderless, `pb-2`-header pattern nested directly inside a `Card` — dashboard widgets and per-metric mini-tables, a different scale and context entirely. Forcing those five into the same shell would mean fighting the abstraction, not reusing it — the original brief's "9-file blast radius" overstated how uniform the pattern actually is. (Corrected from the brief, which hadn't yet distinguished shell-sharing files from files that merely contain *a* `<table>`.)
+6. **Sticky header is a clean fit with the existing scroll architecture — no restructuring needed.** `AppShell` (`src/components/layout/app-shell.tsx`) renders `<main className="flex-1 overflow-y-auto">` — page content scrolls inside `main`, not the document body. `position: sticky` on the table's `<thead>` with `top-0` sticks correctly against that actual scrolling ancestor as the user scrolls past the summary cards and filter row above the table. `PageHeader` carries no sticky/fixed positioning of its own to collide with. No bounded-height wrapper or layout change required.
+7. **Row-hover convention already exists in the app and should be reused, not invented.** `hover:bg-muted/50` is the established "this row/card is interactive" idiom (`admin/companies/page.tsx:287`, `admin/updates/page.tsx:193`, `admin/companies/[id]/page.tsx:973`, all on `Card`). Applying the same opacity to `<tr>` keeps the new treatment visually consistent with cards elsewhere instead of introducing a new value.
+8. **Zebra striping has zero precedent anywhere in the codebase** — `even:bg-`/`odd:bg-`/`nth-child` all return no hits app-wide. It would be a new visual pattern, not a reuse, and stacking it on top of hover + sticky header + wider padding on an already-dense 11-column financial table risks visual noise rather than clarity. Dropping it from the prototype (JC21 below).
+9. **Select sweep count, verified by direct grep (excluding the new `Select` component's own file and the 2 already-converted selects on `/admin/updates`): 24 native `<select>` elements remain across 13 files** — `providers/page.tsx` (×2), `admin/providers/page.tsx` (×3), `admin/portfolio/[id]/page.tsx` (×2), `admin/companies/new/page.tsx` (×1), `admin/funds/[id]/page.tsx` (×5), `admin/companies/[id]/page.tsx` (×5), `admin/reports/page.tsx` (×2), `updates/new/page.tsx` (×1), `team/page.tsx` (×2), `company/profile/page.tsx` (×1). All exhibit the identical arrow-flush-to-border problem the `Select` component already fixed once.
+10. **`space-y-3` census confirms the brief's count (17 files) but also surfaces a nuance the brief didn't check: not every hit is a "list of cards" gap.** Some are form-field stacks — e.g. `admin/digest/new/page.tsx:213` (`CardContent ... space-y-3`) and `share/[token]/page.tsx:193` (`<form onSubmit=... className="mt-4 space-y-3">`) space out form inputs, not list items. A blind global `space-y-3` → `space-y-4` replace would also loosen unrelated form-field spacing that was never part of the "cards too close together" complaint — a real risk for Q39 below.
+
+## Part 13 open product decisions (Q37–Q39)
+
+> **All three decided 2026-07-21 (user review). Q37/Q38 accepted as recommended; Q39 diverges:**
+> **Q37 = A** (drop the duplicate Round column, 11→10 columns) · **Q38 = A** (build sortable columns in this pass — Company/Fund/Date/Amount/Current Val./Multiple/Position Value sortable, client-side, default `dealDate` desc unchanged) · **Q39 = A — widen `space-y-3`→`space-y-4` everywhere it spaces list items app-wide** (not just `/admin/updates`), diverging from Felix's "leave scoped" recommendation. Per the plan's own bookkeeping note, this promotes the small WS32 (swap only the list-item sites identified in finding #10 — Funds, LPs, Reports, Providers, Templates-panel, Digest, Approvals, Links — explicitly skipping the form-field `space-y-3` sites, which are a different use of the same class) from "not scoped unless Q39=A" to in-scope for this batch.
+> WS30 and WS31 are fully unblocked; WS32 is now also in scope alongside them.
+
+| # | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q37** | **Deal Ledger's Round column** — now confirmed to be 100%-duplicate of Instrument today (finding #3), not sparse. What should the ledger table show? | **A.** Drop the Round column from the ledger table entirely; keep Instrument. No data loss — the full `FinancingRound` editor (label/kind/date/raised/pre/post-money) still lives on the per-company drill-down page, untouched by this change. Ships as 10 columns instead of 11, and removes a column that today adds literally nothing a reader doesn't already have from Instrument. **B.** Keep both columns as-is — Round and Instrument could diverge later (once `round.kind` gets backfilled, or once a round is shared by more than one deal, e.g. multiple SAFEs grouped under one priced round), and removing the column now could be premature relative to where the sheet-sync/ledger data model is headed. **C.** Keep the column but make its label a link into the company's round history instead of plain text — most engineering for the least payoff; there's no cross-fund round-detail view to link to yet, and this doesn't fix "duplicate today." | **A.** It's dead weight in the table *today*, verified with actual data, not a guess — and dropping it directly serves the stated complaint (fewer columns to parse) with zero information loss, since the richer entity remains fully visible and editable one click away. If rounds start meaningfully diverging from deals later (shared rounds, backfilled `kind`), that's a good trigger to reconsider — not a reason to keep a duplicate column now. |
+| **Q38** | **Sortable columns.** Real interactive engineering (client sort state + indicator icons + default sort), scoped beyond the strict "fix cramped/no cues" ask. Effort is genuinely low here specifically because all 76 rows are already fetched unpaginated and held in client state (finding #1) — no server-side sort, no pagination changes. | **A.** Build it now, in this pass — client `useState<{key, dir}>`, a comparator per column, chevron indicators (unsorted/asc/desc), default sort unchanged (`dealDate` desc, matching the API's current order). **B.** Ship the visual/density pass only (sticky header, hover, padding, Round removal) and treat sort as a fast-follow if it's still wanted after seeing the density fix live. | **A, weakly.** The chevron affordance is the most literal answer to "no clear navigation cues" — it's a real cue the current table completely lacks, and unlike most sort features this one has no pagination/server complexity tax since the data's already all in memory. But it's still optional relative to the stated complaint (density/hover/sticky-header alone would substantially address "cramped"), so flagging rather than just building it — happy to descope to B if you'd rather see the density-only version live first. |
+| **Q39** | **`space-y-3` (12px) system-wide** — is the complaint about the one flagged page, or the whole app's list-spacing convention? Genuine taste call: this is app-wide visual rhythm, not a bug. | **A.** Widen `space-y-3` → `space-y-4` everywhere it currently spaces list *items* (not form fields — finding #10 shows the two aren't the same set). **B.** Leave the convention as-is elsewhere; the widened gap stays scoped to `/admin/updates`, the one page actually annotated. Revisit only if the complaint recurs on another page. | **B.** The user's annotation was on one specific page's screenshot, not a general "everything feels tight" complaint. `space-y-3` is a deliberate, consistent rhythm across 8+ list pages (Funds, LPs, Reports, Providers, Templates, Digest, Approvals, Links) — a system-wide widen is a bigger, more visible rhythm change than "fix the one thing I pointed at," and finding #10 shows a naive sweep would also touch unrelated form-field spacing. Cheaper to expand later from one confirmed data point than to guess broadly now and have to walk it back. |
+
+## Judgment calls (flagged, cheap, reversible — no sign-off needed)
+
+- **JC21** — No zebra striping in the Deal Ledger redesign, departing from the original prototype description. No precedent anywhere in the app (finding #8), and it risks visual noise stacked on top of hover + sticky header + wider padding on an 11-column (10 after Q37-A) financial table. Sticky header + row hover + generous padding + (if Q38-A) sort chevrons are the "navigation cues"; can add zebra later if the table still reads as flat once those ship.
+- **JC22** — Row hover reuses `hover:bg-muted/50`, the app's existing Card-hover opacity (finding #7), rather than inventing a new value.
+- **JC23** — Ownership column stays exactly as-is (data, position, and its existing `text-xs text-muted-foreground` de-emphasis) — it's correctly designed sparse-fill-in-over-time data (finding #2/#4), not a duplicate or a mistake, so there's nothing to fix here specifically.
+- **JC24** — Cell padding gets a modest bump (`px-3 py-2` → `px-4 py-2.5`), same scale of change as the `space-y-3` → `space-y-4` bump already shipped on `/admin/updates`, not a dramatic redesign.
+
+## WS30 — Deal Ledger density & navigation-cue pass (~1–1.5 days, upper end if Q38 = A)
+
+**Scope:** `src/app/admin/portfolio/page.tsx` only, plus one new shared primitive. No API/schema changes (Q37-A removes a rendered column, not underlying data; the `round` relation stays fetched — cheap to keep in the API response in case Q37 is later revisited, or trim it from the `include`/response shape if you'd rather not carry dead payload — implementer's call, no behavior difference either way).
+
+### New shared primitive: `src/components/ui/table.tsx`
+
+Modeled on the same single-purpose idiom as `select.tsx` — small, composable pieces, not a heavyweight data-table abstraction:
+
+```tsx
+"use client";
+import { cn } from "@/lib/utils";
+import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
+
+export function Table({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <div className={cn("overflow-x-auto rounded-md border border-border", className)}>
+      <table className="w-full text-sm">{children}</table>
+    </div>
+  );
+}
+
+export function TableHead({ children }: { children: React.ReactNode }) {
+  return (
+    <thead className="sticky top-0 z-10 bg-card">
+      <tr className="border-b bg-muted/40 text-left text-muted-foreground">{children}</tr>
+    </thead>
+  );
+}
+
+// Plain (non-sortable) header cell — used as-is by files that adopt Table/TableHead
+// later (WS31) without needing sort.
+export function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <th className={cn("px-4 py-2.5 font-medium", className)}>{children}</th>;
+}
+
+// Sortable header cell — only used where Q38 = A.
+export function SortableTh<K extends string>({
+  label, sortKey, active, dir, onSort, className,
+}: { label: string; sortKey: K; active: boolean; dir: "asc" | "desc"; onSort: (key: K) => void; className?: string }) {
+  return (
+    <th
+      className={cn("cursor-pointer select-none px-4 py-2.5 font-medium hover:text-foreground", className)}
+      onClick={() => onSort(sortKey)}
+    >
+      <span className="inline-flex items-center gap-1">
+        {label}
+        {active ? (
+          dir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+        )}
+      </span>
+    </th>
+  );
+}
+
+export function TableRow({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <tr className={cn("border-b last:border-0 hover:bg-muted/50", className)}>{children}</tr>;
+}
+```
+
+### Deal Ledger page changes
+
+- Swap the raw `<table>`/`<thead>`/`<tr>` markup for `Table` / `TableHead` / `TableRow`, cells bumped to `px-4 py-2.5` (JC24).
+- Drop the Round `<th>`/`<td>` pair per Q37-A (or leave as-is per Q37-B — single-line diff either way, no other change depends on this).
+- If Q38-A: add `SortableTh` to every sortable column (Company, Fund, Date, Amount, Current Val., Multiple, Position Value — skip Type/Instrument/Ownership as low-value sort targets, implementer's call to adjust), a `sortState` + comparator, default `{ key: "dealDate", dir: "desc" }` matching the API's existing order so nothing visually changes until a user clicks a header.
+- Ownership column and its styling: unchanged (JC23).
+
+**WS30 acceptance checklist**
+- [ ] `Table`/`TableHead`/`Th`/`TableRow` (and `SortableTh` if Q38-A) render byte-equivalent visual structure to the current table for every existing data case (empty ownership `—`, written-off multiples, dilution-aware dot indicator)
+- [ ] `<thead>` sticks to the top of the page's scroll region (`main`, not the window) when scrolling past 76 rows — verified by an actual scroll, not just a static screenshot
+- [ ] Row hover (`hover:bg-muted/50`) visible on mouse-over, no layout shift
+- [ ] Round column removed (Q37-A) or confirmed unchanged (Q37-B) exactly per the signed-off answer
+- [ ] If Q38-A: clicking a sortable header re-orders the full 76-row set correctly in both directions; the chevron reflects current sort state; default view on page load is unchanged (`dealDate` desc)
+- [ ] No zebra striping (JC21) — confirm the prototype's zebra idea was deliberately dropped, not forgotten
+- [ ] Filters (fund/type/search) and the loading skeleton still work unchanged
+- [ ] Mobile: table still scrolls horizontally inside its own container at ~375px (existing `overflow-x-auto` behavior preserved — this Part doesn't add a new mobile pattern)
+- [ ] `npm run typecheck && npm run lint && npm run build` green
+- [ ] Live-verified on `molly.dfslab.net`: desktop screenshot shows visible density/hover/sticky-header improvement against the flagged original; scroll-past-76-rows confirms the sticky header in practice
+
+## WS31 — Sweep the two already-shipped shared primitives to their remaining sites (~1.5–1.75 days, splittable into two independent slices)
+
+Both halves are mechanical, low-risk, no-new-decision cleanup — same category of work as each other, bundled here rather than left as vague "worth a follow-up" notes.
+
+### WS31.1 — `Select` component sweep (~0.75–1 day)
+
+Apply `src/components/ui/select.tsx` to the 24 remaining native `<select>` elements across the 13 files in finding #9. Mechanical (import + tag swap + move `label` prop where one exists inline), but budget real time per file — several have custom `onChange` logic or sit inside modals/forms where verifying nothing else shifted matters more than the swap itself. No visual or behavioral decision left open; this is "finish what was already validated in production," not new design.
+
+### WS31.2 — Table shell migration (~0.5–0.75 day)
+
+Migrate `admin/portfolio/[id]/page.tsx`, `admin/lps/page.tsx`, and `admin/funds/[id]/page.tsx` — the three files confirmed in finding #5 to already share Deal Ledger's exact pre-WS30 shell — onto the new `Table`/`TableHead`/`Th`/`TableRow` primitives from WS30, picking up sticky header + row hover + the padding bump for free. **Explicitly out of scope:** `admin/audit/page.tsx`, `company/metrics/page.tsx`, `admin/page.tsx`, `admin/companies/[id]/page.tsx`, `updates/[id]/page.tsx` — finding #5 confirmed these are genuinely different shapes (different scale, different header style, some already borderless-by-design), and forcing them onto this shell would be fighting the abstraction, not reusing it. If any of those pages gets its own density complaint later, that's a fresh, separate design pass — not an extension of this one.
+
+**WS31 acceptance checklist**
+- [ ] All 24 selects render with the same visible chevron treatment as `/admin/updates`'s two already-converted selects; every existing `onChange`/validation/conditional-option behavior preserved per file
+- [ ] The three migrated tables (WS31.2) keep their existing columns/data/links exactly; only the shell (border/header/hover/padding) changes
+- [ ] `npm run typecheck && npm run lint && npm run build` green
+- [ ] Live-verified on `molly.dfslab.net`: spot-check at least one select per file and all three migrated tables
+
+## Part 13 sequencing
+
+WS30 is blocked on Q37 and Q38 sign-off (Q39 is independent and doesn't block either workstream — it only decides whether a future WS32 gets opened for the system-wide spacing change). WS31 depends on WS30 shipping first (it reuses WS30's new `Table` primitives) but has no open product decisions of its own — it can start immediately once WS30 lands, no additional sign-off needed. If Q39 = A, that's a small separate WS32 (~0.25–0.5 day: swap `space-y-3` → `space-y-4` only at the list-item sites identified in finding #10, explicitly skipping the form-field sites) — not scoped here since the default recommendation is B (no system-wide change).
+
+## Part 13 roadmap bookkeeping (once shipped)
+
+`ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section will get a Part 13 pointer (mirroring the Part 11/12 entries), and the Deal Ledger table's existing "Existing Features" bullet gets a short addendum noting the density/navigation-cue polish rather than a new bullet. Until then, a "planned" pointer (below) marks this Part as open, pending Q37/Q38.
