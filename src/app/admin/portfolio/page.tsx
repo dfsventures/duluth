@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Layers, Building2, Landmark, DollarSign, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Table, TableHead, Th, SortableTh, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 
 interface PortfolioDeal {
@@ -42,6 +43,59 @@ function multipleLabel(entry: number | null, current: number | null): string {
   return `${(current / entry).toFixed(1)}×`;
 }
 
+function multipleValue(entry: number | null, current: number | null): number | null {
+  if (entry === null || entry <= 0 || current === null) return null;
+  return current / entry;
+}
+
+type SortKey = "company" | "fund" | "date" | "amount" | "currentVal" | "multiple" | "positionValue";
+interface SortState {
+  key: SortKey;
+  dir: "asc" | "desc";
+}
+
+// Column defaults: text columns sort A→Z first, numeric/date columns sort
+// largest/most-recent first — matches the app's one existing sort default
+// (dealDate desc).
+const DEFAULT_SORT_DIR: Record<SortKey, "asc" | "desc"> = {
+  company: "asc",
+  fund: "asc",
+  date: "desc",
+  amount: "desc",
+  currentVal: "desc",
+  multiple: "desc",
+  positionValue: "desc",
+};
+
+function sortValue(d: PortfolioDeal, key: SortKey): number | string | null {
+  switch (key) {
+    case "company":
+      return d.portfolioCompany.name;
+    case "fund":
+      return d.fund.name;
+    case "date":
+      return new Date(d.dealDate).getTime();
+    case "amount":
+      return d.amountUsd;
+    case "currentVal":
+      return d.currentValuation;
+    case "multiple":
+      return multipleValue(d.entryValuation, d.currentValuation);
+    case "positionValue":
+      return d.positionValue;
+  }
+}
+
+// Nulls always sort last regardless of direction, so toggling asc/desc
+// doesn't make blank cells jump to the top.
+function compareSortValues(a: number | string | null, b: number | string | null, dir: "asc" | "desc"): number {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  const result = typeof a === "string" && typeof b === "string" ? a.localeCompare(b) : (a as number) - (b as number);
+  return dir === "asc" ? result : -result;
+}
+
 export default function AdminPortfolioPage() {
   const [deals, setDeals] = useState<PortfolioDeal[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -50,6 +104,17 @@ export default function AdminPortfolioPage() {
   const [fundId, setFundId] = useState("");
   const [investmentType, setInvestmentType] = useState("");
   const [q, setQ] = useState("");
+  // Default matches the API's existing order (dealDate desc) so nothing
+  // visually shifts until a header is clicked (Q38-A acceptance criterion).
+  const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
+
+  const handleSort = useCallback((key: SortKey) => {
+    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: DEFAULT_SORT_DIR[key] }));
+  }, []);
+
+  const sortedDeals = useMemo(() => {
+    return [...deals].sort((a, b) => compareSortValues(sortValue(a, sort.key), sortValue(b, sort.key), sort.dir));
+  }, [deals, sort]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -188,61 +253,55 @@ export default function AdminPortfolioPage() {
       ) : deals.length === 0 ? (
         <EmptyState icon={<Layers className="h-8 w-8" />} title="No deals match" description="Try clearing the filters." />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full min-w-[1000px] text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-                <th className="px-3 py-2 font-medium">Company</th>
-                <th className="px-3 py-2 font-medium">Fund</th>
-                <th className="px-3 py-2 font-medium">Type</th>
-                <th className="px-3 py-2 font-medium">Date</th>
-                <th className="px-3 py-2 font-medium">Amount</th>
-                <th className="px-3 py-2 font-medium">Instrument</th>
-                <th className="px-3 py-2 font-medium">Round</th>
-                <th className="px-3 py-2 font-medium">Current Val.</th>
-                <th className="px-3 py-2 font-medium">Multiple</th>
-                <th className="px-3 py-2 font-medium">Ownership</th>
-                <th className="px-3 py-2 font-medium">Position Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {deals.map((d) => (
-                <tr key={d.id} className="border-b last:border-0">
-                  <td className="px-3 py-2 font-medium">
-                    <Link href={`/admin/portfolio/${d.portfolioCompany.id}`} className="hover:underline">
-                      {d.portfolioCompany.name}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Link href={`/admin/funds/${d.fund.id}`} className="text-muted-foreground hover:underline">
-                      {d.fund.name}
-                    </Link>
-                  </td>
-                  <td className="px-3 py-2">
-                    <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
-                      {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap">{formatDate(d.dealDate)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
-                  <td className="px-3 py-2">{d.instrument ?? "—"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">{d.round?.label ?? "—"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</td>
-                  <td className="px-3 py-2">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
-                  <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">{d.ownershipPct !== null ? `${d.ownershipPct}%` : "—"}</td>
-                  <td className="px-3 py-2 whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1.5">
-                      {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
-                      {!d.dilutionAware && d.positionValue !== null && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data — zero-dilution assumption (amount x multiple)" />
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table tableClassName="min-w-[960px]">
+          <TableHead>
+            <SortableTh label="Company" sortKey="company" active={sort.key === "company"} dir={sort.dir} onSort={handleSort} />
+            <SortableTh label="Fund" sortKey="fund" active={sort.key === "fund"} dir={sort.dir} onSort={handleSort} />
+            <Th>Type</Th>
+            <SortableTh label="Date" sortKey="date" active={sort.key === "date"} dir={sort.dir} onSort={handleSort} />
+            <SortableTh label="Amount" sortKey="amount" active={sort.key === "amount"} dir={sort.dir} onSort={handleSort} />
+            <Th>Instrument</Th>
+            <SortableTh label="Current Val." sortKey="currentVal" active={sort.key === "currentVal"} dir={sort.dir} onSort={handleSort} />
+            <SortableTh label="Multiple" sortKey="multiple" active={sort.key === "multiple"} dir={sort.dir} onSort={handleSort} />
+            <Th>Ownership</Th>
+            <SortableTh label="Position Value" sortKey="positionValue" active={sort.key === "positionValue"} dir={sort.dir} onSort={handleSort} />
+          </TableHead>
+          <tbody>
+            {sortedDeals.map((d) => (
+              <TableRow key={d.id}>
+                <td className="px-4 py-2.5 font-medium">
+                  <Link href={`/admin/portfolio/${d.portfolioCompany.id}`} className="hover:underline">
+                    {d.portfolioCompany.name}
+                  </Link>
+                </td>
+                <td className="px-4 py-2.5">
+                  <Link href={`/admin/funds/${d.fund.id}`} className="text-muted-foreground hover:underline">
+                    {d.fund.name}
+                  </Link>
+                </td>
+                <td className="px-4 py-2.5">
+                  <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
+                    {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
+                  </Badge>
+                </td>
+                <td className="px-4 py-2.5 whitespace-nowrap">{formatDate(d.dealDate)}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
+                <td className="px-4 py-2.5">{d.instrument ?? "—"}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap">{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</td>
+                <td className="px-4 py-2.5">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{d.ownershipPct !== null ? `${d.ownershipPct}%` : "—"}</td>
+                <td className="px-4 py-2.5 whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1.5">
+                    {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
+                    {!d.dilutionAware && d.positionValue !== null && (
+                      <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data — zero-dilution assumption (amount x multiple)" />
+                    )}
+                  </span>
+                </td>
+              </TableRow>
+            ))}
+          </tbody>
+        </Table>
       )}
     </AppShell>
   );
