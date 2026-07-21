@@ -111,7 +111,7 @@ export function TemplatesPanel() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
           ))}
@@ -126,7 +126,7 @@ export function TemplatesPanel() {
       ) : (
         <div className="space-y-6">
           <section>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {active.map((t) => (
                 <TemplateRow key={t.id} template={t} onEdit={() => openEdit(t)} onToggleArchive={() => toggleArchived(t)} />
               ))}
@@ -138,7 +138,7 @@ export function TemplatesPanel() {
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
                 Archived ({archived.length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {archived.map((t) => (
                   <TemplateRow key={t.id} template={t} onEdit={() => openEdit(t)} onToggleArchive={() => toggleArchived(t)} />
                 ))}

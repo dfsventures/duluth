@@ -164,7 +164,7 @@ function AdminFundsPageInner() {
       {activeTab === "sync" ? (
         <SyncPanel />
       ) : loading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-20 rounded-md bg-muted animate-pulse" />
           ))}
@@ -172,7 +172,7 @@ function AdminFundsPageInner() {
       ) : funds.length === 0 ? (
         <EmptyState icon={<Landmark className="h-8 w-8" />} title="No funds yet" description="Create a fund to start recording deals." />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {funds.map((f) => (
             <Link
               key={f.id}

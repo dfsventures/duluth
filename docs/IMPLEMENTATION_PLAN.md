@@ -3189,7 +3189,9 @@ Shipped exactly per the WS29.1 sketch and WS29.2, no deviations:
 
 ---
 
-# Part 13 — Deal Ledger Table Density & Navigation Cues, Select/Spacing Follow-ups (WS30–WS31)
+# Part 13 — Deal Ledger Table Density & Navigation Cues, Select/Spacing Follow-ups (WS30–WS32)
+
+**Status: shipped 2026-07-21.** All three workstreams (WS30 → WS31 → WS32) landed in that order, one commit-and-verify cycle each. See "Part 13 implementation notes" at the end of this Part for what actually landed, including corrections to finding #9's select census and the two selects deliberately left native.
 
 Third item from the same round of annotated live-screenshot feedback that produced commit `e7c2262` (Update Templates moved under Updates; the `Select` component built and applied to `/admin/updates`; that page's card gap widened `space-y-3` → `space-y-4`). The user's annotation on `/admin/portfolio` (the "Deal Ledger" table, 76 deals × 11 columns): *"We need to do better with display of tables. This feels cramped with no clear navigation cues."* This Part also resolves the two follow-ups that commit deliberately left open rather than silently expanding: the `Select` component's rollout scope, and whether `space-y-3` (12px list-item spacing) should widen everywhere or stay a one-page fix.
 
@@ -3329,6 +3331,18 @@ Migrate `admin/portfolio/[id]/page.tsx`, `admin/lps/page.tsx`, and `admin/funds/
 
 WS30 is blocked on Q37 and Q38 sign-off (Q39 is independent and doesn't block either workstream — it only decides whether a future WS32 gets opened for the system-wide spacing change). WS31 depends on WS30 shipping first (it reuses WS30's new `Table` primitives) but has no open product decisions of its own — it can start immediately once WS30 lands, no additional sign-off needed. If Q39 = A, that's a small separate WS32 (~0.25–0.5 day: swap `space-y-3` → `space-y-4` only at the list-item sites identified in finding #10, explicitly skipping the form-field sites) — not scoped here since the default recommendation is B (no system-wide change).
 
-## Part 13 roadmap bookkeeping (once shipped)
+## Part 13 implementation notes (shipped 2026-07-21)
 
-`ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section will get a Part 13 pointer (mirroring the Part 11/12 entries), and the Deal Ledger table's existing "Existing Features" bullet gets a short addendum noting the density/navigation-cue polish rather than a new bullet. Until then, a "planned" pointer (below) marks this Part as open, pending Q37/Q38.
+WS30 → WS31 → WS32 shipped in that order, one commit-and-verify cycle each (quality gates green, live-verified on `molly.dfslab.net` before starting the next workstream). Deviations from this Part's plan as written, found while implementing:
+
+- **Finding #9's select census was stale.** Actual count was 26 native `<select>` elements across 11 files, not 24 across 13 (the doc's own enumerated list only ever summed to 10 files/24 selects despite the "13 files" prose) — it missed `admin/portfolio/page.tsx`'s own fund/type filter selects, which have the identical arrow-flush-to-border problem and were swept in alongside the rest.
+- **Two selects were deliberately left native, correcting finding #9's "all exhibit the identical problem" claim:** `updates/new/page.tsx`'s "start from a template" dropdown is intentionally chromeless (`border-0 bg-transparent`, no border to be flush against) — the composer's minimal styling, not a bug; and `admin/portfolio/[id]/page.tsx`'s inline round-assignment select lives in a dense table cell sized to match the adjacent compact ownership `<input>` (`px-2 py-1 text-xs`) — `Select`'s `input-field` base (`h-10`) would have blown up that row's height next to a control that wasn't converted.
+- `team/page.tsx`'s two role selects and `admin/companies/[id]/page.tsx`'s member-role select already had `appearance-none` + a hand-rolled `ChevronDown` (the exact fix `Select` encodes) — no visual bug existed there. Converted anyway to converge on one shared primitive, sized with `className="w-auto"` to preserve their compact inline-row footprint.
+- `Table`'s sketch in this doc only exposed a wrapper `className`; every adopting page needed a different `min-width` on the inner `<table>` for `overflow-x-auto` to keep scrolling horizontally on narrow viewports (mobile acceptance criterion) instead of squishing columns. Added a small `tableClassName` prop to carry it — the only deviation from the doc's literal code sketch.
+- WS32's `space-y-3` census also came in different from the doc: 19 files / 27 occurrences currently in the codebase, not "17 files." Classified every hit as list-item (changed) vs. form-field (left alone) against the Q39 banner's 8 named areas (Funds, LPs, Reports, Providers, Templates panel, Digest, Approvals, Links) — 15 sites across 9 files changed; everything outside those named areas (including `admin/companies/[id]`, `admin/portfolio/[id]`'s round-edit form, `admin/digest/[id]`'s todo editor, `setup-wizard`, `share/[token]`, and `admin/updates`'s already-separately-widened page) was left untouched.
+
+Full outcome detail, quality-gate results, and the consolidated user click-through checklist (sticky header, sort-click behavior, row hover, Select dropdowns, list spacing) are in the implementer's final report for this batch, not duplicated here.
+
+## Part 13 roadmap bookkeeping (shipped 2026-07-21)
+
+`ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section's Part 13 pointer were updated to "shipped 2026-07-21" (mirroring the Part 11/12 entries), and the Deal Ledger table's existing "Cross-fund portfolio views + ledger CRUD" bullet under "Existing Features" got a short addendum noting the density/navigation-cue polish rather than a new bullet.

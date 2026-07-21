@@ -80,7 +80,7 @@ export default function DigestListPage() {
           description="Ask Claude to generate this week's digest from your Granola meetings."
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {digests.map((d) => {
             const total = d.todos.length;
             const done = d.todos.filter((t) => t.completed).length;

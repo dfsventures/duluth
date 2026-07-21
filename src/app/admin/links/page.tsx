@@ -431,7 +431,7 @@ export default function AdminLinksPage() {
           action={<Button size="sm" onClick={() => setShowForm(true)}><Plus className="mr-2 h-4 w-4" />New Link</Button>}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {links.map((link) => {
             const expired = link.expiresAt ? new Date(link.expiresAt) < new Date() : false;
             return (

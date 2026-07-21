@@ -146,7 +146,7 @@ export default function AdminLpsPage() {
       />
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
           ))}

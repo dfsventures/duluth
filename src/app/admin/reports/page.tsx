@@ -146,7 +146,7 @@ function AdminReportsPageInner() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
           ))}

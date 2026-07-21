@@ -227,7 +227,7 @@ export default function AdminProvidersPage() {
       </div>
 
       {loading ? (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-md bg-muted animate-pulse" />)}
         </div>
       ) : providers.length === 0 ? (
@@ -240,7 +240,7 @@ export default function AdminProvidersPage() {
               <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
                 Pending Review ({pending.length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {pending.map((p) => (
                   <ProviderRow
                     key={p.id}
@@ -264,7 +264,7 @@ export default function AdminProvidersPage() {
                   All Providers ({rest.length})
                 </h2>
               )}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {rest.map((p) => (
                   <ProviderRow
                     key={p.id}

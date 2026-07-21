@@ -196,7 +196,7 @@ export default function ApprovalsPage() {
         <div className="space-y-6">
           {/* Pending */}
           {pendingApprovals.length > 0 && (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {pendingApprovals.map((approval) => {
                 const state = actionStates[approval.id];
                 return (
@@ -299,7 +299,7 @@ export default function ApprovalsPage() {
           state above: approved-but-unset accounts are a separate population
           (F21). Hidden entirely when empty. */}
       {!awaitingLoading && awaitingUsers.length > 0 && (
-        <div className="mt-8 space-y-3">
+        <div className="mt-8 space-y-4">
           <div>
             <h2 className="text-sm font-semibold text-foreground">
               Awaiting password setup
