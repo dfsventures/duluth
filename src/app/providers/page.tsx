@@ -21,6 +21,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -197,16 +198,16 @@ export default function ProvidersPage() {
             className="pl-9"
           />
         </div>
-        <select
+        <Select
           value={selectedCategory}
           onChange={(e) => setSelectedCategory(e.target.value)}
-          className="h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="w-auto"
         >
           <option value="">All categories</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
-        </select>
+        </Select>
         <div className="flex rounded-md border border-border overflow-hidden text-sm font-medium">
           {(["", "VETTED", "PENDING"] as const).map((s) => (
             <button
@@ -283,15 +284,14 @@ export default function ProvidersPage() {
             </Field>
 
             <Field label="Category *">
-              <select
+              <Select
                 required
                 value={form.categoryId}
                 onChange={(e) => setForm((f) => ({ ...f, categoryId: e.target.value }))}
-                className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">Select a category</option>
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              </Select>
             </Field>
 
             {form.type === "FIRM" ? (

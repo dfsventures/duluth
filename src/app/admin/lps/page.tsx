@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 
 interface FundOption {
@@ -153,51 +154,47 @@ export default function AdminLpsPage() {
       ) : lps.length === 0 ? (
         <EmptyState icon={<Handshake className="h-8 w-8" />} title="No LPs yet" description="Add an LP to grant them access to fund reports." />
       ) : (
-        <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-                <th className="px-3 py-2 font-medium">Name</th>
-                <th className="px-3 py-2 font-medium">Email</th>
-                <th className="px-3 py-2 font-medium">Funds</th>
-                <th className="px-3 py-2 font-medium">Added</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {lps.map((lp) => (
-                <tr key={lp.id} className="border-b last:border-0">
-                  <td className="px-3 py-2 font-medium">{lp.name ?? "—"}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{lp.email}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      {lp.funds.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">None</span>
-                      ) : (
-                        lp.funds.map((f) => (
-                          <span key={f.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
-                            {f.slug}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">{formatDate(lp.createdAt)}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(lp)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDelete(lp.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table tableClassName="min-w-[640px]">
+          <TableHead>
+            <Th>Name</Th>
+            <Th>Email</Th>
+            <Th>Funds</Th>
+            <Th>Added</Th>
+            <Th></Th>
+          </TableHead>
+          <tbody>
+            {lps.map((lp) => (
+              <TableRow key={lp.id}>
+                <td className="px-4 py-2.5 font-medium">{lp.name ?? "—"}</td>
+                <td className="px-4 py-2.5 font-mono text-xs">{lp.email}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex flex-wrap gap-1">
+                    {lp.funds.length === 0 ? (
+                      <span className="text-xs text-muted-foreground">None</span>
+                    ) : (
+                      lp.funds.map((f) => (
+                        <span key={f.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
+                          {f.slug}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </td>
+                <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{formatDate(lp.createdAt)}</td>
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => openEdit(lp)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => handleDelete(lp.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </td>
+              </TableRow>
+            ))}
+          </tbody>
+        </Table>
       )}
 
       {editTarget && (

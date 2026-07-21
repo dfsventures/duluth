@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Users, Plus, Trash2, AlertCircle, CheckCircle2, X, ChevronDown } from "lucide-react";
+import { Users, Plus, Trash2, AlertCircle, CheckCircle2, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -210,20 +211,17 @@ export default function TeamPage() {
                 onKeyDown={(e) => { if (e.key === "Enter") handleInvite(); }}
                 className="flex-1"
               />
-              <div className="relative">
-                <select
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as "MEMBER" | "VIEWER")}
-                  className="h-full appearance-none rounded-md border border-input bg-background px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  {ROLE_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
+              <Select
+                value={inviteRole}
+                onChange={(e) => setInviteRole(e.target.value as "MEMBER" | "VIEWER")}
+                className="w-auto"
+              >
+                {ROLE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </Select>
             </div>
             <div className="mt-3 flex justify-end gap-2">
               <Button
@@ -281,23 +279,20 @@ export default function TeamPage() {
                   <div className="flex shrink-0 items-center gap-3">
                     {/* Role: owners see badge only; OWNER can change MEMBER/VIEWER via select */}
                     {isOwner && !isOwnerRow ? (
-                      <div className="relative">
-                        <select
-                          value={member.membershipRole}
-                          disabled={updatingRoleId === member.userId}
-                          onChange={(e) =>
-                            handleRoleChange(member, e.target.value as "MEMBER" | "VIEWER")
-                          }
-                          className="appearance-none rounded-md border border-input bg-background px-3 py-1.5 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
-                        >
-                          {ROLE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                      </div>
+                      <Select
+                        value={member.membershipRole}
+                        disabled={updatingRoleId === member.userId}
+                        onChange={(e) =>
+                          handleRoleChange(member, e.target.value as "MEMBER" | "VIEWER")
+                        }
+                        className="w-auto"
+                      >
+                        {ROLE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </Select>
                     ) : (
                       roleBadge(member.membershipRole)
                     )}

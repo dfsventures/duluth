@@ -9,6 +9,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, SortableTh, TableRow } from "@/components/ui/table";
+import { Select } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
 
 interface PortfolioDeal {
@@ -212,27 +213,19 @@ export default function AdminPortfolioPage() {
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <select
-          value={fundId}
-          onChange={(e) => setFundId(e.target.value)}
-          className="rounded-sm border border-input bg-card px-3 py-1.5 text-sm"
-        >
+        <Select value={fundId} onChange={(e) => setFundId(e.target.value)} className="w-auto">
           <option value="">All funds</option>
           {funds.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
             </option>
           ))}
-        </select>
-        <select
-          value={investmentType}
-          onChange={(e) => setInvestmentType(e.target.value)}
-          className="rounded-sm border border-input bg-card px-3 py-1.5 text-sm"
-        >
+        </Select>
+        <Select value={investmentType} onChange={(e) => setInvestmentType(e.target.value)} className="w-auto">
           <option value="">All types</option>
           <option value="INITIAL">Initial</option>
           <option value="FOLLOW_ON">Follow-on</option>
-        </select>
+        </Select>
         <div className="relative min-w-[200px] flex-1">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input

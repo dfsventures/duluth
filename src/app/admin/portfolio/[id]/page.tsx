@@ -7,8 +7,10 @@ import { ArrowLeft, Layers, History, TrendingUp, Plus, X, Pencil, Trash2 } from 
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
@@ -332,75 +334,71 @@ export default function AdminPortfolioCompanyPage() {
         {data.deals.length === 0 ? (
           <EmptyState icon={<Layers className="h-6 w-6" />} title="No deals yet" />
         ) : (
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full min-w-[960px] text-sm">
-              <thead>
-                <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Fund</th>
-                  <th className="px-3 py-2 font-medium">Type</th>
-                  <th className="px-3 py-2 font-medium">Date</th>
-                  <th className="px-3 py-2 font-medium">Amount</th>
-                  <th className="px-3 py-2 font-medium">Round</th>
-                  <th className="px-3 py-2 font-medium">Ownership %</th>
-                  <th className="px-3 py-2 font-medium">Position Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.deals.map((d) => (
-                  <tr key={d.id} className="border-b last:border-0">
-                    <td className="px-3 py-2 font-medium">
-                      <Link href={`/admin/funds/${d.fund.id}`} className="hover:underline">
-                        {d.fund.name}
-                      </Link>
-                    </td>
-                    <td className="px-3 py-2">
-                      <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
-                        {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">{formatDate(d.dealDate)}</td>
-                    <td className="px-3 py-2 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
-                    <td className="px-3 py-2">
-                      <select
-                        value={d.roundId ?? ""}
-                        onChange={(e) => handleAssignRound(d.id, e.target.value)}
-                        className="rounded-sm border border-input bg-card px-2 py-1 text-xs"
-                      >
-                        <option value="">Unassigned</option>
-                        {data.rounds.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.label ?? formatDate(r.roundDate)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-3 py-2">
-                      <input
-                        type="number"
-                        min={0}
-                        max={100}
-                        step="0.1"
-                        defaultValue={d.ownershipPct ?? ""}
-                        onBlur={(e) => {
-                          if (e.target.value !== String(d.ownershipPct ?? "")) handleSaveOwnership(d.id, e.target.value);
-                        }}
-                        placeholder="—"
-                        className="w-20 rounded-sm border border-input bg-card px-2 py-1 text-xs"
-                      />
-                    </td>
-                    <td className="px-3 py-2 whitespace-nowrap">
-                      <span className="inline-flex items-center gap-1.5">
-                        {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
-                        {!d.dilutionAware && d.positionValue !== null && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data — zero-dilution assumption (amount x multiple)" />
-                        )}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table tableClassName="min-w-[960px]">
+            <TableHead>
+              <Th>Fund</Th>
+              <Th>Type</Th>
+              <Th>Date</Th>
+              <Th>Amount</Th>
+              <Th>Round</Th>
+              <Th>Ownership %</Th>
+              <Th>Position Value</Th>
+            </TableHead>
+            <tbody>
+              {data.deals.map((d) => (
+                <TableRow key={d.id}>
+                  <td className="px-4 py-2.5 font-medium">
+                    <Link href={`/admin/funds/${d.fund.id}`} className="hover:underline">
+                      {d.fund.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
+                      {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">{formatDate(d.dealDate)}</td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
+                  <td className="px-4 py-2.5">
+                    <select
+                      value={d.roundId ?? ""}
+                      onChange={(e) => handleAssignRound(d.id, e.target.value)}
+                      className="rounded-sm border border-input bg-card px-2 py-1 text-xs"
+                    >
+                      <option value="">Unassigned</option>
+                      {data.rounds.map((r) => (
+                        <option key={r.id} value={r.id}>
+                          {r.label ?? formatDate(r.roundDate)}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.1"
+                      defaultValue={d.ownershipPct ?? ""}
+                      onBlur={(e) => {
+                        if (e.target.value !== String(d.ownershipPct ?? "")) handleSaveOwnership(d.id, e.target.value);
+                      }}
+                      placeholder="—"
+                      className="w-20 rounded-sm border border-input bg-card px-2 py-1 text-xs"
+                    />
+                  </td>
+                  <td className="px-4 py-2.5 whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1.5">
+                      {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
+                      {!d.dilutionAware && d.positionValue !== null && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data — zero-dilution assumption (amount x multiple)" />
+                      )}
+                    </span>
+                  </td>
+                </TableRow>
+              ))}
+            </tbody>
+          </Table>
         )}
       </div>
 
@@ -516,20 +514,13 @@ export default function AdminPortfolioCompanyPage() {
             <form onSubmit={handleSaveRound} className="space-y-3 px-6 py-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Input label="Label" value={roundForm.label} onChange={(e) => setRoundForm({ ...roundForm, label: e.target.value })} placeholder="Seed, Series A, SAFE (2024)..." />
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-foreground">Kind</label>
-                  <select
-                    value={roundForm.kind}
-                    onChange={(e) => setRoundForm({ ...roundForm, kind: e.target.value })}
-                    className="w-full rounded-sm border border-input bg-card px-3 py-2 text-sm"
-                  >
-                    {ROUND_KINDS.map((k) => (
-                      <option key={k} value={k}>
-                        {k}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select id="roundKind" label="Kind" value={roundForm.kind} onChange={(e) => setRoundForm({ ...roundForm, kind: e.target.value })}>
+                  {ROUND_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {k}
+                    </option>
+                  ))}
+                </Select>
               </div>
               <Input label="Round date" type="date" value={roundForm.roundDate} onChange={(e) => setRoundForm({ ...roundForm, roundDate: e.target.value })} required />
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">

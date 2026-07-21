@@ -32,7 +32,7 @@ export function TableHead({ children }: { children: React.ReactNode }) {
 
 // Plain (non-sortable) header cell — used as-is by files that adopt Table/TableHead
 // later (WS31) without needing sort.
-export function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+export function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
   return <th className={cn("px-4 py-2.5 font-medium", className)}>{children}</th>;
 }
 

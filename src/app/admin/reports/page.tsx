@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
@@ -130,10 +131,10 @@ function AdminReportsPageInner() {
       />
 
       <div className="mb-6">
-        <select
+        <Select
           value={fundFilter}
           onChange={(e) => setFundFilter(e.target.value)}
-          className="w-full max-w-xs h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="max-w-xs"
         >
           <option value="">All funds</option>
           {funds.map((f) => (
@@ -141,7 +142,7 @@ function AdminReportsPageInner() {
               {f.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {loading ? (
@@ -192,21 +193,19 @@ function AdminReportsPageInner() {
       {showNew && (
         <Modal title="New Report" onClose={() => setShowNew(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
-            <div>
-              <label className="label mb-1.5 block">Fund *</label>
-              <select
-                required
-                value={newFundId}
-                onChange={(e) => setNewFundId(e.target.value)}
-                className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {funds.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select
+              id="newReportFund"
+              label="Fund *"
+              required
+              value={newFundId}
+              onChange={(e) => setNewFundId(e.target.value)}
+            >
+              {funds.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </Select>
             <Input label="Title *" required value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. FUND1 — H1 2026 Report" />
             <Input label="Period label" value={newPeriodLabel} onChange={(e) => setNewPeriodLabel(e.target.value)} placeholder="e.g. H1 2026" />
             {saveError && <p className="text-sm text-laterite">{saveError}</p>}

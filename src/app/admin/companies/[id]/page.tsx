@@ -38,6 +38,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -786,30 +787,18 @@ export default function AdminCompanyDetailPage() {
                 />
                 <p className="text-xs text-muted-foreground">Comma-separated alternative names used for Granola matching</p>
               </div>
+              <Select id="edit-fundingStage" label="Funding Stage" value={editForm.fundingStage ?? ""} onChange={(e) => updateEditField("fundingStage", e.target.value)}>
+                <option value="">Select a stage</option>
+                {FUNDING_STAGES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
               <div className="space-y-1">
-                <label htmlFor="edit-fundingStage" className="label">
-                  Funding Stage
-                </label>
-                <select
-                  id="edit-fundingStage"
-                  value={editForm.fundingStage ?? ""}
-                  onChange={(e) => updateEditField("fundingStage", e.target.value)}
-                  className="input-field"
-                >
-                  <option value="">Select a stage</option>
-                  {FUNDING_STAGES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="edit-reminderFrequency" className="label">
-                  Update Reminder Frequency
-                </label>
-                <select
+                <Select
                   id="edit-reminderFrequency"
+                  label="Update Reminder Frequency"
                   value={editForm.reminderFrequencyDays ?? ""}
                   onChange={(e) =>
                     updateEditField(
@@ -817,14 +806,13 @@ export default function AdminCompanyDetailPage() {
                       e.target.value === "" ? null : Number(e.target.value)
                     )
                   }
-                  className="input-field"
                 >
                   {REMINDER_OPTIONS.map((o) => (
                     <option key={String(o.value)} value={o.value ?? ""}>
                       {o.label}
                     </option>
                   ))}
-                </select>
+                </Select>
                 <p className="text-xs text-muted-foreground">
                   Founders will receive an email reminder when they haven&apos;t submitted an update within this window.
                 </p>
@@ -1149,16 +1137,12 @@ export default function AdminCompanyDetailPage() {
             <div className="flex-1">
               <p className="mb-1 text-sm font-medium">Upload Document</p>
               <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={uploadDocType}
-                  onChange={(e) => setUploadDocType(e.target.value)}
-                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                >
+                <Select value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)} className="w-auto">
                   <option value="">No type</option>
                   {DOC_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
-                </select>
+                </Select>
                 <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <input
                     type="checkbox"
@@ -1205,19 +1189,19 @@ export default function AdminCompanyDetailPage() {
                 className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm"
               />
             </div>
-            <select
+            <Select
               value={docTypeFilter}
               onChange={(e) => {
                 setDocTypeFilter(e.target.value);
                 loadDocuments({ search: docSearch, docType: e.target.value, archived: showArchived });
               }}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              className="w-auto"
             >
               <option value="">All types</option>
               {DOC_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
-            </select>
+            </Select>
             <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer">
               <input
                 type="checkbox"
@@ -1412,7 +1396,7 @@ export default function AdminCompanyDetailPage() {
                       </Badge>
                       {/* Membership role select (admins can set OWNER/MEMBER/VIEWER) */}
                       {!member.userRoles.includes("ADMIN") && (
-                        <select
+                        <Select
                           value={member.membershipRole}
                           disabled={updatingRoleId === member.userId}
                           onChange={(e) =>
@@ -1421,12 +1405,12 @@ export default function AdminCompanyDetailPage() {
                               e.target.value as "OWNER" | "MEMBER" | "VIEWER"
                             )
                           }
-                          className="rounded-md border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                          className="w-auto"
                         >
                           <option value="OWNER">Owner</option>
                           <option value="MEMBER">Editor</option>
                           <option value="VIEWER">Viewer</option>
-                        </select>
+                        </Select>
                       )}
                       <button
                         onClick={() => handleRemoveMember(member.userId)}

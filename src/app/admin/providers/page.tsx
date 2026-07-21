@@ -21,6 +21,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 
 interface Category {
@@ -313,26 +314,24 @@ export default function AdminProvidersPage() {
                 <Input required value={editForm.name ?? ""} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} />
               </Field>
               <Field label="Type">
-                <select
+                <Select
                   value={editForm.type ?? "FIRM"}
                   onChange={(e) => setEditForm((f) => ({ ...f, type: e.target.value as "FIRM" | "INDIVIDUAL" }))}
-                  className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="FIRM">Firm</option>
                   <option value="INDIVIDUAL">Individual</option>
-                </select>
+                </Select>
               </Field>
             </div>
 
             <Field label="Category *">
-              <select
+              <Select
                 required
                 value={editForm.categoryId ?? ""}
                 onChange={(e) => setEditForm((f) => ({ ...f, categoryId: e.target.value }))}
-                className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
+              </Select>
             </Field>
 
             <Field label="Website">
@@ -364,15 +363,14 @@ export default function AdminProvidersPage() {
             </Field>
 
             <Field label="Status">
-              <select
+              <Select
                 value={editForm.status ?? "PENDING"}
                 onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value as Provider["status"] }))}
-                className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="PENDING">Pending</option>
                 <option value="VETTED">Vetted</option>
                 <option value="REJECTED">Rejected</option>
-              </select>
+              </Select>
             </Field>
 
             {saveError && <p className="text-sm text-laterite">{saveError}</p>}

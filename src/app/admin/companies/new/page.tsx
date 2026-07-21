@@ -17,6 +17,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
@@ -191,24 +192,14 @@ export default function NewCompanyPage() {
               placeholder="e.g. Kenya, West Africa, Pan-African"
             />
 
-            <div className="space-y-1">
-              <label htmlFor="fundingStage" className="label">
-                Funding Stage
-              </label>
-              <select
-                id="fundingStage"
-                value={fundingStage}
-                onChange={(e) => setFundingStage(e.target.value)}
-                className="input-field"
-              >
-                <option value="">Select a stage</option>
-                {FUNDING_STAGES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <Select id="fundingStage" label="Funding Stage" value={fundingStage} onChange={(e) => setFundingStage(e.target.value)}>
+              <option value="">Select a stage</option>
+              {FUNDING_STAGES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </Select>
           </CardContent>
         </Card>
 

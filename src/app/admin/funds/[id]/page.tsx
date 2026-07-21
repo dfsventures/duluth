@@ -19,7 +19,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 
@@ -523,84 +525,80 @@ export default function AdminFundDetailPage() {
           {fund.deals.length === 0 ? (
             <EmptyState icon={<Layers className="h-8 w-8" />} title="No deals yet" description="Add the fund's first deal." />
           ) : (
-            <div className="overflow-x-auto rounded-md border border-border">
-              <table className="w-full min-w-[900px] text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-                    <th className="px-3 py-2 font-medium">Company</th>
-                    <th className="px-3 py-2 font-medium">Type</th>
-                    <th className="px-3 py-2 font-medium">Date</th>
-                    <th className="px-3 py-2 font-medium">Amount</th>
-                    <th className="px-3 py-2 font-medium">Instrument</th>
-                    <th className="px-3 py-2 font-medium">Entry Val.</th>
-                    <th className="px-3 py-2 font-medium">Current Val.</th>
-                    <th className="px-3 py-2 font-medium">Multiple</th>
-                    <th className="px-3 py-2 font-medium">As of</th>
-                    <th className="px-3 py-2 font-medium" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {fund.deals.map((d) => {
-                    // Part 10, WS27.5 — both conditions, mirroring the API's
-                    // own enforcement: a fork with sync disabled, or a
-                    // manually-created deal (no sheetRowId), is unaffected.
-                    const isSynced = fund.sheetsSyncEnabled && Boolean(d.sheetRowId);
-                    return (
-                    <tr key={d.id} className="border-b last:border-0">
-                      <td className="px-3 py-2 font-medium">{d.portfolioCompanyName}</td>
-                      <td className="px-3 py-2">
-                        <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
-                          {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-2 whitespace-nowrap">{formatDate(d.dealDate)}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
-                      <td className="px-3 py-2">{d.instrument ?? "—"}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">{d.entryValuation !== null ? `$${d.entryValuation.toLocaleString()}` : "—"}</td>
-                      <td className="px-3 py-2 whitespace-nowrap">
-                        {isSynced ? (
-                          <span>{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</span>
-                        ) : editingDealId === d.id ? (
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              autoFocus
-                              value={editDealValuation}
-                              onChange={(e) => setEditDealValuation(e.target.value)}
-                              className="w-28 rounded-sm border border-input bg-card px-2 py-1 text-sm"
-                            />
-                            <button onClick={() => saveEditValuation(d.id)} className="rounded p-1 text-acacia hover:bg-muted" title="Save">
-                              <Check className="h-3.5 w-3.5" />
-                            </button>
-                            <button onClick={() => setEditingDealId(null)} className="rounded p-1 text-muted-foreground hover:bg-muted" title="Cancel">
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button className="hover:underline" onClick={() => startEditValuation(d)} title="Edit valuation">
-                            {d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}
+            <Table tableClassName="min-w-[900px]">
+              <TableHead>
+                <Th>Company</Th>
+                <Th>Type</Th>
+                <Th>Date</Th>
+                <Th>Amount</Th>
+                <Th>Instrument</Th>
+                <Th>Entry Val.</Th>
+                <Th>Current Val.</Th>
+                <Th>Multiple</Th>
+                <Th>As of</Th>
+                <Th></Th>
+              </TableHead>
+              <tbody>
+                {fund.deals.map((d) => {
+                  // Part 10, WS27.5 — both conditions, mirroring the API's
+                  // own enforcement: a fork with sync disabled, or a
+                  // manually-created deal (no sheetRowId), is unaffected.
+                  const isSynced = fund.sheetsSyncEnabled && Boolean(d.sheetRowId);
+                  return (
+                  <TableRow key={d.id}>
+                    <td className="px-4 py-2.5 font-medium">{d.portfolioCompanyName}</td>
+                    <td className="px-4 py-2.5">
+                      <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
+                        {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{formatDate(d.dealDate)}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
+                    <td className="px-4 py-2.5">{d.instrument ?? "—"}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">{d.entryValuation !== null ? `$${d.entryValuation.toLocaleString()}` : "—"}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      {isSynced ? (
+                        <span>{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</span>
+                      ) : editingDealId === d.id ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            autoFocus
+                            value={editDealValuation}
+                            onChange={(e) => setEditDealValuation(e.target.value)}
+                            className="w-28 rounded-sm border border-input bg-card px-2 py-1 text-sm"
+                          />
+                          <button onClick={() => saveEditValuation(d.id)} className="rounded p-1 text-acacia hover:bg-muted" title="Save">
+                            <Check className="h-3.5 w-3.5" />
                           </button>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
-                      <td className="px-3 py-2 whitespace-nowrap text-xs text-muted-foreground">{d.valuationAsOf ? formatDate(d.valuationAsOf) : "—"}</td>
-                      <td className="px-3 py-2">
-                        {isSynced ? (
-                          <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" title="Sheet-owned fields are read-only while sync is enabled">
-                            synced from sheet
-                          </span>
-                        ) : (
-                          <button onClick={() => handleDeleteDeal(d.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
-                            <Trash2 className="h-4 w-4" />
+                          <button onClick={() => setEditingDealId(null)} className="rounded p-1 text-muted-foreground hover:bg-muted" title="Cancel">
+                            <X className="h-3.5 w-3.5" />
                           </button>
-                        )}
-                      </td>
-                    </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+                      ) : (
+                        <button className="hover:underline" onClick={() => startEditValuation(d)} title="Edit valuation">
+                          {d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
+                    <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{d.valuationAsOf ? formatDate(d.valuationAsOf) : "—"}</td>
+                    <td className="px-4 py-2.5">
+                      {isSynced ? (
+                        <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" title="Sheet-owned fields are read-only while sync is enabled">
+                          synced from sheet
+                        </span>
+                      ) : (
+                        <button onClick={() => handleDeleteDeal(d.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )}
+                    </td>
+                  </TableRow>
+                  );
+                })}
+              </tbody>
+            </Table>
           )}
         </div>
       )}
@@ -609,19 +607,14 @@ export default function AdminFundDetailPage() {
         <div>
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <div className="min-w-56">
-              <label className="label mb-1.5 block">Assign existing LP</label>
-              <select
-                value={assignLpId}
-                onChange={(e) => setAssignLpId(e.target.value)}
-                className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
+              <Select id="assignLp" label="Assign existing LP" value={assignLpId} onChange={(e) => setAssignLpId(e.target.value)}>
                 <option value="">Select an LP...</option>
                 {unassignedLps.map((lp) => (
                   <option key={lp.id} value={lp.id}>
                     {lp.name ? `${lp.name} — ${lp.email}` : lp.email}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
             <Button size="sm" disabled={!assignLpId || assigning} onClick={handleAssignLp}>
               {assigning ? "Assigning..." : "Assign"}
@@ -697,37 +690,23 @@ export default function AdminFundDetailPage() {
           </div>
           <form onSubmit={handleAddCashflow} className="mb-4 rounded-md border border-border bg-card p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <label className="label mb-1.5 block">Kind</label>
-                <select
-                  value={cashflowForm.kind}
-                  onChange={(e) => setCashflowForm((f) => ({ ...f, kind: e.target.value as Cashflow["kind"] }))}
-                  className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                >
-                  {CASHFLOW_KINDS.map((k) => (
-                    <option key={k} value={k}>
-                      {CASHFLOW_LABELS[k]}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select id="cashflowKind" label="Kind" value={cashflowForm.kind} onChange={(e) => setCashflowForm((f) => ({ ...f, kind: e.target.value as Cashflow["kind"] }))}>
+                {CASHFLOW_KINDS.map((k) => (
+                  <option key={k} value={k}>
+                    {CASHFLOW_LABELS[k]}
+                  </option>
+                ))}
+              </Select>
               <Input label="Date *" type="date" required value={cashflowForm.date} onChange={(e) => setCashflowForm((f) => ({ ...f, date: e.target.value }))} />
               <Input label="Amount (USD) *" type="number" required value={cashflowForm.amountUsd} onChange={(e) => setCashflowForm((f) => ({ ...f, amountUsd: e.target.value }))} />
-              <div>
-                <label className="label mb-1.5 block">Company (optional)</label>
-                <select
-                  value={cashflowForm.portfolioCompanyId}
-                  onChange={(e) => setCashflowForm((f) => ({ ...f, portfolioCompanyId: e.target.value }))}
-                  className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground"
-                >
-                  <option value="">None</option>
-                  {portfolioCompanies.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select id="cashflowCompany" label="Company (optional)" value={cashflowForm.portfolioCompanyId} onChange={(e) => setCashflowForm((f) => ({ ...f, portfolioCompanyId: e.target.value }))}>
+                <option value="">None</option>
+                {portfolioCompanies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
             </div>
             <div className="mt-3">
               <Input label="Notes" value={cashflowForm.notes} onChange={(e) => setCashflowForm((f) => ({ ...f, notes: e.target.value }))} />
@@ -766,23 +745,15 @@ export default function AdminFundDetailPage() {
       {showAddDeal && (
         <Modal title="Add Deal" onClose={() => setShowAddDeal(false)}>
           <form onSubmit={handleAddDeal} className="space-y-4">
-            <div>
-              <label className="label mb-1.5 block">Portfolio company *</label>
-              <select
-                required
-                value={dealForm.portfolioCompanyId}
-                onChange={(e) => setDealForm((f) => ({ ...f, portfolioCompanyId: e.target.value }))}
-                className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">Select...</option>
-                {portfolioCompanies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-                <option value="__new__">+ New company…</option>
-              </select>
-            </div>
+            <Select id="dealCompany" label="Portfolio company *" required value={dealForm.portfolioCompanyId} onChange={(e) => setDealForm((f) => ({ ...f, portfolioCompanyId: e.target.value }))}>
+              <option value="">Select...</option>
+              {portfolioCompanies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+              <option value="__new__">+ New company…</option>
+            </Select>
             {dealForm.portfolioCompanyId === "__new__" && (
               <Input
                 label="New company name *"
@@ -793,17 +764,10 @@ export default function AdminFundDetailPage() {
             )}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="label mb-1.5 block">Type</label>
-                <select
-                  value={dealForm.investmentType}
-                  onChange={(e) => setDealForm((f) => ({ ...f, investmentType: e.target.value as "INITIAL" | "FOLLOW_ON" }))}
-                  className="w-full h-10 rounded-md border border-input bg-card px-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  <option value="INITIAL">Initial</option>
-                  <option value="FOLLOW_ON">Follow-on</option>
-                </select>
-              </div>
+              <Select id="dealType" label="Type" value={dealForm.investmentType} onChange={(e) => setDealForm((f) => ({ ...f, investmentType: e.target.value as "INITIAL" | "FOLLOW_ON" }))}>
+                <option value="INITIAL">Initial</option>
+                <option value="FOLLOW_ON">Follow-on</option>
+              </Select>
               <Input
                 label="Deal date *"
                 type="date"
