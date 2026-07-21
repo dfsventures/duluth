@@ -19,7 +19,6 @@ import {
   BookOpen,
   Wrench,
   ScrollText,
-  LayoutTemplate,
   Landmark,
   Handshake,
   Rows3,
@@ -44,13 +43,14 @@ const adminDashboardItem = { label: "Dashboard", href: "/admin", icon: LayoutDas
 // Part 11, WS28 — admin nav regrouped into three labeled clusters
 // (Q28-A) after five parts of unrelated feature growth left this a flat,
 // 13-14 item list with no grouping cue (see docs/IMPLEMENTATION_PLAN.md
-// Part 11 findings). "Portfolio" -> "Deal Ledger" (Q29-B) and "Templates"
-// -> "Update Templates" (Q32-B) are copy-only renames; hrefs unchanged.
-// "Fund Reports" (Q31-A) is newly linked here — it previously had zero
-// sidebar presence. "Sync" deliberately does NOT appear anywhere in this
-// file (Q30-B): it's a genuinely global integration (one spreadsheet,
-// every fund — see src/components/admin/sync-panel.tsx), so it now lives
-// as a tab on /admin/funds instead of a nav item.
+// Part 11 findings). "Portfolio" -> "Deal Ledger" (Q29-B) is a copy-only
+// rename; href unchanged. "Fund Reports" (Q31-A) is newly linked here —
+// it previously had zero sidebar presence. Two items deliberately do NOT
+// appear anywhere in this file: "Sync" (Q30-B) is a genuinely global
+// integration (one spreadsheet, every fund), so it's a tab on
+// /admin/funds; "Update Templates" is a sub-feature of Updates (the
+// skeletons founders start an update from, not a peer destination), so
+// it's a tab on /admin/updates (see src/components/admin/*-panel.tsx).
 const adminNavGroups = [
   {
     label: "Company Operations",
@@ -58,7 +58,6 @@ const adminNavGroups = [
       { label: "Approvals", href: "/admin/approvals", icon: Shield },
       { label: "Companies", href: "/admin/companies", icon: Building2 },
       { label: "Updates", href: "/admin/updates", icon: FileText },
-      { label: "Update Templates", href: "/admin/templates", icon: LayoutTemplate },
       { label: "Investor Links", href: "/admin/links", icon: Link2 },
     ],
   },
