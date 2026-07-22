@@ -8,6 +8,7 @@ import Link from "@tiptap/extension-link";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
+import { Indent } from "@/lib/tiptap-indent";
 import { cn } from "@/lib/utils";
 import {
   Bold,
@@ -20,6 +21,8 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  IndentIncrease,
+  IndentDecrease,
   Link2,
   ImageIcon,
   Heading2,
@@ -79,6 +82,7 @@ export function RichEditor({
         HTMLAttributes: { class: "text-primary underline", target: "_blank" },
       }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
+      Indent,
       Placeholder.configure({ placeholder }),
       ...extraExtensions,
     ],
@@ -295,6 +299,26 @@ export function RichEditor({
           title="Divider"
         >
           <Minus className="h-4 w-4" />
+        </ToolbarButton>
+
+        <div className="mx-1 h-5 w-px bg-border" />
+
+        {/* Indent — plain paragraph/heading margin, not a list (admin
+            feedback: needed a way to indent a block without it becoming a
+            bullet). Disabled state reflects the current block's level,
+            since there's no on/off "active" state to show, just a range. */}
+        <ToolbarButton
+          onClick={() => editor.chain().focus().outdent().run()}
+          disabled={(editor.getAttributes("paragraph").indent ?? editor.getAttributes("heading").indent ?? 0) === 0}
+          title="Decrease indent"
+        >
+          <IndentDecrease className="h-4 w-4" />
+        </ToolbarButton>
+        <ToolbarButton
+          onClick={() => editor.chain().focus().indent().run()}
+          title="Increase indent"
+        >
+          <IndentIncrease className="h-4 w-4" />
         </ToolbarButton>
 
         <div className="mx-1 h-5 w-px bg-border" />
