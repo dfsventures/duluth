@@ -163,9 +163,16 @@
      "the divider tool seems broken" (it wasn't; it just couldn't be seen).
      One rule here covers every context; verified in headless Chrome that
      it wins Typography's :where()-based selector in both an editor and a
-     plain read-only .prose context. */
+     plain read-only .prose context.
+     Uses --color-text-muted, not --color-border-hover: the hover token
+     only reaches 1.70:1 contrast against Paper (#EBE8DE) — a real
+     improvement over the original ~1.01:1 but still barely perceptible on
+     screen. --color-text-muted reaches 4.85:1, well past the ~3:1 WCAG
+     guideline for non-text UI elements. --color-border-hover itself is
+     left untouched since it's still used for actual hover states
+     elsewhere. */
   .prose hr {
-    border-color: var(--color-border-hover);
+    border-color: var(--color-text-muted);
   }
 }
 

@@ -173,6 +173,17 @@ export function RichEditor({
   }) => (
     <button
       type="button"
+      // Toolbar buttons live outside the ProseMirror contenteditable. Without
+      // this, the browser's default mousedown handling collapses/clears the
+      // editor's DOM selection and blurs it *before* onClick ever runs — on
+      // macOS, a mouse click doesn't even hand focus to the button itself in
+      // exchange, so focus lands on <body> with nowhere valid to restore
+      // from. `editor.chain().focus()` can't recover a selection that's
+      // already gone, so the rest of the chained command (e.g.
+      // setHorizontalRule) silently never dispatches. Universal fix for
+      // every rich-text toolbar: block the mousedown's default action so the
+      // selection survives into the click handler.
+      onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       disabled={disabled}
       title={title}
@@ -403,8 +414,16 @@ export function RichEditor({
            view) — a "border: none" reset here plus a color-only rule
            elsewhere would leave border-style at "none", rendering nothing
            regardless of color. Same color value in both places by design;
-           correctness over avoiding the small duplication. */
-        .ProseMirror hr { border: none; border-top: 1px solid var(--color-border-hover); margin: 1rem 0; }
+           correctness over avoiding the small duplication.
+           Uses --color-text-muted, not --color-border-hover: the hover
+           token only reaches 1.70:1 against Paper (#EBE8DE) — real, but
+           still barely perceptible, confirmed via a 4x-zoomed screenshot
+           during the mousedown-focus-loss investigation. --color-text-muted
+           reaches 4.85:1, comfortably past the ~3:1 WCAG guideline for
+           non-text UI elements like a divider line. Deliberately not
+           touching --color-border-hover itself, since that token is used
+           for actual hover states elsewhere. */
+        .ProseMirror hr { border: none; border-top: 1px solid var(--color-text-muted); margin: 1rem 0; }
         .ProseMirror p { margin: 0.5rem 0; }
         .ProseMirror strong { font-weight: 600; }
         .ProseMirror .portco-mention { color: #44688E; text-decoration: underline; text-decoration-color: #44688E; font-weight: 500; }
