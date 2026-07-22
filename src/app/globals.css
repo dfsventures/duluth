@@ -153,6 +153,20 @@
     font-weight: 500;
     cursor: pointer;
   }
+
+  /* Divider (<hr>) color, everywhere .prose renders — the editor (via
+     RichEditor's own .ProseMirror hr rule) AND every read-only view that
+     renders a saved body through Tailwind Typography's default styling
+     (update detail, report view, LP share page, digest, company notes).
+     Without this, Typography's own gray default (--tw-prose-hr) made the
+     divider nearly invisible against the Paper background — reported as
+     "the divider tool seems broken" (it wasn't; it just couldn't be seen).
+     One rule here covers every context; verified in headless Chrome that
+     it wins Typography's :where()-based selector in both an editor and a
+     plain read-only .prose context. */
+  .prose hr {
+    border-color: var(--color-border-hover);
+  }
 }
 
 /* ── LP portal print stylesheet (Part 7, WS19, Q11) ──────────

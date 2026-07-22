@@ -398,7 +398,13 @@ export function RichEditor({
         .ProseMirror ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
         .ProseMirror li { margin: 0.2rem 0; }
         .ProseMirror blockquote { border-left: 3px solid #3BBFA0; padding-left: 1rem; color: #64748B; margin: 0.75rem 0; }
-        .ProseMirror hr { border: none; border-top: 1px solid #E2E8F0; margin: 1rem 0; }
+        /* Fully self-contained rather than splitting the shorthand against
+           globals.css's ".prose hr" rule (which also covers every read-only
+           view) — a "border: none" reset here plus a color-only rule
+           elsewhere would leave border-style at "none", rendering nothing
+           regardless of color. Same color value in both places by design;
+           correctness over avoiding the small duplication. */
+        .ProseMirror hr { border: none; border-top: 1px solid var(--color-border-hover); margin: 1rem 0; }
         .ProseMirror p { margin: 0.5rem 0; }
         .ProseMirror strong { font-weight: 600; }
         .ProseMirror .portco-mention { color: #44688E; text-decoration: underline; text-decoration-color: #44688E; font-weight: 500; }
