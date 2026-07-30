@@ -3734,3 +3734,325 @@ WS33 unblocks everything else (schema + the pure builder that both WS35 and WS36
 ## Part 14 roadmap bookkeeping (to do once shipped)
 
 Once WS33–WS36 ship: annotate the "Fund Report authoring" bullet under Admin Features in `ROADMAP.md` with the new insertable fund-performance-snapshot block (Q40-A/Q41-A/Q44-A/Q45-A) and its scope (that report's own fund only, no sheet-provenance data, freezes and re-freezes with every publish exactly like company mentions); update the top `_Last updated_` line and flip the "Next up" pointer below to "shipped," following the exact pattern used for Parts 11–13.
+
+---
+
+# Part 15 — Per-Fund Performance Override (Gross MOIC / Net TVPI / Net DPI)
+
+_Added 2026-07-30, from a message Stephen (DFS Lab team member) sent Joseph right after the Part 14 walkthrough: he'd updated the internal tracking sheet for CAF1 specifically with Gross MOIC / Net TVPI / Net DPI figures and asked to show those (alongside Invested and Implied Value) and drop Gross IRR "for now." Per house convention this went through a discuss-first round before any plan was written — the request was investigated against the real code first (not assumed from the message), talked through with Joseph as open questions (Q46–Q52 below), and only written up here after he answered. Same hard constraints as every prior Part: **no new cost lines**, **no UX regressions** (every fund except CAF1 is byte-identical after this ships, on every surface, until an admin fills in that fund's override fields), **additive-only schema changes** via the house `db push` procedure._
+
+**What this is not:** a relabeling of Part 14's existing computed TVPI/DPI/Gross IRR. `computeFundPerformance()` (`src/lib/portfolio-metrics.ts:8-15`) is explicit that its numbers are gross-of-fees by construction unless `FEE` cashflow rows exist, and TVPI/DPI fall back to an `approximate: true` paid-in stand-in when no `CAPITAL_CALL` rows exist — there is no code path anywhere that can currently produce a "net" figure. `FundCashflow` rows can only ever be created one at a time through the WS25 admin CRUD (`scripts/import-investment-tracker.ts` never touches them, and neither does the sheet sync) — confirming Stephen's three numbers are genuinely computed outside Molly, not something the existing engine could derive if only it were asked to. See findings F26–F29 below.
+
+## Decisions Q46–Q52 — all answered by the user 2026-07-30
+
+> **Q46 (source)** — Manual admin override only. No sheet-sync changes, no automation: Stephen supplies the three numbers, an admin types them into Molly once.
+> **Q47 (scope)** — Schema is generic: every `Fund` gets the same three nullable override columns. Only CAF1 has values populated today; no CAF1-specific code path anywhere.
+> **Q48 (mixed state)** — Fine indefinitely; not treated as a transitional state to migrate away from, and not over-engineered for permanence either. No further design needed here.
+> **Q49 (replace vs. add)** — Confirmed: Invested and Implied Value stay Molly-computed, unchanged, for every fund including CAF1. Gross MOIC / Net TVPI / Net DPI replace the TVPI/DPI slots only on a fund that has override values present.
+> **Q50 (IRR removal scope)** — CAF1-only, and only conditional on override values being present: Gross IRR is hidden for a fund on every surface that fund's Performance card renders (admin fund page + LP fund-snapshot block) exactly while that fund has at least one override value set. Every other fund keeps showing Gross IRR exactly as today, everywhere. Reversible by clearing the override.
+> **Q51 (staleness note)** — No separate "last updated"/provenance indicator for the override values. Displayed plainly; the card's existing "As of" line is untouched (it continues to describe the computed Implied Value's own valuation date, not when the override was entered).
+> **Q52 (freeze/republish interaction)** — Confirmed no edge case beyond the existing Part 14 design: an already-published CAF1 report keeps its frozen old-style card exactly as published; only a future publish freezes override-branched numbers, matching the existing re-freeze-on-every-publish behavior (Q44-A) with no special-casing needed.
+
+## Part 15 ground rules (carry-over + additions)
+
+All prior-Part ground rules apply (additive `db push` before code; `export const dynamic = "force-dynamic"` on route files; never change existing response shapes; `npm run typecheck && npm run lint && npm test` before every push; one workstream per commit-and-verify cycle). Additions:
+
+1. **`computeFundPerformance()`'s own signature and output stay byte-identical.** The override is attached as a sibling field by callers (`buildFundReportSnapshot()`'s new, optional 4th parameter), never mixed into the pure metrics engine — every existing `portfolio-metrics.test.ts` fixture keeps passing unchanged, and the Q23 admin-only-estimate semantics of the computed engine are untouched for every fund.
+2. **Every fund with all three override columns null renders byte-identical to today, on every surface** — admin fund page, LP fund-snapshot block, admin report preview. This is the inertness guarantee: shipping this Part changes nothing observable for any fund except CAF1, and only once an admin actually fills in CAF1's fields.
+3. **The override edit affordance lives only in the admin-only fund detail page component (`src/app/admin/funds/[id]/page.tsx`), never inside the shared `FundPerformanceCard`/`FundSnapshotBlock`.** That same component tree is portalled into the read-only LP page (`FundSnapshotBlock`, Part 14/WS36.2) — keeping the editing UI out of it is a structural guarantee that an edit control can never reach an LP session, not just a convention to remember.
+4. **CONFIDENTIALITY — unchanged.** The repo is public; no real fund performance figures enter git. Any new tests use synthetic fixtures, same as every prior Part.
+
+## Part 15 review findings
+
+26. **`portfolio-metrics.ts`'s Gross IRR/TVPI/DPI are gross-of-fees/approximate-paid-in by construction, and there is no way to produce a "net" figure today.** The module's own header comment (`src/lib/portfolio-metrics.ts:8-15`) says so explicitly; `fundFlows()` only turns `FEE` cashflow rows into an outflow *if any exist* for a fund, and `computePaidIn()` falls back to `Σ deal amounts` (flagged `approximate: true`) absent real `CAPITAL_CALL` rows. This is a genuine data-and-methodology gap Stephen's override closes, not a labeling mismatch with what Part 14 shipped.
+27. **No bulk or automated path has ever populated `FundCashflow` rows for any fund, CAF1 included.** Grepped `scripts/import-investment-tracker.ts` (the one-time deal importer) for any mention of "cashflow" — zero hits — and `sheet-sync-runner.ts`/`sheet-sync.ts` never touch `FundCashflow` either. The only creation path is the WS25 admin CRUD (`POST /api/admin/funds/[id]/cashflows`), entered one row at a time. Consistent with CAF1 showing "(0)" cashflow rows in the earlier screenshot, and explains why Stephen is supplying externally-computed figures rather than Molly being asked to compute them from data it doesn't have.
+28. **Automating the sheet-read side of this (rejected in Q46) would have reversed a standing Part 11 decision, not extended one.** `docs/IMPLEMENTATION_PLAN.md:1723` documents that the Deals-sheet importer deliberately does **not** import its own Markups/Implied Value/MOIC/TVPI/IRR columns — "Molly computes multiples from stored valuations" — and `sheets.ts`/`sheet-sync-runner.ts` today read Deal-level fields only, with no fund-level/summary sync surface of any kind. Q46's manual-override answer is consistent with that prior decision; a future sheet-sync extension for these fields (if ever wanted) is a materially separate project, not a small addition to the existing sync.
+29. **No existing schema field, on `Fund` or anywhere else, holds a Gross MOIC/Net TVPI/Net DPI value.** Grep-verified across `src/`, `prisma/`, `docs/`. This is genuinely new, additive schema (WS37.1), not a repurposed column.
+30. **`FundPerformanceCard` (`src/components/fund-performance-card.tsx`) hardcodes a single, fund-agnostic 5-stat grid today** — no per-fund conditional logic exists anywhere in it. WS37 is the first thing to add fund-specific branching to this shared component, which both the admin fund page and the Part 14 LP fund-snapshot block render.
+
+## Part 15 judgment calls (flagged per protocol — each with a cheap reversal)
+
+- **JC-A — Reuses the existing `FUND_UPDATED` audit action** (already logs whatever changed via `metadata: data` on the existing PATCH handler) instead of a new, override-specific action. Reversal: a one-line string-literal split (`FUND_PERFORMANCE_OVERRIDE_UPDATED`) later, if `/admin/audit` ever needs to filter these edits separately from other fund-metadata changes (name/AUM/etc.).
+- **JC-B — "Override active" is defined as "at least one of the three fields is non-null,"** not "all three or none." An admin who saves only Gross MOIC and leaves the other two blank gets a card that's already switched into override mode, showing "—" for the missing two. Reversal: tighten to an all-or-nothing check (one extra `&&`) if a partial save turns out to look broken in practice — flagged explicitly since Q47–Q49 didn't specify partial-entry behavior and this is a genuine judgment call, not something Joseph confirmed either way.
+- **JC-C — The override inputs accept any finite number, including negative values** — no domain-specific bounds check, matching the existing `aumUsd` field's own lack of one on this same route. Reversal: add a `>= 0` guard if a mistyped negative value ever reaches production.
+
+---
+
+## WS37 — Manual per-fund performance override, CAF1-first (~0.75 day)
+
+**Goal:** an admin can type Gross MOIC / Net TVPI / Net DPI into any fund; when present, those three values replace the TVPI/DPI slots on that fund's Performance card and Gross IRR is hidden, on every surface the card renders (admin fund page, LP fund-snapshot block, admin report preview); every fund without override values is untouched.
+
+### WS37.1 Schema (additive — `db push` per house procedure before code)
+
+```prisma
+model Fund {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  name          String
+  groupLabel    String?
+  firstDealDate DateTime?
+  aumUsd        Decimal?
+  sortOrder     Int       @default(0)
+
+  // Part 15, WS37.1 — manual admin-entered performance overrides (Q46–Q52).
+  // Generic per-fund (Q47), independently nullable so an admin can fill
+  // these in incrementally; populated for CAF1 only today. No "as of"/
+  // provenance column (Q51 — no separate staleness note; FUND_UPDATED
+  // audit rows already timestamp every change if that history is ever
+  // needed).
+  grossMoicOverride Decimal?
+  netTvpiOverride   Decimal?
+  netDpiOverride    Decimal?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  deals     Deal[]
+  lps       LpFundMembership[]
+  reports   FundReport[]
+  cashflows FundCashflow[]
+  reportSnapshots FundReportFundSnapshot[]
+
+  @@map("funds")
+}
+```
+
+### WS37.2 `src/lib/portfolio-metrics.ts` — thread the override through as a sibling field, not a computed one
+
+```ts
+// Part 15, WS37.2 — a fund's manual performance override (Q46/Q47). Deliberately
+// NOT part of FundPerformance/computeFundPerformance()'s own shape — that
+// function stays a pure, byte-identical computation from deals/cashflows
+// (ground rule 1). Callers that have a fund's override columns attach this
+// as a sibling field when building the payload.
+export interface FundPerformanceOverride {
+  grossMoic: number | null;
+  netTvpi: number | null;
+  netDpi: number | null;
+}
+
+export interface FundSnapshotPayload {
+  fundName: string; // never fund.slug — finding #3 (Part 14)
+  performance: FundPerformance;
+  performanceOverride: FundPerformanceOverride | null; // Part 15 — null for every fund but CAF1 today
+  deals: FundSnapshotDealRow[];
+}
+
+export function buildFundReportSnapshot(
+  fundName: string,
+  deals: (FundSnapshotDealInput & { companyName: string })[],
+  cashflows: FundPerformanceCashflow[],
+  performanceOverride: FundPerformanceOverride | null = null
+): FundSnapshotPayload {
+  return {
+    fundName,
+    performance: computeFundPerformance(deals, cashflows),
+    performanceOverride,
+    deals: deals.map((d) => ({ /* unchanged */ } as FundSnapshotDealRow)),
+  };
+}
+```
+
+`computeFundPerformance()` itself is not touched — no new parameter, no new field on `FundPerformance`. This keeps the extraction Part 14 did (WS33.2) byte-identical for the admin route's own live `performance` computation; the admin fund page and the report pipeline separately attach the fund's override columns as a sibling value (WS37.4/WS37.5 below).
+
+### WS37.3 `src/app/api/admin/funds/[id]/route.ts` — expose + accept the three fields
+
+GET: add to the JSON response, same `Decimal → number | null` pattern already used for `aumUsd`:
+
+```ts
+grossMoicOverride: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
+netTvpiOverride: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
+netDpiOverride: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+```
+
+PATCH: extend the existing `data` object and validation block (no new route, no new audit action — reuses `FUND_UPDATED`, JC-A):
+
+```ts
+const data: {
+  name?: string;
+  groupLabel?: string | null;
+  firstDealDate?: Date | null;
+  aumUsd?: number | null;
+  sortOrder?: number;
+  grossMoicOverride?: number | null;
+  netTvpiOverride?: number | null;
+  netDpiOverride?: number | null;
+} = {};
+// ...existing fields unchanged...
+for (const field of ["grossMoicOverride", "netTvpiOverride", "netDpiOverride"] as const) {
+  if (body[field] === undefined) continue;
+  if (body[field] === null || body[field] === "") {
+    data[field] = null;
+    continue;
+  }
+  const n = Number(body[field]);
+  if (!Number.isFinite(n)) {
+    return NextResponse.json({ error: `${field} must be a number.` }, { status: 400 });
+  }
+  data[field] = n;
+}
+```
+
+The existing `await logAdminAction(user!, "FUND_UPDATED", { targetType: "Fund", targetId: id, metadata: data as Record<string, unknown> })` line needs no change — it already forwards whichever fields were present in `data`, so an override-only PATCH produces an audit row with just the override fields in `metadata`.
+
+### WS37.4 `src/app/admin/funds/[id]/page.tsx` — edit affordance next to the Performance card
+
+Placed directly below `<FundPerformanceCard>` in this admin-only page component (ground rule 3), not inside the Cashflows tab — these three numbers aren't ledger entries and don't feed the computed engine the way capital calls/distributions/fees do; they directly determine what the card immediately above shows. This also mirrors the page's own existing precedent: the `editingHeader` inline-edit pattern already used for name/groupLabel/AUM at the top of this same file is the closest analog for "a few admin-typed fields with a Save/Cancel toggle."
+
+```tsx
+const [editingOverrides, setEditingOverrides] = useState(false);
+const [overrideGrossMoic, setOverrideGrossMoic] = useState("");
+const [overrideNetTvpi, setOverrideNetTvpi] = useState("");
+const [overrideNetDpi, setOverrideNetDpi] = useState("");
+const [savingOverrides, setSavingOverrides] = useState(false);
+
+function openEditOverrides() {
+  setOverrideGrossMoic(fund.grossMoicOverride !== null ? String(fund.grossMoicOverride) : "");
+  setOverrideNetTvpi(fund.netTvpiOverride !== null ? String(fund.netTvpiOverride) : "");
+  setOverrideNetDpi(fund.netDpiOverride !== null ? String(fund.netDpiOverride) : "");
+  setEditingOverrides(true);
+}
+
+async function handleSaveOverrides() {
+  setSavingOverrides(true);
+  try {
+    const res = await fetch(`/api/admin/funds/${fund.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        grossMoicOverride: overrideGrossMoic.trim() === "" ? null : Number(overrideGrossMoic),
+        netTvpiOverride: overrideNetTvpi.trim() === "" ? null : Number(overrideNetTvpi),
+        netDpiOverride: overrideNetDpi.trim() === "" ? null : Number(overrideNetDpi),
+      }),
+    });
+    if (!res.ok) throw new Error((await res.json()).error ?? "Failed to save");
+    await refetchFund(); // same refresh call handleSaveHeader already uses
+    setEditingOverrides(false);
+    setMessage({ type: "success", text: "Performance override saved." });
+  } catch (err) {
+    setMessage({ type: "error", text: err instanceof Error ? err.message : "Something went wrong" });
+  } finally {
+    setSavingOverrides(false);
+  }
+}
+```
+
+```tsx
+<FundPerformanceCard
+  performance={fund.performance}
+  overrides={{ grossMoic: fund.grossMoicOverride, netTvpi: fund.netTvpiOverride, netDpi: fund.netDpiOverride }}
+/>
+{editingOverrides ? (
+  <div className="mb-6 rounded-md border border-border bg-card p-4">
+    <p className="mb-3 text-sm text-muted-foreground">
+      Manual override — when any of these three are set, they replace the TVPI/DPI slots above and Gross IRR is
+      hidden for this fund everywhere its Performance card renders. Clear all three to go back to Molly&apos;s own
+      computed numbers.
+    </p>
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Input label="Gross MOIC" type="number" step="0.01" value={overrideGrossMoic} onChange={(e) => setOverrideGrossMoic(e.target.value)} />
+      <Input label="Net TVPI" type="number" step="0.01" value={overrideNetTvpi} onChange={(e) => setOverrideNetTvpi(e.target.value)} />
+      <Input label="Net DPI" type="number" step="0.01" value={overrideNetDpi} onChange={(e) => setOverrideNetDpi(e.target.value)} />
+    </div>
+    <div className="mt-3 flex gap-2">
+      <Button size="sm" onClick={handleSaveOverrides} disabled={savingOverrides}>{savingOverrides ? "Saving..." : "Save"}</Button>
+      <Button variant="secondary" size="sm" onClick={() => setEditingOverrides(false)} disabled={savingOverrides}>Cancel</Button>
+    </div>
+  </div>
+) : (
+  <Button variant="secondary" size="sm" className="mb-6" onClick={openEditOverrides}>
+    Edit performance override
+  </Button>
+)}
+```
+
+### WS37.5 `src/components/fund-performance-card.tsx` — branch on override presence
+
+```tsx
+interface FundPerformanceCardProps {
+  performance: FundPerformanceLike;
+  deals?: FundSnapshotDealRow[];
+  fundName?: string;
+  showCaveat?: boolean;
+  /** Part 15, WS37.5 — a fund's manual override (Q46/Q47/Q49/Q50). `null`/absent
+   * for every fund except CAF1 today; when at least one field is non-null
+   * (JC-B), the card switches into override mode. */
+  overrides?: { grossMoic: number | null; netTvpi: number | null; netDpi: number | null } | null;
+}
+
+export function FundPerformanceCard({ performance, deals, fundName, showCaveat = true, overrides }: FundPerformanceCardProps) {
+  const overrideActive = !!overrides && (overrides.grossMoic !== null || overrides.netTvpi !== null || overrides.netDpi !== null);
+  return (
+    <div className="mb-6 rounded-md border border-border bg-card p-4">
+      {/* header unchanged */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        {/* Invested, Implied Value cells unchanged */}
+        {overrideActive ? (
+          <>
+            <div>
+              <p className="text-xs text-muted-foreground">Gross MOIC</p>
+              <p className="font-mono text-lg font-semibold">{overrides!.grossMoic !== null ? `${overrides!.grossMoic.toFixed(2)}x` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Net TVPI</p>
+              <p className="font-mono text-lg font-semibold">{overrides!.netTvpi !== null ? `${overrides!.netTvpi.toFixed(2)}x` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Net DPI</p>
+              <p className="font-mono text-lg font-semibold">{overrides!.netDpi !== null ? `${overrides!.netDpi.toFixed(2)}x` : "—"}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* existing TVPI / DPI / Gross IRR cells, byte-identical to today */}
+          </>
+        )}
+      </div>
+      {showCaveat && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Admin-only estimate; gross of fees unless FEE cashflow rows are recorded.
+          {!overrideActive && performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
+          {!performance.dilutionAware && " * Implied value assumes zero dilution (no ownership % recorded on these deals yet)."}
+        </p>
+      )}
+      {/* deals table unchanged */}
+    </div>
+  );
+}
+```
+
+Only the TVPI-approximate clause is suppressed in override mode (it no longer applies — that cell isn't rendered); the lead sentence and the Implied Value dilution caveat still apply on the admin page (`showCaveat=true`) since Invested/Implied Value stay Molly-computed either way. On the LP snapshot (`showCaveat=false`) this whole paragraph is already suppressed today, so nothing changes there.
+
+### WS37.6 `src/components/fund-snapshot-block.tsx` and the report pipeline — pass the override through
+
+- `fund-snapshot-block.tsx`: add `overrides={data.performanceOverride}` to its `<FundPerformanceCard>` call.
+- `src/app/admin/reports/[id]/preview/page.tsx` (live compute): the existing `db.fund.findUnique({ where: { id: report.fundId }, include: {...} })` call has no `select`, so `fund.grossMoicOverride`/`netTvpiOverride`/`netDpiOverride` are already returned — pass a 4th argument to `buildFundReportSnapshot()`:
+  ```ts
+  buildFundReportSnapshot(fund.name, /* deals */, /* cashflows */, {
+    grossMoic: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
+    netTvpi: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
+    netDpi: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+  })
+  ```
+- `src/app/api/admin/reports/[id]/publish/route.ts` (freeze): identical change inside the transaction's `tx.fund.findUnique(...)` call, same 4th argument to `buildFundReportSnapshot()`. Once frozen into `FundReportFundSnapshot.snapshot`, `performanceOverride` travels with the rest of the payload automatically.
+- `src/app/lp/reports/[id]/page.tsx`: **no code change needed.** It already spreads `...(report.fundSnapshot.snapshot as FundSnapshotPayload)`, which will include `performanceOverride` automatically once the publish route freezes it — confirmed by re-reading this file, not assumed.
+
+**WS37 acceptance checklist**
+- [ ] `prisma db push` run against production per house procedure (additive: three new nullable `Decimal` columns) before any code lands
+- [ ] Every fund except CAF1: admin fund page Performance card renders byte-identical to today, before and after this ships (ground rule 2) — before/after screenshot
+- [ ] CAF1 before an admin enters any override value: its card is identical to every other fund's card — an all-null override is fully inert (Q47/Q48, ground rule 2)
+- [ ] CAF1 after an admin enters all three override values: admin fund page shows Gross MOIC / Net TVPI / Net DPI in place of TVPI/DPI, the Gross IRR cell is gone, Invested and Implied Value are unchanged and still live-computed (Q49/Q50)
+- [ ] The same override branching renders on `/admin/reports/[id]/preview` and the real `/lp/reports/[id]` page for a CAF1 report with a fund-snapshot marker — byte-identical between the two, mirroring WS36's existing "preview is honest" guarantee
+- [ ] Clearing all three override fields (blank + save) reverts CAF1's card to fully computed numbers everywhere, including Gross IRR reappearing — confirmed live, not just by code inspection
+- [ ] A CAF1 report already published before override values existed keeps its old frozen card unchanged after the override is entered; only a fresh publish after that freezes the override-branched snapshot (Q52)
+- [ ] `PATCH /api/admin/funds/[id]` rejects a non-numeric override value with 400, same pattern as the route's other numeric fields
+- [ ] A `FUND_UPDATED` audit row is written with the changed override field(s) in `metadata`, visible on `/admin/audit` (JC-A)
+- [ ] `npm run typecheck && npm run lint && npm test` green; `portfolio-metrics.test.ts` gains coverage for `buildFundReportSnapshot()`'s new 4th parameter — both a no-override call (byte-identical output to before this Part) and a populated-override call that correctly attaches `performanceOverride`
+- [ ] Grep-guard: `computeFundPerformance()`'s own signature and `FundPerformance` interface are unchanged — confirms the override is bolted on at the payload level, not mixed into the pure metrics engine (ground rule 1)
+- [ ] Live-verified on `molly.dfslab.net`: enter CAF1's real three values, confirm on both the admin fund page and an actual LP session; confirm every other fund's card and LP-facing report are unaffected
+
+**UX impact:** additive on the admin surface (a new, optional edit affordance next to the Performance card); zero change on every LP-facing surface except CAF1, and even CAF1's LP experience only changes once an admin has actually entered values — no founder, admin, or investor-link surface outside this one card is touched. **Cost impact:** none — three nullable Postgres columns, no new service, no sheet-sync surface. **Effort estimate:** ~0.75 day (schema + engine threading + one route + one shared component + one admin page + report-pipeline wiring + tests), matching the "simplest" shape scoped in the discuss-first round.
+
+## Part 15 roadmap bookkeeping (to do once shipped)
+
+Once WS37 ships: annotate the "Fund Report authoring" bullet under Admin Features in `ROADMAP.md` with the new per-fund manual performance override (Q46–Q52) and its scope (generic schema, CAF1-populated only, replaces TVPI/DPI and hides Gross IRR only while override values are present, reversible by clearing them, no sheet-sync involvement); update the top `_Last updated_` line, following the exact pattern used for Parts 11–14. Until then, ROADMAP.md carries only a forward-pointer note (added now, in this same edit) rather than a "shipped" claim.
