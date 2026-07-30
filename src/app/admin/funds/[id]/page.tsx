@@ -73,6 +73,10 @@ interface FundDetail {
   groupLabel: string | null;
   firstDealDate: string | null;
   aumUsd: number | null;
+  // Part 15, WS37.4 — manual performance override fields (Q46-Q52).
+  grossMoicOverride: number | null;
+  netTvpiOverride: number | null;
+  netDpiOverride: number | null;
   deals: Deal[];
   lps: { id: string; lp: { id: string; email: string; name: string | null } }[];
   reports: { id: string; title: string; periodLabel: string | null; status: string; publishedAt: string | null; createdAt: string }[];
@@ -125,6 +129,13 @@ export default function AdminFundDetailPage() {
   const [headerGroupLabel, setHeaderGroupLabel] = useState("");
   const [headerAum, setHeaderAum] = useState("");
   const [savingHeader, setSavingHeader] = useState(false);
+
+  // Performance override edit (Part 15, WS37.4)
+  const [editingOverrides, setEditingOverrides] = useState(false);
+  const [overrideGrossMoic, setOverrideGrossMoic] = useState("");
+  const [overrideNetTvpi, setOverrideNetTvpi] = useState("");
+  const [overrideNetDpi, setOverrideNetDpi] = useState("");
+  const [savingOverrides, setSavingOverrides] = useState(false);
 
   // Add deal modal
   const [showAddDeal, setShowAddDeal] = useState(false);
@@ -209,6 +220,41 @@ export default function AdminFundDetailPage() {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to save fund." });
     } finally {
       setSavingHeader(false);
+    }
+  }
+
+  // Part 15, WS37.4 — performance override edit/save (Q46-Q52).
+  function openEditOverrides() {
+    if (!fund) return;
+    setOverrideGrossMoic(fund.grossMoicOverride !== null ? String(fund.grossMoicOverride) : "");
+    setOverrideNetTvpi(fund.netTvpiOverride !== null ? String(fund.netTvpiOverride) : "");
+    setOverrideNetDpi(fund.netDpiOverride !== null ? String(fund.netDpiOverride) : "");
+    setEditingOverrides(true);
+  }
+
+  async function handleSaveOverrides() {
+    setSavingOverrides(true);
+    try {
+      const res = await fetch(`/api/admin/funds/${fundId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          grossMoicOverride: overrideGrossMoic.trim() === "" ? null : Number(overrideGrossMoic),
+          netTvpiOverride: overrideNetTvpi.trim() === "" ? null : Number(overrideNetTvpi),
+          netDpiOverride: overrideNetDpi.trim() === "" ? null : Number(overrideNetDpi),
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.error ?? "Failed to save");
+      }
+      setEditingOverrides(false);
+      setMessage({ type: "success", text: "Performance override saved." });
+      loadFund();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Something went wrong" });
+    } finally {
+      setSavingOverrides(false);
     }
   }
 
@@ -464,7 +510,42 @@ export default function AdminFundDetailPage() {
           extracted into FundPerformanceCard — byte-identical output, no
           `deals` prop here so this page's own Deals tab below (with the
           sheet-sync column and sortable headers) is unaffected. */}
-      <FundPerformanceCard performance={fund.performance} />
+      <FundPerformanceCard
+        performance={fund.performance}
+        overrides={{ grossMoic: fund.grossMoicOverride, netTvpi: fund.netTvpiOverride, netDpi: fund.netDpiOverride }}
+      />
+
+      {/* Part 15, WS37.4 — manual performance override edit affordance. Lives
+          only here, in the admin-only fund detail page — never inside
+          FundPerformanceCard/FundSnapshotBlock themselves, since that same
+          component tree is portalled into the read-only LP page (ground
+          rule 3). */}
+      {editingOverrides ? (
+        <div className="mb-6 rounded-md border border-border bg-card p-4">
+          <p className="mb-3 text-sm text-muted-foreground">
+            Manual override — when any of these three are set, they replace the TVPI/DPI slots above and Gross IRR is
+            hidden for this fund everywhere its Performance card renders. Clear all three to go back to Molly&apos;s
+            own computed numbers.
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Input label="Gross MOIC" type="number" step="0.01" value={overrideGrossMoic} onChange={(e) => setOverrideGrossMoic(e.target.value)} />
+            <Input label="Net TVPI" type="number" step="0.01" value={overrideNetTvpi} onChange={(e) => setOverrideNetTvpi(e.target.value)} />
+            <Input label="Net DPI" type="number" step="0.01" value={overrideNetDpi} onChange={(e) => setOverrideNetDpi(e.target.value)} />
+          </div>
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" onClick={handleSaveOverrides} disabled={savingOverrides}>
+              {savingOverrides ? "Saving..." : "Save"}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setEditingOverrides(false)} disabled={savingOverrides}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button variant="secondary" size="sm" className="mb-6" onClick={openEditOverrides}>
+          Edit performance override
+        </Button>
+      )}
 
       <div className="mb-6 flex gap-1 overflow-x-auto border-b">
         {tabs.map((tab) => (

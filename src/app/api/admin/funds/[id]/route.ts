@@ -57,6 +57,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       firstDealDate: fund.firstDealDate,
       aumUsd: fund.aumUsd !== null ? Number(fund.aumUsd) : null,
       sortOrder: fund.sortOrder,
+      // Part 15, WS37.3 — manual performance override fields (Q46-Q52),
+      // same Decimal -> number|null pattern as aumUsd above.
+      grossMoicOverride: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
+      netTvpiOverride: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
+      netDpiOverride: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
       createdAt: fund.createdAt,
       updatedAt: fund.updatedAt,
       // Part 10, WS27.5: sheetsSyncEnabled surfaced alongside each deal's
@@ -122,6 +127,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       firstDealDate?: Date | null;
       aumUsd?: number | null;
       sortOrder?: number;
+      grossMoicOverride?: number | null;
+      netTvpiOverride?: number | null;
+      netDpiOverride?: number | null;
     } = {};
 
     if (body.name !== undefined) {
@@ -137,10 +145,31 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (body.sortOrder !== undefined && typeof body.sortOrder === "number") data.sortOrder = body.sortOrder;
     // slug is immutable — the import key, and never shown to LPs
 
+    // Part 15, WS37.3 — manual performance override fields (Q46-Q52, JC-C: no
+    // domain-specific bounds check, matching aumUsd's own lack of one above).
+    for (const field of ["grossMoicOverride", "netTvpiOverride", "netDpiOverride"] as const) {
+      if (body[field] === undefined) continue;
+      if (body[field] === null || body[field] === "") {
+        data[field] = null;
+        continue;
+      }
+      const n = Number(body[field]);
+      if (!Number.isFinite(n)) {
+        return NextResponse.json({ error: `${field} must be a number.` }, { status: 400 });
+      }
+      data[field] = n;
+    }
+
     const fund = await db.fund.update({ where: { id }, data });
 
     await logAdminAction(user!, "FUND_UPDATED", { targetType: "Fund", targetId: id, metadata: data as Record<string, unknown> });
-    return NextResponse.json({ ...fund, aumUsd: fund.aumUsd !== null ? Number(fund.aumUsd) : null });
+    return NextResponse.json({
+      ...fund,
+      aumUsd: fund.aumUsd !== null ? Number(fund.aumUsd) : null,
+      grossMoicOverride: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
+      netTvpiOverride: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
+      netDpiOverride: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+    });
   } catch (err) {
     console.error("PATCH /api/admin/funds/[id] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

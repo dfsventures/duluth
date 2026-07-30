@@ -97,7 +97,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
               valuationAsOf: d.valuationAsOf,
             })),
-            fund.cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) }))
+            fund.cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) })),
+            // Part 15, WS37.6 — manual performance override (Q46-Q52),
+            // already present on `fund` since the findUnique above has no
+            // `select`.
+            {
+              grossMoic: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
+              netTvpi: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
+              netDpi: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+            }
           );
           await tx.fundReportFundSnapshot.create({
             data: { reportId: id, fundId: report.fundId, fundName: fund.name, snapshot: snapshot as unknown as object },

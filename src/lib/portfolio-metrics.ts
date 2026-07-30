@@ -335,20 +335,34 @@ export interface FundSnapshotDealRow {
   valuationAsOf: string | null; // JC-D — included even though Q41-A's literal list didn't name it
 }
 
+// Part 15, WS37.2 — a fund's manual performance override (Q46/Q47). Deliberately
+// NOT part of FundPerformance/computeFundPerformance()'s own shape — that
+// function stays a pure, byte-identical computation from deals/cashflows
+// (ground rule 1). Callers that have a fund's override columns attach this
+// as a sibling field when building the payload.
+export interface FundPerformanceOverride {
+  grossMoic: number | null;
+  netTvpi: number | null;
+  netDpi: number | null;
+}
+
 export interface FundSnapshotPayload {
   fundName: string; // never fund.slug — finding #3
   performance: FundPerformance;
+  performanceOverride: FundPerformanceOverride | null; // Part 15 — null for every fund but CAF1 today
   deals: FundSnapshotDealRow[];
 }
 
 export function buildFundReportSnapshot(
   fundName: string,
   deals: (FundSnapshotDealInput & { companyName: string })[],
-  cashflows: FundPerformanceCashflow[]
+  cashflows: FundPerformanceCashflow[],
+  performanceOverride: FundPerformanceOverride | null = null
 ): FundSnapshotPayload {
   return {
     fundName,
     performance: computeFundPerformance(deals, cashflows),
+    performanceOverride,
     deals: deals.map((d) => ({
       companyName: d.companyName,
       investmentType: d.investmentType,

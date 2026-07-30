@@ -29,6 +29,12 @@ interface FundPerformanceCardProps {
    * passes false.
    */
   showCaveat?: boolean;
+  /** Part 15, WS37.5 — a fund's manual override (Q46/Q47/Q49/Q50). `null`/absent
+   * for every fund except CAF1 today; when at least one field is non-null
+   * (JC-B), the card switches into override mode: Gross MOIC / Net TVPI /
+   * Net DPI replace TVPI/DPI and Gross IRR is hidden. Invested and Implied
+   * Value are unaffected either way. */
+  overrides?: { grossMoic: number | null; netTvpi: number | null; netDpi: number | null } | null;
 }
 
 function multipleLabel(multiple: number | null): string {
@@ -45,7 +51,11 @@ function multipleLabel(multiple: number | null): string {
  * passes `deals` to also render the full per-deal table (Q41-A), so the two
  * surfaces render identical markup for the stats they share.
  */
-export function FundPerformanceCard({ performance, deals, fundName, showCaveat = true }: FundPerformanceCardProps) {
+export function FundPerformanceCard({ performance, deals, fundName, showCaveat = true, overrides }: FundPerformanceCardProps) {
+  // Part 15, WS37.5, JC-B — "override active" is "at least one field is
+  // non-null," not "all three or none." A partial save already switches
+  // the card into override mode, showing "—" for the missing field(s).
+  const overrideActive = !!overrides && (overrides.grossMoic !== null || overrides.netTvpi !== null || overrides.netDpi !== null);
   return (
     <div className="mb-6 rounded-md border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -61,25 +71,44 @@ export function FundPerformanceCard({ performance, deals, fundName, showCaveat =
           <p className="text-xs text-muted-foreground">Implied Value{showCaveat && !performance.dilutionAware ? " *" : ""}</p>
           <p className="font-mono text-lg font-semibold">${Math.round(performance.impliedValue).toLocaleString()}</p>
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">TVPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
-          <p className="font-mono text-lg font-semibold">{performance.tvpi !== null ? `${performance.tvpi.toFixed(2)}x` : "—"}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">DPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
-          <p className="font-mono text-lg font-semibold">{performance.dpi !== null ? `${performance.dpi.toFixed(2)}x` : "—"}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Gross IRR</p>
-          <p className="font-mono text-lg font-semibold" title={performance.grossIrr === null ? "Doesn't converge with the cashflow data recorded so far" : undefined}>
-            {performance.grossIrr !== null ? `${(performance.grossIrr * 100).toFixed(1)}%` : "—"}
-          </p>
-        </div>
+        {overrideActive ? (
+          <>
+            <div>
+              <p className="text-xs text-muted-foreground">Gross MOIC</p>
+              <p className="font-mono text-lg font-semibold">{overrides!.grossMoic !== null ? `${overrides!.grossMoic.toFixed(2)}x` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Net TVPI</p>
+              <p className="font-mono text-lg font-semibold">{overrides!.netTvpi !== null ? `${overrides!.netTvpi.toFixed(2)}x` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Net DPI</p>
+              <p className="font-mono text-lg font-semibold">{overrides!.netDpi !== null ? `${overrides!.netDpi.toFixed(2)}x` : "—"}</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="text-xs text-muted-foreground">TVPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
+              <p className="font-mono text-lg font-semibold">{performance.tvpi !== null ? `${performance.tvpi.toFixed(2)}x` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">DPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
+              <p className="font-mono text-lg font-semibold">{performance.dpi !== null ? `${performance.dpi.toFixed(2)}x` : "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Gross IRR</p>
+              <p className="font-mono text-lg font-semibold" title={performance.grossIrr === null ? "Doesn't converge with the cashflow data recorded so far" : undefined}>
+                {performance.grossIrr !== null ? `${(performance.grossIrr * 100).toFixed(1)}%` : "—"}
+              </p>
+            </div>
+          </>
+        )}
       </div>
       {showCaveat && (
         <p className="mt-3 text-xs text-muted-foreground">
           Admin-only estimate; gross of fees unless FEE cashflow rows are recorded.
-          {performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
+          {!overrideActive && performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
           {!performance.dilutionAware && " * Implied value assumes zero dilution (no ownership % recorded on these deals yet)."}
         </p>
       )}

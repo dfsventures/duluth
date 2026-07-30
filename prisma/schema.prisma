@@ -483,6 +483,17 @@ model Fund {
   firstDealDate DateTime?
   aumUsd        Decimal?
   sortOrder     Int       @default(0)
+
+  // Part 15, WS37.1 — manual admin-entered performance overrides (Q46–Q52).
+  // Generic per-fund (Q47), independently nullable so an admin can fill
+  // these in incrementally; populated for CAF1 only today. No "as of"/
+  // provenance column (Q51 — no separate staleness note; FUND_UPDATED
+  // audit rows already timestamp every change if that history is ever
+  // needed).
+  grossMoicOverride Decimal?
+  netTvpiOverride   Decimal?
+  netDpiOverride    Decimal?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 

@@ -271,4 +271,21 @@ describe("buildFundReportSnapshot", () => {
       expect(key.toLowerCase()).not.toMatch(/sync|sheet/);
     }
   });
+
+  // Part 15, WS37.2 — the 4th, optional `performanceOverride` parameter.
+  // Sibling field on the payload, not mixed into `performance` itself.
+  it("defaults performanceOverride to null when the 4th argument is omitted (byte-identical to pre-Part-15 output)", () => {
+    const snapshot = buildFundReportSnapshot("Test Fund I", [dealInput], []);
+    expect(snapshot.performanceOverride).toBeNull();
+  });
+
+  it("attaches a populated override as a sibling field, leaving `performance` untouched", () => {
+    const override = { grossMoic: 2.5, netTvpi: 2.1, netDpi: 0.8 };
+    const snapshot = buildFundReportSnapshot("Test Fund I", [dealInput], [], override);
+    expect(snapshot.performanceOverride).toEqual(override);
+    // The computed performance block is identical to the no-override call —
+    // the override never feeds into computeFundPerformance().
+    const withoutOverride = buildFundReportSnapshot("Test Fund I", [dealInput], []);
+    expect(snapshot.performance).toEqual(withoutOverride.performance);
+  });
 });
