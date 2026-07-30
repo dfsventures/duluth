@@ -3346,3 +3346,391 @@ Full outcome detail, quality-gate results, and the consolidated user click-throu
 ## Part 13 roadmap bookkeeping (shipped 2026-07-21)
 
 `ROADMAP.md`'s top "_Last updated_" line and the "Roadmap" section's Part 13 pointer were updated to "shipped 2026-07-21" (mirroring the Part 11/12 entries), and the Deal Ledger table's existing "Cross-fund portfolio views + ledger CRUD" bullet under "Existing Features" got a short addendum noting the density/navigation-cue polish rather than a new bullet.
+
+---
+
+# Part 14 — Fund Performance Snapshot in LP Reports (WS33–WS36)
+
+_Added 2026-07-29, from the user's request to add a fund-level performance snapshot (invested/implied value/TVPI/DPI/gross IRR + the full deal table, as seen on `/admin/funds/[id]`) into an LP report letter — the same screenshot the admin fund page itself renders. Reviewed against the working tree before any decision was asked for (see Q40–Q45 below); every claim in this Part was verified against real files, not assumed from the screenshot. Same hard constraints as every prior Part: **no new cost lines**, **no UX regressions** (founder/investor surfaces untouched; the admin fund page's own Performance card is extraction-only, pixel-identical after this ships), **additive-only schema changes** via the house `db push` procedure._
+
+## Decisions Q40–Q45 — all answered by the user 2026-07-29
+
+> **Q40 = A** — Expose all five Performance stats (Invested, Implied Value, TVPI, DPI, Gross IRR) to LPs exactly as admins see them, but **only** inside a report the admin explicitly builds for that fund's own LPs — a narrow, explicit carve-out of the Q23 admin-only wall, not a general reversal. Nothing else that reads `portfolio-metrics.ts` becomes LP-visible.
+> **Q41 = A** — Full per-deal table (company/type/date/amount/instrument/entry valuation/current valuation/multiple), a straight embed of what's on the admin fund page — not a rolled-up summary.
+> **Q42** — No "synced from sheet" provenance badges reach LPs. Confirmed obviously out of scope, no pushback.
+> **Q43** — No fund-picker needed. A report is always scoped to exactly one fund (`FundReport.fundId`, required, no multi-fund concept anywhere in the schema); the snapshot is always of that report's own fund. Confirmed, no pushback.
+> **Q44 = A** — Re-freeze on every publish, matching the existing `@company` mention behavior exactly (delete-and-recreate the frozen row each publish).
+> **Q45 = A** — A visible block rendered inline at the cursor position in the letter — not a hover chip (the mention pattern) and not a fixed-position toggle. A new editor toolbar button inserts it.
+
+## Part 14 ground rules (carry-over + additions)
+
+All prior-Part ground rules apply (additive `db push` before code; `export const dynamic = "force-dynamic"` on route files; never change existing response shapes; `npm run typecheck && npm run lint && npm test` before every push; one workstream per commit-and-verify cycle). Additions:
+
+1. **The Q23 admin-only wall stays intact everywhere except the one explicit exception this Part ships.** `computeFundPerformance`/`buildFundReportSnapshot` may only ever be invoked for `report.fundId` — never a client-suppliable fund id, never from `src/app/lp/**` or `src/api/share/**` directly (those surfaces only *read* an already-frozen row scoped to the report they already have access to). Acceptance checklists below include an explicit grep guard for this.
+2. **`Fund.slug` never reaches the payload.** The schema itself documents `slug` as "never shown to LPs" (finding #3) — the new snapshot carries `fund.name` only.
+3. **Frozen `FundReportMention`/`MentionSnapshot` shape and the hover-card rendering path are untouched.** Nothing in this Part changes `report-snapshot.ts`'s existing mention functions, `mention-cards.tsx`, or the WS17.2 snapshot shape — this is a second, independent freeze living alongside the first, not a modification of it.
+4. **CONFIDENTIALITY — unchanged.** The repo is public; no real valuation/LP data enters git. All new tests use synthetic fixtures, same as every prior Part.
+
+## Part 14 review findings
+
+1. **The admin Performance card's numbers are computed inline, not through a reusable function.** `src/app/api/admin/funds/[id]/route.ts:37-80` builds `invested`/`impliedValue`/`tvpi`/`dpi`/`grossIrr` directly from `portfolio-metrics.ts`'s primitives (`positionValue`, `computePaidIn`, `tvpi`, `dpi`, `fundFlows`, `xirr`) inline in the route handler — there is no single `computeFundPerformance()`-shaped function today. To actually "reuse `portfolio-metrics.ts`'s existing functions" (rather than write a third copy of this ~30-line block for the report-freeze path), WS33 extracts it into the module and refactors the existing route to call it — a byte-identical-output refactor, not a behavior change.
+2. **Company mentions never render numbers inline in the letter — this is a materially different UI pattern, not a reuse of one.** `src/components/ui/portco-mention.ts` stores only a name-bearing `<span data-portco>`; the frozen numbers live in a separate `FundReportMention.snapshot` row, revealed only via a hover/click popover (`src/components/mention-cards.tsx`). Q45-A is correctly a new, always-visible block — it reuses the mention pattern's *plumbing shape* ("marker in the stored HTML" + "frozen JSON row alongside it," same delete-and-recreate freeze semantics) but not its *visual* behavior.
+3. **`Fund.slug`'s schema comment is explicit: "never shown to LPs."** (`prisma/schema.prisma`, `Fund.slug`). Confirmed as a hard constraint on the new payload (ground rule 2), not a new one this Part invents.
+4. **`FundReport` is single-fund-scoped everywhere — no multi-fund concept exists.** `fundId String` is required on `FundReport`, with no join table or array anywhere in the schema, and the report editor (`admin/reports/[id]/page.tsx`) only ever knows one `report.fund`. Confirms Q43: there is exactly one fund a report's snapshot can be, so no picker UI is needed — only an insert affordance.
+5. **No `ReactNodeViewRenderer`/`NodeViewWrapper` precedent exists anywhere in this codebase** (grep-verified across `src/`). Every existing TipTap extension (`Image`, `Link`, the portco mention) renders via plain `renderHTML` markup, not a live React component inside the editing surface. WS34 follows that same precedent — a static placeholder marker while drafting, with the real stat-strip-plus-table rendering only in `ReportView` (never inside the editor itself) — rather than introduce this codebase's first NodeView. Flagged as JC-A below, with a documented, cheap upgrade path if true in-editor WYSIWYG is wanted later.
+
+## Part 14 judgment calls (flagged per protocol — each with a cheap reversal)
+
+- **JC-A — Editor-time rendering is a static placeholder, not a live in-editor preview** (finding #5). The inserted block shows "Fund performance snapshot — {fund} (updates when published)" while drafting; the real numbers only render in Preview (still live-computed, matching the existing mention-preview convention) and on the published/LP pages. Reversal: swap the node's `renderHTML` for a `ReactNodeViewRenderer` later — the frozen-data model and freeze timing don't change either way, this only affects what the block looks like while composing.
+- **JC-B — The deal table inside `ReportView` reuses the exact `Table`/`TableHead`/`Th`/`TableRow` primitives (WS30/31)** the admin fund page already uses, rather than a letter-styled variant — same bordered/`bg-muted` treatment, which may read as a bit "admin-chrome" inside an otherwise plain-prose letter. Reversal: a scoped CSS override later if it looks visually inconsistent once live; not blocking on this Part.
+- **JC-C — The toolbar button doesn't prevent a second insertion.** An admin can insert the marker more than once; every instance renders the same frozen payload (harmless duplication, not a second data source). Reversal: one-line guard (`editor.getHTML().includes('data-fund-snapshot')`) to disable the button after first use, if duplicate blocks turn out to be an actual footgun in practice.
+- **JC-D — The per-deal table includes the "As of" (valuation date) column**, even though Q41-A's literal enumeration named 8 columns without it. It's already computed, already shown on the admin page, and dropping it felt like an arbitrary trim of "a straight embed of what's on the admin fund page." Reversal: delete one `<Th>`/`<td>` pair if you'd rather match the literal 8-column list.
+
+---
+
+## WS33 — Schema + pure fund-snapshot builder, reusing `portfolio-metrics.ts` (~1–1.5 days)
+
+**Goal:** additive schema for a frozen fund-level snapshot, plus the pure, unit-tested logic that builds it — extracted once (finding #1) so the admin route, the publish freeze (WS35), and the draft-preview live-compute (WS35) all call the same function instead of a third copy of the Performance-card math.
+
+### WS33.1 Schema (additive — `db push` per house procedure before code)
+
+```prisma
+model FundReportFundSnapshot {
+  id        String   @id @default(cuid())
+  reportId  String   @unique // one snapshot per report — reports are single-fund scoped (Q43/finding #4)
+  fundId    String
+  fundName  String   // display name frozen at publish — never fund.slug (finding #3 / ground rule 2)
+  snapshot  Json     // shape: FundSnapshotPayload, WS33.3
+  createdAt DateTime @default(now())
+
+  report FundReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fund   Fund       @relation(fields: [fundId], references: [id], onDelete: Cascade)
+
+  @@map("fund_report_fund_snapshots")
+}
+```
+
+Add back-relations: `FundReport.fundSnapshot FundReportFundSnapshot?` and `Fund.reportSnapshots FundReportFundSnapshot[]`.
+
+### WS33.2 Extract `computeFundPerformance()` into `src/lib/portfolio-metrics.ts`
+
+Move the inline block from `src/app/api/admin/funds/[id]/route.ts:37-80` into a new pure function, same inputs/outputs, zero behavior change:
+
+```ts
+export interface FundPerformance {
+  invested: number;
+  impliedValue: number;
+  dilutionAware: boolean;
+  paidIn: number;
+  approximate: boolean;
+  tvpi: number | null;
+  dpi: number | null;
+  grossIrr: number | null;
+  asOf: Date;
+}
+
+export function computeFundPerformance(
+  deals: {
+    amountUsd: number;
+    entryValuation: number | null;
+    currentValuation: number | null;
+    ownershipPct: number | null;
+    dealDate: Date;
+    valuationAsOf: Date | null;
+  }[],
+  cashflows: { kind: string; date: Date; amountUsd: number }[]
+): FundPerformance {
+  // Byte-identical to the current route body: invested = Σ amountUsd; the
+  // positionValue() loop for impliedValue/dilutionAware; distributions +
+  // capitalCallAmounts -> computePaidIn(); asOf = latest valuationAsOf ?? now;
+  // grossIrr via fundFlows() + xirr(). Moved, not rewritten.
+}
+```
+
+`src/app/api/admin/funds/[id]/route.ts` calls `computeFundPerformance(fund.deals, fund.cashflows)` instead of inlining the block — refactor only; verify the JSON response is byte-identical in the acceptance checklist.
+
+### WS33.3 `buildFundReportSnapshot()` — the frozen payload (Q40-A stats + Q41-A full deal table)
+
+```ts
+export interface FundSnapshotDealRow {
+  companyName: string;
+  investmentType: string;
+  dealDate: string; // ISO
+  amountUsd: number;
+  instrument: string | null;
+  entryValuationUsd: number | null;
+  currentValuationUsd: number | null;
+  multiple: number | null; // reuses computeMultiple from report-snapshot.ts
+  valuationAsOf: string | null; // JC-D
+}
+
+export interface FundSnapshotPayload {
+  fundName: string; // never fund.slug — finding #3
+  performance: FundPerformance;
+  deals: FundSnapshotDealRow[];
+}
+
+export function buildFundReportSnapshot(
+  fundName: string,
+  deals: (FundSnapshotDealInput & { companyName: string })[],
+  cashflows: { kind: string; date: Date; amountUsd: number }[]
+): FundSnapshotPayload {
+  return {
+    fundName,
+    performance: computeFundPerformance(deals, cashflows),
+    deals: deals.map((d) => ({
+      companyName: d.companyName,
+      investmentType: d.investmentType,
+      dealDate: d.dealDate.toISOString(),
+      amountUsd: d.amountUsd,
+      instrument: d.instrument,
+      entryValuationUsd: d.entryValuation,
+      currentValuationUsd: d.currentValuation,
+      multiple: computeMultiple(d.entryValuation, d.currentValuation),
+      valuationAsOf: d.valuationAsOf ? d.valuationAsOf.toISOString() : null,
+      // Deliberately no sheetRowId / "synced from sheet" field of any kind —
+      // Q42 is held structurally (the type has no such key), not just hidden
+      // by the renderer.
+    })),
+  };
+}
+```
+
+### WS33.4 `src/lib/report-snapshot.ts` — marker detection
+
+Sibling of `extractMentionIds`:
+
+```ts
+export function hasFundSnapshotMarker(html: string): boolean {
+  return /data-fund-snapshot="true"/.test(html);
+}
+```
+
+### WS33.5 Tests
+
+`portfolio-metrics.test.ts` gains: `computeFundPerformance` verified against the same fixtures already used to hand-verify the existing route (reuse, don't re-derive); `buildFundReportSnapshot` asserted to never produce an object with a `sheetRowId`/provenance key even when fed a deal fixture that has one (Q42 structural guard, not a UI-only check).
+
+**WS33 acceptance checklist**
+- [ ] `npx prisma db push` clean against prod (additive only — verify no drop statements in the diff preview)
+- [ ] `GET /api/admin/funds/[id]`'s `performance` object is byte-identical before/after the WS33.2 refactor (diff a real fund's response)
+- [ ] `computeFundPerformance` / `buildFundReportSnapshot` / `hasFundSnapshotMarker` unit-tested; `npm run typecheck && npm run lint && npm test` green
+- [ ] `buildFundReportSnapshot`'s output type carries no `sheetRowId`/"synced" field under any input — Q42 held structurally
+- [ ] Grep guard: at this point in the plan, `computeFundPerformance`/`buildFundReportSnapshot` are imported only from `src/app/api/admin/**` (WS35 adds the publish-route and preview-route imports next; nothing under `src/app/lp/**` yet)
+
+**UX impact:** none — schema-only, plus a same-output refactor. **Cost impact:** none. **Schema:** 1 new table (`fund_report_fund_snapshots`) + 2 relation fields, all additive.
+
+## WS34 — Editor: fund-snapshot block node + toolbar button (~1 day)
+
+**Goal:** an admin can insert a visible "fund performance snapshot" block at the cursor in a report letter (Q45-A), scoped to the report's own fund only (Q43/finding #4 — no picker needed).
+
+### WS34.1 `src/components/ui/fund-snapshot-node.ts` (new)
+
+A plain TipTap block atom node — the same "marker now, real render later" shape as `portco-mention.ts`, but block-level and always-visible, with no Suggestion/picker machinery (there's only one fund to insert), following the `Image` node's precedent (finding #5) rather than introducing this codebase's first NodeView:
+
+```ts
+import { Node, mergeAttributes } from "@tiptap/core";
+
+export const FundSnapshotNode = Node.create({
+  name: "fundSnapshot",
+  group: "block",
+  atom: true,
+  selectable: true,
+
+  addAttributes() {
+    return {
+      fundId: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-fund-id"),
+        renderHTML: (attrs: { fundId?: string | null }) => ({ "data-fund-id": attrs.fundId }),
+      },
+      fundName: {
+        default: null,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-fund-name"),
+        renderHTML: (attrs: { fundName?: string | null }) => ({ "data-fund-name": attrs.fundName }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-fund-snapshot]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, { "data-fund-snapshot": "true", class: "fund-snapshot-block" }),
+      `Fund performance snapshot — ${HTMLAttributes["data-fund-name"] ?? "this fund"} (updates when published)`,
+    ];
+  },
+});
+```
+
+Editor-time content is a static placeholder only (JC-A) — the real stat-strip-plus-table never renders inside the editing surface itself, only in Preview (still live, WS35) and on the published/LP pages (WS36).
+
+### WS34.2 `src/components/ui/rich-editor.tsx` — new optional prop + toolbar button
+
+```ts
+interface RichEditorProps {
+  // ...existing props...
+  /** Report-editor-only: adds an "Insert fund snapshot" toolbar button that
+   * drops a fundSnapshot node for this fund (Part 14, WS34). Undefined for
+   * every other caller (update composer, templates, company notes) — zero
+   * visual or behavioral change there. */
+  fundSnapshot?: { id: string; name: string };
+}
+```
+
+`FundSnapshotNode` joins the base `extensions` array unconditionally (tiny, no picker deps — same posture as `Image`/`Link` always being present regardless of caller). The toolbar gains one conditional button after the existing groups:
+
+```tsx
+{fundSnapshot && (
+  <>
+    <div className="mx-1 h-5 w-px bg-border" />
+    <ToolbarButton
+      onClick={() =>
+        editor
+          .chain()
+          .focus()
+          .insertContent({ type: "fundSnapshot", attrs: { fundId: fundSnapshot.id, fundName: fundSnapshot.name } })
+          .run()
+      }
+      title="Insert fund snapshot"
+    >
+      <BarChart3 className="h-4 w-4" />
+    </ToolbarButton>
+  </>
+)}
+```
+
+### WS34.3 `src/app/admin/reports/[id]/page.tsx` wiring
+
+Pass `fundSnapshot={{ id: report.fund.id, name: report.fund.name }}` to `RichEditor` alongside the existing `extraExtensions={extraExtensions}`. Optionally add a line near the existing "@ to mention" hint: "Use the chart icon in the toolbar to insert this fund's performance snapshot."
+
+### WS34.4 Minimal editor-view styling
+
+`.fund-snapshot-block` gets a light dashed-border placeholder treatment scoped to the editor's own CSS — distinguishes it from a plain paragraph and signals it's a selectable/deletable unit (`atom: true`/`selectable: true`). Cosmetic only, not the real render.
+
+**WS34 acceptance checklist**
+- [ ] Toolbar button inserts one `fundSnapshot` block at the cursor; the block is selectable/deletable as a unit; reopening the draft round-trips the marker correctly (`parseHTML`'s `div[data-fund-snapshot]` matches `renderHTML`'s output)
+- [ ] Every other `RichEditor` caller (update composer, templates editor, company-notes editor) renders byte-identically — `fundSnapshot` prop absent, no new toolbar button, no new extension side effects
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] 375px: the placeholder block doesn't overflow its container (plain block-level div at this stage, no table yet — nothing new to break)
+
+**UX impact:** additive — one new toolbar button, visible only on the fund-report editor. **Cost impact:** none. **Schema:** none (WS33's).
+
+## WS35 — Publish-time freeze + draft-preview live compute (~0.75–1 day)
+
+**Goal:** publishing a report with a fund-snapshot marker freezes `FundReportFundSnapshot` in the same transaction as the mention freeze (mirroring the existing mention delete-and-recreate, so republish always re-freezes — Q44-A); the draft preview computes it live, matching the existing mention-preview convention (Q13's "next publish re-freezes fresh numbers regardless of what this preview showed").
+
+### WS35.1 `src/app/api/admin/reports/[id]/publish/route.ts`
+
+Inside the existing `$transaction`, alongside the mention `deleteMany`/create loop:
+
+```ts
+await tx.fundReportFundSnapshot.deleteMany({ where: { reportId: id } });
+if (hasFundSnapshotMarker(report.body)) {
+  const fund = await tx.fund.findUnique({
+    where: { id: report.fundId }, // never a client-suppliable id — ground rule 1
+    include: { deals: { include: { portfolioCompany: { select: { name: true } } } }, cashflows: true },
+  });
+  const snapshot = buildFundReportSnapshot(
+    fund!.name,
+    fund!.deals.map((d) => ({
+      companyName: d.portfolioCompany.name,
+      investmentType: d.investmentType,
+      dealDate: d.dealDate,
+      amountUsd: Number(d.amountUsd),
+      instrument: d.instrument,
+      entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
+      currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
+      valuationAsOf: d.valuationAsOf,
+    })),
+    fund!.cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) }))
+  );
+  await tx.fundReportFundSnapshot.create({
+    data: { reportId: id, fundId: report.fundId, fundName: fund!.name, snapshot: snapshot as unknown as object },
+  });
+}
+```
+
+Always deletes first (handles "marker removed before republish" the same way mentions already do), and always keys off `report.fundId` — never a fund id read from the request body — closing the "could this ever freeze a different fund's numbers into this report" question structurally.
+
+### WS35.2 `src/app/admin/reports/[id]/preview/page.tsx`
+
+Mirror the existing mention live-compute block: if `hasFundSnapshotMarker(report.body)`, fetch `report.fund`'s deals/cashflows and call `buildFundReportSnapshot()` live (never frozen in preview), pass the result as a new `fundSnapshot` prop to `ReportView`.
+
+### WS35.3 `src/app/lp/reports/[id]/page.tsx`
+
+Add `fundSnapshot: { select: { fundName: true, snapshot: true } }` to the existing `fundReport.findUnique` include; pass it to `ReportView` if present. No new query surface and no fund-id parameter accepted from the client anywhere in this file — the only fund ever readable here remains `report.fundId`, gated by the unchanged existing membership check (`ctx.fundIds.includes(report.fundId)`).
+
+**WS35 acceptance checklist**
+- [ ] Publish a report with the marker → a `FundReportFundSnapshot` row is created with `fundId === report.fundId`, always
+- [ ] Publish a report without the marker → no row created (and the `deleteMany` is a no-op)
+- [ ] Insert the marker into an already-published report, unpublish, republish → the row is recreated (deleted-and-recreated, matching mention behavior) with fresh numbers if the underlying deal data changed since (Q44-A)
+- [ ] Remove the marker from a previously-snapshotted report, republish → the row is deleted (no orphaned frozen data left behind)
+- [ ] Draft preview shows live-computed numbers that change immediately after editing a deal's valuation elsewhere, exactly like mention hover cards do today
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] **Grep guard (admin-only wall, explicitly required):** `computeFundPerformance`/`buildFundReportSnapshot` are never imported from `src/app/lp/**` or `src/app/api/share/**` — the LP route only ever reads the already-frozen `FundReportFundSnapshot` row scoped to `report.fundId`; it never computes anything live and never accepts a fund id of its own
+- [ ] Manually attempt to view another fund's snapshot data via a report you don't have LP access to → identical 404 to today (membership check unchanged — confirm by reading the diff, not just by not testing it)
+
+**UX impact:** none until WS36 renders the frozen data — this WS is data plumbing only. **Cost impact:** none. **Schema:** none (WS33's).
+
+## WS36 — Shared rendering: `<FundPerformanceCard>` extraction + `<FundSnapshotBlock>` in `ReportView` (~1–1.5 days)
+
+**Goal:** the LP report page and the admin preview page render the exact same Performance-card-plus-deal-table markup the admin fund page shows (Q40-A/Q41-A), inline at the marker's position in the letter (Q45-A), using the existing scrollable-table Pattern A for the narrower `max-w-2xl` letter width.
+
+### WS36.1 Extract `src/components/fund-performance-card.tsx`
+
+Pull the JSX at `src/app/admin/funds/[id]/page.tsx:462-497` (the Performance card) into a shared component taking the same shape (now `FundPerformance` from WS33.2) as a prop; the admin fund page imports and renders it unchanged (byte-identical output — extraction, not a redesign). Add an optional `deals?: FundSnapshotDealRow[]` prop — when present, renders the full per-deal table (Q41-A) beneath the stat strip using the existing `Table`/`TableHead`/`Th`/`TableRow` primitives (JC-B) wrapped in `overflow-x-auto` with an explicit `min-w-[720px]` (Pattern A). The admin fund page's own Deals tab keeps its existing separate table unchanged — that one still needs the "synced from sheet" column and sortable headers, which are Deal-Ledger-specific and out of scope for this shared component.
+
+### WS36.2 `src/components/fund-snapshot-block.tsx` (new — sibling of `mention-cards.tsx`)
+
+```tsx
+"use client";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { FundPerformanceCard } from "@/components/fund-performance-card";
+import type { FundSnapshotPayload } from "@/lib/portfolio-metrics";
+
+export function FundSnapshotBlock({ data }: { data: FundSnapshotPayload | null }) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setTarget(document.querySelector<HTMLElement>(".report-body [data-fund-snapshot]"));
+  }, [data]);
+
+  if (!data || !target) return null;
+  return createPortal(
+    <FundPerformanceCard performance={data.performance} deals={data.deals} fundName={data.fundName} />,
+    target
+  );
+}
+```
+
+Same "find the marker after mount, render the real thing over it" shape as `MentionCards`, but a portal into the marker element rather than hand-built DOM — the real content here is a full React component tree (stat strip + table), not four lines of text.
+
+### WS36.3 `src/components/report-view.tsx`
+
+Add `fundSnapshot?: FundSnapshotPayload | null` to `ReportViewProps`; render `<FundSnapshotBlock data={fundSnapshot ?? null} />` alongside the existing `<MentionCards mentions={mentions} />`.
+
+### WS36.4 Wire the three callers
+
+- `src/app/lp/reports/[id]/page.tsx` (WS35.3): pass `fundSnapshot={report.fundSnapshot ? { fundName: report.fundSnapshot.fundName, ...(report.fundSnapshot.snapshot as FundSnapshotPayload) } : null}`
+- `src/app/admin/reports/[id]/preview/page.tsx` (WS35.2): pass the live-computed payload
+- `src/app/admin/funds/[id]/page.tsx`: swap its inline Performance JSX for `<FundPerformanceCard performance={fund.performance} />` (no `deals` prop — its own Deals tab below is unaffected and keeps the sync badge/inline-edit features that are out of scope for the shared component)
+
+**WS36 acceptance checklist**
+- [ ] `/admin/funds/[id]`'s Performance card renders pixel-identical after the extraction (before/after screenshot)
+- [ ] A published report with a fund-snapshot marker shows the stat strip + full deal table inline, in the letter's normal reading flow, on both `/lp/reports/[id]` and `/admin/reports/[id]/preview` — byte-identical between the two (mirrors the existing "preview is honest" guarantee)
+- [ ] The deal table never renders a "synced from sheet" badge or any sheet-provenance indicator (Q42) — confirmed both by the payload's own shape (WS33.5) and visually
+- [ ] The deal table scrolls horizontally inside its own container at 375px (Pattern A) rather than squeezing the narrower `max-w-2xl` letter width; the stat strip stacks using the same base grid classes already used on the admin page (carried over verbatim by the extraction)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Live-verified on `molly.dfslab.net`: publish a real report with a snapshot block, view it as an actual LP session, confirm the numbers match the fund's live admin Performance card at the moment of publish
+
+**UX impact:** additive on the LP/admin-preview surfaces (a new, deliberately-inserted block only ever appears where an admin explicitly added it); the admin fund page's own Performance card is visually unchanged (extraction only). **Cost impact:** none. **Schema:** none (WS33's).
+
+## Part 14 sequencing
+
+WS33 unblocks everything else (schema + the pure builder that both WS35 and WS36 depend on). WS34 (editor node/toolbar) has no dependency on WS33 and can be built in parallel. WS35 needs WS33's builder and WS34's marker/attribute name to exist before it's meaningful. WS36 needs WS33's payload shape decided but can start once that's settled, in parallel with WS35. Recommended order: **WS33 → WS34 → WS35 → WS36**, one commit-and-verify cycle each (quality gates green, live-verified on `molly.dfslab.net` before starting the next workstream) — overall effort **~4–5 days**, comparable in scale to Part 10's WS24–26 batch.
+
+## Part 14 roadmap bookkeeping (to do once shipped)
+
+Once WS33–WS36 ship: annotate the "Fund Report authoring" bullet under Admin Features in `ROADMAP.md` with the new insertable fund-performance-snapshot block (Q40-A/Q41-A/Q44-A/Q45-A) and its scope (that report's own fund only, no sheet-provenance data, freezes and re-freezes with every publish exactly like company mentions); update the top `_Last updated_` line and flip the "Next up" pointer below to "shipped," following the exact pattern used for Parts 11–13.
