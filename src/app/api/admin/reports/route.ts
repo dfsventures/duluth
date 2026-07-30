@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { extractMentionIds } from "@/lib/report-snapshot";
 
 export async function GET(request: Request) {
   try {
@@ -30,7 +31,15 @@ export async function GET(request: Request) {
         publishedAt: r.publishedAt,
         createdAt: r.createdAt,
         fund: r.fund,
-        mentionCount: r._count.mentions,
+        // FundReportMention rows only exist once a report has been
+        // published (they're frozen at publish, per WS35/the older Q13
+        // mention-freeze design). For any report currently in DRAFT —
+        // whether it's never been published, or was unpublished-to-edit —
+        // _count.mentions is stale or zero, so fall back to the same live
+        // extractMentionIds() the editor's own "Mentioned companies" chip
+        // strip already uses, keeping this count consistent with what an
+        // admin sees on the report page itself.
+        mentionCount: r.status === "PUBLISHED" ? r._count.mentions : extractMentionIds(r.body).length,
       }))
     );
   } catch (err) {
