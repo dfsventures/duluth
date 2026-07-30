@@ -32,7 +32,7 @@ export function FundSnapshotBlock({ data }: { data: FundSnapshotPayload | null }
 
   if (!data || !target) return null;
   return createPortal(
-    <FundPerformanceCard performance={data.performance} deals={data.deals} fundName={data.fundName} />,
+    <FundPerformanceCard performance={data.performance} deals={data.deals} fundName={data.fundName} showCaveat={false} />,
     target
   );
 }

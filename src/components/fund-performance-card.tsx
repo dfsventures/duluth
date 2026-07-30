@@ -19,6 +19,16 @@ interface FundPerformanceCardProps {
    */
   deals?: FundSnapshotDealRow[];
   fundName?: string;
+  /**
+   * The "Admin-only estimate..." methodology caveat (and the TVPI/DPI ≈ and
+   * Implied Value * markers that refer to it) is accurate on the admin fund
+   * page but reads as an internal-tools note when it reaches an LP verbatim
+   * — found live during the Part 14 walkthrough. Defaults to true so the
+   * admin fund page (which passes no extra props) is unchanged; the
+   * fund-snapshot block (shared by admin preview and the real LP page)
+   * passes false.
+   */
+  showCaveat?: boolean;
 }
 
 function multipleLabel(multiple: number | null): string {
@@ -35,7 +45,7 @@ function multipleLabel(multiple: number | null): string {
  * passes `deals` to also render the full per-deal table (Q41-A), so the two
  * surfaces render identical markup for the stats they share.
  */
-export function FundPerformanceCard({ performance, deals, fundName }: FundPerformanceCardProps) {
+export function FundPerformanceCard({ performance, deals, fundName, showCaveat = true }: FundPerformanceCardProps) {
   return (
     <div className="mb-6 rounded-md border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -48,15 +58,15 @@ export function FundPerformanceCard({ performance, deals, fundName }: FundPerfor
           <p className="font-mono text-lg font-semibold">${performance.invested.toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Implied Value{performance.dilutionAware ? "" : " *"}</p>
+          <p className="text-xs text-muted-foreground">Implied Value{showCaveat && !performance.dilutionAware ? " *" : ""}</p>
           <p className="font-mono text-lg font-semibold">${Math.round(performance.impliedValue).toLocaleString()}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">TVPI{performance.approximate ? " ≈" : ""}</p>
+          <p className="text-xs text-muted-foreground">TVPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
           <p className="font-mono text-lg font-semibold">{performance.tvpi !== null ? `${performance.tvpi.toFixed(2)}x` : "—"}</p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">DPI{performance.approximate ? " ≈" : ""}</p>
+          <p className="text-xs text-muted-foreground">DPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
           <p className="font-mono text-lg font-semibold">{performance.dpi !== null ? `${performance.dpi.toFixed(2)}x` : "—"}</p>
         </div>
         <div>
@@ -66,11 +76,13 @@ export function FundPerformanceCard({ performance, deals, fundName }: FundPerfor
           </p>
         </div>
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">
-        Admin-only estimate; gross of fees unless FEE cashflow rows are recorded.
-        {performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
-        {!performance.dilutionAware && " * Implied value assumes zero dilution (no ownership % recorded on these deals yet)."}
-      </p>
+      {showCaveat && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Admin-only estimate; gross of fees unless FEE cashflow rows are recorded.
+          {performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
+          {!performance.dilutionAware && " * Implied value assumes zero dilution (no ownership % recorded on these deals yet)."}
+        </p>
+      )}
 
       {deals && deals.length > 0 && (
         <div className="mt-4">
