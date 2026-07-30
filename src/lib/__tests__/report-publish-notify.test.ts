@@ -19,6 +19,11 @@ const mockFundReportMentionDeleteMany = vi.fn();
 const mockFundReportMentionCreate = vi.fn();
 const mockFundReportUpdate = vi.fn();
 const mockLpFundMembershipFindMany = vi.fn();
+// Part 14, WS35.1 — the fund-performance snapshot freeze, a second
+// delete-and-recreate alongside the mention freeze above.
+const mockFundReportFundSnapshotDeleteMany = vi.fn();
+const mockFundReportFundSnapshotCreate = vi.fn();
+const mockTxFundFindUnique = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -38,6 +43,11 @@ vi.mock("@/lib/db", () => ({
           deleteMany: (...args: unknown[]) => mockFundReportMentionDeleteMany(...args),
           create: (...args: unknown[]) => mockFundReportMentionCreate(...args),
         },
+        fundReportFundSnapshot: {
+          deleteMany: (...args: unknown[]) => mockFundReportFundSnapshotDeleteMany(...args),
+          create: (...args: unknown[]) => mockFundReportFundSnapshotCreate(...args),
+        },
+        fund: { findUnique: (...args: unknown[]) => mockTxFundFindUnique(...args) },
         fundReport: { update: (...args: unknown[]) => mockFundReportUpdate(...args) },
       }),
   },
@@ -74,6 +84,9 @@ beforeEach(() => {
   mockFundReportMentionCreate.mockReset();
   mockFundReportUpdate.mockReset();
   mockLpFundMembershipFindMany.mockReset();
+  mockFundReportFundSnapshotDeleteMany.mockReset();
+  mockFundReportFundSnapshotCreate.mockReset();
+  mockTxFundFindUnique.mockReset();
 
   mockRequireAdmin.mockResolvedValue({ user: { id: "admin-1", email: "admin@dfs.vc" }, error: null } as any);
   mockFundReportFindUnique.mockResolvedValue(draftReport);

@@ -1,4 +1,5 @@
 import { MentionCards, type MentionCardData } from "@/components/mention-cards";
+import type { FundSnapshotPayload } from "@/lib/portfolio-metrics";
 
 interface ReportViewProps {
   title: string;
@@ -9,6 +10,14 @@ interface ReportViewProps {
   mentions: MentionCardData[];
   /** "PREVIEW — draft, numbers not frozen" banner (admin draft preview only). */
   previewBanner?: boolean;
+  /**
+   * Part 14, WS35/36 — the fund-performance snapshot to render inline at the
+   * `data-fund-snapshot` marker, if the letter has one. `null`/undefined
+   * means no marker (or the marker was removed) — nothing renders. Wired
+   * through in WS35 (publish freeze / live preview compute); actually
+   * rendered starting WS36 (FundSnapshotBlock).
+   */
+  fundSnapshot?: FundSnapshotPayload | null;
 }
 
 /**

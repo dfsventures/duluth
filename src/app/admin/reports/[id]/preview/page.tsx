@@ -3,7 +3,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AppShell } from "@/components/layout/app-shell";
 import { ReportView } from "@/components/report-view";
-import { extractMentionIds, buildMentionSnapshot } from "@/lib/report-snapshot";
+import { extractMentionIds, buildMentionSnapshot, hasFundSnapshotMarker } from "@/lib/report-snapshot";
+import { buildFundReportSnapshot, type FundSnapshotPayload } from "@/lib/portfolio-metrics";
 import type { MentionCardData } from "@/components/mention-cards";
 
 export default async function AdminReportPreviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -44,6 +45,36 @@ export default async function AdminReportPreviewPage({ params }: { params: Promi
       ),
     }));
 
+  // Part 14, WS35.2 — fund-performance snapshot, live-computed here (never
+  // frozen in preview — mirrors the mention live-compute above and Q13's
+  // "next publish re-freezes fresh numbers regardless of what this preview
+  // showed"). Always keyed off report.fundId, read straight from the report
+  // row already loaded above — never a client-suppliable id.
+  let fundSnapshot: FundSnapshotPayload | null = null;
+  if (hasFundSnapshotMarker(report.body)) {
+    const fund = await db.fund.findUnique({
+      where: { id: report.fundId },
+      include: { deals: { include: { portfolioCompany: { select: { name: true } } } }, cashflows: true },
+    });
+    if (fund) {
+      fundSnapshot = buildFundReportSnapshot(
+        fund.name,
+        fund.deals.map((d) => ({
+          companyName: d.portfolioCompany.name,
+          investmentType: d.investmentType,
+          dealDate: d.dealDate,
+          amountUsd: Number(d.amountUsd),
+          instrument: d.instrument,
+          entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
+          currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
+          ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
+          valuationAsOf: d.valuationAsOf,
+        })),
+        fund.cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) }))
+      );
+    }
+  }
+
   return (
     <AppShell>
       <ReportView
@@ -53,6 +84,7 @@ export default async function AdminReportPreviewPage({ params }: { params: Promi
         fundName={report.fund.name}
         bodyHtml={report.body}
         mentions={mentions}
+        fundSnapshot={fundSnapshot}
         previewBanner
       />
     </AppShell>

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
-import { extractMentionIds, buildMentionSnapshot } from "@/lib/report-snapshot";
+import { extractMentionIds, buildMentionSnapshot, hasFundSnapshotMarker } from "@/lib/report-snapshot";
+import { buildFundReportSnapshot } from "@/lib/portfolio-metrics";
 import { sendLpReportPublishedEmail } from "@/lib/email";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -66,6 +67,42 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             snapshot: snapshot as unknown as object,
           },
         });
+      }
+
+      // Part 14, WS35.1 — fund-performance snapshot: a second, independent
+      // freeze living alongside the mention freeze above, same
+      // delete-and-recreate-on-every-publish semantics (Q44-A). Always
+      // deletes first (handles "marker removed before republish" the same
+      // way mentions already do above), and always keys off report.fundId
+      // — NEVER a client-suppliable fund id (ground rule 1) — closing the
+      // "could this ever freeze a different fund's numbers into this
+      // report" question structurally.
+      await tx.fundReportFundSnapshot.deleteMany({ where: { reportId: id } });
+      if (hasFundSnapshotMarker(report.body)) {
+        const fund = await tx.fund.findUnique({
+          where: { id: report.fundId },
+          include: { deals: { include: { portfolioCompany: { select: { name: true } } } }, cashflows: true },
+        });
+        if (fund) {
+          const snapshot = buildFundReportSnapshot(
+            fund.name,
+            fund.deals.map((d) => ({
+              companyName: d.portfolioCompany.name,
+              investmentType: d.investmentType,
+              dealDate: d.dealDate,
+              amountUsd: Number(d.amountUsd),
+              instrument: d.instrument,
+              entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
+              currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
+              ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
+              valuationAsOf: d.valuationAsOf,
+            })),
+            fund.cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) }))
+          );
+          await tx.fundReportFundSnapshot.create({
+            data: { reportId: id, fundId: report.fundId, fundName: fund.name, snapshot: snapshot as unknown as object },
+          });
+        }
       }
 
       return tx.fundReport.update({

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { ReportView } from "@/components/report-view";
 import type { MentionCardData } from "@/components/mention-cards";
 import type { MentionSnapshot } from "@/lib/report-snapshot";
+import type { FundSnapshotPayload } from "@/lib/portfolio-metrics";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,13 @@ export default async function LpReportPage({ params }: { params: Promise<{ id: s
     include: {
       fund: { select: { id: true, name: true } },
       mentions: { select: { portfolioCompanyId: true, snapshot: true } },
+      // Part 14, WS35.3 — the frozen fund-performance snapshot, if this
+      // report has one. This route only ever READS the already-frozen row
+      // scoped to the report it already has access to; it never computes
+      // anything live and never accepts a fund id of its own (ground rule
+      // 1) — the only fund ever readable here remains report.fundId, gated
+      // by the unchanged membership check below.
+      fundSnapshot: { select: { fundName: true, snapshot: true } },
     },
   });
 
@@ -34,6 +42,15 @@ export default async function LpReportPage({ params }: { params: Promise<{ id: s
     ...(m.snapshot as unknown as MentionSnapshot),
   }));
 
+  // report.fundSnapshot.fundName (the row's own column, set at freeze time —
+  // WS33.1) and report.fundSnapshot.snapshot.fundName (inside the frozen
+  // JSON payload) are the same value by construction (buildFundReportSnapshot
+  // always sets both from the same fund.name at publish); the JSON payload
+  // already carries it, so no need to duplicate it into the object literal.
+  const fundSnapshot: FundSnapshotPayload | null = report.fundSnapshot
+    ? (report.fundSnapshot.snapshot as unknown as FundSnapshotPayload)
+    : null;
+
   return (
     <div>
       <Link href="/lp" className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted hover:text-tide print:hidden">
@@ -47,6 +64,7 @@ export default async function LpReportPage({ params }: { params: Promise<{ id: s
         fundName={report.fund.name}
         bodyHtml={report.body}
         mentions={mentions}
+        fundSnapshot={fundSnapshot}
       />
     </div>
   );
