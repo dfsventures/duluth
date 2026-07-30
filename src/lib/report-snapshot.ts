@@ -82,3 +82,13 @@ export function extractMentionIds(html: string): string[] {
   }
   return [...ids];
 }
+
+/**
+ * Part 14, WS33.4 — sibling of extractMentionIds. Detects whether the report
+ * body contains a fund-snapshot block marker (matches fund-snapshot-node.ts's
+ * renderHTML: `data-fund-snapshot="true"`). A report is single-fund-scoped
+ * (Q43), so unlike mentions there's no id to extract — just presence/absence.
+ */
+export function hasFundSnapshotMarker(html: string): boolean {
+  return /data-fund-snapshot="true"/.test(html);
+}

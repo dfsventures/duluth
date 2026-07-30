@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
-import { fundFlows, xirr, computePaidIn, tvpi, dpi, positionValue } from "@/lib/portfolio-metrics";
+import { computeFundPerformance } from "@/lib/portfolio-metrics";
 import { sheetsSyncEnabled } from "@/lib/sheets";
 
 // GET is not in the original WS16 route list but is required by the admin
@@ -34,50 +34,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     // WS26.2 — derived metrics, admin-only (Q23). Each deal's position value
     // uses deal.currentValuation as the "latest mark" (JC16: it's already
     // fanned out from ValuationMark, so no extra query is needed here).
-    const invested = fund.deals.reduce((s, d) => s + Number(d.amountUsd), 0);
-    let impliedValue = 0;
-    let anyDilutionAware = false;
-    for (const d of fund.deals) {
-      const pv = positionValue(
-        {
-          amountUsd: Number(d.amountUsd),
-          entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
-          currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
-          ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
-        },
-        d.currentValuation !== null ? Number(d.currentValuation) : null
-      );
-      if (pv.value !== null) impliedValue += pv.value;
-      if (pv.dilutionAware) anyDilutionAware = true;
-    }
-    const distributions = fund.cashflows.filter((c) => c.kind === "DISTRIBUTION").reduce((s, c) => s + Number(c.amountUsd), 0);
-    const capitalCallAmounts = fund.cashflows.filter((c) => c.kind === "CAPITAL_CALL").map((c) => Number(c.amountUsd));
-    const { paidIn, approximate } = computePaidIn(invested, capitalCallAmounts);
-    const latestValuationAsOf = fund.deals.reduce<Date | null>((latest, d) => {
-      if (!d.valuationAsOf) return latest;
-      return !latest || d.valuationAsOf > latest ? d.valuationAsOf : latest;
-    }, null);
-    const asOf = latestValuationAsOf ?? new Date();
-    const grossIrr = xirr(
-      fundFlows(
-        fund.deals.map((d) => ({ dealDate: d.dealDate, amountUsd: Number(d.amountUsd) })),
-        fund.cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) })),
-        impliedValue,
-        asOf
-      )
+    // Part 14, WS33.2: extracted into computeFundPerformance() so the
+    // report-snapshot freeze/preview paths call the exact same logic
+    // instead of a third hand-copied version — byte-identical output.
+    const performance = computeFundPerformance(
+      fund.deals.map((d) => ({
+        amountUsd: Number(d.amountUsd),
+        entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
+        currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
+        ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
+        dealDate: d.dealDate,
+        valuationAsOf: d.valuationAsOf,
+      })),
+      fund.cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) }))
     );
-
-    const performance = {
-      invested,
-      impliedValue,
-      dilutionAware: anyDilutionAware,
-      paidIn,
-      approximate, // TVPI/DPI carry this — true unless the fund has real CAPITAL_CALL rows
-      tvpi: tvpi(paidIn, distributions, impliedValue),
-      dpi: dpi(paidIn, distributions),
-      grossIrr,
-      asOf,
-    };
 
     return NextResponse.json({
       id: fund.id,

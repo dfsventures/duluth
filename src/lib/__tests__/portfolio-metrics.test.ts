@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { xirr, fundFlows, computePaidIn, tvpi, dpi, rvpi, positionValue } from "@/lib/portfolio-metrics";
+import {
+  xirr,
+  fundFlows,
+  computePaidIn,
+  tvpi,
+  dpi,
+  rvpi,
+  positionValue,
+  computeFundPerformance,
+  buildFundReportSnapshot,
+} from "@/lib/portfolio-metrics";
 
 // All numbers below are synthetic/hand-computed (ground rule 1) — never
 // derived from the real spreadsheet or production data.
@@ -150,5 +160,115 @@ describe("positionValue", () => {
   it("unknown multiple (no entry valuation) -> null value, not dilution-aware", () => {
     const result = positionValue({ amountUsd: 10000, entryValuation: null, currentValuation: 5_000_000, ownershipPct: null }, 5_000_000);
     expect(result).toEqual({ value: null, dilutionAware: false });
+  });
+});
+
+// Part 14, WS33.2/33.3 — computeFundPerformance()/buildFundReportSnapshot().
+// Verified by re-deriving from the same already-tested primitives above
+// (reuse, don't re-derive), matching the byte-identical-refactor acceptance
+// criterion for src/app/api/admin/funds/[id]/route.ts.
+describe("computeFundPerformance", () => {
+  const deals = [
+    {
+      amountUsd: 10000,
+      entryValuation: 1_000_000,
+      currentValuation: 5_000_000,
+      ownershipPct: null,
+      dealDate: new Date("2022-01-01"),
+      valuationAsOf: new Date("2025-06-01"),
+    },
+    {
+      amountUsd: 20000,
+      entryValuation: 2_000_000,
+      currentValuation: 4_000_000,
+      ownershipPct: 2,
+      dealDate: new Date("2023-01-01"),
+      valuationAsOf: new Date("2025-12-01"),
+    },
+  ];
+  const cashflows = [
+    { kind: "DISTRIBUTION", date: new Date("2024-06-01"), amountUsd: 5000 },
+    { kind: "CAPITAL_CALL", date: new Date("2022-01-01"), amountUsd: 10000 },
+    { kind: "CAPITAL_CALL", date: new Date("2023-01-01"), amountUsd: 20000 },
+  ];
+
+  it("composes positionValue/computePaidIn/tvpi/dpi/xirr exactly like the primitives would by hand", () => {
+    const result = computeFundPerformance(deals, cashflows);
+
+    const invested = 30000;
+    const pv1 = positionValue({ amountUsd: 10000, entryValuation: 1_000_000, currentValuation: 5_000_000, ownershipPct: null }, 5_000_000);
+    const pv2 = positionValue({ amountUsd: 20000, entryValuation: 2_000_000, currentValuation: 4_000_000, ownershipPct: 2 }, 4_000_000);
+    const impliedValue = pv1.value! + pv2.value!;
+    const { paidIn, approximate } = computePaidIn(invested, [10000, 20000]);
+    const asOf = new Date("2025-12-01");
+    const expectedGrossIrr = xirr(
+      fundFlows(
+        deals.map((d) => ({ dealDate: d.dealDate, amountUsd: d.amountUsd })),
+        cashflows,
+        impliedValue,
+        asOf
+      )
+    );
+
+    expect(result.invested).toBe(invested);
+    expect(result.impliedValue).toBeCloseTo(impliedValue, 5);
+    expect(result.dilutionAware).toBe(true); // second deal has ownershipPct
+    expect(result.paidIn).toBe(paidIn);
+    expect(result.approximate).toBe(approximate);
+    expect(result.tvpi).toBeCloseTo(tvpi(paidIn, 5000, impliedValue)!, 5);
+    expect(result.dpi).toBeCloseTo(dpi(paidIn, 5000)!, 5);
+    expect(result.asOf).toEqual(asOf);
+    expect(result.grossIrr).toBeCloseTo(expectedGrossIrr!, 5);
+  });
+
+  it("falls back to `now` for asOf when no deal has a valuationAsOf", () => {
+    const result = computeFundPerformance(
+      [{ amountUsd: 1000, entryValuation: null, currentValuation: null, ownershipPct: null, dealDate: new Date("2024-01-01"), valuationAsOf: null }],
+      []
+    );
+    expect(result.asOf.getTime()).toBeGreaterThan(new Date("2026-01-01").getTime());
+  });
+});
+
+describe("buildFundReportSnapshot", () => {
+  const dealInput = {
+    companyName: "Acme Co",
+    amountUsd: 10000,
+    entryValuation: 1_000_000,
+    currentValuation: 2_000_000,
+    ownershipPct: null,
+    dealDate: new Date("2023-05-01"),
+    valuationAsOf: new Date("2025-01-01"),
+    investmentType: "INITIAL",
+    instrument: "SAFE",
+  };
+
+  it("carries fundName + performance + per-deal rows with computeMultiple applied", () => {
+    const snapshot = buildFundReportSnapshot("Test Fund I", [dealInput], []);
+    expect(snapshot.fundName).toBe("Test Fund I");
+    expect(snapshot.deals).toHaveLength(1);
+    expect(snapshot.deals[0]).toEqual({
+      companyName: "Acme Co",
+      investmentType: "INITIAL",
+      dealDate: dealInput.dealDate.toISOString(),
+      amountUsd: 10000,
+      instrument: "SAFE",
+      entryValuationUsd: 1_000_000,
+      currentValuationUsd: 2_000_000,
+      multiple: 2,
+      valuationAsOf: dealInput.valuationAsOf.toISOString(),
+    });
+    expect(snapshot.performance.invested).toBe(10000);
+  });
+
+  it("Q42 structural guard: never carries a sheetRowId/provenance key, even when the input deal fixture has one", () => {
+    const inputWithSheetRowId = { ...dealInput, sheetRowId: "sheet-row-123" };
+    const snapshot = buildFundReportSnapshot("Test Fund I", [inputWithSheetRowId], []);
+    expect(snapshot.deals[0]).not.toHaveProperty("sheetRowId");
+    expect(Object.keys(snapshot.deals[0])).not.toContain("sheetRowId");
+    // Belt-and-suspenders: no key anywhere in the row contains "sync"/"sheet".
+    for (const key of Object.keys(snapshot.deals[0])) {
+      expect(key.toLowerCase()).not.toMatch(/sync|sheet/);
+    }
   });
 });

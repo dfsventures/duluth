@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildMentionSnapshot, computeMultiple, extractMentionIds, type DealInput } from "@/lib/report-snapshot";
+import { buildMentionSnapshot, computeMultiple, extractMentionIds, hasFundSnapshotMarker, type DealInput } from "@/lib/report-snapshot";
 
 // Synthetic data only — no real DFS Lab figures (confidentiality ground rule).
 
@@ -103,5 +103,21 @@ describe("extractMentionIds", () => {
   it("extracts multiple distinct mentions in document order", () => {
     const html = `<span data-portco="a1" class="portco-mention">A</span> and <span data-portco="b2" class="portco-mention">B</span>`;
     expect(extractMentionIds(html)).toEqual(["a1", "b2"]);
+  });
+});
+
+// Part 14, WS33.4 — sibling of extractMentionIds, for the fund-snapshot block.
+describe("hasFundSnapshotMarker", () => {
+  it("returns false for a body with no marker", () => {
+    expect(hasFundSnapshotMarker("<p>No snapshot here.</p>")).toBe(false);
+  });
+
+  it("returns true when the marker div is present", () => {
+    const html = `<p>Some intro.</p><div data-fund-snapshot="true" data-fund-id="f1" data-fund-name="Fund I" class="fund-snapshot-block">Fund performance snapshot — Fund I (updates when published)</div>`;
+    expect(hasFundSnapshotMarker(html)).toBe(true);
+  });
+
+  it("is not fooled by an unrelated data-fund-snapshot=false-ish string", () => {
+    expect(hasFundSnapshotMarker(`<div data-fund-snapshot="false">nope</div>`)).toBe(false);
   });
 });

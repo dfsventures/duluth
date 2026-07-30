@@ -490,6 +490,7 @@ model Fund {
   lps       LpFundMembership[]
   reports   FundReport[]
   cashflows FundCashflow[]
+  reportSnapshots FundReportFundSnapshot[]
 
   @@map("funds")
 }
@@ -704,6 +705,7 @@ model FundReport {
   fund      Fund                @relation(fields: [fundId], references: [id])
   createdBy User                @relation("CreatedFundReports", fields: [createdById], references: [id])
   mentions  FundReportMention[]
+  fundSnapshot FundReportFundSnapshot?
 
   @@index([fundId, status])
   @@map("fund_reports")
@@ -722,4 +724,22 @@ model FundReportMention {
 
   @@unique([reportId, portfolioCompanyId])
   @@map("fund_report_mentions")
+}
+
+// Part 14, WS33.1 — frozen fund-level performance snapshot, one per report
+// (reports are single-fund scoped — Q43). Second, independent freeze living
+// alongside FundReportMention, same delete-and-recreate-on-publish semantics
+// (Q44-A), never a modification of the mention freeze path.
+model FundReportFundSnapshot {
+  id        String   @id @default(cuid())
+  reportId  String   @unique // one snapshot per report — reports are single-fund scoped (Q43/finding #4)
+  fundId    String
+  fundName  String   // display name frozen at publish — never fund.slug (finding #3 / ground rule 2)
+  snapshot  Json     // shape: FundSnapshotPayload, WS33.3
+  createdAt DateTime @default(now())
+
+  report FundReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fund   Fund       @relation(fields: [fundId], references: [id], onDelete: Cascade)
+
+  @@map("fund_report_fund_snapshots")
 }

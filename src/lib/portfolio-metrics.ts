@@ -222,3 +222,146 @@ export function positionValue(deal: PositionValueDeal, latestMarkValuationUsd: n
   if (multiple === null) return { value: null, dilutionAware: false };
   return { value: deal.amountUsd * multiple, dilutionAware: false };
 }
+
+// ─── Part 14, WS33.2 — computeFundPerformance() ────────────────────────────
+// Extracted, byte-identical-output refactor of the block that used to live
+// inline in src/app/api/admin/funds/[id]/route.ts (GET, lines ~37-80). Same
+// admin-only estimate semantics as everywhere else in this module (Q23) —
+// moved, not rewritten, so both the admin fund route AND the Part 14
+// fund-report snapshot (publish freeze + live draft preview) call the exact
+// same logic instead of a third hand-copied version of this ~30-line block.
+
+export interface FundPerformanceDeal {
+  amountUsd: number;
+  entryValuation: number | null;
+  currentValuation: number | null;
+  ownershipPct: number | null;
+  dealDate: Date;
+  valuationAsOf: Date | null;
+}
+
+export interface FundPerformanceCashflow {
+  kind: string;
+  date: Date;
+  amountUsd: number;
+}
+
+export interface FundPerformance {
+  invested: number;
+  impliedValue: number;
+  dilutionAware: boolean;
+  paidIn: number;
+  approximate: boolean;
+  tvpi: number | null;
+  dpi: number | null;
+  grossIrr: number | null;
+  asOf: Date;
+}
+
+export function computeFundPerformance(deals: FundPerformanceDeal[], cashflows: FundPerformanceCashflow[]): FundPerformance {
+  const invested = deals.reduce((s, d) => s + Number(d.amountUsd), 0);
+  let impliedValue = 0;
+  let anyDilutionAware = false;
+  for (const d of deals) {
+    const pv = positionValue(
+      {
+        amountUsd: Number(d.amountUsd),
+        entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
+        currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
+        ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
+      },
+      d.currentValuation !== null ? Number(d.currentValuation) : null
+    );
+    if (pv.value !== null) impliedValue += pv.value;
+    if (pv.dilutionAware) anyDilutionAware = true;
+  }
+  const distributions = cashflows.filter((c) => c.kind === "DISTRIBUTION").reduce((s, c) => s + Number(c.amountUsd), 0);
+  const capitalCallAmounts = cashflows.filter((c) => c.kind === "CAPITAL_CALL").map((c) => Number(c.amountUsd));
+  const { paidIn, approximate } = computePaidIn(invested, capitalCallAmounts);
+  const latestValuationAsOf = deals.reduce<Date | null>((latest, d) => {
+    if (!d.valuationAsOf) return latest;
+    return !latest || d.valuationAsOf > latest ? d.valuationAsOf : latest;
+  }, null);
+  const asOf = latestValuationAsOf ?? new Date();
+  const grossIrr = xirr(
+    fundFlows(
+      deals.map((d) => ({ dealDate: d.dealDate, amountUsd: Number(d.amountUsd) })),
+      cashflows.map((c) => ({ kind: c.kind, date: c.date, amountUsd: Number(c.amountUsd) })),
+      impliedValue,
+      asOf
+    )
+  );
+
+  return {
+    invested,
+    impliedValue,
+    dilutionAware: anyDilutionAware,
+    paidIn,
+    approximate,
+    tvpi: tvpi(paidIn, distributions, impliedValue),
+    dpi: dpi(paidIn, distributions),
+    grossIrr,
+    asOf,
+  };
+}
+
+// ─── Part 14, WS33.3 — buildFundReportSnapshot() ───────────────────────────
+// The frozen payload for an LP-report fund-performance snapshot block (Q40-A
+// stats + Q41-A full deal table). Q42 is held STRUCTURALLY here: the input/
+// output types below have no sheetRowId/provenance field at all, so there is
+// no "synced from sheet" data for any caller to accidentally forward into an
+// LP-facing payload.
+
+export interface FundSnapshotDealInput {
+  amountUsd: number;
+  entryValuation: number | null;
+  currentValuation: number | null;
+  ownershipPct: number | null;
+  dealDate: Date;
+  valuationAsOf: Date | null;
+  investmentType: string;
+  instrument: string | null;
+}
+
+export interface FundSnapshotDealRow {
+  companyName: string;
+  investmentType: string;
+  dealDate: string; // ISO
+  amountUsd: number;
+  instrument: string | null;
+  entryValuationUsd: number | null;
+  currentValuationUsd: number | null;
+  multiple: number | null; // reuses computeMultiple from report-snapshot.ts
+  valuationAsOf: string | null; // JC-D — included even though Q41-A's literal list didn't name it
+}
+
+export interface FundSnapshotPayload {
+  fundName: string; // never fund.slug — finding #3
+  performance: FundPerformance;
+  deals: FundSnapshotDealRow[];
+}
+
+export function buildFundReportSnapshot(
+  fundName: string,
+  deals: (FundSnapshotDealInput & { companyName: string })[],
+  cashflows: FundPerformanceCashflow[]
+): FundSnapshotPayload {
+  return {
+    fundName,
+    performance: computeFundPerformance(deals, cashflows),
+    deals: deals.map((d) => ({
+      companyName: d.companyName,
+      investmentType: d.investmentType,
+      dealDate: d.dealDate.toISOString(),
+      amountUsd: d.amountUsd,
+      instrument: d.instrument,
+      entryValuationUsd: d.entryValuation,
+      currentValuationUsd: d.currentValuation,
+      multiple: computeMultiple(d.entryValuation, d.currentValuation),
+      valuationAsOf: d.valuationAsOf ? d.valuationAsOf.toISOString() : null,
+      // Deliberately no sheetRowId / "synced from sheet" field of any kind —
+      // Q42 is held structurally (the type has no such key), not just hidden
+      // by the renderer.
+    })),
+  };
+}
