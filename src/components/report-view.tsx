@@ -1,4 +1,5 @@
 import { MentionCards, type MentionCardData } from "@/components/mention-cards";
+import { FundSnapshotBlock } from "@/components/fund-snapshot-block";
 import type { FundSnapshotPayload } from "@/lib/portfolio-metrics";
 
 interface ReportViewProps {
@@ -27,7 +28,7 @@ interface ReportViewProps {
  * Draft previews pass live-computed snapshots; published pages pass frozen
  * ones — this component can't tell the difference, by design.
  */
-export function ReportView({ title, periodLabel, publishedAt, fundName, bodyHtml, mentions, previewBanner }: ReportViewProps) {
+export function ReportView({ title, periodLabel, publishedAt, fundName, bodyHtml, mentions, previewBanner, fundSnapshot }: ReportViewProps) {
   return (
     <article className="mx-auto max-w-2xl">
       {previewBanner && (
@@ -51,6 +52,7 @@ export function ReportView({ title, periodLabel, publishedAt, fundName, bodyHtml
       <div className="report-body prose prose-sm mt-8 max-w-none leading-relaxed" dangerouslySetInnerHTML={{ __html: bodyHtml }} />
 
       <MentionCards mentions={mentions} />
+      <FundSnapshotBlock data={fundSnapshot ?? null} />
     </article>
   );
 }

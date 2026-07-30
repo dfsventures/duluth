@@ -23,6 +23,7 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { FundPerformanceCard } from "@/components/fund-performance-card";
 import { formatDate } from "@/lib/utils";
 
 type Tab = "deals" | "lps" | "reports" | "cashflows";
@@ -459,42 +460,11 @@ export default function AdminFundDetailPage() {
         )}
       </div>
 
-      {/* Performance (WS26, admin-only estimate — Q23) */}
-      <div className="mb-6 rounded-md border border-border bg-card p-4">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-semibold">Performance</h3>
-          <span className="text-xs text-muted-foreground">As of {formatDate(fund.performance.asOf)}</span>
-        </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          <div>
-            <p className="text-xs text-muted-foreground">Invested</p>
-            <p className="font-mono text-lg font-semibold">${fund.performance.invested.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Implied Value{fund.performance.dilutionAware ? "" : " *"}</p>
-            <p className="font-mono text-lg font-semibold">${Math.round(fund.performance.impliedValue).toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">TVPI{fund.performance.approximate ? " ≈" : ""}</p>
-            <p className="font-mono text-lg font-semibold">{fund.performance.tvpi !== null ? `${fund.performance.tvpi.toFixed(2)}x` : "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">DPI{fund.performance.approximate ? " ≈" : ""}</p>
-            <p className="font-mono text-lg font-semibold">{fund.performance.dpi !== null ? `${fund.performance.dpi.toFixed(2)}x` : "—"}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Gross IRR</p>
-            <p className="font-mono text-lg font-semibold" title={fund.performance.grossIrr === null ? "Doesn't converge with the cashflow data recorded so far" : undefined}>
-              {fund.performance.grossIrr !== null ? `${(fund.performance.grossIrr * 100).toFixed(1)}%` : "—"}
-            </p>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Admin-only estimate; gross of fees unless FEE cashflow rows are recorded.
-          {fund.performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
-          {!fund.performance.dilutionAware && " * Implied value assumes zero dilution (no ownership % recorded on these deals yet)."}
-        </p>
-      </div>
+      {/* Performance (WS26, admin-only estimate — Q23). Part 14, WS36.1:
+          extracted into FundPerformanceCard — byte-identical output, no
+          `deals` prop here so this page's own Deals tab below (with the
+          sheet-sync column and sortable headers) is unaffected. */}
+      <FundPerformanceCard performance={fund.performance} />
 
       <div className="mb-6 flex gap-1 overflow-x-auto border-b">
         {tabs.map((tab) => (
