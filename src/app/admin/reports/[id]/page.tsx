@@ -365,6 +365,7 @@ export default function AdminReportEditorPage() {
           <>
             <p className="mb-3 text-xs text-muted-foreground">
               Type <span className="font-mono">@</span> to mention a portfolio company — mentioned companies get a valuation hover card in the LP view.
+              Use the chart icon in the toolbar to insert this fund&apos;s performance snapshot.
             </p>
             {mentionedIds.length > 0 && (
               <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -389,7 +390,14 @@ export default function AdminReportEditorPage() {
                 })}
               </div>
             )}
-            <RichEditor variant="chromeless" value={body} onChange={setBody} placeholder="Dear limited partners…" extraExtensions={extraExtensions} />
+            <RichEditor
+              variant="chromeless"
+              value={body}
+              onChange={setBody}
+              placeholder="Dear limited partners…"
+              extraExtensions={extraExtensions}
+              fundSnapshot={{ id: report.fund.id, name: report.fund.name }}
+            />
           </>
         ) : (
           <div className="prose prose-sm max-w-none leading-relaxed" dangerouslySetInnerHTML={{ __html: body }} />

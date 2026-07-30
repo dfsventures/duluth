@@ -9,6 +9,7 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Indent } from "@/lib/tiptap-indent";
+import { FundSnapshotNode } from "@/components/ui/fund-snapshot-node";
 import { cn } from "@/lib/utils";
 import {
   Bold,
@@ -30,6 +31,7 @@ import {
   Minus,
   Undo,
   Redo,
+  BarChart3,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -54,6 +56,13 @@ interface RichEditorProps {
    * to empty, so every existing caller is unaffected.
    */
   extraExtensions?: AnyExtension[];
+  /**
+   * Report-editor-only: adds an "Insert fund snapshot" toolbar button that
+   * drops a fundSnapshot node for this fund (Part 14, WS34). Undefined for
+   * every other caller (update composer, templates, company notes) — zero
+   * visual or behavioral change there.
+   */
+  fundSnapshot?: { id: string; name: string };
 }
 
 export function RichEditor({
@@ -64,6 +73,7 @@ export function RichEditor({
   companyId,
   variant = "boxed",
   extraExtensions = [],
+  fundSnapshot,
 }: RichEditorProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [focused, setFocused] = useState(false);
@@ -84,6 +94,7 @@ export function RichEditor({
       TextAlign.configure({ types: ["heading", "paragraph"] }),
       Indent,
       Placeholder.configure({ placeholder }),
+      FundSnapshotNode,
       ...extraExtensions,
     ],
     content: value,
@@ -389,6 +400,27 @@ export function RichEditor({
             />
           </>
         )}
+
+        {/* Fund performance snapshot — Part 14, WS34. Only present when the
+            caller passes fundSnapshot (the fund-report editor); every other
+            RichEditor caller renders with no change here. */}
+        {fundSnapshot && (
+          <>
+            <div className="mx-1 h-5 w-px bg-border" />
+            <ToolbarButton
+              onClick={() =>
+                editor
+                  .chain()
+                  .focus()
+                  .insertContent({ type: "fundSnapshot", attrs: { fundId: fundSnapshot.id, fundName: fundSnapshot.name } })
+                  .run()
+              }
+              title="Insert fund snapshot"
+            >
+              <BarChart3 className="h-4 w-4" />
+            </ToolbarButton>
+          </>
+        )}
       </div>
 
       {/* Editor content */}
@@ -427,6 +459,23 @@ export function RichEditor({
         .ProseMirror p { margin: 0.5rem 0; }
         .ProseMirror strong { font-weight: 600; }
         .ProseMirror .portco-mention { color: #44688E; text-decoration: underline; text-decoration-color: #44688E; font-weight: 500; }
+        /* Part 14, WS34.4 — editor-time placeholder only (JC-A); the real
+           stat-strip-plus-table never renders inside the editing surface,
+           only in Preview and the published/LP pages (WS36). Dashed border
+           signals it's a selectable/deletable atom, not a plain paragraph. */
+        .ProseMirror .fund-snapshot-block {
+          margin: 0.75rem 0;
+          padding: 0.75rem 1rem;
+          border: 1px dashed var(--color-text-muted);
+          border-radius: 0.25rem;
+          font-family: var(--font-mono, monospace);
+          font-size: 0.8rem;
+          color: var(--color-text-muted);
+        }
+        .ProseMirror .fund-snapshot-block.ProseMirror-selectednode {
+          border-color: var(--color-accent, #44688E);
+          color: var(--color-accent, #44688E);
+        }
       `}</style>
     </div>
   );
