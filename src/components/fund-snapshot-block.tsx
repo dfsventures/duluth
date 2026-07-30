@@ -20,7 +20,14 @@ export function FundSnapshotBlock({ data }: { data: FundSnapshotPayload | null }
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    setTarget(document.querySelector<HTMLElement>(".report-body [data-fund-snapshot]"));
+    const el = document.querySelector<HTMLElement>(".report-body [data-fund-snapshot]");
+    // A portal only adds to `el`, it doesn't clear it — without this, the
+    // node's static "Fund performance snapshot — ... (updates when
+    // published)" placeholder text (rendered by FundSnapshotNode for the
+    // editor) would sit permanently above the real card in every rendered
+    // view, including post-publish.
+    if (el && data) el.textContent = "";
+    setTarget(el);
   }, [data]);
 
   if (!data || !target) return null;
