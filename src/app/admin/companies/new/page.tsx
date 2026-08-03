@@ -46,6 +46,10 @@ export default function NewCompanyPage() {
   const [newUserName, setNewUserName] = useState("");
   const [newUserEmail, setNewUserEmail] = useState("");
 
+  // Due-diligence intake (Part 16, Q56/Q58)
+  const [isDueDiligence, setIsDueDiligence] = useState(false);
+  const [isStellarEcosystem, setIsStellarEcosystem] = useState(false);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
@@ -68,12 +72,14 @@ export default function NewCompanyPage() {
       };
 
       if (assignUser === "existing" && existingUserEmail.trim()) {
-        payload.existingUserEmail = existingUserEmail.trim();
+        payload.userEmail = existingUserEmail.trim();
       } else if (assignUser === "new" && newUserEmail.trim()) {
-        payload.newUser = {
-          name: newUserName.trim(),
-          email: newUserEmail.trim(),
-        };
+        payload.userEmail = newUserEmail.trim();
+        payload.userName = newUserName.trim();
+      }
+
+      if (assignUser !== "none" && isDueDiligence) {
+        payload.dueDiligence = { isStellarEcosystem };
       }
 
       const res = await fetch("/api/companies", {
@@ -271,6 +277,32 @@ export default function NewCompanyPage() {
                   placeholder="user@example.com"
                 />
               </>
+            )}
+
+            {assignUser !== "none" && (
+              <div className="space-y-3 border-t border-bone pt-4">
+                <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isDueDiligence}
+                    onChange={(e) => setIsDueDiligence(e.target.checked)}
+                    className="h-3.5 w-3.5"
+                  />
+                  This is a due-diligence intake
+                </label>
+
+                {isDueDiligence && (
+                  <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isStellarEcosystem}
+                      onChange={(e) => setIsStellarEcosystem(e.target.checked)}
+                      className="h-3.5 w-3.5"
+                    />
+                    This deal involves the Stellar ecosystem
+                  </label>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

@@ -313,6 +313,35 @@ export async function sendTeamInviteEmail(opts: {
   assertSent(result, "team-invite");
 }
 
+export async function sendDiligenceInviteEmail(opts: {
+  toEmail: string;
+  companyName: string;
+  token: string;
+}) {
+  const link = `${BASE_URL}/set-password?token=${opts.token}`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: SUPPORT_EMAIL,
+    to: opts.toEmail,
+    subject: `${opts.companyName} — next step: due diligence`,
+    html: emailWrapper(`
+      ${eyebrow("Due Diligence")}
+      ${heading("We're moving forward")}
+      <p style="margin: 0 0 16px;">Good news — we'd like to move ahead with an investment in <strong>${opts.companyName}</strong>. The next step is diligence: a handful of documents and a couple of quick questions, all in one place.</p>
+      <p style="margin: 0 0 24px;">We've set up ${opts.companyName}'s account on Molly &mdash; the same platform you'll use to share updates with us for as long as we're working together. Set a password and you can get started right away.</p>
+
+      <p>${primaryButton(link, "Get Started →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
+        This link expires in <strong>${SETUP_TOKEN_TTL_DAYS} days</strong>. Questions any time — just reply to this email.
+      </p>
+      ${linkFallback(link)}
+    `),
+  });
+  assertSent(result, "diligence-invite");
+}
+
 export async function sendMemberAddedEmail(opts: {
   toEmail: string;
   inviterName: string | null;

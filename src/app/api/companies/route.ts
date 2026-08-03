@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { generateSetupToken } from "@/lib/setup-token";
+import { sendDiligenceInviteEmail } from "@/lib/email";
 
 type TransactionClient = Parameters<Parameters<typeof db.$transaction>[0]>[0];
 
@@ -99,10 +101,15 @@ export async function POST(request: Request) {
     }
 
     if (user!.roles.includes("ADMIN")) {
-      const { userEmail, userName } = body;
+      const { userEmail, userName, dueDiligence } = body as {
+        userEmail?: string;
+        userName?: string;
+        dueDiligence?: { isStellarEcosystem?: boolean } | null;
+      };
 
-      const company = await db.$transaction(async (tx: TransactionClient) => {
+      const result = await db.$transaction(async (tx: TransactionClient) => {
         let assignUserId = user!.id;
+        let setupToken: string | null = null;
 
         // Admin can optionally create/assign a founder user
         if (userEmail) {
@@ -111,14 +118,18 @@ export async function POST(request: Request) {
           });
 
           if (!founderUser) {
+            const { token, tokenExpiresAt } = generateSetupToken();
             founderUser = await tx.user.create({
               data: {
                 email: userEmail,
                 name: userName || null,
                 roles: ["FOUNDER"],
-                status: "PENDING",
+                status: "APPROVED", // matches the working members/invite pattern, not PENDING
+                approvalToken: token,
+                tokenExpiresAt,
               },
             });
+            setupToken = token;
           }
           assignUserId = founderUser.id;
         }
@@ -131,9 +142,19 @@ export async function POST(request: Request) {
             sector: sector || null,
             geography: geography || null,
             fundingStage: fundingStage || null,
-            createdById: user!.id,
+            createdById: user!.id, // unchanged convention — always the admin, matches today's precedent
+            stage: dueDiligence ? "DILIGENCE" : "ACTIVE",
           },
         });
+
+        if (dueDiligence) {
+          await tx.companyDiligence.create({
+            data: {
+              companyId: newCompany.id,
+              isStellarEcosystem: dueDiligence.isStellarEcosystem ?? false,
+            },
+          });
+        }
 
         await tx.userCompanyMembership.create({
           data: {
@@ -143,11 +164,23 @@ export async function POST(request: Request) {
           },
         });
 
-        return newCompany;
+        return { newCompany, setupToken, founderEmail: userEmail || null };
       });
 
-      await logAdminAction(user!, "COMPANY_CREATED", { targetType: "Company", targetId: company.id, metadata: { name: company.name } });
-      return NextResponse.json(company, { status: 201 });
+      if (dueDiligence && result.setupToken && result.founderEmail) {
+        sendDiligenceInviteEmail({
+          toEmail: result.founderEmail,
+          companyName: result.newCompany.name,
+          token: result.setupToken,
+        }).catch((err) => console.error("Failed to send diligence-invite email:", err));
+      }
+
+      await logAdminAction(user!, "COMPANY_CREATED", {
+        targetType: "Company",
+        targetId: result.newCompany.id,
+        metadata: { name: result.newCompany.name, dueDiligence: !!dueDiligence },
+      });
+      return NextResponse.json(result.newCompany, { status: 201 });
     }
 
     // Founder: auto-assign to themselves
