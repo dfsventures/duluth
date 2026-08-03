@@ -15,7 +15,6 @@ import { useCompany } from "@/context/company-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { DD_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
@@ -34,20 +33,19 @@ interface Diligence {
   completedAt: string | null;
   stage: string;
   progress: { done: number; total: number };
-}
-
-interface DocumentRow {
-  id: string;
-  name: string;
-  docType: string | null;
-  isInternal: boolean;
-  archivedAt: string | null;
-  createdAt: string;
+  // Part 16, WS42 — name+date only, no download link. Sourced from this
+  // route rather than GET /api/companies/[id]/documents, which (as of
+  // WS42) filters isInternal docs out for every non-admin including the
+  // founder who uploaded them — passport/bank_statements are always
+  // isInternal, so this page can't rely on that list for its own upload
+  // status without losing visibility into the founder's own uploads.
+  documents: Record<string, { name: string; createdAt: string } | null>;
 }
 
 // passport/bank_statements are the most sensitive DD documents — tagged
-// isInternal automatically, no founder-facing toggle (ties into WS42's
-// enforcement, which then hides them from any other non-admin viewer).
+// isInternal automatically, no founder-facing toggle (WS42 then hides
+// them from any other non-admin viewer, including on this very page's
+// own document list if it read from the general documents endpoint).
 const AUTO_INTERNAL_DOC_TYPES = new Set(["passport", "bank_statements"]);
 
 export default function DiligencePage() {
@@ -56,7 +54,6 @@ export default function DiligencePage() {
   const companyId = selectedCompany?.id;
 
   const [diligence, setDiligence] = useState<Diligence | null>(null);
-  const [documents, setDocuments] = useState<DocumentRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,14 +65,6 @@ export default function DiligencePage() {
 
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-
-  const loadDocuments = useCallback(async (id: string) => {
-    const res = await fetch(`/api/companies/${id}/documents`);
-    if (res.ok) {
-      const data: DocumentRow[] = await res.json();
-      setDocuments(data.filter((d) => !d.archivedAt));
-    }
-  }, []);
 
   const loadDiligence = useCallback(async (id: string) => {
     const res = await fetch(`/api/companies/${id}/diligence`);
@@ -96,7 +85,7 @@ export default function DiligencePage() {
 
     async function fetchAll(id: string) {
       try {
-        await Promise.all([loadDiligence(id), loadDocuments(id)]);
+        await loadDiligence(id);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
       } finally {
@@ -105,7 +94,7 @@ export default function DiligencePage() {
     }
 
     fetchAll(companyId);
-  }, [companyId, companyLoading, loadDiligence, loadDocuments]);
+  }, [companyId, companyLoading, loadDiligence]);
 
   // Already promoted (or reached directly by URL) — nothing to do here.
   useEffect(() => {
@@ -176,7 +165,7 @@ export default function DiligencePage() {
       });
       if (!putRes.ok) throw new Error("Upload to storage failed");
 
-      await Promise.all([loadDocuments(companyId), loadDiligence(companyId)]);
+      await loadDiligence(companyId);
       setMessage({ type: "success", text: `"${file.name}" uploaded successfully.` });
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed." });
@@ -219,12 +208,6 @@ export default function DiligencePage() {
   if (diligence.stage !== "DILIGENCE") {
     return null;
   }
-
-  const documentsByType = new Map(
-    documents
-      .filter((d) => DD_DOC_TYPES.some((t) => t.value === d.docType))
-      .map((d) => [d.docType as string, d])
-  );
 
   return (
     <AppShell>
@@ -322,7 +305,7 @@ export default function DiligencePage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {DD_DOC_TYPES.map((docType) => {
-            const existing = documentsByType.get(docType.value);
+            const existing = diligence.documents[docType.value] ?? null;
             const uploading = uploadingType === docType.value;
             return (
               <div
@@ -341,11 +324,6 @@ export default function DiligencePage() {
                       <FileText className="h-3.5 w-3.5" />
                       {existing.name}
                       <span className="text-xs">&middot; {formatDate(existing.createdAt)}</span>
-                      {existing.isInternal && (
-                        <Badge variant="warning" className="ml-1">
-                          Internal
-                        </Badge>
-                      )}
                     </p>
                   ) : (
                     <p className="mt-1 text-sm text-muted-foreground">No file uploaded yet.</p>

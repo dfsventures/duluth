@@ -9,8 +9,15 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireCompanyAccess(id);
+    const { user, error } = await requireCompanyAccess(id);
     if (error) return error;
+
+    // Part 16, WS42 (F33, Q59) — isInternal was previously a display
+    // badge only, not access control: any member of the company (any
+    // role) could list internal-only documents. Now filtered out for
+    // non-admins. Uniform across all document types — a role check, not
+    // an uploader exception.
+    const isAdmin = user!.roles.includes("ADMIN");
 
     const { searchParams } = new URL(request.url);
     const docType = searchParams.get("docType");
@@ -20,6 +27,7 @@ export async function GET(
     const documents = await db.document.findMany({
       where: {
         companyId: id,
+        ...(isAdmin ? {} : { isInternal: false }),
         archivedAt: archived ? { not: null } : null,
         ...(docType ? { docType } : {}),
         ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),

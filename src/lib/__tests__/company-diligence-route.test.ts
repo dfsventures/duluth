@@ -7,13 +7,17 @@ vi.mock("@/lib/auth-guard", () => ({ requireCompanyAccess: vi.fn() }));
 
 const mockCompanyFindUnique = vi.fn();
 const mockDocumentFindFirst = vi.fn();
+const mockDocumentFindMany = vi.fn();
 const mockCompanyDiligenceFindUnique = vi.fn();
 const mockCompanyDiligenceUpdate = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   db: {
     company: { findUnique: (...args: unknown[]) => mockCompanyFindUnique(...args) },
-    document: { findFirst: (...args: unknown[]) => mockDocumentFindFirst(...args) },
+    document: {
+      findFirst: (...args: unknown[]) => mockDocumentFindFirst(...args),
+      findMany: (...args: unknown[]) => mockDocumentFindMany(...args),
+    },
     companyDiligence: {
       findUnique: (...args: unknown[]) => mockCompanyDiligenceFindUnique(...args),
       update: (...args: unknown[]) => mockCompanyDiligenceUpdate(...args),
@@ -48,6 +52,8 @@ beforeEach(() => {
   mockRequireCompanyAccess.mockReset();
   mockCompanyFindUnique.mockReset();
   mockDocumentFindFirst.mockReset();
+  mockDocumentFindMany.mockReset();
+  mockDocumentFindMany.mockResolvedValue([]); // no DD documents uploaded, by default
   mockCompanyDiligenceFindUnique.mockReset();
   mockCompanyDiligenceUpdate.mockReset();
   mockRequireCompanyAccess.mockResolvedValue({ user: FOUNDER, error: null } as any);
@@ -72,6 +78,9 @@ describe("GET /api/companies/[id]/diligence", () => {
       },
     });
     mockDocumentFindFirst.mockResolvedValue({ id: "passport-doc" });
+    mockDocumentFindMany.mockResolvedValue([
+      { docType: "passport", name: "passport.pdf", createdAt: new Date("2026-01-01") },
+    ]);
 
     const res = await GET(getReq(), params());
     const body = await res.json();
@@ -80,6 +89,11 @@ describe("GET /api/companies/[id]/diligence", () => {
     expect(body.stage).toBe("DILIGENCE");
     expect(body.progress).toEqual({ done: 2, total: 2 });
     expect(mockCompanyDiligenceUpdate).not.toHaveBeenCalled();
+    // Part 16, WS42 — name+date metadata only, sourced independently of
+    // GET /api/companies/[id]/documents (which now filters isInternal
+    // docs like this one out for non-admins).
+    expect(body.documents.passport).toEqual({ name: "passport.pdf", createdAt: "2026-01-01T00:00:00.000Z" });
+    expect(body.documents.bank_statements).toBeNull();
   });
 
   it("persists completedAt the moment a GET observes the checklist has become complete", async () => {

@@ -25,8 +25,15 @@ export async function GET(
       );
     }
 
-    const { error } = await requireCompanyAccess(document.companyId);
+    const { user, error } = await requireCompanyAccess(document.companyId);
     if (error) return error;
+
+    // Part 16, WS42 (F33, Q59) — role check, not an uploader exception:
+    // an internal document stays 403 even for the founder who uploaded
+    // it, once an admin has flagged it isInternal.
+    if (document.isInternal && !user!.roles.includes("ADMIN")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const downloadUrl = await getDownloadUrl(document.s3Key);
 

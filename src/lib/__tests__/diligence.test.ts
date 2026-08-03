@@ -5,17 +5,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // "submit" step. Synthetic data only.
 
 const mockDocumentFindFirst = vi.fn();
+const mockDocumentFindMany = vi.fn();
 const mockCompanyDiligenceUpdate = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   db: {
-    document: { findFirst: (...args: unknown[]) => mockDocumentFindFirst(...args) },
+    document: {
+      findFirst: (...args: unknown[]) => mockDocumentFindFirst(...args),
+      findMany: (...args: unknown[]) => mockDocumentFindMany(...args),
+    },
     companyDiligence: { update: (...args: unknown[]) => mockCompanyDiligenceUpdate(...args) },
   },
 }));
 
 import {
   diligenceProgress,
+  getDdDocumentSummary,
   hasActivePassportDocument,
   isDiligenceChecklistComplete,
   recomputeDiligenceCompletion,
@@ -111,6 +116,30 @@ describe("hasActivePassportDocument", () => {
   it("is false when there is no matching document", async () => {
     mockDocumentFindFirst.mockResolvedValue(null);
     expect(await hasActivePassportDocument("company-1")).toBe(false);
+  });
+});
+
+describe("getDdDocumentSummary", () => {
+  beforeEach(() => {
+    mockDocumentFindMany.mockReset();
+  });
+
+  it("returns null for every DD doc type with no upload, and the latest name+date for ones that have one", async () => {
+    mockDocumentFindMany.mockResolvedValue([
+      { docType: "passport", name: "passport-v2.pdf", createdAt: new Date("2026-02-01") },
+      { docType: "passport", name: "passport-v1.pdf", createdAt: new Date("2026-01-01") },
+      { docType: "cap_table", name: "captable.xlsx", createdAt: new Date("2026-01-15") },
+    ]);
+
+    const summary = await getDdDocumentSummary("company-1");
+
+    // "first row wins" — the query orders by createdAt desc, so the
+    // most recent upload per doc type is the one surfaced.
+    expect(summary.passport).toEqual({ name: "passport-v2.pdf", createdAt: new Date("2026-02-01") });
+    expect(summary.cap_table).toEqual({ name: "captable.xlsx", createdAt: new Date("2026-01-15") });
+    expect(summary.bank_statements).toBeNull();
+    expect(summary.business_license).toBeNull();
+    expect(summary.certificate_of_incorporation).toBeNull();
   });
 });
 

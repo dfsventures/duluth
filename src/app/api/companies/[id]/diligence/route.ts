@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import {
   diligenceProgress,
+  getDdDocumentSummary,
   hasActivePassportDocument,
   recomputeDiligenceCompletion,
 } from "@/lib/diligence";
@@ -38,12 +39,14 @@ export async function GET(
       stellarTimelineText: company.diligence.stellarTimelineText,
       hasPassportDocument,
     });
+    const documents = await getDdDocumentSummary(id);
 
     return NextResponse.json({
       ...company.diligence,
       completedAt,
       stage: company.stage,
       progress,
+      documents,
     });
   } catch (err) {
     console.error("GET /api/companies/[id]/diligence error:", err);
@@ -96,8 +99,9 @@ export async function PATCH(
       stellarTimelineText: updated.stellarTimelineText,
       hasPassportDocument,
     });
+    const documents = await getDdDocumentSummary(id);
 
-    return NextResponse.json({ ...updated, completedAt, progress });
+    return NextResponse.json({ ...updated, completedAt, progress, documents });
   } catch (err) {
     console.error("PATCH /api/companies/[id]/diligence error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
