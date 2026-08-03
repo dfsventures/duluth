@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { evaluateCompanyAlerts, DEFAULT_CHANGE_PCT, type CompanySnapshot } from "@/lib/metric-alerts";
+import { approvedCompanyFilter } from "@/lib/company-filters";
 
 // Vercel Cron invokes scheduled jobs with GET; POST is kept for manual
 // testing with the CRON_SECRET. Both share the same handler (matches
@@ -11,11 +12,6 @@ async function handleAlerts(req: NextRequest) {
   if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
-
-  // Same "skip unapproved-founder companies" filter as api/admin/dashboard/route.ts
-  const approvedCompanyFilter = {
-    NOT: { createdBy: { status: "PENDING", approvalToken: null } },
-  } as const;
 
   const companies = await db.company.findMany({
     where: approvedCompanyFilter,

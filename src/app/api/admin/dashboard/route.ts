@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { approvedCompanyFilter } from "@/lib/company-filters";
 
 const GRACE_PERIOD_DAYS = 30;
 const MIN_UPDATES_FOR_CADENCE = 3;
@@ -55,10 +56,6 @@ export async function GET() {
       const month = d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
       sixMonthsData.push({ month, start, end });
     }
-
-    const approvedCompanyFilter = {
-      NOT: { createdBy: { status: "PENDING", approvalToken: null } },
-    } as const;
 
     const [totalCompanies, pendingApprovals, updatesThisMonth, companies, allSentUpdates, companiesWithMetrics] =
       await Promise.all([

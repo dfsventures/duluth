@@ -92,6 +92,8 @@ model Company {
   reminderFrequencyDays Int?      // null = disabled; 7, 14, 30, or 90
   lastReminderSentAt    DateTime? // tracks cooldown between reminders
 
+  stage String @default("ACTIVE") // "DILIGENCE" | "ACTIVE" — Part 16, Q53. Existing rows default to ACTIVE, zero backfill needed.
+
   createdById String
   createdBy   User   @relation("CreatedCompanies", fields: [createdById], references: [id])
 
@@ -106,8 +108,28 @@ model Company {
   notes             CompanyNote[]
   metricAlerts      MetricAlert[]
   portfolioCompany  PortfolioCompany?
+  diligence         CompanyDiligence?
 
   @@map("companies")
+}
+
+// Part 16, WS38 — one row per due-diligence-stage company (Q53–Q60).
+// Deliberately a separate model, not inlined onto Company (JC-DD-C).
+model CompanyDiligence {
+  id                  String    @id @default(cuid())
+  companyId           String    @unique
+  isUsIncorporated    Boolean?  // required question, but nullable until answered
+  isStellarEcosystem  Boolean   @default(false) // admin-ticked at invite time (Q58) — no Fund linkage
+  stellarWhyText      String?   @db.Text // required only when isStellarEcosystem
+  stellarTimelineText String?   @db.Text // required only when isStellarEcosystem
+  completedAt         DateTime? // recomputed lazily (JC-DD-F) — non-null once the checklist is done
+  closedAt            DateTime? // set by the explicit admin promote action (WS41)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_diligence")
 }
 
 // ─── User <-> Company ─────────────────────────────────────

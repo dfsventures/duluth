@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { approvedCompanyFilter } from "@/lib/company-filters";
 
 export async function GET() {
   try {
@@ -9,11 +10,7 @@ export async function GET() {
     if (error) return error;
 
     const companies = await db.company.findMany({
-      where: {
-        NOT: {
-          createdBy: { status: "PENDING", approvalToken: null },
-        },
-      },
+      where: approvedCompanyFilter,
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
