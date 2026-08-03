@@ -4056,3 +4056,433 @@ Only the TVPI-approximate clause is suppressed in override mode (it no longer ap
 ## Part 15 roadmap bookkeeping (to do once shipped)
 
 Once WS37 ships: annotate the "Fund Report authoring" bullet under Admin Features in `ROADMAP.md` with the new per-fund manual performance override (Q46–Q52) and its scope (generic schema, CAF1-populated only, replaces TVPI/DPI and hides Gross IRR only while override values are present, reversible by clearing them, no sheet-sync involvement); update the top `_Last updated_` line, following the exact pattern used for Parts 11–14. Until then, ROADMAP.md carries only a forward-pointer note (added now, in this same edit) rather than a "shipped" claim.
+
+---
+
+# Part 16 — Pre-Investment Due Diligence Intake (WS38–WS43)
+
+_Added 2026-08-02, scoped from a live discussion between the user and Felix — the first pre-investment concept Molly has ever modeled (every existing domain concept — `Company`, `Deal`, `Fund`, `PortfolioCompany` — assumes the company is already an investee). Findings F30–F33 verified against the working tree; decisions Q53–Q60 all answered by the user the same day, every Felix recommendation accepted. **This Part is planning only — no code has shipped.** Same hard constraints as every prior Part: no new cost lines, no UX regressions (every existing founder/admin/investor-link surface is either untouched or only additively touched), additive-only schema changes via the house `db push` procedure._
+
+## What this Part is
+
+DFS Lab's real pre-investment workflow — decide to invest, email the founders a warm note with a Google Form and a Drive folder, collect documents, close — becomes a real onboarding surface inside Molly instead of a side channel, because the user's stated goal is that DD founders "start getting used to Molly from the start, since these teams will be part of the portfolio anyway." Concretely: an admin who has already decided to invest creates a company in Molly that isn't a portfolio company yet and invites its founder directly — a genuinely new capability, not a repair of ordinary self-signup — and that founder gets full, real Molly access immediately (dashboard, updates, metrics, team), with a small persistent checklist steering them through the actual DD paperwork (five optional-except-passport document uploads, one required yes/no question, and two Stellar-specific essay questions when applicable). An admin reviews what comes in and explicitly promotes the company into the real portfolio, or — if the deal doesn't close — explicitly deletes it, founder account and all.
+
+## Decisions Q53–Q60 — all answered by the user 2026-08-02 (every recommendation accepted)
+
+> **Q53 (state location)** — **Shape 1: `Company.stage`** (`"DILIGENCE" | "ACTIVE"`), not a new `UserStatus` value. The founder becomes fully `APPROVED` and can log in the moment they set a password, exactly like an ordinary team invite today. **Zero changes to `src/lib/auth.ts`, `src/lib/auth-guard.ts`, `src/lib/route-access.ts`, or `set-password/route.ts`'s unconditional `status: "APPROVED"` write** — this Part does not touch the tested auth core at all.
+> **Q54 (promotion trigger)** — **Both.** The founder completing the checklist surfaces the company in a new admin review queue (parallel in pattern to today's Approvals/Awaiting-setup queues); an explicit admin action is what actually promotes `stage` to `"ACTIVE"`, and is the natural moment to audit-log the decision. Real `Fund`/`Deal`/`PortfolioCompany` creation stays a separate, later, manual action through the existing Deal Ledger admin CRUD — **not** wired into promotion by this Part.
+> **Q55 (dashboard access)** — **Non-blocking.** Full dashboard access (Updates/Metrics/Team/everything) from the first login; a persistent DD-checklist card/banner, never a gate.
+> **Q56 (invite UI)** — **Fix `/admin/companies/new`'s broken "Assign User" flow in place** (closes F32) rather than building a new page; the DD fields (Stellar checkbox) live on that same form.
+> **Q57 (non-close deletion)** — **Reuse the existing `DELETE /api/companies/[id]`** endpoint (already admin-only, audit-logged, cascade-safe) — with DD-specific confirm copy distinct from the generic delete button's wording, since deleting a DD company also deletes a real, if brand-new, founder account.
+> **Q58 (Stellar flag)** — **Plain admin-ticked checkbox at invite time, no `Fund` linkage.** Verified: the `Company → PortfolioCompany → Deal → Fund` chain that would otherwise answer "is this a Stellar deal" doesn't exist until a `Deal` row is created, which normally happens well after a close — there is no data to derive this from at invite time regardless of how `Fund.groupLabel` were structured.
+> **Q59 (doc security)** — **Yes, fix `isInternal` enforcement now**, scoped exactly to the two read routes identified (F33) — filter `isInternal` documents out of `GET /api/companies/[id]/documents` for non-admins, and 403 non-admin reads of `GET /api/documents/[id]` when the document is internal (a role check, not an uploader exception — see WS42). Confirmed a real, pre-existing gap, not DD-specific, but DD (passport scans, bank statements) is what makes it worth fixing now rather than later. Explicitly **not** extended to a stricter "uploader + admin only" model — that was presented as an option and declined.
+> **Q60 (F32 sequencing)** — Folded into Q56: F32 gets fixed as part of this work (WS39), not as a separate standalone commit first.
+
+## Part 16 ground rules (carry-over + additions)
+
+All prior-Part ground rules apply (additive `db push` before code; `export const dynamic = "force-dynamic"` on route files; never change existing response shapes; `npm run typecheck && npm run lint && npm test` before every push; one workstream per commit-and-verify cycle). Additions:
+
+1. **No changes to the tested auth core, anywhere in this Part.** `src/lib/auth.ts`, `src/lib/auth-guard.ts`, `src/lib/route-access.ts`, and `set-password/route.ts`'s status write are out of scope by design (Q53) — every WS's acceptance checklist below includes a grep guard confirming this.
+2. **`Company.stage` defaults to `"ACTIVE"`.** Every company that exists today (self-signup or admin-created) is unaffected by the migration with zero backfill.
+3. **A DD founder's account looks exactly like a team-invited teammate's account to every existing piece of auth/email machinery** — `User{status: APPROVED, approvalToken, tokenExpiresAt}`, same `generateSetupToken()`/`canResendSetupLink()`/resend flow, same `/set-password` page. Only the invite *email's copy* and the *company's* `stage` differ.
+4. **CONFIDENTIALITY, extended.** Passport scans and bank statements are the most sensitive documents this app has ever stored. Filenames, counts, and any content never enter git, console logs, commit messages, or this document's own examples. All test fixtures are synthetic.
+5. **`/lp`, `/api/lp`, `/share`, `/api/share` are untouched by every WS in this Part** — grep-guarded per WS, matching the standing rule from Parts 7/10/14 that new work doesn't casually cross into the LP/investor-link surfaces.
+
+## Part 16 review findings (continuing the F-numbering — Part 15 ended at F29)
+
+**F30 — the `/setup-wizard` non-APPROVED exemption in `route-access.ts` is dead code today.** `set-password/route.ts:67-75` unconditionally writes `status: "APPROVED"` the instant any token holder sets a password, and `authorize()` (`src/lib/auth.ts:26`) refuses login for anyone not already `APPROVED`. Since founders never use Google OAuth, there is no code path that produces a logged-in founder session with `status !== "APPROVED"` — the exemption in `route-access.ts:54` for that case is unreachable in production. (`/setup-wizard` is instead reached today only via a narrower, separate trigger: a fully-`APPROVED` founder with zero company memberships gets a "Complete your setup" prompt on `/dashboard` and `/company/profile`.) This confirms Q53's Shape 1 is the lower-risk fork — introducing a real, live `IN_DILIGENCE` `UserStatus` would have required resurrecting and correctly wiring this exemption, not just leaving it alone.
+
+**F31 — the Setup Wizard's step 3 (document upload) is non-functional.** `src/app/setup-wizard/page.tsx:376-380` renders a drag-and-drop box and a bare `<input type="file" multiple>` with **no `onChange` handler** — nothing is wired to `/api/documents/upload` or anywhere else. Combined with step 1 (creates a brand-new company from scratch — wrong shape for DD, where the admin pre-creates the company) and step 2 (metric definitions — not in the DD field list at all), the Setup Wizard is not a reusable flow for this feature; only its visual shell (step indicator, card layout) is worth imitating. WS40 below is a new, purpose-built flow, not an extension of `/setup-wizard`.
+
+**F32 — `/admin/companies/new`'s "Assign User" flow is broken.** The page (`src/app/admin/companies/new/page.tsx:70-77`) posts `{ existingUserEmail }` or `{ newUser: { name, email } }`, but `POST /api/companies` (`src/app/api/companies/route.ts:101-102`) destructures `const { userEmail, userName } = body` — field names that never match what the client sends. `assignUserId` silently falls back to the admin's own id, so using this form to "assign" a founder today actually makes the *admin* the OWNER member of the new company regardless of what's typed in. No email is ever sent in either branch. No tests cover it. Fixed as part of WS39 (Q56/Q60) — and fixing it also makes the *ordinary* (non-DD) "assign an existing/new user to a fresh company" capability work correctly for the first time, a welcome side effect rather than added scope.
+
+**F33 — `isInternal` is not enforced as access control on document reads, only rendered as a display badge.** `GET /api/companies/[id]/documents` (`route.ts:20-41`) and `GET /api/documents/[id]` (`route.ts:17-31`, which returns a live presigned download URL) both gate purely on `requireCompanyAccess(companyId)` — any member of the company, any role — with zero filtering on `isInternal`. The flag is rendered as a "Internal"/"Shared" badge only inside the **admin** company page; founders have no document-browser UI at all today (only inline attachment upload in the update composer), so this has been latent/harmless so far. DD's passport scans and bank statements make it acute: marking them `isInternal: true` would not, by itself, stop a co-founder/teammate on the same company from viewing or downloading them. Fixed narrowly in WS42 per Q59.
+
+**Infrastructure verification (working tree, 2026-08-02):** `Company` has no status/stage field today (`prisma/schema.prisma:81-111`) — the brief's original framing of "Founder/Company status fields" conflated `User.status` with something that doesn't exist on `Company` yet; this Part adds it. The three call sites that already exclude PENDING-founder companies from admin views (`api/admin/companies/route.ts:12-14`, `api/admin/dashboard/route.ts:59-61`, `api/cron/alerts/route.ts:16-18`) duplicate the same inline filter with no shared helper — extracted in WS38. `api/cron/reminders/route.ts` filters only on `reminderFrequencyDays: { not: null }`, which is editable **only from the admin company page** (`admin/companies/[id]/page.tsx`), never from a founder's own `/company/profile` — so a DD-stage company can only start receiving "you're behind on updates" reminders if an admin deliberately turns them on, a non-issue not worth a filter change (JC-DD-A below). `Document.docType` is a free nullable string and `DOC_TYPES` (`src/lib/constants.ts:1-9`) a plain array/union — extending it is a trivial additive change, no migration. `logAdminAction()` (`src/lib/audit.ts`) accepts arbitrary action strings and nullable `actorId` — no schema change needed to log any new DD-specific action.
+
+## Part 16 technical judgment calls (flagged per protocol — each with a cheap reversal)
+
+- **JC-DD-A — `api/cron/reminders` is left unmodified.** `reminderFrequencyDays` is only settable from the admin company page, never by a founder — so a DD-stage company can only get reminder emails if an admin deliberately enables them, which is already a deliberate admin action taken with full context. Reversal: add `stage: "ACTIVE"` to that route's `where` clause later if this ever proves wrong in practice.
+- **JC-DD-B — the shared filter lives in a new `src/lib/company-filters.ts`, not inlined further or added to `src/lib/db.ts`.** Matches the house convention of one small pure-ish helper file per concern (`setup-token.ts`, `share-metrics.ts`, `report-snapshot.ts`). Reversal: trivial rename/relocate.
+- **JC-DD-C — `CompanyDiligence` is a separate 1:1 model, not six new nullable columns inlined onto `Company`.** Several existing readers spread `Company` broadly (`GET /api/companies` does `...m.company`) — inlining DD fields directly on `Company` would silently appear in every existing company payload immediately. A separate model with its own route keeps the blast radius to exactly the surfaces that ask for it. Reversal: cheap to inline later if ever wanted; both are additive.
+- **JC-DD-D — no `Fund` linkage for the Stellar flag (Q58), stored as `CompanyDiligence.isStellarEcosystem`.** Verified no Deal/Fund record exists at invite time (F-verified in the discovery pass), so there is nothing to derive Stellar-ness from programmatically; a plain admin-ticked boolean is the honest shape.
+- **JC-DD-E — the promote action (WS41) writes only `Company.stage`/`CompanyDiligence.closedAt`, never touches `Fund`/`Deal`/`PortfolioCompany`.** Q54 explicitly separates real deal-ledger creation as a later, manual, distinct action through the existing Deal Ledger admin CRUD (Part 7/10) — mixing it into promotion would silently couple two independently-evolving systems. Reversal: none needed, this is a hard boundary per the decision, not a placeholder.
+- **JC-DD-F — checklist completion (`CompanyDiligence.completedAt`) is recomputed lazily on every `GET`/`PATCH` of the checklist (WS40) and on every admin queue load (WS41), not written eagerly by a founder "Submit" button.** There is no explicit founder submission step in the confirmed field list, and documents/answers can change (e.g. a founder re-uploads a passport) right up until an admin promotes — recompute-on-read keeps `completedAt` always honest without a webhook-style fan-out from the upload/archive routes. Reversal: swap for an explicit "Mark ready for review" founder action later if recompute-on-read ever proves surprising in practice (e.g., an admin looking at a stale queue between founder page loads).
+- **JC-DD-G — the DD review queue is its own page, `/admin/diligence`, not a third section bolted onto `/admin/approvals`.** `Approvals` reviews `User` rows (a yes/no on a person); this queue reviews `Company`/`CompanyDiligence` rows (documents + questionnaire) — different underlying models, different review actions (promote/decline vs. approve/reject), and Part 11 already established that conflating differently-shaped review surfaces on one page causes the exact nav confusion it fixed. Reversal: cheap to fold into `/admin/approvals` as a third section later if the two queues turn out to be used together in practice, same pattern as how "Awaiting password setup" was added as a section rather than a page.
+
+---
+
+## WS38 — Schema: `Company.stage`, `CompanyDiligence`, shared portfolio-company filter (~0.5–0.75 day)
+
+**Goal:** additive schema for the DD state machine, and one shared helper replacing the three duplicated `approvedCompanyFilter`-style inline filters — now also excluding `stage: "DILIGENCE"` companies from every admin-facing "real portfolio" view. Invisible on its own — no UI reads any of this yet.
+
+### WS38.1 Schema (additive — `db push` per house procedure before code)
+
+```prisma
+model Company {
+  // ...existing fields unchanged...
+  stage String @default("ACTIVE") // "DILIGENCE" | "ACTIVE" — Part 16, Q53. Existing rows default to ACTIVE, zero backfill needed.
+
+  // ...existing relations unchanged...
+  diligence CompanyDiligence?
+}
+
+// Part 16, WS38 — one row per due-diligence-stage company (Q53–Q60).
+// Deliberately a separate model, not inlined onto Company (JC-DD-C).
+model CompanyDiligence {
+  id                  String    @id @default(cuid())
+  companyId           String    @unique
+  isUsIncorporated    Boolean?  // required question, but nullable until answered
+  isStellarEcosystem  Boolean   @default(false) // admin-ticked at invite time (Q58) — no Fund linkage
+  stellarWhyText      String?   @db.Text // required only when isStellarEcosystem
+  stellarTimelineText String?   @db.Text // required only when isStellarEcosystem
+  completedAt         DateTime? // recomputed lazily (JC-DD-F) — non-null once the checklist is done
+  closedAt            DateTime? // set by the explicit admin promote action (WS41)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_diligence")
+}
+```
+
+### WS38.2 `src/lib/company-filters.ts` (new)
+
+```ts
+/**
+ * The "is this a real, decision-visible company" filter — excludes
+ * companies whose founder is still awaiting an ordinary signup decision
+ * (PENDING, no token) AND companies still in due-diligence intake
+ * (Part 16, Q53). Was duplicated inline in three places; extracted here
+ * so admin/companies, admin/dashboard, and cron/alerts stay in sync.
+ */
+export const approvedCompanyFilter = {
+  AND: [
+    { NOT: { createdBy: { status: "PENDING", approvalToken: null } } },
+    { NOT: { stage: "DILIGENCE" } },
+  ],
+} as const;
+```
+
+Update `src/app/api/admin/companies/route.ts`, `src/app/api/admin/dashboard/route.ts`, and `src/app/api/cron/alerts/route.ts` to `import { approvedCompanyFilter } from "@/lib/company-filters"` in place of their inline copies — response shapes unchanged, this is a pure refactor plus the one new `stage` condition.
+
+**WS38 acceptance checklist**
+- [ ] `npx prisma db push` clean against prod (additive: 1 new defaulted `Company` column + 1 new table) — verify no drop statements in the diff preview
+- [ ] Existing companies read `stage: "ACTIVE"` with zero manual backfill
+- [ ] All three call sites import the shared filter; a company manually set to `stage: "DILIGENCE"` in a test disappears from `/admin/companies`, the admin dashboard's KPI counts/company list, and a manual metric-alerts cron dry run — and reappears once flipped back
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `src/lib/auth.ts`, `auth-guard.ts`, `route-access.ts`, `set-password/route.ts`
+
+**UX impact:** none — no surface reads `stage`/`CompanyDiligence` yet. **Cost impact:** none. **Schema:** 1 new defaulted `Company` column + 1 new table, additive.
+
+## WS39 — Repaired admin-initiated DD invite flow (F32, Q56, Q60) (~1–1.25 day)
+
+**Goal:** fix `/admin/companies/new`'s broken "Assign User" flow in place; extend it so an admin can create a DD-stage company, invite its founder with real DD-invite email copy, and tick the Stellar checkbox — all from the one page.
+
+### WS39.1 `POST /api/companies` — field-name fix + DD branch
+
+```ts
+// existing signature: { name, description, website, sector, geography, fundingStage, userEmail?, userName? }
+// unchanged for the plain-company path; adds one new optional block:
+const { name, description, website, sector, geography, fundingStage, userEmail, userName, dueDiligence } = body;
+// dueDiligence?: { isStellarEcosystem: boolean }
+
+if (user!.roles.includes("ADMIN")) {
+  const company = await db.$transaction(async (tx) => {
+    let assignUserId = user!.id;
+    let setupToken: string | null = null;
+
+    if (userEmail) {
+      let founderUser = await tx.user.findUnique({ where: { email: userEmail } });
+      if (!founderUser) {
+        const { token, tokenExpiresAt } = generateSetupToken();
+        founderUser = await tx.user.create({
+          data: {
+            email: userEmail,
+            name: userName || null,
+            roles: ["FOUNDER"],
+            status: "APPROVED", // matches the working members/invite pattern, not PENDING
+            approvalToken: token,
+            tokenExpiresAt,
+          },
+        });
+        setupToken = token;
+      }
+      assignUserId = founderUser.id;
+    }
+
+    const newCompany = await tx.company.create({
+      data: {
+        name: name.trim(), description: description || null, website: website || null,
+        sector: sector || null, geography: geography || null, fundingStage: fundingStage || null,
+        createdById: user!.id, // unchanged convention — always the admin, matches today's precedent
+        stage: dueDiligence ? "DILIGENCE" : "ACTIVE",
+      },
+    });
+
+    if (dueDiligence) {
+      await tx.companyDiligence.create({
+        data: { companyId: newCompany.id, isStellarEcosystem: dueDiligence.isStellarEcosystem ?? false },
+      });
+    }
+
+    await tx.userCompanyMembership.create({
+      data: { userId: assignUserId, companyId: newCompany.id, role: "OWNER" },
+    });
+
+    return { newCompany, setupToken, founderEmail: userEmail || null };
+  });
+
+  if (dueDiligence && company.setupToken && company.founderEmail) {
+    sendDiligenceInviteEmail({
+      toEmail: company.founderEmail,
+      companyName: company.newCompany.name,
+      token: company.setupToken,
+    }).catch((err) => console.error("Failed to send diligence-invite email:", err));
+  }
+
+  await logAdminAction(user!, "COMPANY_CREATED", {
+    targetType: "Company", targetId: company.newCompany.id,
+    metadata: { name: company.newCompany.name, dueDiligence: !!dueDiligence },
+  });
+  return NextResponse.json(company.newCompany, { status: 201 });
+}
+```
+
+Fixing the field-name bug (`userEmail`/`userName` were already the route's names — the client was wrong) means: **WS39.2 changes the client**, not the route's existing field names, so the plain (non-DD) "assign existing/new user" path — which was silently broken — starts working correctly for the first time as a side effect, exactly the F32 fix.
+
+### WS39.2 `src/app/admin/companies/new/page.tsx` — client fix + DD fields
+
+- Rename the payload keys the form sends: `existingUserEmail` → `userEmail` (existing-user case), `newUser: {name, email}` → `userEmail`/`userName` directly (new-user case) — matching the route's real field names.
+- Add a "This is a due-diligence intake" toggle, shown alongside the existing "Assign User" picker (only meaningful once `assignUser !== "none"`). When on: reveal the Stellar checkbox ("This deal involves the Stellar ecosystem") and submit `dueDiligence: { isStellarEcosystem }` in the payload.
+- On success, route to `/admin/diligence` (WS41) instead of `/admin/companies/${id}` when `dueDiligence` was set, since the new company won't appear on `/admin/companies` (WS38's filter) until promoted.
+
+### WS39.3 `sendDiligenceInviteEmail()` — new template in `src/lib/email.ts`
+
+Matches the existing helpers' structure (`emailWrapper`/`eyebrow`/`heading`/`primaryButton`/`linkFallback`) but with copy in the register of the real Lantern example — a warm "you're in, DD is next" note, not "join your team":
+
+```ts
+export async function sendDiligenceInviteEmail(opts: {
+  toEmail: string;
+  companyName: string;
+  token: string;
+}) {
+  const link = `${BASE_URL}/set-password?token=${opts.token}`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: SUPPORT_EMAIL,
+    to: opts.toEmail,
+    subject: `${opts.companyName} — next step: due diligence`,
+    html: emailWrapper(`
+      ${eyebrow("Due Diligence")}
+      ${heading("We're moving forward")}
+      <p style="margin: 0 0 16px;">Good news — we'd like to move ahead with an investment in <strong>${opts.companyName}</strong>. The next step is diligence: a handful of documents and a couple of quick questions, all in one place.</p>
+      <p style="margin: 0 0 24px;">We've set up ${opts.companyName}'s account on Molly &mdash; the same platform you'll use to share updates with us for as long as we're working together. Set a password and you can get started right away.</p>
+
+      <p>${primaryButton(link, "Get Started →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
+        This link expires in <strong>${SETUP_TOKEN_TTL_DAYS} days</strong>. Questions any time — just reply to this email.
+      </p>
+      ${linkFallback(link)}
+    `),
+  });
+  assertSent(result, "diligence-invite");
+}
+```
+
+**WS39 acceptance checklist**
+- [ ] Ordinary "Add Company" (no `dueDiligence`) with an existing-user email assigns OWNER membership to *that user*, not the admin — confirms F32 fixed for the plain path too
+- [ ] "Add Company" with a new-user email + DD toggle on → creates `Company{stage: "DILIGENCE"}`, `CompanyDiligence{isStellarEcosystem}`, `User{status: APPROVED, approvalToken, tokenExpiresAt}`, OWNER membership, sends `sendDiligenceInviteEmail`, and an audit row (`COMPANY_CREATED`, `metadata.dueDiligence: true`)
+- [ ] Stellar checkbox only renders once DD mode is on; unticked by default; round-trips into `CompanyDiligence.isStellarEcosystem`
+- [ ] The new founder's set-password link behaves exactly like a team-invite link — same 7-day TTL, same `canResendSetupLink()`/resend eligibility, no new code needed there
+- [ ] Setting the password lands the founder on `/dashboard` with full access immediately (Q55) — confirms no new redirect/gating logic was needed
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `set-password/route.ts`, `auth.ts`, `auth-guard.ts`, `route-access.ts`
+
+**UX impact:** admin-only. A previously-broken capability now works correctly (plain assign-user path), plus a genuinely new DD-invite capability — zero change for any existing founder, whose account-creation path is untouched. **Cost impact:** none, reuses Resend. **Schema:** none new (WS38's).
+
+## WS40 — Founder-facing DD checklist (extended Document Types + non-blocking banner) (~1.25–1.5 day)
+
+**Goal:** extend `DOC_TYPES` with the five new document types; build a purpose-built checklist page (not a `/setup-wizard` extension, per F31) plus a persistent, non-blocking dashboard card (Q55).
+
+### WS40.1 `src/lib/constants.ts` — extend `DOC_TYPES`
+
+```ts
+export const DOC_TYPES = [
+  { value: "pitch_deck", label: "Pitch Deck" },
+  { value: "financials", label: "Financials" },
+  { value: "legal", label: "Legal" },
+  { value: "product", label: "Product / Demo" },
+  { value: "cap_table", label: "Cap Table / Investor Docs" },
+  { value: "bank_statements", label: "Bank Statements" },
+  { value: "certificate_of_incorporation", label: "Certificate of Incorporation" },
+  { value: "business_license", label: "Business License" },
+  { value: "passport", label: "Founder Passport" },
+  { value: "other", label: "Other" },
+] as const;
+```
+
+No migration — `Document.docType` is already a free nullable string. Every existing document with the 5 original values renders unchanged.
+
+### WS40.2 `GET`/`PATCH /api/companies/[id]/diligence` (new route)
+
+`requireCompanyAccess(id)`. `GET` recomputes `completedAt` (JC-DD-F: non-null once `isUsIncorporated !== null`, at least one non-archived `passport`-typed document exists, and — when `isStellarEcosystem` — both essay fields are non-empty) and persists the recomputed value before returning the row, alongside `company.stage` for the client's own gating. `PATCH` accepts `{ isUsIncorporated?: boolean; stellarWhyText?: string; stellarTimelineText?: string }`; `completedAt`/`closedAt`/`isStellarEcosystem` are never client-writable through this route.
+
+### WS40.3 `/diligence` founder page (new)
+
+Standard `AppShell`/`PageHeader`/`Card` composition. Sections: the Yes/No incorporation question; the two Stellar essay `Textarea`s (rendered only when `diligence.isStellarEcosystem`); five upload rows (one per new `DOC_TYPES` value, reusing the existing two-step presigned `POST /api/documents/upload` → S3 PUT flow already used by the admin company page and the rich editor) — `passport` and `bank_statements` uploads set `isInternal: true` automatically (no founder-facing toggle; ties into WS42's enforcement), the other three default `false`. Reachable in the sidebar only while `company.stage === "DILIGENCE"` (the `useCompany()` context already spreads every `Company` field from `GET /api/companies`, so `stage` needs only a type-interface addition, no new fetch).
+
+### WS40.4 Dashboard banner (`src/app/dashboard/page.tsx`, Q55)
+
+A `Card` above the existing dashboard content, same conditional-render idiom as the admin Metric Alerts card — rendered only when `company.stage === "DILIGENCE"`:
+
+```tsx
+{company.stage === "DILIGENCE" && (
+  <Card className="mb-6">
+    <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+      <div>
+        <p className="font-medium">Due diligence — a few more steps</p>
+        <p className="text-sm text-muted-foreground">
+          {diligenceProgress} of {diligenceTotal} required items done
+        </p>
+      </div>
+      <Button onClick={() => router.push("/diligence")}>Continue</Button>
+    </CardContent>
+  </Card>
+)}
+```
+
+Every other dashboard section (updates, metrics, engagement) renders completely unchanged beneath it — no gating, matching Q55.
+
+**WS40 acceptance checklist**
+- [ ] `DOC_TYPES` extended; the 5 existing values/labels and their order are unchanged (no relabeling of existing documents)
+- [ ] `/diligence` reachable only while `stage === "DILIGENCE"`; sidebar item hidden otherwise
+- [ ] Yes/No + Stellar essays (when applicable) PATCH and persist; reload shows saved values
+- [ ] All 5 new document types upload successfully via the existing presigned-URL flow and are tagged correctly; `passport`/`bank_statements` are `isInternal: true` without any founder-visible toggle
+- [ ] Dashboard banner renders only for `DILIGENCE`-stage companies, disappears on the next load once WS41 promotes the company, and every other dashboard section is pixel-identical to today beneath it
+- [ ] 375px check on the new page (Pattern D wrapping form rows) and the banner (Pattern C stacking)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `set-password/route.ts`, `auth.ts`, `auth-guard.ts`, `route-access.ts`, `src/app/lp/**`, `src/app/share/**`
+
+**UX impact:** net-new, additive surface; zero change to any existing (non-DD) founder's dashboard — the new banner code path is a no-op for `stage !== "DILIGENCE"`, which is every company that exists today. **Cost impact:** none. **Schema:** none new (WS38's).
+
+## WS41 — Admin DD review queue + explicit promote action (Q54, JC-DD-G) (~1–1.25 day)
+
+**Goal:** a new admin queue (pattern-parallel to Approvals/Awaiting-setup, its own page per JC-DD-G) surfaces DD companies once the founder's checklist is complete; an explicit admin action promotes to `ACTIVE`. The decline/delete path is wired here using the existing generic confirm copy — WS43 later swaps in DD-specific wording.
+
+### WS41.1 `GET /api/admin/diligence`
+
+`requireAdmin`. Returns every `Company{stage: "DILIGENCE"}` with its `diligence` row and founder (name/email via `memberships`), split client-side into "Awaiting founder" (`completedAt === null`) and "Ready for review" (`completedAt !== null`) — same split idiom as the existing Approvals/Awaiting-setup page.
+
+### WS41.2 `/admin/diligence` page (new)
+
+Sidebar entry in the "Company Operations" group, next to Approvals (matches the existing `adminNavGroups` shape in `src/components/layout/sidebar.tsx`). Card-per-company (Pattern B wrap-row), each showing founder name/email/company name/created date and a compact "what's done" readout (incorporation answer, doc counts by type, Stellar fields present/absent); "Ready for review" cards get a "Promote" button, both sections get a "Decline" button (WS41.3 below).
+
+### WS41.3 `POST /api/admin/diligence/[id]/promote`
+
+`requireAdmin`. Sets `Company.stage = "ACTIVE"`, `CompanyDiligence.closedAt = new Date()`, in one transaction. Logs a new audit action `COMPANY_DILIGENCE_PROMOTED` (`metadata: { companyName, founderEmail }`). Deliberately writes nothing to `Fund`/`Deal`/`PortfolioCompany` (JC-DD-E/Q54).
+
+### WS41.4 Decline path — reuse `DELETE /api/companies/[id]`
+
+No new endpoint. The "Decline" button on `/admin/diligence` calls the existing `DELETE /api/companies/[id]` verbatim, with the page's existing generic confirm dialog (same component/copy as `admin/companies/[id]`'s delete). WS43 replaces this with DD-aware copy once this page exists to host it.
+
+**WS41 acceptance checklist**
+- [ ] A DD company with an incomplete checklist appears under "Awaiting founder"; once complete (per WS40's recompute-on-read), it appears under "Ready for review" with no admin action required to move it
+- [ ] Promote flips `stage` to `"ACTIVE"`, sets `closedAt`, logs `COMPANY_DILIGENCE_PROMOTED`; the company appears in `/admin/companies`, the admin dashboard KPI counts, and a manual metric-alerts cron run on the very next load (proves WS38's shared filter is live end-to-end)
+- [ ] The promoted company's founder dashboard banner (WS40.4) disappears on next load
+- [ ] Decline deletes the company + founder account (existing cascade behavior, re-verified for this case) using the existing generic confirm copy
+- [ ] Fund/Deal/PortfolioCompany rows are untouched by promote — grep + live check confirms no writes to those models anywhere in this WS's code
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `set-password/route.ts`, `auth.ts`, `auth-guard.ts`, `route-access.ts`, `src/app/admin/approvals/**` (this queue is deliberately separate, JC-DD-G)
+
+**UX impact:** new admin-only page; zero change to `/admin/approvals` or `/admin/companies` beyond the filter already shipped in WS38. **Cost impact:** none. **Schema:** none new.
+
+## WS42 — `isInternal` read enforcement (F33, Q59) (~0.5 day)
+
+**Goal:** close the pre-existing gap identified in F33 — internal-only documents are actually filtered out of founder reads — scoped exactly to the two routes identified, no broader access-model change (Q59 explicitly declined the stricter "uploader + admin only" option).
+
+### WS42.1 `GET /api/companies/[id]/documents/route.ts`
+
+```ts
+const { user, error } = await requireCompanyAccess(id);
+if (error) return error;
+const isAdmin = user!.roles.includes("ADMIN");
+// ...
+const documents = await db.document.findMany({
+  where: {
+    companyId: id,
+    ...(isAdmin ? {} : { isInternal: false }),
+    archivedAt: archived ? { not: null } : null,
+    ...(docType ? { docType } : {}),
+    ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+  },
+  // ...unchanged select/order
+});
+```
+
+### WS42.2 `GET /api/documents/[id]/route.ts`
+
+```ts
+const { user, error } = await requireCompanyAccess(document.companyId);
+if (error) return error;
+if (document.isInternal && !user!.roles.includes("ADMIN")) {
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+const downloadUrl = await getDownloadUrl(document.s3Key);
+```
+
+`PATCH` (archive/docType edit) is left exactly as-is, per Q59's explicit narrow scope — only the two read paths change.
+
+**WS42 acceptance checklist**
+- [ ] A founder `GET` on `/api/companies/[id]/documents` no longer includes `isInternal: true` rows; an admin `GET` is unchanged (all rows, including internal, still returned)
+- [ ] A founder `GET` on `/api/documents/[id]` for an `isInternal: true` doc → 403; the same request from an admin session → 200 with `downloadUrl`, unchanged
+- [ ] A founder `GET` on `/api/documents/[id]` for a document *they themselves uploaded* but later marked internal by an admin → still 403 (confirms this is a role check, not an uploader exception, per Q59)
+- [ ] Existing non-internal document flows are unaffected — spot-check update-attachment inline images, the admin company page, and the `/api/share/[token]/doc/[docId]` proxy
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `set-password/route.ts`, `auth.ts`, `auth-guard.ts`, `route-access.ts`
+
+**UX impact:** a real but narrow new access restriction for founders — zero visible regression today, since there is currently no founder document browser UI at all outside this Part's own WS40.3 checklist page (which only ever uploads the two most sensitive types as internal, and never lists another founder's internal uploads). **Cost impact:** none. **Schema:** none.
+
+## WS43 — Delete-confirmation copy differentiation for DD companies (Q57 polish) (~0.25 day)
+
+**Goal:** replace WS41.4's reused generic delete-confirm copy with wording specific to a non-close, since this action also deletes a real, if brand-new, founder account — not just a data row.
+
+`/admin/diligence`'s "Decline" confirm dialog copy changes from the generic company-delete text to, e.g.: *"This deal didn't close. Deleting will permanently remove {companyName} and {founderName}'s account from Molly — this cannot be undone."* No endpoint change — `DELETE /api/companies/[id]` and its cascade/audit behavior are untouched; `admin/companies/[id]`'s own generic delete copy (for ordinary, non-DD companies) is untouched.
+
+**WS43 acceptance checklist**
+- [ ] `/admin/diligence`'s decline confirm shows the DD-specific copy, naming both the company and the founder
+- [ ] `admin/companies/[id]`'s existing delete confirm copy is byte-identical to before this WS
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** copy-only, admin-facing. **Cost impact:** none. **Schema:** none.
+
+---
+
+## Part 16 sequencing, batch split & effort
+
+**Dependency order (as requested): WS38 → WS39 → WS40 → WS41 → WS42 → WS43.** WS38 is a hard blocker for everything else (schema). WS39 and WS40 could in principle run in parallel once WS38 lands (WS39 doesn't depend on WS40, and vice versa), but WS39 first keeps the "how does a DD company come to exist at all" path verified before building the founder-facing surface that depends on it existing. WS41 needs WS40's `completedAt` recompute to have real data to queue. WS42 is fully independent of WS39–WS41 (it's a fix to existing routes) but is sequenced after the founder checklist ships since that's what makes the gap acute. WS43 needs WS41's page to exist first.
+
+| WS | Item | Effort | Schema push | Gated on |
+|---|---|---|---|---|
+| WS38 | `Company.stage` + `CompanyDiligence` + shared filter | 0.5–0.75d | 1 defaulted column + 1 table | — |
+| WS39 | Repaired admin invite flow (F32) + DD email | 1–1.25d | — | WS38 |
+| WS40 | Founder DD checklist + extended doc types + banner | 1.25–1.5d | — | WS38, WS39 |
+| WS41 | Admin review queue + promote | 1–1.25d | — | WS38, WS40 |
+| WS42 | `isInternal` enforcement fix | 0.5d | — | — (independent; sequenced after WS40 by relevance) |
+| WS43 | Delete-copy polish | 0.25d | — | WS41 |
+
+**Total: ~4.5–5.5 junior-engineer days.**
+
+**Flagged for a dedicated implementation pass rather than bundling:**
+- **WS39** — touches account creation + a new transactional email path; it's also the direct fix for a real (if latent) production bug (F32), so it deserves focused review on its own rather than being folded into a larger commit.
+- **WS40** — the largest single surface in this Part (new page, new route, extended doc types, dashboard banner) and the one genuinely new judgment call worth scrutiny in isolation (JC-DD-F's recompute-on-read completion logic).
+- **WS42** — small diff, but it's a document-access-control change; exactly the kind of small/high-consequence change worth its own careful pass rather than being bundled where a sign-off might skim it (e.g., verifying it doesn't accidentally block the share-link doc proxy or an uploader's own document).
+
+WS38, WS41, and WS43 are low-risk enough to bundle with an adjacent workstream if that's more efficient.
+
+## Part 16 roadmap bookkeeping
+
+`ROADMAP.md` gets a "Planned — Part 16" forward-pointer blockquote at the top of the Roadmap section (added in this same edit) — **not** a shipped claim; nothing moves into "Existing Features" until WS38–WS43 actually ship. Once shipped, fold into "Existing Features" under both Founder Features (the `/diligence` checklist + dashboard banner) and Admin Features (`/admin/diligence`, the repaired `/admin/companies/new` invite flow, the `isInternal` fix) per the usual convention, and update the top `_Last updated_` line.
