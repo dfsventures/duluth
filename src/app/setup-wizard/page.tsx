@@ -57,6 +57,15 @@ export default function SetupWizardPage() {
   // Created company ID (set after step 1 completes)
   const [companyId, setCompanyId] = useState<string | null>(null);
 
+  // Step 3: Documents (F31 — this input previously had no onChange handler
+  // at all; founders believed they'd uploaded files and nothing happened,
+  // no error shown. Reuses the same presigned-upload flow WS40 built for
+  // /diligence: POST /api/documents/upload for a presigned URL, then PUT
+  // the file straight to storage.)
+  const [uploadedFileNames, setUploadedFileNames] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   function addMetricRow() {
     setMetricDrafts((prev) => [...prev, { name: "", unit: "" }]);
   }
@@ -165,6 +174,43 @@ export default function SetupWizardPage() {
     if (currentStep === 2) {
       // Complete setup - redirect to dashboard
       router.push("/dashboard");
+    }
+  }
+
+  async function handleDocumentUpload(files: FileList | null) {
+    if (!files || files.length === 0 || !companyId) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      for (const file of Array.from(files)) {
+        const initRes = await fetch("/api/documents/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId,
+            name: file.name,
+            mimeType: file.type || "application/octet-stream",
+          }),
+        });
+        if (!initRes.ok) {
+          const errData = await initRes.json().catch(() => null);
+          throw new Error(errData?.error ?? `Failed to upload "${file.name}"`);
+        }
+        const { uploadUrl } = await initRes.json();
+
+        const putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file,
+        });
+        if (!putRes.ok) throw new Error(`Upload of "${file.name}" to storage failed`);
+
+        setUploadedFileNames((prev) => [...prev, file.name]);
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -371,14 +417,34 @@ export default function SetupWizardPage() {
             <div className="rounded-md border-2 border-dashed border-muted-foreground/25 p-8 text-center">
               <Upload className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
               <p className="mb-3 text-sm text-muted-foreground">
-                Drag and drop files here, or click to browse
+                {uploading ? "Uploading..." : "Drag and drop files here, or click to browse"}
               </p>
               <input
                 type="file"
                 multiple
+                disabled={uploading}
+                onChange={(e) => {
+                  handleDocumentUpload(e.target.files);
+                  e.target.value = "";
+                }}
                 className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary-500"
               />
             </div>
+
+            {uploadError && (
+              <p className="mt-3 text-sm text-laterite">{uploadError}</p>
+            )}
+
+            {uploadedFileNames.length > 0 && (
+              <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
+                {uploadedFileNames.map((name, i) => (
+                  <li key={`${name}-${i}`} className="flex items-center gap-1.5">
+                    <Check className="h-3.5 w-3.5 text-acacia" />
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
       )}
@@ -403,9 +469,9 @@ export default function SetupWizardPage() {
               {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           ) : (
-            <Button onClick={handleNext} disabled={submitting}>
+            <Button onClick={handleNext} disabled={submitting || uploading}>
               <Check className="mr-2 h-4 w-4" />
-              {submitting ? "Completing..." : "Complete Setup"}
+              {uploading ? "Uploading..." : submitting ? "Completing..." : "Complete Setup"}
             </Button>
           )}
         </div>
