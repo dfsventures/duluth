@@ -50,6 +50,13 @@ export default function AdminDiligencePage() {
   const [actionStates, setActionStates] = useState<
     Record<string, { loading: boolean; error?: string }>
   >({});
+  // F35 (2026-08-03 audit) — the decline confirm copy says the founder's
+  // account is always removed; it isn't when they still have a dangling
+  // dependency (e.g. a ShareableLink still serving another company). The
+  // DELETE response now reports that via founderAccountsRetained, and we
+  // surface it here instead of letting the confirm dialog's claim go
+  // unchecked.
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -86,11 +93,18 @@ export default function AdminDiligencePage() {
 
   async function handleDecline(id: string) {
     setActionStates((prev) => ({ ...prev, [id]: { loading: true } }));
+    setNotice(null);
     try {
       const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => null);
       if (!res.ok) {
-        const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error ?? "Failed to decline");
+        throw new Error(data?.error ?? "Failed to decline");
+      }
+      const declined = items.find((item) => item.id === id);
+      if (Array.isArray(data?.founderAccountsRetained) && data.founderAccountsRetained.length > 0) {
+        setNotice(
+          `${declined?.name ?? "The company"} was deleted. ${data.founderAccountsRetained.join(", ")}'s account could not be automatically removed — it still has other data attached (e.g. an investor link they created) and needs manual cleanup.`
+        );
       }
       setItems((prev) => prev.filter((item) => item.id !== id));
       setConfirmDeclineId(null);
@@ -237,6 +251,13 @@ export default function AdminDiligencePage() {
         title="Due Diligence"
         description="Companies invited for due diligence, awaiting paperwork before they join the portfolio."
       />
+
+      {notice && (
+        <div className="mb-6 flex items-start gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-ochre">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{notice}</span>
+        </div>
+      )}
 
       {items.length === 0 ? (
         <EmptyState

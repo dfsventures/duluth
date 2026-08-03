@@ -175,24 +175,51 @@ export async function DELETE(
     // that kind of unrelated FK must never fail or roll back the company
     // deletion itself, which has to keep behaving exactly as reliably as
     // it does today for every company, DD or not.
+    //
+    // F35 (2026-08-03 audit): the original version of this loop swallowed
+    // ShareableLink-caused delete failures entirely — company still
+    // deleted, API still said success, no signal the founder account
+    // survived. Fixed two ways: (1) a founder's ShareableLink that no
+    // longer references *any* company (its only ShareableLinkCompany row
+    // was the one that just cascaded away with this company's delete) is
+    // safe to remove outright — it only ever pointed at the deal that
+    // just fell through, so there's no data worth preserving via it. A
+    // link that still references another, still-active company is left
+    // alone on purpose (it's still serving that company) and the
+    // resulting user-delete failure is (2) reported, not swallowed — via
+    // both the audit log and the response body.
     const deletedFounderEmails: string[] = [];
+    const retainedFounderAccounts: string[] = [];
     for (const userId of candidateFounderIds) {
-      try {
-        const remainingMemberships = await db.userCompanyMembership.count({
-          where: { userId },
-        });
-        if (remainingMemberships > 0) continue; // still part of another real company — leave them alone
+      const remainingMemberships = await db.userCompanyMembership.count({
+        where: { userId },
+      });
+      if (remainingMemberships > 0) continue; // still part of another real company — leave them alone
 
-        const founder = await db.user.findUnique({
-          where: { id: userId },
-          select: { email: true, roles: true },
+      const founder = await db.user.findUnique({
+        where: { id: userId },
+        select: { email: true, roles: true },
+      });
+      if (!founder || founder.roles.includes("ADMIN")) continue; // never auto-delete an admin account
+
+      try {
+        const founderLinks = await db.shareableLink.findMany({
+          where: { createdById: userId },
+          include: { _count: { select: { companies: true } } },
         });
-        if (!founder || founder.roles.includes("ADMIN")) continue; // never auto-delete an admin account
+        for (const link of founderLinks) {
+          if (link._count.companies === 0) {
+            await db.shareableLink.delete({ where: { id: link.id } });
+          }
+          // else: still referenced by another still-active company —
+          // leave it (and therefore the founder account) alone.
+        }
 
         await db.user.delete({ where: { id: userId } });
         deletedFounderEmails.push(founder.email);
       } catch (cleanupErr) {
         console.error(`DELETE /api/companies/[id]: founder-account cleanup failed for user ${userId}:`, cleanupErr);
+        retainedFounderAccounts.push(founder.email);
       }
     }
 
@@ -202,9 +229,14 @@ export async function DELETE(
       metadata: {
         name: existing.name,
         ...(deletedFounderEmails.length > 0 ? { founderAccountsDeleted: deletedFounderEmails } : {}),
+        ...(retainedFounderAccounts.length > 0 ? { founderAccountsRetained: retainedFounderAccounts } : {}),
       },
     });
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      ...(deletedFounderEmails.length > 0 ? { founderAccountsDeleted: deletedFounderEmails } : {}),
+      ...(retainedFounderAccounts.length > 0 ? { founderAccountsRetained: retainedFounderAccounts } : {}),
+    });
   } catch (err) {
     console.error("DELETE /api/companies/[id] error:", err);
     return NextResponse.json(
