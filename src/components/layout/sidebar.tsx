@@ -58,6 +58,7 @@ const adminNavGroups = [
     label: "Company Operations",
     items: [
       { label: "Approvals", href: "/admin/approvals", icon: Shield },
+      { label: "Diligence", href: "/admin/diligence", icon: ClipboardCheck },
       { label: "Companies", href: "/admin/companies", icon: Building2 },
       { label: "Updates", href: "/admin/updates", icon: FileText },
       { label: "Investor Links", href: "/admin/links", icon: Link2 },

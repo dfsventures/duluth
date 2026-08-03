@@ -95,9 +95,12 @@ export default function NewCompanyPage() {
 
       const result = await res.json();
       const newCompany = result.data ?? result;
+      const wasDueDiligence = assignUser !== "none" && isDueDiligence;
 
       if (newCompany?.id) {
-        router.push(`/admin/companies/${newCompany.id}`);
+        // A DD-stage company won't appear on /admin/companies (WS38's
+        // filter) until an admin promotes it via /admin/diligence (WS41).
+        router.push(wasDueDiligence ? "/admin/diligence" : `/admin/companies/${newCompany.id}`);
       } else {
         setMessage({
           type: "success",
