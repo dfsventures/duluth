@@ -12,6 +12,9 @@ export interface Company {
   fundingStage: string | null;
   description: string | null;
   membershipRole?: string;
+  // Part 16, WS40 — "DILIGENCE" | "ACTIVE". GET /api/companies already
+  // spreads every Company field, so this is a type-only addition.
+  stage?: string;
 }
 
 interface CompanyContextValue {

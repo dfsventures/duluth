@@ -28,6 +28,12 @@ interface Company {
   geography: string | null;
   fundingStage: string | null;
   description: string | null;
+  // Part 16, WS40 — "DILIGENCE" | "ACTIVE".
+  stage?: string;
+}
+
+interface DiligenceSummary {
+  progress: { done: number; total: number };
 }
 
 interface Update {
@@ -57,6 +63,7 @@ export default function DashboardPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [engagement, setEngagement] = useState<Engagement>({ totalViews: 0, recentViews: [] });
+  const [diligence, setDiligence] = useState<DiligenceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,6 +98,23 @@ export default function DashboardPage() {
           }
         } catch {
           // leave engagement at its zero default
+        }
+
+        // Part 16, WS40 (Q55) — non-blocking DD banner. Only fetched for
+        // DILIGENCE-stage companies; a no-op for every other company.
+        if ((selectedCompany as Company).stage === "DILIGENCE") {
+          try {
+            const diligenceRes = await fetch(
+              `/api/companies/${selectedCompany.id}/diligence`
+            );
+            if (diligenceRes.ok) {
+              setDiligence(await diligenceRes.json());
+            }
+          } catch {
+            // non-fatal — the banner just doesn't render progress detail
+          }
+        } else {
+          setDiligence(null);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong");
@@ -164,6 +188,24 @@ export default function DashboardPage() {
         title="Dashboard"
         description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}.`}
       />
+
+      {/* Part 16, WS40 (Q55) — persistent, non-blocking DD banner.
+          Every section below renders completely unchanged regardless. */}
+      {company.stage === "DILIGENCE" && (
+        <Card className="mb-6">
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+            <div>
+              <p className="font-medium">Due diligence — a few more steps</p>
+              <p className="text-sm text-muted-foreground">
+                {diligence
+                  ? `${diligence.progress.done} of ${diligence.progress.total} required items done`
+                  : "Documents and a couple of quick questions before we close."}
+              </p>
+            </div>
+            <Button onClick={() => router.push("/diligence")}>Continue</Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary cards */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

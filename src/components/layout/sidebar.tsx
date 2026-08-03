@@ -23,8 +23,10 @@ import {
   Handshake,
   Rows3,
   NotebookPen,
+  ClipboardCheck,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
+import { useCompany } from "@/context/company-context";
 
 // Part 11, WS28 (Q33-B) — recurring actions first, setup-once items pushed down.
 const founderNav = [
@@ -89,6 +91,7 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
+  const { selectedCompany } = useCompany();
 
   const isAdminPath = pathname.startsWith("/admin");
   const isAdmin =
@@ -186,7 +189,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             })}
           </>
         ) : (
-          <ul className="space-y-1">{founderNav.map(renderItem)}</ul>
+          <ul className="space-y-1">
+            {/* Part 16, WS40 — surfaced right under Dashboard, only
+                while the founder's selected company is still in
+                due-diligence intake. */}
+            {renderItem(founderNav[0])}
+            {selectedCompany?.stage === "DILIGENCE" &&
+              renderItem({ label: "Diligence", href: "/diligence", icon: ClipboardCheck })}
+            {founderNav.slice(1).map(renderItem)}
+          </ul>
         )}
       </nav>
 

@@ -3,8 +3,20 @@ export const DOC_TYPES = [
   { value: "financials", label: "Financials" },
   { value: "legal", label: "Legal" },
   { value: "product", label: "Product / Demo" },
+  // Part 16, WS40 — due-diligence intake document types.
+  { value: "cap_table", label: "Cap Table / Investor Docs" },
+  { value: "bank_statements", label: "Bank Statements" },
+  { value: "certificate_of_incorporation", label: "Certificate of Incorporation" },
+  { value: "business_license", label: "Business License" },
+  { value: "passport", label: "Founder Passport" },
   { value: "other", label: "Other" },
 ] as const;
+
+// Part 16, WS40 — the 5 due-diligence-specific document types, in the
+// order the founder checklist page renders their upload rows.
+export const DD_DOC_TYPES = DOC_TYPES.filter((t) =>
+  ["cap_table", "bank_statements", "certificate_of_incorporation", "business_license", "passport"].includes(t.value)
+);
 
 export type DocType = (typeof DOC_TYPES)[number]["value"];
 
