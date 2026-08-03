@@ -145,13 +145,65 @@ export async function DELETE(
     const { user, error } = await requireAdmin();
     if (error) return error;
 
-    const existing = await db.company.findUnique({ where: { id } });
+    const existing = await db.company.findUnique({
+      where: { id },
+      include: { memberships: { select: { userId: true } } },
+    });
     if (!existing) {
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
 
+    // Part 16, WS43 (Q57, corrected — the founder-account cleanup below
+    // was added after discovering DELETE alone never removed the
+    // founder's account, contrary to the original plan's assumption).
+    // Narrowly scoped to DILIGENCE-stage companies only — an ordinary
+    // ACTIVE-company delete is byte-identical to before this change.
+    const candidateFounderIds =
+      existing.stage === "DILIGENCE"
+        ? [...new Set(existing.memberships.map((m) => m.userId))]
+        : [];
+
     await db.company.delete({ where: { id } });
-    await logAdminAction(user!, "COMPANY_DELETED", { targetType: "Company", targetId: id, metadata: { name: existing.name } });
+
+    // Best-effort, deliberately NOT part of one hard DB transaction with
+    // the delete above: a DD founder has full, non-blocking dashboard
+    // access from day one (Q55), including Investor Links — so they may
+    // already own rows this fresh account doesn't exclusively belong to,
+    // e.g. a ShareableLink (createdById is a required FK with no
+    // cascade, and a link isn't owned 1:1 by Company — it survives this
+    // company's deletion via its join table). A user-delete blocked by
+    // that kind of unrelated FK must never fail or roll back the company
+    // deletion itself, which has to keep behaving exactly as reliably as
+    // it does today for every company, DD or not.
+    const deletedFounderEmails: string[] = [];
+    for (const userId of candidateFounderIds) {
+      try {
+        const remainingMemberships = await db.userCompanyMembership.count({
+          where: { userId },
+        });
+        if (remainingMemberships > 0) continue; // still part of another real company — leave them alone
+
+        const founder = await db.user.findUnique({
+          where: { id: userId },
+          select: { email: true, roles: true },
+        });
+        if (!founder || founder.roles.includes("ADMIN")) continue; // never auto-delete an admin account
+
+        await db.user.delete({ where: { id: userId } });
+        deletedFounderEmails.push(founder.email);
+      } catch (cleanupErr) {
+        console.error(`DELETE /api/companies/[id]: founder-account cleanup failed for user ${userId}:`, cleanupErr);
+      }
+    }
+
+    await logAdminAction(user!, "COMPANY_DELETED", {
+      targetType: "Company",
+      targetId: id,
+      metadata: {
+        name: existing.name,
+        ...(deletedFounderEmails.length > 0 ? { founderAccountsDeleted: deletedFounderEmails } : {}),
+      },
+    });
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error("DELETE /api/companies/[id] error:", err);

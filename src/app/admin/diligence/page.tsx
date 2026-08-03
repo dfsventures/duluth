@@ -178,7 +178,17 @@ export default function AdminDiligencePage() {
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {confirming ? (
               <>
-                <span className="text-sm text-muted-foreground">Delete this company?</span>
+                {/* Part 16, WS43 (Q57, corrected) — every company on this
+                    page is DILIGENCE-stage, and DELETE now really does
+                    remove the founder's account too (when they have no
+                    other company), so this copy states that plainly —
+                    unlike admin/companies/[id]'s generic delete confirm,
+                    which is untouched and still company-only. */}
+                <span className="max-w-xs text-sm text-muted-foreground">
+                  This deal didn&apos;t close. Deleting will permanently remove {item.name}
+                  {item.founder ? ` and ${item.founder.name ?? item.founder.email}'s account` : ""} from
+                  Molly — this cannot be undone.
+                </span>
                 <Button
                   variant="destructive"
                   size="sm"
