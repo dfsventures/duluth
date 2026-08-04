@@ -24,6 +24,7 @@ import {
   Rows3,
   NotebookPen,
   ClipboardCheck,
+  FolderOpen,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 import { useCompany } from "@/context/company-context";
@@ -35,6 +36,11 @@ const founderNav = [
   { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
   { label: "Investor Links", href: "/links", icon: Link2 },
   { label: "Company Profile", href: "/company/profile", icon: Building2 },
+  // Part 20, WS47 — sits with Company Profile in the "manage your
+  // company's records" cluster, not with Team/Service Providers.
+  // Ungated by stage (JC-FD-B) — matches the FolderOpen icon already
+  // used for the equivalent admin Documents tab.
+  { label: "Documents", href: "/company/documents", icon: FolderOpen },
   { label: "Team", href: "/team", icon: Users },
   { label: "Service Providers", href: "/providers", icon: Wrench },
 ];
