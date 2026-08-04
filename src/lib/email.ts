@@ -564,14 +564,14 @@ export async function sendLpReportPublishedEmail(opts: { email: string; lpName?:
     html: emailWrapper(`
       ${eyebrow("Fund Report")}
       ${heading(firstName ? `Hi ${firstName},` : "Hello,")}
-      <p style="margin: 0 0 24px;">We've just published <strong>${opts.reportTitle}</strong> &mdash; our latest letter on how the fund is doing, and a look at the portfolio companies behind the numbers. It's a short read.</p>
+      <p style="margin: 0 0 24px;">We've just published <strong>${opts.reportTitle}</strong>, our latest letter on how the fund is doing, plus a look at the portfolio companies behind the numbers. It's a short read.</p>
 
       <p>${primaryButton(link, "Read the Report →")}</p>
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        If anything in there sparks a question &mdash; or a disagreement &mdash; just hit reply. We read everything.
+        If you have a question, or even a disagreement, just hit reply. We read everything.
       </p>
-      <p style="margin: 16px 0 0; color: ${C.tide};">&mdash; The ${ORG_NAME} team</p>
+      <p style="margin: 16px 0 0; color: ${C.tide};">The ${ORG_NAME} team</p>
     `),
   });
   assertSent(result, "lp-report-published");
