@@ -53,7 +53,7 @@ export default async function LpReportPage({ params }: { params: Promise<{ id: s
 
   return (
     <div>
-      <Link href="/lp" className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted hover:text-tide print:hidden">
+      <Link href="/lp" className="mb-8 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-tide print:hidden">
         <ArrowLeft className="h-3.5 w-3.5" />
         All reports
       </Link>

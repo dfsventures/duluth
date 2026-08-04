@@ -84,7 +84,7 @@ export function LpLoginForm() {
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
           placeholder="000000"
-          className="w-full border border-bone bg-white px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-obsidian placeholder:text-muted focus:border-sky focus:outline-none"
+          className="w-full border border-bone bg-white px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-obsidian placeholder:text-muted-foreground focus:border-sky focus:outline-none"
         />
         {error && <p className="mt-2 text-sm text-laterite">{error}</p>}
         <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">
@@ -98,7 +98,7 @@ export function LpLoginForm() {
             setError(null);
             setInfo(null);
           }}
-          className="mt-3 text-xs text-muted hover:text-tide"
+          className="mt-3 text-xs text-muted-foreground hover:text-tide"
         >
           Use a different email
         </button>
@@ -119,7 +119,7 @@ export function LpLoginForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
-        className="w-full border border-bone bg-white px-4 py-3 text-sm text-obsidian placeholder:text-muted focus:border-sky focus:outline-none"
+        className="w-full border border-bone bg-white px-4 py-3 text-sm text-obsidian placeholder:text-muted-foreground focus:border-sky focus:outline-none"
       />
       {error && <p className="mt-2 text-sm text-laterite">{error}</p>}
       <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">

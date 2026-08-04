@@ -31,7 +31,7 @@ export default async function LpLayout({ children }: { children: React.ReactNode
       <main className="flex-1 px-6 py-12 sm:px-10 sm:py-16">{children}</main>
 
       <footer className="border-t border-bone px-6 py-6 text-xs text-tide print:hidden sm:px-10">
-        <p className="font-mono uppercase tracking-[0.1em] text-muted">{ORG_NAME}</p>
+        <p className="font-mono uppercase tracking-[0.1em] text-muted-foreground">{ORG_NAME}</p>
         <p className="mt-1">Fund reports for our limited partners.</p>
       </footer>
     </div>

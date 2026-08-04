@@ -62,7 +62,7 @@ export default async function LpPortalPage() {
         <div className="mt-10 space-y-10">
           {[...byFund.entries()].map(([fundId, bucket]) => (
             <section key={fundId}>
-              <h2 className="border-b border-bone pb-2 font-mono text-xs uppercase tracking-[0.1em] text-muted">
+              <h2 className="border-b border-bone pb-2 font-mono text-xs uppercase tracking-[0.1em] text-muted-foreground">
                 {bucket.fundName}
               </h2>
               <ul className="mt-3 divide-y divide-bone">
@@ -74,9 +74,9 @@ export default async function LpPortalPage() {
                     >
                       <span>
                         <span className="font-display text-lg tracking-tight">{r.title}</span>
-                        {r.periodLabel && <span className="ml-2 text-sm text-muted">{r.periodLabel}</span>}
+                        {r.periodLabel && <span className="ml-2 text-sm text-muted-foreground">{r.periodLabel}</span>}
                       </span>
-                      <span className="shrink-0 font-mono text-xs text-muted">
+                      <span className="shrink-0 font-mono text-xs text-muted-foreground">
                         {r.publishedAt
                           ? new Date(r.publishedAt).toLocaleDateString("en-US", {
                               year: "numeric",
