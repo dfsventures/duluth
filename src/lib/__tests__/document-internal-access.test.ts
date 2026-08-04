@@ -13,6 +13,7 @@ vi.mock("@/lib/s3", () => ({ getDownloadUrl: vi.fn(() => Promise.resolve("https:
 
 const mockDocumentFindMany = vi.fn();
 const mockDocumentFindUnique = vi.fn();
+const mockUpdateFindUnique = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -20,12 +21,17 @@ vi.mock("@/lib/db", () => ({
       findMany: (...args: unknown[]) => mockDocumentFindMany(...args),
       findUnique: (...args: unknown[]) => mockDocumentFindUnique(...args),
     },
+    update: {
+      findUnique: (...args: unknown[]) => mockUpdateFindUnique(...args),
+    },
   },
 }));
 
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { GET as getCompanyDocuments } from "@/app/api/companies/[id]/documents/route";
 import { GET as getDocument } from "@/app/api/documents/[id]/route";
+import { GET as getDocumentView } from "@/app/api/documents/[id]/view/route";
+import { GET as getUpdate } from "@/app/api/updates/[id]/route";
 
 const mockRequireCompanyAccess = vi.mocked(requireCompanyAccess);
 
@@ -49,6 +55,7 @@ beforeEach(() => {
   mockRequireCompanyAccess.mockReset();
   mockDocumentFindMany.mockReset();
   mockDocumentFindUnique.mockReset();
+  mockUpdateFindUnique.mockReset();
 });
 
 describe("GET /api/companies/[id]/documents — isInternal filtering", () => {
@@ -151,5 +158,104 @@ describe("GET /api/documents/[id] — isInternal enforcement", () => {
 
     const res = await getDocument(docReq(), params("doc-1"));
     expect(res).toBe(forbidden.error);
+  });
+});
+
+// Part 19, WS45 (F37) — /view had never gotten the isInternal role check
+// that /api/documents/[id] got in Part 16/WS42. Fixed alongside wiring a
+// "View" button to it, so this Part doesn't ship a new way to leak
+// internal-only document content to non-admins.
+describe("GET /api/documents/[id]/view — isInternal enforcement", () => {
+  function viewReq() {
+    return new Request("https://molly.dfslab.net/api/documents/doc-1/view");
+  }
+
+  it("403s a non-admin reading an isInternal document", async () => {
+    mockDocumentFindUnique.mockResolvedValue({
+      id: "doc-1",
+      companyId: "company-1",
+      s3Key: "key",
+      isInternal: true,
+    });
+    mockRequireCompanyAccess.mockResolvedValue({ user: FOUNDER, error: null } as any);
+
+    const res = await getDocumentView(viewReq(), params("doc-1"));
+    expect(res.status).toBe(403);
+  });
+
+  it("redirects an admin reading the same isInternal document, unchanged", async () => {
+    mockDocumentFindUnique.mockResolvedValue({
+      id: "doc-1",
+      companyId: "company-1",
+      s3Key: "key",
+      isInternal: true,
+    });
+    mockRequireCompanyAccess.mockResolvedValue({ user: ADMIN, error: null } as any);
+
+    const res = await getDocumentView(viewReq(), params("doc-1"));
+    expect(res.status).not.toBe(403);
+    expect(res.headers.get("location")).toBe("https://s3.example.com/signed");
+  });
+
+  it("redirects a non-admin reading a non-internal document, unchanged (rich-editor <img> case)", async () => {
+    mockDocumentFindUnique.mockResolvedValue({
+      id: "doc-1",
+      companyId: "company-1",
+      s3Key: "key",
+      isInternal: false,
+    });
+    mockRequireCompanyAccess.mockResolvedValue({ user: FOUNDER, error: null } as any);
+
+    const res = await getDocumentView(viewReq(), params("doc-1"));
+    expect(res.status).not.toBe(403);
+    expect(res.headers.get("location")).toBe("https://s3.example.com/signed");
+  });
+
+  it("still 404s a missing document before the isInternal check runs", async () => {
+    mockDocumentFindUnique.mockResolvedValue(null);
+    const res = await getDocumentView(viewReq(), params("doc-1"));
+    expect(res.status).toBe(404);
+    expect(mockRequireCompanyAccess).not.toHaveBeenCalled();
+  });
+});
+
+// Part 19, WS45 (F38) — GET /api/updates/[id] selected isInternal from
+// the DB but never filtered by it (the exact WS42/F33 gap shape, on a
+// route WS42 never touched). Fixed alongside making the previously-inert
+// Attachments list on /updates/[id] clickable.
+describe("GET /api/updates/[id] — isInternal filtering on the documents include", () => {
+  function updateReq() {
+    return new Request("https://molly.dfslab.net/api/updates/update-1");
+  }
+
+  it("a founder's documents include filters out isInternal rows", async () => {
+    mockUpdateFindUnique
+      .mockResolvedValueOnce({ companyId: "company-1" })
+      .mockResolvedValueOnce({ id: "update-1", documents: [] });
+    mockRequireCompanyAccess.mockResolvedValue({ user: FOUNDER, error: null } as any);
+
+    await getUpdate(updateReq(), params("update-1"));
+
+    const secondCallArgs = mockUpdateFindUnique.mock.calls[1][0];
+    expect(secondCallArgs.include.documents.where).toEqual({ isInternal: false });
+  });
+
+  it("an admin's documents include has no isInternal filter — every row still returned", async () => {
+    mockUpdateFindUnique
+      .mockResolvedValueOnce({ companyId: "company-1" })
+      .mockResolvedValueOnce({ id: "update-1", documents: [] });
+    mockRequireCompanyAccess.mockResolvedValue({ user: ADMIN, error: null } as any);
+
+    await getUpdate(updateReq(), params("update-1"));
+
+    const secondCallArgs = mockUpdateFindUnique.mock.calls[1][0];
+    expect(secondCallArgs.include.documents.where).toEqual({});
+  });
+
+  it("still 404s a missing update before requireCompanyAccess runs", async () => {
+    mockUpdateFindUnique.mockResolvedValueOnce(null);
+    const res = await getUpdate(updateReq(), params("update-1"));
+    expect(res.status).toBe(404);
+    expect(mockRequireCompanyAccess).not.toHaveBeenCalled();
   });
 });

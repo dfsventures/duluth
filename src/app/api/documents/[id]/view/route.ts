@@ -14,15 +14,22 @@ export async function GET(
 
     const document = await db.document.findUnique({
       where: { id },
-      select: { s3Key: true, companyId: true },
+      select: { s3Key: true, companyId: true, isInternal: true },
     });
 
     if (!document) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    const { error } = await requireCompanyAccess(document.companyId);
+    const { user, error } = await requireCompanyAccess(document.companyId);
     if (error) return error;
+
+    // Part 19, WS45 (F37) — same role check WS42/F33 gave the metadata
+    // route; /view had never gotten it. A role check, not an uploader
+    // exception, matching that precedent exactly.
+    if (document.isInternal && !user!.roles.includes("ADMIN")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const url = await getDownloadUrl(document.s3Key);
     return NextResponse.redirect(url);

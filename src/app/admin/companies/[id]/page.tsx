@@ -33,6 +33,7 @@ import {
   History,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  Eye,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -47,6 +48,7 @@ import { formatDate, normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { MetricChart } from "@/components/ui/metric-chart";
 import { DOC_TYPES } from "@/lib/constants";
+import { isInlineViewable } from "@/lib/documents";
 import { RichEditor } from "@/components/ui/rich-editor";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
@@ -1275,6 +1277,17 @@ export default function AdminCompanyDetailPage() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
+                            {isInlineViewable(doc.mimeType) && (
+                              <a
+                                href={`/api/documents/${doc.id}/view`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-primary"
+                                title="View"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </a>
+                            )}
                             <button
                               onClick={() => handleDownload(doc.id, doc.name)}
                               className="text-muted-foreground hover:text-primary"

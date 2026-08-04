@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Eye,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -30,6 +31,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { DOC_TYPES } from "@/lib/constants";
+import { isInlineViewable } from "@/lib/documents";
 import { ORG_NAME } from "@/lib/org";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { ComposerTitleField } from "@/components/composer/composer-title-field";
@@ -66,7 +68,6 @@ interface UpdateDetail {
   documents?: {
     id: string;
     name: string;
-    s3Key: string;
     mimeType: string | null;
     size: number | null;
     docType: string | null;
@@ -372,6 +373,23 @@ export default function UpdateDetailPage() {
       });
     } finally {
       setPostingComment(false);
+    }
+  }
+
+  async function handleDownloadDoc(docId: string, docName: string) {
+    try {
+      const res = await fetch(`/api/documents/${docId}`);
+      if (!res.ok) throw new Error("Failed to get download link");
+      const data = await res.json();
+      const a = document.createElement("a");
+      a.href = data.downloadUrl;
+      a.download = docName;
+      a.click();
+    } catch (err) {
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Download failed.",
+      });
     }
   }
 
@@ -690,6 +708,26 @@ export default function UpdateDetailPage() {
                             {(doc.size / 1024).toFixed(1)} KB
                           </p>
                         )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isInlineViewable(doc.mimeType) && (
+                          <a
+                            href={`/api/documents/${doc.id}/view`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-primary"
+                            title="View"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => handleDownloadDoc(doc.id, doc.name)}
+                          className="text-muted-foreground hover:text-primary"
+                          title="Download"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
                       </div>
                     </li>
                   ))}

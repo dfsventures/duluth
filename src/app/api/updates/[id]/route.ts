@@ -52,8 +52,10 @@ export async function GET(
       return NextResponse.json({ error: "Update not found" }, { status: 404 });
     }
 
-    const { error } = await requireCompanyAccess(update.companyId);
+    const { user, error } = await requireCompanyAccess(update.companyId);
     if (error) return error;
+
+    const isAdmin = user!.roles.includes("ADMIN");
 
     const fullUpdate = await db.update.findUnique({
       where: { id },
@@ -81,6 +83,7 @@ export async function GET(
           },
         },
         documents: {
+          where: isAdmin ? {} : { isInternal: false },
           orderBy: { createdAt: "desc" },
           select: {
             id: true,
