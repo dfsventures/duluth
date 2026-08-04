@@ -22,9 +22,9 @@ afterEach(() => {
 });
 
 describe("org config defaults", () => {
-  it("falls back to DFS Lab defaults with no env vars set", async () => {
+  it("falls back to DFS defaults with no env vars set", async () => {
     const { ORG_NAME, ADMIN_EMAIL_DOMAIN } = await loadOrg();
-    expect(ORG_NAME).toBe("DFS Lab");
+    expect(ORG_NAME).toBe("DFS");
     expect(ADMIN_EMAIL_DOMAIN).toBe("dfs.vc");
   });
 });

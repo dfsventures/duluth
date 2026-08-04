@@ -4,7 +4,7 @@ import { SETUP_TOKEN_TTL_DAYS } from "@/lib/setup-token";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
-const FROM = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>";
+const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <noreply@dfs.vc>`;
 const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfs.vc";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
@@ -564,7 +564,7 @@ export async function sendLpReportPublishedEmail(opts: { email: string; lpName?:
     html: emailWrapper(`
       ${eyebrow("Fund Report")}
       ${heading(firstName ? `Hi ${firstName},` : "Hello,")}
-      <p style="margin: 0 0 24px;">We've just published <strong>${opts.reportTitle}</strong> &mdash; our latest letter on how <strong>${opts.fundName}</strong> is doing, and a look at the portfolio companies behind the numbers. It's a short read.</p>
+      <p style="margin: 0 0 24px;">We've just published <strong>${opts.reportTitle}</strong> &mdash; our latest letter on how the fund is doing, and a look at the portfolio companies behind the numbers. It's a short read.</p>
 
       <p>${primaryButton(link, "Read the Report →")}</p>
 

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SyncPanel } from "@/components/admin/sync-panel";
 import { formatDate } from "@/lib/utils";
+import { ORG_NAME } from "@/lib/org";
 
 type FundsTab = "funds" | "sync";
 
@@ -123,7 +124,7 @@ function AdminFundsPageInner() {
     <AppShell>
       <PageHeader
         title="Funds"
-        description="DFS Lab's investment vehicles — deals, LPs, and fund reports."
+        description={`${ORG_NAME}'s investment vehicles — deals, LPs, and fund reports.`}
         action={
           activeTab === "funds" ? (
             <Button onClick={openNew}>
@@ -227,7 +228,7 @@ function AdminFundsPageInner() {
             </div>
             <div>
               <label className="label mb-1.5 block">Display name *</label>
-              <Input required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. DFS Lab SPV I" />
+              <Input required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={`e.g. ${ORG_NAME} SPV I`} />
             </div>
             {saveError && <p className="text-sm text-laterite">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
