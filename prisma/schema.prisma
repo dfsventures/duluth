@@ -53,6 +53,7 @@ model User {
   status        UserStatus @default(PENDING)
   approvalToken String?    @unique
   tokenExpiresAt DateTime?
+  setupQueueDismissedAt DateTime? // WS48 — admin-hygiene only; never affects login/token/resend eligibility
   googleId      String?    @unique
   image         String?
   createdAt     DateTime   @default(now())

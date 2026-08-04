@@ -29,3 +29,19 @@ export function canResendSetupLink(u: {
   if (u.status === "REJECTED") return false;
   return u.status === "APPROVED" || u.approvalToken !== null;
 }
+
+/**
+ * Safe to hard-delete from the awaiting-setup queue (WS48/F41): never an
+ * admin, never someone who already finished setup, and never the creator
+ * of a company — Company.createdById is a required FK with no cascade
+ * (Postgres RESTRICT), so deleting a company-creator's User row would
+ * either throw outright or require silently deleting a real company.
+ */
+export function canHardDeleteFromQueue(
+  u: { roles: string[]; passwordHash: string | null },
+  ownedCompanyCount: number
+): boolean {
+  if (u.passwordHash) return false;
+  if (u.roles.includes("ADMIN")) return false;
+  return ownedCompanyCount === 0;
+}

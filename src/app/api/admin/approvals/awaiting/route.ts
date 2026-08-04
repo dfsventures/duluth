@@ -27,14 +27,17 @@ export async function GET() {
         email: true,
         name: true,
         status: true,
+        roles: true,
         tokenExpiresAt: true,
         createdAt: true,
+        setupQueueDismissedAt: true,
         memberships: {
           include: {
             company: {
               select: {
                 id: true,
                 name: true,
+                createdById: true,
               },
             },
           },

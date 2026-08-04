@@ -4,6 +4,7 @@ import {
   generateSetupToken,
   isSetupTokenExpired,
   canResendSetupLink,
+  canHardDeleteFromQueue,
 } from "@/lib/setup-token";
 
 describe("generateSetupToken", () => {
@@ -74,6 +75,35 @@ describe("canResendSetupLink", () => {
   it("APPROVED + no token + no password → eligible (defensive)", () => {
     expect(
       canResendSetupLink({ passwordHash: null, status: "APPROVED", approvalToken: null })
+    ).toBe(true);
+  });
+});
+
+describe("canHardDeleteFromQueue", () => {
+  it("admin → ineligible regardless of ownedCompanyCount", () => {
+    expect(
+      canHardDeleteFromQueue({ roles: ["ADMIN"], passwordHash: null }, 0)
+    ).toBe(false);
+    expect(
+      canHardDeleteFromQueue({ roles: ["ADMIN", "FOUNDER"], passwordHash: null }, 0)
+    ).toBe(false);
+  });
+
+  it("already has a password (finished setup) → ineligible", () => {
+    expect(
+      canHardDeleteFromQueue({ roles: ["FOUNDER"], passwordHash: "hash" }, 0)
+    ).toBe(false);
+  });
+
+  it("owns a company (ownedCompanyCount > 0) → ineligible (F41 FK hazard)", () => {
+    expect(
+      canHardDeleteFromQueue({ roles: ["FOUNDER"], passwordHash: null }, 1)
+    ).toBe(false);
+  });
+
+  it("plain invited/team-member row with no owned companies → eligible", () => {
+    expect(
+      canHardDeleteFromQueue({ roles: ["FOUNDER"], passwordHash: null }, 0)
     ).toBe(true);
   });
 });
