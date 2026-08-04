@@ -4539,3 +4539,244 @@ Two bug shapes have recurred repeatedly in this codebase's history: **"a session
 ## What's next
 
 F35 is the only unresolved item from this audit — a candidate for a small (~0.25–0.5 day) follow-up workstream per the sketch above, not urgent (low severity, narrow trigger condition) but cheap to fix and worth doing before DD-founder volume grows. Nothing else in this audit rose to the level of a recommended workstream; Parts 14–16 are solid, well-tested, and match their own documentation once the corrections above are applied.
+
+---
+
+# Part 18 — Due Diligence Completion Signal (F36, WS44)
+
+_Added 2026-08-04, from a real founder hitting exactly this gap: their `/diligence` checklist showed 4 of 4 required items done, but the dashboard banner still read "a few more steps," `/diligence` itself never distinguished a complete state, and no notification of any kind reached anyone — Joseph found out only because the founder emailed asking if it was a bug. Diagnosed by Joseph and verified line-by-line by Felix against the working tree before any recommendation was made. Decisions Q61–Q64 answered by the user 2026-08-04, every Felix recommendation accepted. **This Part is planning only — no code has shipped.** Same hard constraints as every prior Part: no new cost lines (Resend only, already in use for every other transactional email), no UX regressions, additive-only changes — this Part touches zero schema._
+
+## What this Part is
+
+Three linked gaps in Part 16's DD intake flow (WS38–43), all confirmed against the live code:
+
+1. **No completion-state branch anywhere.** The dashboard banner (`src/app/dashboard/page.tsx:194-207`) and `/diligence`'s status line (`src/app/diligence/page.tsx:219-222`) both render the exact same copy at 0-of-N and N-of-N done — neither reads `diligence.progress.done === diligence.progress.total` nor `completedAt`.
+2. **No closure moment.** By WS40's own design (JC-DD-F — recompute-on-read completion, no explicit founder submit step), there has never been a Submit button in this flow. The founder came from DFS's old Google Form, which did have one, so "I don't see a submit button" wasn't user confusion — the affordance genuinely doesn't exist here, and no equivalent closure moment was ever added in its place.
+3. **No notification fires to anyone.** The only email anywhere in this flow is the one-time `sendDiligenceInviteEmail` (WS39), sent once at invite time. `/admin/diligence` already segments "Ready for review" from "Awaiting founder" (`src/app/admin/diligence/page.tsx:143-144, 270-296`) — so a completed item doesn't blend into an undifferentiated list, contrary to how this was first described — but the page is still pull-based: nothing prompts an admin to go check it.
+
+## Decisions Q61–Q64 — all answered by the user 2026-08-04 (every recommendation accepted)
+
+> **Q61 (copy)** — the user's own wording, not Felix's first draft: banner headline **"All done!"** / subtext **"We are reviewing your documents and will be in touch soon."** The same full line doubles as `/diligence`'s complete-state message.
+> **Q62 (banner button)** — relabel "Continue" → **"View"** once complete; still navigates to `/diligence` (documents and answers stay editable after completion, unchanged from today — no new lock-out behavior).
+> **Q63 (founder confirmation email)** — **send it.** Felix's strongest recommendation, confirmed: since there is no Submit button, an email fired at the exact moment the system detects completion is the only confirmation surface that doesn't depend on the founder ever returning to the page — which is the most likely explanation for how this founder finished and saw nothing at all.
+> **Q64 (admin notification recipient)** — **`TEAM_EMAIL`**, matching the existing `sendNewSignupNotification`/`sendUpdatePublishedEmail` pattern exactly, not the specific admin from `Company.createdById`. Cheap to change later (a single `to:` line) if DFS Lab ever wants per-admin routing.
+
+## Part 18 technical judgment calls (flagged per protocol — each with a cheap reversal)
+
+- **JC-DD-H — the notification fires on the DB-persisted `completedAt` null→non-null transition, detected in the route handler, not inside `recomputeDiligenceCompletion` itself.** Both `GET` and `PATCH` in `src/app/api/companies/[id]/diligence/route.ts` already fetch the pre-recompute `completedAt` (`company.diligence.completedAt` in `GET`, `existing.completedAt` in `PATCH`) before calling `recomputeDiligenceCompletion` — comparing that value to the freshly recomputed one is a two-line addition per handler with **zero change to `recomputeDiligenceCompletion`'s signature, behavior, or existing tests** in `src/lib/diligence.ts`. This also settles the double-notify question raised during discussion: `recomputeDiligenceCompletion` (`src/lib/diligence.ts:106-137`) already resets `completedAt` to `null` on any incomplete recompute and assigns a *fresh* timestamp on re-completion, so a founder who flips complete → incomplete → complete (e.g., archiving and re-uploading a passport) produces a genuine second null→non-null transition — correctly notifying again, not a bug to guard against. A same-state reload (the common case — revisiting `/diligence` or `/dashboard` after completion) never re-fires, since the pre-recompute value already equals the post-recompute value. Reversal: trivial, it's an `if` guard around two `.catch()`'d email calls.
+- **JC-DD-I — the founder confirmation targets whichever non-admin user's request actually triggered the transition** (`user.email`/`user.name`, already returned by `requireCompanyAccess`), not a stored "founder" field resolved via the company's `OWNER` membership. Correctly attributes a teammate's completing action too (Q55 already gives every DD-stage company normal team-invite access), and suppresses the email outright when an admin session is what triggered the recompute (an admin manually exercising the API — e.g. during testing — shouldn't generate a "you're all set" email to themselves). Reversal: swap to an explicit `OWNER`-membership lookup later if this guard ever proves wrong in practice.
+- **JC-DD-F is reaffirmed, not reopened.** Recompute-on-read completion stays exactly as WS40 built it — this Part adds copy and notifications on top of the existing signal, it does not add a Submit step. The reasoning from Part 16 still holds and is stronger now: an explicit Submit button doesn't fix the failure mode this founder actually hit (closing the tab immediately after their last upload, before ever seeing any post-completion UI) — it just relocates the same problem to a button the founder still has to notice and return to click. An email fired the instant the system detects completion is unconditional on the founder ever revisiting the page, which a Submit button is not.
+
+## WS44 — Due diligence completion: copy, banner, and email notifications (F36, Q61–Q64) (~0.5–0.75 day)
+
+**Goal:** close all three gaps above without reopening JC-DD-F — honest completion-state copy on both existing surfaces, and two new transactional emails fired exactly once per real completion event.
+
+### WS44.1 `src/app/api/companies/[id]/diligence/route.ts` — completion-transition notification hook
+
+Both `GET` and `PATCH` already call `recomputeDiligenceCompletion` and already discard the `user` half of `requireCompanyAccess`'s return — start keeping it, and add one small shared helper plus a two-line call at each existing recompute site:
+
+```ts
+import {
+  sendDiligenceCompletedAdminNotification,
+  sendDiligenceCompletedFounderEmail,
+} from "@/lib/email";
+
+// F36/WS44 (JC-DD-H/I) — fires the two completion emails exactly once, at
+// the DB write that flips completedAt from null to non-null. Never
+// awaited on the response — same fire-and-forget convention as
+// sendDiligenceInviteEmail (WS39).
+function notifyIfJustCompleted(opts: {
+  wasComplete: boolean;
+  completedAt: Date | null;
+  companyId: string;
+  companyName: string;
+  user: { email: string; name: string | null; roles: string[] };
+}) {
+  if (opts.wasComplete || !opts.completedAt) return; // not a fresh completion
+  if (opts.user.roles.includes("ADMIN")) return; // JC-DD-I
+
+  sendDiligenceCompletedFounderEmail({
+    toEmail: opts.user.email,
+    founderName: opts.user.name,
+    companyName: opts.companyName,
+  }).catch((err) => console.error("Failed to send diligence-completed founder email:", err));
+
+  sendDiligenceCompletedAdminNotification({
+    companyName: opts.companyName,
+    founderName: opts.user.name,
+    founderEmail: opts.user.email,
+  }).catch((err) => console.error("Failed to send diligence-completed admin notification:", err));
+}
+```
+
+`GET` — keep `user`, add `name: true` to the existing `company` select, capture the pre-recompute value, call the helper after recompute:
+
+```ts
+const { user, error } = await requireCompanyAccess(id);
+if (error) return error;
+
+const company = await db.company.findUnique({
+  where: { id },
+  select: { name: true, stage: true, diligence: true },
+});
+if (!company || !company.diligence) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+const hasPassportDocument = await hasActivePassportDocument(id);
+const wasComplete = !!company.diligence.completedAt;
+const completedAt = await recomputeDiligenceCompletion(id, company.diligence, hasPassportDocument);
+notifyIfJustCompleted({ wasComplete, completedAt, companyId: id, companyName: company.name, user: user! });
+```
+
+`PATCH` — same shape; `existing` needs the parent company's name, so its query grows one `include`:
+
+```ts
+const { user, error } = await requireCompanyAccess(id);
+if (error) return error;
+
+const existing = await db.companyDiligence.findUnique({
+  where: { companyId: id },
+  include: { company: { select: { name: true } } },
+});
+if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+// ...unchanged body parsing / db.companyDiligence.update...
+
+const hasPassportDocument = await hasActivePassportDocument(id);
+const wasComplete = !!existing.completedAt;
+const completedAt = await recomputeDiligenceCompletion(id, updated, hasPassportDocument);
+notifyIfJustCompleted({ wasComplete, completedAt, companyId: id, companyName: existing.company.name, user: user! });
+```
+
+No change to either route's response shape — `completedAt`/`progress`/`documents` are returned exactly as today.
+
+### WS44.2 `src/lib/email.ts` — two new templates
+
+Same structural conventions as every existing helper (`emailWrapper`/`eyebrow`/`heading`/`fieldRow`/`primaryButton`/`assertSent`), copy built around the user's confirmed wording (Q61):
+
+```ts
+export async function sendDiligenceCompletedFounderEmail(opts: {
+  toEmail: string;
+  founderName: string | null;
+  companyName: string;
+}) {
+  const link = `${BASE_URL}/diligence`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: SUPPORT_EMAIL,
+    to: opts.toEmail,
+    subject: `${opts.companyName} — all done!`,
+    html: emailWrapper(`
+      ${eyebrow("Due Diligence")}
+      ${heading("All done!")}
+      <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${opts.founderName.split(" ")[0]}` : ""},</p>
+      <p style="margin: 0 0 24px;">We are reviewing your documents and will be in touch soon. Thanks for getting everything in for <strong>${opts.companyName}</strong> &mdash; your documents and questionnaire are both complete.</p>
+
+      <p>${primaryButton(link, "Review Your Submission →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
+        Need to change something? You can still update your answers or replace a document any time before we're done reviewing.
+      </p>
+    `),
+  });
+  assertSent(result, "diligence-completed-founder");
+}
+
+export async function sendDiligenceCompletedAdminNotification(opts: {
+  companyName: string;
+  founderName: string | null;
+  founderEmail: string;
+}) {
+  const link = `${BASE_URL}/admin/diligence`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: SUPPORT_EMAIL,
+    to: TEAM_EMAIL,
+    subject: `Diligence complete: ${opts.companyName}`,
+    html: emailWrapper(`
+      ${eyebrow("Due Diligence")}
+      ${heading("Ready for review")}
+      <p style="margin: 0 0 24px;">${opts.founderName || opts.founderEmail} has finished ${opts.companyName}'s diligence checklist &mdash; documents and questionnaire are both in.</p>
+
+      <table cellpadding="0" cellspacing="0" style="margin: 0 0 24px; width: 100%;">
+        ${fieldRow("Company", opts.companyName)}
+        ${fieldRow("Founder", opts.founderName ? `${opts.founderName} (${opts.founderEmail})` : opts.founderEmail)}
+      </table>
+
+      ${primaryButton(link, "Review Diligence →")}
+    `),
+  });
+  assertSent(result, "diligence-completed-admin");
+}
+```
+
+### WS44.3 Dashboard banner (`src/app/dashboard/page.tsx`, Q61/Q62)
+
+`DiligenceSummary` (line 35-37) gains `completedAt: string | null` — already returned by the API today, just untyped client-side. The banner branches on it:
+
+```tsx
+{company.stage === "DILIGENCE" && (
+  <Card className="mb-6">
+    <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
+      <div>
+        <p className="font-medium">
+          {diligence?.completedAt ? "All done!" : "Due diligence — a few more steps"}
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {diligence?.completedAt
+            ? "We are reviewing your documents and will be in touch soon."
+            : diligence
+              ? `${diligence.progress.done} of ${diligence.progress.total} required items done`
+              : "Documents and a couple of quick questions before we close."}
+        </p>
+      </div>
+      <Button onClick={() => router.push("/diligence")}>
+        {diligence?.completedAt ? "View" : "Continue"}
+      </Button>
+    </CardContent>
+  </Card>
+)}
+```
+
+### WS44.4 `/diligence` page (`src/app/diligence/page.tsx`, Q61)
+
+The status line (219-222) branches the same way, reusing the already-imported `CheckCircle2`/`ClipboardCheck` and the same `text-acacia` success color already used by this page's own save-confirmation banner (232-233):
+
+```tsx
+<div className="mb-6 flex items-center gap-2 text-sm">
+  {diligence.completedAt ? (
+    <>
+      <CheckCircle2 className="h-4 w-4 text-acacia" />
+      <span className="text-acacia">All done! We are reviewing your documents and will be in touch soon.</span>
+    </>
+  ) : (
+    <>
+      <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+      <span className="text-muted-foreground">
+        {diligence.progress.done} of {diligence.progress.total} required items done
+      </span>
+    </>
+  )}
+</div>
+```
+
+Every section below (the answers form, the document list) is unchanged and stays fully editable post-completion, per Q62.
+
+**WS44 acceptance checklist**
+- [ ] Completing the last required item (via `PATCH`, e.g. the incorporation answer) fires both new emails exactly once; the response shape is otherwise byte-identical to today
+- [ ] Completing the last required item via a document upload (which reloads through `GET`) also fires both emails exactly once — confirms both trigger paths are covered, not just one
+- [ ] Reloading `/diligence` or `/dashboard` any number of times after completion fires no further emails (same-state `GET`s are a no-op)
+- [ ] Archiving/re-uploading a passport so the checklist genuinely goes incomplete → complete again fires both emails a second time — confirmed intentional per JC-DD-H, not treated as a bug
+- [ ] An admin session hitting either route (e.g. manual testing) never sends the founder confirmation email, per the JC-DD-I guard
+- [ ] Dashboard banner and `/diligence`'s status line both show the confirmed Q61 copy once `completedAt` is set, and the pre-completion copy is pixel-identical to today otherwise
+- [ ] Banner button reads "View" once complete (Q62), still routes to `/diligence`, and every field on that page remains editable post-completion
+- [ ] 375px check on both surfaces (Pattern C stacking for the banner, existing layout for the status line — no new wrapping risk introduced)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `set-password/route.ts`, `auth.ts`, `auth-guard.ts`, `route-access.ts`, `src/app/lp/**`, `src/app/share/**`; `recomputeDiligenceCompletion`'s exported signature in `src/lib/diligence.ts` is unchanged (JC-DD-H)
+
+**UX impact:** additive/corrective only. Every existing non-DD founder's dashboard is untouched (the branch is a no-op for `stage !== "DILIGENCE"`, unchanged from WS40). For DD-stage founders specifically, this replaces confusing/stale copy with an honest one and adds two emails that fire at most once per real completion event — no new gate, no new required action, nothing that can block or slow down an existing flow. **Cost impact:** none — reuses Resend, the same provider already sending 12 other templates; volume is at most 2 emails per DD company, once, ever (barring a genuine re-completion after an incomplete gap). **Schema:** none.
+
+## Part 18 roadmap bookkeeping
+
+Once WS44 ships: fold it into `ROADMAP.md`'s existing "Due Diligence checklist" bullet under Founder Features (the completion copy) and "Pre-Investment Due Diligence Intake" bullet under Admin Features (the admin notification) rather than adding new bullets, since this is a fix to an already-shipped Part 16 surface, not a new feature; update the top `_Last updated_` line. Until then, `ROADMAP.md` carries a `Planned` forward-pointer blockquote (added in this same edit) rather than a shipped claim, matching the exact convention used for Part 16 before it shipped.
