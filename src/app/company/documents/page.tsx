@@ -32,6 +32,7 @@ interface Document {
   docType: string | null;
   createdAt: string;
   uploadedBy: string | null;
+  isInternal: boolean;
 }
 
 export default function CompanyDocumentsPage() {
@@ -275,26 +276,38 @@ export default function CompanyDocumentsPage() {
                         {formatFileSize(doc.size)}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {isInlineViewable(doc.mimeType) && (
-                            <a
-                              href={`/api/documents/${doc.id}/view`}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                        {doc.isInternal ? (
+                          // Only ever reachable for the founder's OWN internal
+                          // upload (the list route only returns another
+                          // uploader's isInternal doc to an admin) — same
+                          // "received, not re-viewable" treatment /diligence
+                          // already uses for these document types.
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground" title="Received — an admin can view this; you can re-upload to replace it">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Received
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            {isInlineViewable(doc.mimeType) && (
+                              <a
+                                href={`/api/documents/${doc.id}/view`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-muted-foreground hover:text-primary"
+                                title="View"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleDownload(doc.id, doc.name)}
                               className="text-muted-foreground hover:text-primary"
-                              title="View"
+                              title="Download"
                             >
-                              <Eye className="h-4 w-4" />
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleDownload(doc.id, doc.name)}
-                            className="text-muted-foreground hover:text-primary"
-                            title="Download"
-                          >
-                            <Download className="h-4 w-4" />
-                          </button>
-                        </div>
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

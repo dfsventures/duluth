@@ -72,7 +72,12 @@ beforeEach(() => {
 });
 
 describe("GET /api/companies/[id]/documents — isInternal filtering", () => {
-  it("a founder's query excludes isInternal from the where clause filter (non-admin)", async () => {
+  it("a founder's query excludes other members' isInternal docs, but allows their own (non-admin)", async () => {
+    // Fixed live 2026-08-04: a founder's own isInternal upload (e.g. a
+    // DD passport/bank-statement) was invisible even to the uploader,
+    // since the original filter was a blanket `isInternal: false` with
+    // no uploader exception. Now `isInternal: false OR uploadedById: me`
+    // — still never returns a TEAMMATE's internal doc to a non-admin.
     mockRequireCompanyAccess.mockResolvedValue({ user: FOUNDER, error: null } as any);
     mockDocumentFindMany.mockResolvedValue([]);
 
@@ -80,7 +85,9 @@ describe("GET /api/companies/[id]/documents — isInternal filtering", () => {
 
     expect(mockDocumentFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ isInternal: false }),
+        where: expect.objectContaining({
+          OR: [{ isInternal: false }, { uploadedById: FOUNDER.id }],
+        }),
       })
     );
   });

@@ -558,7 +558,7 @@ export async function sendLpReportPublishedEmail(opts: { email: string; lpName?:
 
   const result = await resend.emails.send({
     from: FROM,
-    replyTo: SUPPORT_EMAIL,
+    replyTo: TEAM_EMAIL,
     to: opts.email,
     subject: `Your ${opts.fundName} report is here`,
     html: emailWrapper(`

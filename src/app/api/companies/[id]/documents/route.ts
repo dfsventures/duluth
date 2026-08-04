@@ -15,8 +15,15 @@ export async function GET(
     // Part 16, WS42 (F33, Q59) — isInternal was previously a display
     // badge only, not access control: any member of the company (any
     // role) could list internal-only documents. Now filtered out for
-    // non-admins. Uniform across all document types — a role check, not
-    // an uploader exception.
+    // non-admins. A role check, not a general uploader exception — but
+    // (fixed here, found live via a real founder's DD re-upload) a
+    // non-admin can still see the EXISTENCE of their own internal
+    // upload (name/date, proof it was received), matching the same
+    // "metadata only, not the file" precedent /diligence's
+    // getDdDocumentSummary() already established. They still can't
+    // view/download it (src/app/company/documents/page.tsx suppresses
+    // those actions client-side for isInternal rows), and this still
+    // never reveals a TEAMMATE's internal upload to a non-admin.
     const isAdmin = user!.roles.includes("ADMIN");
 
     const { searchParams } = new URL(request.url);
@@ -27,7 +34,7 @@ export async function GET(
     const documents = await db.document.findMany({
       where: {
         companyId: id,
-        ...(isAdmin ? {} : { isInternal: false }),
+        ...(isAdmin ? {} : { OR: [{ isInternal: false }, { uploadedById: user!.id }] }),
         archivedAt: archived ? { not: null } : null,
         ...(docType ? { docType } : {}),
         ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
