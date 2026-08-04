@@ -34,6 +34,9 @@ interface Company {
 
 interface DiligenceSummary {
   progress: { done: number; total: number };
+  // Part 18, WS44 (F36, Q61/Q62) — already returned by the API today,
+  // just untyped client-side until now.
+  completedAt: string | null;
 }
 
 interface Update {
@@ -195,14 +198,20 @@ export default function DashboardPage() {
         <Card className="mb-6">
           <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
             <div>
-              <p className="font-medium">Due diligence — a few more steps</p>
+              <p className="font-medium">
+                {diligence?.completedAt ? "All done!" : "Due diligence — a few more steps"}
+              </p>
               <p className="text-sm text-muted-foreground">
-                {diligence
-                  ? `${diligence.progress.done} of ${diligence.progress.total} required items done`
-                  : "Documents and a couple of quick questions before we close."}
+                {diligence?.completedAt
+                  ? "We are reviewing your documents and will be in touch soon."
+                  : diligence
+                    ? `${diligence.progress.done} of ${diligence.progress.total} required items done`
+                    : "Documents and a couple of quick questions before we close."}
               </p>
             </div>
-            <Button onClick={() => router.push("/diligence")}>Continue</Button>
+            <Button onClick={() => router.push("/diligence")}>
+              {diligence?.completedAt ? "View" : "Continue"}
+            </Button>
           </CardContent>
         </Card>
       )}

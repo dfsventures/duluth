@@ -216,9 +216,20 @@ export default function DiligencePage() {
         description="A few documents and quick questions before we close — everything else in Molly is already yours to use."
       />
 
-      <div className="mb-6 flex items-center gap-2 text-sm text-muted-foreground">
-        <ClipboardCheck className="h-4 w-4" />
-        {diligence.progress.done} of {diligence.progress.total} required items done
+      <div className="mb-6 flex items-center gap-2 text-sm">
+        {diligence.completedAt ? (
+          <>
+            <CheckCircle2 className="h-4 w-4 text-acacia" />
+            <span className="text-acacia">All done! We are reviewing your documents and will be in touch soon.</span>
+          </>
+        ) : (
+          <>
+            <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">
+              {diligence.progress.done} of {diligence.progress.total} required items done
+            </span>
+          </>
+        )}
       </div>
 
       {message && (

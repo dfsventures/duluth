@@ -342,6 +342,69 @@ export async function sendDiligenceInviteEmail(opts: {
   assertSent(result, "diligence-invite");
 }
 
+// Part 18, WS44 (F36, Q61/Q63) — fired once, at the moment
+// recomputeDiligenceCompletion flips completedAt from null to non-null.
+// The founder's only guaranteed confirmation in this flow: there is no
+// Submit button (JC-DD-F), so this email is the one closure signal that
+// doesn't depend on the founder ever revisiting the page.
+export async function sendDiligenceCompletedFounderEmail(opts: {
+  toEmail: string;
+  founderName: string | null;
+  companyName: string;
+}) {
+  const link = `${BASE_URL}/diligence`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: SUPPORT_EMAIL,
+    to: opts.toEmail,
+    subject: `${opts.companyName} — all done!`,
+    html: emailWrapper(`
+      ${eyebrow("Due Diligence")}
+      ${heading("All done!")}
+      <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${opts.founderName.split(" ")[0]}` : ""},</p>
+      <p style="margin: 0 0 24px;">We are reviewing your documents and will be in touch soon. Thanks for getting everything in for <strong>${opts.companyName}</strong> &mdash; your documents and questionnaire are both complete.</p>
+
+      <p>${primaryButton(link, "Review Your Submission →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
+        Need to change something? You can still update your answers or replace a document any time before we're done reviewing.
+      </p>
+    `),
+  });
+  assertSent(result, "diligence-completed-founder");
+}
+
+// Part 18, WS44 (F36, Q64) — TEAM_EMAIL, matching sendNewSignupNotification
+// and sendUpdatePublishedEmail's admin-notification pattern exactly.
+export async function sendDiligenceCompletedAdminNotification(opts: {
+  companyName: string;
+  founderName: string | null;
+  founderEmail: string;
+}) {
+  const link = `${BASE_URL}/admin/diligence`;
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: SUPPORT_EMAIL,
+    to: TEAM_EMAIL,
+    subject: `Diligence complete: ${opts.companyName}`,
+    html: emailWrapper(`
+      ${eyebrow("Due Diligence")}
+      ${heading("Ready for review")}
+      <p style="margin: 0 0 24px;">${opts.founderName || opts.founderEmail} has finished ${opts.companyName}'s diligence checklist &mdash; documents and questionnaire are both in.</p>
+
+      <table cellpadding="0" cellspacing="0" style="margin: 0 0 24px; width: 100%;">
+        ${fieldRow("Company", opts.companyName)}
+        ${fieldRow("Founder", opts.founderName ? `${opts.founderName} (${opts.founderEmail})` : opts.founderEmail)}
+      </table>
+
+      ${primaryButton(link, "Review Diligence →")}
+    `),
+  });
+  assertSent(result, "diligence-completed-admin");
+}
+
 export async function sendMemberAddedEmail(opts: {
   toEmail: string;
   inviterName: string | null;

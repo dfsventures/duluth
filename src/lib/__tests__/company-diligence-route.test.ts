@@ -2,8 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Part 16, WS40 — GET/PATCH /api/companies/[id]/diligence: the founder
 // checklist route. Mocked db/auth-guard, synthetic data only.
+// Part 18, WS44 (F36, JC-DD-H/I) — completion-transition emails, mocked
+// via @/lib/email.
 
 vi.mock("@/lib/auth-guard", () => ({ requireCompanyAccess: vi.fn() }));
+vi.mock("@/lib/email", () => ({
+  sendDiligenceCompletedFounderEmail: vi.fn(() => Promise.resolve()),
+  sendDiligenceCompletedAdminNotification: vi.fn(() => Promise.resolve()),
+}));
 
 const mockCompanyFindUnique = vi.fn();
 const mockDocumentFindFirst = vi.fn();
@@ -26,9 +32,15 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { requireCompanyAccess } from "@/lib/auth-guard";
+import {
+  sendDiligenceCompletedFounderEmail,
+  sendDiligenceCompletedAdminNotification,
+} from "@/lib/email";
 import { GET, PATCH } from "@/app/api/companies/[id]/diligence/route";
 
 const mockRequireCompanyAccess = vi.mocked(requireCompanyAccess);
+const mockSendFounderEmail = vi.mocked(sendDiligenceCompletedFounderEmail);
+const mockSendAdminEmail = vi.mocked(sendDiligenceCompletedAdminNotification);
 
 function params(id = "company-1") {
   return { params: Promise.resolve({ id }) };
@@ -46,7 +58,8 @@ function patchReq(body: unknown) {
   });
 }
 
-const FOUNDER = { id: "founder-1", email: "founder@acme.com", roles: ["FOUNDER"] };
+const FOUNDER = { id: "founder-1", email: "founder@acme.com", name: "Founder Person", roles: ["FOUNDER"] };
+const ADMIN = { id: "admin-1", email: "admin@dfs.vc", name: "Admin Person", roles: ["ADMIN"] };
 
 beforeEach(() => {
   mockRequireCompanyAccess.mockReset();
@@ -56,6 +69,10 @@ beforeEach(() => {
   mockDocumentFindMany.mockResolvedValue([]); // no DD documents uploaded, by default
   mockCompanyDiligenceFindUnique.mockReset();
   mockCompanyDiligenceUpdate.mockReset();
+  mockSendFounderEmail.mockReset();
+  mockSendFounderEmail.mockResolvedValue(undefined as never);
+  mockSendAdminEmail.mockReset();
+  mockSendAdminEmail.mockResolvedValue(undefined as never);
   mockRequireCompanyAccess.mockResolvedValue({ user: FOUNDER, error: null } as any);
 });
 
@@ -98,6 +115,7 @@ describe("GET /api/companies/[id]/diligence", () => {
 
   it("persists completedAt the moment a GET observes the checklist has become complete", async () => {
     mockCompanyFindUnique.mockResolvedValue({
+      name: "Acme",
       stage: "DILIGENCE",
       diligence: {
         isUsIncorporated: true,
@@ -117,6 +135,74 @@ describe("GET /api/companies/[id]/diligence", () => {
       expect.objectContaining({ where: { companyId: "company-1" } })
     );
   });
+
+  // Part 18, WS44 (F36, JC-DD-H/I)
+  it("a genuine completion via GET fires both completion emails exactly once", async () => {
+    mockCompanyFindUnique.mockResolvedValue({
+      name: "Acme",
+      stage: "DILIGENCE",
+      diligence: {
+        isUsIncorporated: true,
+        isStellarEcosystem: false,
+        stellarWhyText: null,
+        stellarTimelineText: null,
+        completedAt: null,
+      },
+    });
+    mockDocumentFindFirst.mockResolvedValue({ id: "passport-doc" }); // uploaded since last read
+
+    await GET(getReq(), params());
+
+    expect(mockSendFounderEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendFounderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ toEmail: "founder@acme.com", founderName: "Founder Person", companyName: "Acme" })
+    );
+    expect(mockSendAdminEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendAdminEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ companyName: "Acme", founderName: "Founder Person", founderEmail: "founder@acme.com" })
+    );
+  });
+
+  it("a same-state GET of an already-complete checklist does not re-fire the emails", async () => {
+    mockCompanyFindUnique.mockResolvedValue({
+      name: "Acme",
+      stage: "DILIGENCE",
+      diligence: {
+        isUsIncorporated: true,
+        isStellarEcosystem: false,
+        stellarWhyText: null,
+        stellarTimelineText: null,
+        completedAt: new Date("2026-01-01T00:00:00Z"),
+      },
+    });
+    mockDocumentFindFirst.mockResolvedValue({ id: "passport-doc" });
+
+    await GET(getReq(), params());
+
+    expect(mockSendFounderEmail).not.toHaveBeenCalled();
+    expect(mockSendAdminEmail).not.toHaveBeenCalled();
+  });
+
+  it("an admin session hitting GET never sends the founder confirmation (or admin notification) email, per JC-DD-I", async () => {
+    mockRequireCompanyAccess.mockResolvedValue({ user: ADMIN, error: null } as any);
+    mockCompanyFindUnique.mockResolvedValue({
+      name: "Acme",
+      stage: "DILIGENCE",
+      diligence: {
+        isUsIncorporated: true,
+        isStellarEcosystem: false,
+        stellarWhyText: null,
+        stellarTimelineText: null,
+        completedAt: null,
+      },
+    });
+    mockDocumentFindFirst.mockResolvedValue({ id: "passport-doc" });
+
+    await GET(getReq(), params());
+
+    expect(mockSendFounderEmail).not.toHaveBeenCalled();
+    expect(mockSendAdminEmail).not.toHaveBeenCalled();
+  });
 });
 
 describe("PATCH /api/companies/[id]/diligence", () => {
@@ -133,7 +219,7 @@ describe("PATCH /api/companies/[id]/diligence", () => {
   });
 
   it("never lets the client set completedAt, closedAt, or isStellarEcosystem directly", async () => {
-    mockCompanyDiligenceFindUnique.mockResolvedValue({ companyId: "company-1" });
+    mockCompanyDiligenceFindUnique.mockResolvedValue({ companyId: "company-1", company: { name: "Acme" } });
     mockCompanyDiligenceUpdate.mockResolvedValue({
       isUsIncorporated: true,
       isStellarEcosystem: false,
@@ -160,7 +246,7 @@ describe("PATCH /api/companies/[id]/diligence", () => {
   });
 
   it("persists the Stellar essay fields", async () => {
-    mockCompanyDiligenceFindUnique.mockResolvedValue({ companyId: "company-1" });
+    mockCompanyDiligenceFindUnique.mockResolvedValue({ companyId: "company-1", company: { name: "Acme" } });
     mockCompanyDiligenceUpdate.mockResolvedValue({
       isUsIncorporated: true,
       isStellarEcosystem: true,
@@ -182,5 +268,101 @@ describe("PATCH /api/companies/[id]/diligence", () => {
       data: { stellarWhyText: "Because X", stellarTimelineText: "Q1 2027" },
     });
     expect(body.progress).toEqual({ done: 4, total: 4 });
+  });
+
+  // Part 18, WS44 (F36, JC-DD-H/I)
+  it("a genuine completion via PATCH (the last required answer) fires both completion emails exactly once", async () => {
+    mockCompanyDiligenceFindUnique.mockResolvedValue({
+      companyId: "company-1",
+      completedAt: null,
+      company: { name: "Acme" },
+    });
+    mockCompanyDiligenceUpdate.mockResolvedValue({
+      isUsIncorporated: true,
+      isStellarEcosystem: false,
+      stellarWhyText: null,
+      stellarTimelineText: null,
+      completedAt: null,
+    });
+    mockDocumentFindFirst.mockResolvedValue({ id: "passport-doc" }); // already uploaded
+
+    await PATCH(patchReq({ isUsIncorporated: true }), params());
+
+    expect(mockSendFounderEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendFounderEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ toEmail: "founder@acme.com", founderName: "Founder Person", companyName: "Acme" })
+    );
+    expect(mockSendAdminEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendAdminEmail).toHaveBeenCalledWith(
+      expect.objectContaining({ companyName: "Acme", founderName: "Founder Person", founderEmail: "founder@acme.com" })
+    );
+  });
+
+  it("a no-op PATCH on an already-complete checklist does not re-fire the emails", async () => {
+    mockCompanyDiligenceFindUnique.mockResolvedValue({
+      companyId: "company-1",
+      completedAt: new Date("2026-01-01T00:00:00Z"),
+      company: { name: "Acme" },
+    });
+    mockCompanyDiligenceUpdate.mockResolvedValue({
+      isUsIncorporated: true,
+      isStellarEcosystem: false,
+      stellarWhyText: null,
+      stellarTimelineText: null,
+      completedAt: new Date("2026-01-01T00:00:00Z"),
+    });
+    mockDocumentFindFirst.mockResolvedValue({ id: "passport-doc" });
+
+    await PATCH(patchReq({ isUsIncorporated: true }), params());
+
+    expect(mockSendFounderEmail).not.toHaveBeenCalled();
+    expect(mockSendAdminEmail).not.toHaveBeenCalled();
+  });
+
+  it("a legitimate re-completion (complete -> incomplete -> complete, e.g. re-uploading an archived passport) fires the emails again", async () => {
+    // The checklist was previously complete but has since gone incomplete
+    // (recomputeDiligenceCompletion already reset completedAt to null on
+    // that earlier incomplete recompute) — this PATCH is the moment it
+    // becomes complete again.
+    mockCompanyDiligenceFindUnique.mockResolvedValue({
+      companyId: "company-1",
+      completedAt: null,
+      company: { name: "Acme" },
+    });
+    mockCompanyDiligenceUpdate.mockResolvedValue({
+      isUsIncorporated: true,
+      isStellarEcosystem: false,
+      stellarWhyText: null,
+      stellarTimelineText: null,
+      completedAt: null,
+    });
+    mockDocumentFindFirst.mockResolvedValue({ id: "new-passport-doc" }); // freshly re-uploaded
+
+    await PATCH(patchReq({ isUsIncorporated: true }), params());
+
+    expect(mockSendFounderEmail).toHaveBeenCalledTimes(1);
+    expect(mockSendAdminEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it("an admin session hitting PATCH never sends the founder confirmation (or admin notification) email, per JC-DD-I", async () => {
+    mockRequireCompanyAccess.mockResolvedValue({ user: ADMIN, error: null } as any);
+    mockCompanyDiligenceFindUnique.mockResolvedValue({
+      companyId: "company-1",
+      completedAt: null,
+      company: { name: "Acme" },
+    });
+    mockCompanyDiligenceUpdate.mockResolvedValue({
+      isUsIncorporated: true,
+      isStellarEcosystem: false,
+      stellarWhyText: null,
+      stellarTimelineText: null,
+      completedAt: null,
+    });
+    mockDocumentFindFirst.mockResolvedValue({ id: "passport-doc" });
+
+    await PATCH(patchReq({ isUsIncorporated: true }), params());
+
+    expect(mockSendFounderEmail).not.toHaveBeenCalled();
+    expect(mockSendAdminEmail).not.toHaveBeenCalled();
   });
 });
