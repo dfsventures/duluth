@@ -15,7 +15,7 @@ import { useCompany } from "@/context/company-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { DD_DOC_TYPES } from "@/lib/constants";
+import { DD_DOC_TYPES, AUTO_INTERNAL_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 
 // Part 16, WS40 — founder-facing DD checklist. Purpose-built (not a
@@ -41,12 +41,6 @@ interface Diligence {
   // status without losing visibility into the founder's own uploads.
   documents: Record<string, { name: string; createdAt: string } | null>;
 }
-
-// passport/bank_statements are the most sensitive DD documents — tagged
-// isInternal automatically, no founder-facing toggle (WS42 then hides
-// them from any other non-admin viewer, including on this very page's
-// own document list if it read from the general documents endpoint).
-const AUTO_INTERNAL_DOC_TYPES = new Set(["passport", "bank_statements"]);
 
 export default function DiligencePage() {
   const router = useRouter();

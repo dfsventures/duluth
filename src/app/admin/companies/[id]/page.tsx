@@ -44,7 +44,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { formatDate, normalizeUrl } from "@/lib/utils";
+import { formatDate, normalizeUrl, formatFileSize } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { MetricChart } from "@/components/ui/metric-chart";
 import { DOC_TYPES } from "@/lib/constants";
@@ -578,13 +578,6 @@ export default function AdminCompanyDetailPage() {
     if (trend === "up") return <TrendingUp className="h-4 w-4 text-acacia" />;
     if (trend === "down") return <TrendingDown className="h-4 w-4 text-laterite" />;
     return <Minus className="h-4 w-4 text-muted-foreground" />;
-  }
-
-  function formatFileSize(bytes: number | null) {
-    if (!bytes) return "";
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
   if (loading) {

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireCompanyAccess } from "@/lib/auth-guard";
+import { requireAdmin, requireCompanyAccess } from "@/lib/auth-guard";
 import { getDownloadUrl } from "@/lib/s3";
 import { DOC_TYPES } from "@/lib/constants";
 
@@ -66,7 +66,15 @@ export async function PATCH(
       return NextResponse.json({ error: "Document not found" }, { status: 404 });
     }
 
-    const { error } = await requireCompanyAccess(document.companyId);
+    // Part 20, WS46 (F39) — this route previously ran requireCompanyAccess
+    // only, meaning any founder member of the company (not just admins)
+    // could archive/unarchive/retype ANY document, including isInternal
+    // ones, via direct API calls — the admin UI was the only front door,
+    // but never the only caller this route allowed. Per Q65 (confirmed
+    // 2026-08-04, Option A): the founder documents page (WS47) ships with
+    // no archive/delete affordance at all, so this endpoint has no
+    // legitimate non-admin caller — admin-only, not just UI-hidden.
+    const { error } = await requireAdmin();
     if (error) return error;
 
     const body = await request.json();

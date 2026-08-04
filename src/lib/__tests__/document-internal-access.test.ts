@@ -8,11 +8,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // uploader exception. PATCH (archive/docType edit) is untouched.
 // Mocked db/auth-guard, synthetic data only.
 
-vi.mock("@/lib/auth-guard", () => ({ requireCompanyAccess: vi.fn() }));
+vi.mock("@/lib/auth-guard", () => ({ requireCompanyAccess: vi.fn(), requireAdmin: vi.fn() }));
 vi.mock("@/lib/s3", () => ({ getDownloadUrl: vi.fn(() => Promise.resolve("https://s3.example.com/signed")) }));
 
 const mockDocumentFindMany = vi.fn();
 const mockDocumentFindUnique = vi.fn();
+const mockDocumentUpdate = vi.fn();
 const mockUpdateFindUnique = vi.fn();
 
 vi.mock("@/lib/db", () => ({
@@ -20,6 +21,7 @@ vi.mock("@/lib/db", () => ({
     document: {
       findMany: (...args: unknown[]) => mockDocumentFindMany(...args),
       findUnique: (...args: unknown[]) => mockDocumentFindUnique(...args),
+      update: (...args: unknown[]) => mockDocumentUpdate(...args),
     },
     update: {
       findUnique: (...args: unknown[]) => mockUpdateFindUnique(...args),
@@ -27,13 +29,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-import { requireCompanyAccess } from "@/lib/auth-guard";
+import { requireCompanyAccess, requireAdmin } from "@/lib/auth-guard";
 import { GET as getCompanyDocuments } from "@/app/api/companies/[id]/documents/route";
-import { GET as getDocument } from "@/app/api/documents/[id]/route";
+import { GET as getDocument, PATCH as patchDocument } from "@/app/api/documents/[id]/route";
 import { GET as getDocumentView } from "@/app/api/documents/[id]/view/route";
 import { GET as getUpdate } from "@/app/api/updates/[id]/route";
 
 const mockRequireCompanyAccess = vi.mocked(requireCompanyAccess);
+const mockRequireAdmin = vi.mocked(requireAdmin);
 
 const FOUNDER = { id: "founder-1", email: "founder@acme.com", roles: ["FOUNDER"] };
 const UPLOADER = { id: "uploader-1", email: "uploader@acme.com", roles: ["FOUNDER"] };
@@ -51,10 +54,20 @@ function docReq() {
   return new Request("https://molly.dfslab.net/api/documents/doc-1");
 }
 
+function patchReq(body: Record<string, unknown>) {
+  return new Request("https://molly.dfslab.net/api/documents/doc-1", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
 beforeEach(() => {
   mockRequireCompanyAccess.mockReset();
+  mockRequireAdmin.mockReset();
   mockDocumentFindMany.mockReset();
   mockDocumentFindUnique.mockReset();
+  mockDocumentUpdate.mockReset();
   mockUpdateFindUnique.mockReset();
 });
 
@@ -158,6 +171,67 @@ describe("GET /api/documents/[id] — isInternal enforcement", () => {
 
     const res = await getDocument(docReq(), params("doc-1"));
     expect(res).toBe(forbidden.error);
+  });
+});
+
+// Part 20, WS46 (F39) — PATCH previously ran requireCompanyAccess only,
+// meaning any founder member of the company (any role, any relationship
+// to the document) could archive/unarchive/retype ANY document via a
+// direct API call — no UI needed, the admin UI was just the only front
+// door that happened to call it. Per Q65 = A, the founder documents page
+// (WS47) never renders an archive/retype control, so this route is now
+// admin-only, full stop.
+describe("PATCH /api/documents/[id] — F39: admin-only, closed at the endpoint", () => {
+  it("rejects a non-admin (founder) attempting to archive their own upload, with no admin gate ever reached", async () => {
+    mockDocumentFindUnique.mockResolvedValue({
+      companyId: "company-1",
+      archivedAt: null,
+    });
+    mockRequireAdmin.mockResolvedValue({
+      user: null,
+      error: { status: 403, __marker: "requireAdmin" },
+    } as any);
+
+    const res = await patchDocument(patchReq({ archive: true }), params("doc-1"));
+    expect(res.status).toBe(403);
+    expect(mockDocumentUpdate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-admin attempting to retype (docType) their own upload", async () => {
+    mockDocumentFindUnique.mockResolvedValue({
+      companyId: "company-1",
+      archivedAt: null,
+    });
+    mockRequireAdmin.mockResolvedValue({
+      user: null,
+      error: { status: 403, __marker: "requireAdmin" },
+    } as any);
+
+    const res = await patchDocument(patchReq({ docType: "financials" }), params("doc-1"));
+    expect(res.status).toBe(403);
+    expect(mockDocumentUpdate).not.toHaveBeenCalled();
+  });
+
+  it("still allows an admin to archive/unarchive/retype exactly as before", async () => {
+    mockDocumentFindUnique.mockResolvedValue({
+      companyId: "company-1",
+      archivedAt: null,
+    });
+    mockRequireAdmin.mockResolvedValue({ user: ADMIN, error: null } as any);
+    mockDocumentUpdate.mockResolvedValue({ id: "doc-1", archivedAt: new Date() });
+
+    const res = await patchDocument(patchReq({ archive: true }), params("doc-1"));
+    expect(res.status).toBe(200);
+    expect(mockDocumentUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "doc-1" } })
+    );
+  });
+
+  it("still 404s a missing document before the admin check runs", async () => {
+    mockDocumentFindUnique.mockResolvedValue(null);
+    const res = await patchDocument(patchReq({ archive: true }), params("doc-1"));
+    expect(res.status).toBe(404);
+    expect(mockRequireAdmin).not.toHaveBeenCalled();
   });
 });
 

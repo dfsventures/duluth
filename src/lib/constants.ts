@@ -20,6 +20,11 @@ export const DD_DOC_TYPES = DOC_TYPES.filter((t) =>
 
 export type DocType = (typeof DOC_TYPES)[number]["value"];
 
+// Part 20, WS46 — hoisted out of src/app/diligence/page.tsx so the new
+// founder documents page (WS47) can apply the identical auto-tagging
+// rule without a second, driftable copy of this set.
+export const AUTO_INTERNAL_DOC_TYPES = new Set(["passport", "bank_statements"]);
+
 // Server-side upload validation: MIME type → allowed file extensions.
 // Keep in sync with what founders actually upload (decks, financials,
 // legal docs, product demos). SVG is deliberately excluded (XSS vector).
