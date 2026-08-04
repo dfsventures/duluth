@@ -569,7 +569,7 @@ export async function sendLpReportPublishedEmail(opts: { email: string; lpName?:
       <p>${primaryButton(link, "Read the Report →")}</p>
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        If you have a question, or even a disagreement, just hit reply. We read everything.
+        If you have a question, or even a disagreement, just hit reply.
       </p>
       <p style="margin: 16px 0 0; color: ${C.tide};">The ${ORG_NAME} team</p>
     `),
