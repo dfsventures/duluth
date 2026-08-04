@@ -4780,3 +4780,245 @@ Every section below (the answers form, the document list) is unchanged and stays
 ## Part 18 roadmap bookkeeping
 
 Once WS44 ships: fold it into `ROADMAP.md`'s existing "Due Diligence checklist" bullet under Founder Features (the completion copy) and "Pre-Investment Due Diligence Intake" bullet under Admin Features (the admin notification) rather than adding new bullets, since this is a fix to an already-shipped Part 16 surface, not a new feature; update the top `_Last updated_` line. Until then, `ROADMAP.md` carries a `Planned` forward-pointer blockquote (added in this same edit) rather than a shipped claim, matching the exact convention used for Part 16 before it shipped.
+
+---
+
+# Part 19 — Inline Document Viewing (F37, F38, WS45)
+
+_Requested by Joseph 2026-08-04: founders/admins can't view an uploaded document inline in the app — every document click forces a browser Save-As dialog, even for PDFs/images the browser could render natively. Joseph diagnosed the root cause himself (no code) and asked for a plan that **adds** inline viewing without removing the existing download capability: "The idea is to be both able to view and download the docs." Diagnosis re-verified line-by-line against the working tree before any of it was trusted — two real gaps beyond Joseph's own diagnosis surfaced during that re-verification (F37, F38 below). **This Part is planning only — no code has shipped.**_
+
+## Method
+
+Every claim in Joseph's diagnosis was re-checked against the actual code, not assumed:
+
+- **Confirmed exactly as diagnosed:** `src/app/admin/companies/[id]/page.tsx`'s `handleDownload` (lines 528–543) is the only forced-download call site in the app — grepped `handleDownload`, `\.download = `, and `createElement("a")` across `src/app` and `src/components`; nothing else matches. It fetches `GET /api/documents/{id}`, then builds a synthetic `<a>` with a `download` attribute and calls `.click()`. The HTML `download` attribute unconditionally forces Save-As regardless of content type.
+- **Confirmed exactly as diagnosed:** `src/lib/s3.ts`'s `getDownloadUrl()` (lines 40–47) sets no `ResponseContentDisposition` on the `GetObjectCommand`, and `getUploadUrl()` sets no `ContentDisposition` on the `PutObjectCommand` either — nothing at the storage layer forces a download. Grepped `Content-Disposition`/`ResponseContentDisposition` across `src/app/api/documents` and `src/lib`: zero matches. This is purely a client-side `download` attribute problem.
+- **Confirmed exactly as diagnosed:** `src/app/api/documents/[id]/view/route.ts` already exists, already does `requireCompanyAccess`, and already 302-redirects to the same kind of presigned URL — built for inline `<img>` rendering in the rich-text editor (its own comment says so), reachable and reusable as-is for a "View" action.
+- **Confirmed as flagged, and it is real: `/view` has no `isInternal` enforcement** (Joseph's point 3). `src/app/api/documents/[id]/route.ts` (the download-metadata route) got this fix in Part 16/WS42 (F33) — `document.isInternal && !user!.roles.includes("ADMIN")` → 403 — but `/view` was never touched. Today this is low-severity (nothing links to `/view` for arbitrary documents yet, only embedded `<img>` tags the founder/admin already has legitimate access to render), but it becomes a real, this-workstream-created hole the moment a "View" button is wired to it — **fixed as part of WS45, not deferred**, exactly like WS42 bundled the fix with the feature it would otherwise have widened. This is **F37**, continuing the numbering from Part 18 (F36).
+- **Founder document surfaces, checked, not assumed:**
+  - `src/app/company/profile/page.tsx` — grepped for `document`/`Document`/`s3Key`/`download`: zero matches. Confirmed founders have no company-level document browser at all (only admins do, via `/admin/companies/[id]`'s Documents tab).
+  - `src/lib/diligence.ts`'s `getDdDocumentSummary()` (lines 60–96) — confirmed by reading the code and its own comment: name + upload date only, no `s3Key`, no download link, by deliberate WS42-era design (a founder's own DD-checklist page reads a narrower, admin-`isInternal`-filter-safe summary, not the general document browser). Out of scope for this Part — nothing to view/download there because nothing links to a file at all, and widening that surface is a separate product decision, not implied by "add viewing to what already has downloading."
+  - LP/share surfaces (`src/app/share/[token]/page.tsx`, `src/app/lp/reports/[id]/page.tsx`, `src/components/report-view.tsx`) — grepped for `documents`/`Attachments`/`Paperclip`/`s3Key`: zero matches outside the already-shipped `rewriteDocumentUrls()` inline-image-in-update-body proxy (`src/app/api/share/[token]/doc/[docId]/route.ts`, F16). Confirmed: no LP-facing surface renders a document list or a download/view link of any kind. Nothing to change here.
+- **New finding, not in Joseph's diagnosis — F38: a second, previously-unnoticed forced-download-adjacent surface exists, and it has its own `isInternal` gap.** `src/app/updates/[id]/page.tsx` (the shared founder+admin update-detail page — not under `/admin`, reachable by whichever role has `requireCompanyAccess` to that update's company) renders an "Attachments" list (lines 665–699) with document name, type badge, and size — but **no `href`, no `onClick`, nothing clickable at all.** It's not a forced-download bug like the admin company page; it's worse — completely inert. Separately, `GET /api/updates/[id]/route.ts`'s `documents` include (lines 83–94) selects `isInternal: true` from the DB, but the `GET` handler discards the `user` half of `requireCompanyAccess`'s return (`const { error } = await requireCompanyAccess(...)`, line 55) and the list is never filtered by it — the exact WS42/F33 gap shape, on a route WS42 never touched. Today this leaks only metadata (name/type/size of an internal-only document, if one is ever attached to an update — reachable, since `POST /api/documents/upload` accepts both `updateId` and `isInternal` from any caller with `requireCompanyAccess`, not just admins) to a non-admin founder viewing that update — no file content, since nothing is clickable yet. It becomes a real content-access hole the instant this Part adds View/Download links to that list, so **it must be fixed in the same workstream**, exactly like F37. Aside: the client-side `UpdateDetail.documents` TypeScript interface (line 69) also declares a `s3Key: string` field the API never actually selects or returns — dead type noise, not a real leak (worth deleting while touching this file, not worth its own finding).
+
+## Decisions made without a Joseph fork (small technical judgment calls, each cheaply reversible)
+
+Per house protocol, these are calls a competent implementer can make directly rather than product forks — flagged here so they're visible, with the reversal path if wrong:
+
+- **JC-VD-A — "View" is conditional on MIME type, not always shown.** Joseph's own framing ("does the View action need to be conditional... or is it fine to gracefully degrade") plus the real data (`mimeType` is a required, lowercased field on every upload since `POST /api/documents/upload` was built — `src/app/api/documents/upload/route.ts:28-33`; only pre-that-era rows could have `mimeType: null`) makes conditional the obvious answer: showing a "View" button that opens a blank tab or force-downloads anyway for a `.docx`/`.zip`/`.pptx` is worse than not showing it, and Joseph explicitly said browsers "will just try to download it anyway or show a blank tab" for those types. **Reversal:** the allowlist is a single exported array in one new file — trivially widened.
+- **JC-VD-B — the inline-viewable allowlist ships as PDF + the four raster image types only** (`application/pdf`, `image/png`, `image/jpeg`, `image/gif`, `image/webp`), matching Joseph's own "PDF/image at minimum" framing exactly and `ALLOWED_UPLOAD_TYPES`'s (`src/lib/constants.ts:26-43`) existing image subset. `text/plain` and `video/mp4`/`video/quicktime` render inline in most browsers too but weren't asked for and have less consistent cross-browser behavior (Safari-only reliable `.mov` playback) — left out of v1 rather than guessed at. **Reversal:** add entries to the same array; zero other code changes.
+- **JC-VD-C — "View" opens the existing `/view` redirect in a new tab via a plain `<a target="_blank" rel="noopener noreferrer">`, not a new in-app modal/lightbox.** No new UI component, no new client-side state, and it's exactly what `/view` already does today for the rich-editor `<img>` case (redirect straight to the presigned URL, browser renders natively) — reusing rather than reimplementing. The codebase's one other "Eye = view" icon precedent (`admin/reports/[id]/page.tsx`'s Preview button) navigates same-tab to an in-app preview *page*, which doesn't apply here (there's no equivalent in-app document-preview page, and building one is a materially bigger, unrequested feature). **Reversal:** swap the anchor for a modal later without touching the `/view` route or the access-control fix.
+- **JC-VD-D — the update-detail Attachments list (F38's surface) does not grow an "Internal"/"Shared" visibility badge in this Part**, even though admins viewing that list can now see `isInternal` docs (the standalone admin document browser already has this badge). Not asked for, and the server-side filter already makes it safe for non-admins (they never receive internal rows at all) — the badge is a pure nice-to-have. **Reversal:** cheap follow-up, same pattern as the existing badge in `admin/companies/[id]/page.tsx`.
+
+## WS45 — Inline document viewing, plus the `isInternal` gaps it would otherwise widen (F37, F38) (~0.75–1 day)
+
+**Goal:** add a "View" action (opens inline in a new tab, conditional on a known-renderable MIME type) alongside the existing "Download" action everywhere a document row is already clickable-or-should-be, without changing existing download behavior — and close F37/F38 first, so this Part doesn't ship a new way to leak internal-only document content to non-admins.
+
+### WS45.1 `src/lib/documents.ts` (new) — the shared, testable viewability rule
+
+```ts
+// Part 19, WS45 — single source of truth for "can a browser render this
+// inline," so the admin company page and the update-detail attachments
+// list can't drift. Deliberately narrower than ALLOWED_UPLOAD_TYPES
+// (src/lib/constants.ts) — every uploadable type is accepted, not every
+// uploadable type renders inline. See Part 19 JC-VD-B for what's excluded
+// and why (text/plain, video) — cheap to widen later.
+const INLINE_VIEWABLE_MIME_TYPES = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/gif",
+  "image/webp",
+]);
+
+export function isInlineViewable(mimeType: string | null | undefined): boolean {
+  if (!mimeType) return false;
+  return INLINE_VIEWABLE_MIME_TYPES.has(mimeType.toLowerCase());
+}
+```
+
+Unit test (`src/lib/__tests__/documents.test.ts`, new): PDF/PNG/JPEG/GIF/WebP → true; `.docx`/`.zip`/`.pptx`/`video/mp4` → false; `null`/`undefined`/empty string → false; case-insensitivity (`"IMAGE/PNG"` → true, matching the existing lowercasing convention in `POST /api/documents/upload`).
+
+### WS45.2 `src/app/api/documents/[id]/view/route.ts` — close F37
+
+```ts
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const document = await db.document.findUnique({
+      where: { id },
+      select: { s3Key: true, companyId: true, isInternal: true },
+    });
+
+    if (!document) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const { user, error } = await requireCompanyAccess(document.companyId);
+    if (error) return error;
+
+    // Part 19, WS45 (F37) — same role check WS42/F33 gave the metadata
+    // route; /view had never gotten it. A role check, not an uploader
+    // exception, matching that precedent exactly.
+    if (document.isInternal && !user!.roles.includes("ADMIN")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const url = await getDownloadUrl(document.s3Key);
+    return NextResponse.redirect(url);
+  } catch (err) {
+    console.error("GET /api/documents/[id]/view error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+```
+
+### WS45.3 `src/app/api/updates/[id]/route.ts` — close F38
+
+`GET` handler: keep `user` (currently discarded), filter the `documents` include exactly like WS42.1 filtered `GET /api/companies/[id]/documents`:
+
+```ts
+const { user, error } = await requireCompanyAccess(update.companyId);
+if (error) return error;
+
+const isAdmin = user!.roles.includes("ADMIN");
+
+const fullUpdate = await db.update.findUnique({
+  where: { id },
+  include: {
+    // ...company, comments unchanged...
+    documents: {
+      where: isAdmin ? {} : { isInternal: false },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        mimeType: true,
+        size: true,
+        isInternal: true,
+        docType: true,
+        createdAt: true,
+      },
+    },
+    // ...metricValues, createdBy unchanged...
+  },
+});
+```
+
+No route response-shape change for the common case (no internal docs attached) — purely additive filtering, matching WS42.1's own framing.
+
+### WS45.4 `src/app/admin/companies/[id]/page.tsx` — View action on the existing document row
+
+Add `Eye` to the `lucide-react` import list, add `isInlineViewable` import, add a View link before the existing Download button in the row's action cell (lines 1276–1298 today):
+
+```tsx
+<div className="flex items-center gap-2">
+  {isInlineViewable(doc.mimeType) && (
+    <a
+      href={`/api/documents/${doc.id}/view`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-muted-foreground hover:text-primary"
+      title="View"
+    >
+      <Eye className="h-4 w-4" />
+    </a>
+  )}
+  <button
+    onClick={() => handleDownload(doc.id, doc.name)}
+    className="text-muted-foreground hover:text-primary"
+    title="Download"
+  >
+    <Download className="h-4 w-4" />
+  </button>
+  {/* existing Archive/Unarchive button, unchanged */}
+</div>
+```
+
+`doc.mimeType` is already fetched into the `documents` state (`interface` at line ~94 already has `mimeType: string | null`) — no API/type change needed on this page. `handleDownload` (lines 528–543) is untouched.
+
+### WS45.5 `src/app/updates/[id]/page.tsx` — make the Attachments list actually clickable (F38's UI half)
+
+Add `Eye` to the `lucide-react` import list, import `isInlineViewable`, add a `handleDownloadDoc` function (same fetch-then-synthetic-`<a>` pattern as the admin page's `handleDownload`, reusing the existing `message`/`setMessage` state already on this page), remove the dead `s3Key: string` line from the `UpdateDetail.documents` client interface, and wire both actions onto each `<li>`:
+
+```tsx
+async function handleDownloadDoc(docId: string, docName: string) {
+  try {
+    const res = await fetch(`/api/documents/${docId}`);
+    if (!res.ok) throw new Error("Failed to get download link");
+    const data = await res.json();
+    const a = document.createElement("a");
+    a.href = data.downloadUrl;
+    a.download = docName;
+    a.click();
+  } catch (err) {
+    setMessage({
+      type: "error",
+      text: err instanceof Error ? err.message : "Download failed.",
+    });
+  }
+}
+```
+
+```tsx
+<li key={doc.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
+  <FileText className="h-4 w-4 text-muted-foreground" />
+  <div className="min-w-0 flex-1">
+    {/* ...existing name/badge/size markup, unchanged... */}
+  </div>
+  <div className="flex items-center gap-2">
+    {isInlineViewable(doc.mimeType) && (
+      <a
+        href={`/api/documents/${doc.id}/view`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-muted-foreground hover:text-primary"
+        title="View"
+      >
+        <Eye className="h-4 w-4" />
+      </a>
+    )}
+    <button
+      onClick={() => handleDownloadDoc(doc.id, doc.name)}
+      className="text-muted-foreground hover:text-primary"
+      title="Download"
+    >
+      <Download className="h-4 w-4" />
+    </button>
+  </div>
+</li>
+```
+
+`Download` is already imported on this page (used by the "Download PDF" whole-update button) — reused, not re-imported.
+
+### WS45.6 Tests
+
+- `src/lib/__tests__/documents.test.ts` (new) — `isInlineViewable`, per WS45.1.
+- Extend `src/lib/__tests__/document-internal-access.test.ts` (or a new sibling file — Alvin's call) with F37/F38 cases, mirroring the existing suite's exact style:
+  - `GET /api/documents/[id]/view` 403s a non-admin on an `isInternal` document, 200s (redirects) for an admin, 200s for a non-admin on a non-internal document, still 404s a missing document before the check runs.
+  - `GET /api/updates/[id]` — a founder's `documents` include has `isInternal: false` in its `where`; an admin's has no `isInternal` filter at all (same assertion shape as the existing `GET /api/companies/[id]/documents` test).
+
+## WS45 acceptance checklist
+
+- [ ] `isInlineViewable()` unit tests pass for the full allowlist plus the negative cases (unknown type, null, case-insensitivity)
+- [ ] Admin company page: a PDF/PNG/JPEG/GIF/WebP document row shows both View and Download icons; a `.docx`/`.zip`/other row shows Download only
+- [ ] Update-detail Attachments list (both a founder's own update and an admin viewing it): same View/Download behavior as above — previously fully inert, now both actions work
+- [ ] Clicking View opens the document in a new tab, rendered inline (not a Save-As prompt) for every allowlisted type
+- [ ] Clicking Download still forces Save-As exactly as before on both pages — zero regression to existing behavior
+- [ ] `GET /api/documents/[id]/view` 403s a non-admin requesting an `isInternal` document; still 302-redirects correctly for the rich-editor `<img>` case and for admins
+- [ ] `GET /api/updates/[id]`'s `documents` list excludes `isInternal` rows for a non-admin, includes them for an admin — confirmed via the new test, not just code review
+- [ ] A DD-stage company's internal-only document (e.g., a passport tagged `isInternal: true` and hypothetically attached to an update) never appears in a non-admin founder's Attachments list, and its `/view`/`/documents/[id]` endpoints both 403 for that founder even with a guessed/known document id
+- [ ] Founder-side surfaces confirmed untouched and out of scope: `company/profile`, `/diligence` (`getDdDocumentSummary` still returns name/date only, no link), all LP/share pages (no document list exists there to change)
+- [ ] 375px check on both rows (Pattern A/B house conventions — the admin table already scrolls horizontally per Pattern A; the update-detail `<li>` row needs a quick check that two extra icons don't crowd the existing badge/size text at narrow widths — likely fine given the row already has `flex items-center gap-3`, but verify, don't assume)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `src/lib/auth.ts`, `auth-guard.ts`, `route-access.ts`, `src/app/lp/**`, `src/app/share/**`, `src/lib/share-docs.ts` — this Part touches only the admin company page, the update-detail page, `/api/documents/[id]/view`, and `/api/updates/[id]`
+
+**UX impact:** additive only for the two touched surfaces — existing Download behavior is byte-identical; View is a new, purely-additive action that's hidden (not disabled/greyed) for non-renderable types, so no user ever sees a button that doesn't work. The update-detail Attachments list goes from fully inert to functional, which is a fix, not a behavior change anyone could be relying on (there was nothing to click before). No other page, role, or flow is touched. **Cost impact:** none — reuses the existing S3/R2 presigned-URL mechanism and the already-shipped `/view` route; zero new services, zero new dependencies. **Schema:** none — `mimeType` and `isInternal` already exist on `Document`.
+
+## Part 19 roadmap bookkeeping
+
+Until WS45 ships: `ROADMAP.md` carries a `Planned` forward-pointer blockquote (added in this same edit) at the top of the Roadmap section, plus a short annotation on the existing "Document Management" bullet list noting the known forced-download gap and F37/F38, matching the F31/Setup-Wizard annotation convention used before that gap was fixed. Once WS45 ships: fold "View" into the existing Document Management bullets (it's an enhancement to an already-listed feature, not a new one), remove the `Planned` blockquote, and update the top `_Last updated_` line.
