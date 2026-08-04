@@ -5354,3 +5354,217 @@ WS46 first (small, mostly mechanical, and F39 should close before a second UI su
 ## Part 20 roadmap bookkeeping
 
 Until WS46/WS47 ship: `ROADMAP.md` gets a `Planned` forward-pointer blockquote at the top of the Roadmap section (matching the WS45 convention) summarizing the gap and pointing here, plus a short annotation on the Founder Features' "Due Diligence checklist" bullet noting that promoted (`ACTIVE`) companies now have a separate, general document page rather than a dead end. Once shipped: fold "Documents" into Founder Features as its own bullet (new nav surface, not an enhancement to an existing one), remove the `Planned` blockquote, and update the top `_Last updated_` line.
+
+---
+
+# Part 21 — Awaiting-Setup Queue Hygiene (F40, F41, WS48)
+
+_Requested by Joseph 2026-08-04, from `/admin/approvals`'s "Awaiting password setup" section (shipped Part 9/WS22): several rows have been sitting there, still "link expired," since February — with no way to clear them. Verbatim: "I want these to disappear after a certain number of days or have the option to delete them." Both options are his own suggestions, offered together, not a single committed choice — treated below as a real fork (Q66). **Q66 confirmed by Joseph 2026-08-04: Option B — ship both Dismiss/Undismiss and the guarded hard Delete together, matching Felix's recommendation exactly.** **This Part is planning only — no code has shipped.**_
+
+## Method
+
+Every claim below was verified against the working tree, not assumed from the Part 9 plan or from framing in the request.
+
+- **Confirmed what "awaiting password setup" means today.** `GET /api/admin/approvals/awaiting/route.ts:18-23` — `passwordHash: null`, `status: { not: "REJECTED" }`, `OR: [{ status: "APPROVED" }, { approvalToken: { not: null } }]`. This is exactly Part 9's F19 state machine: a self-signup founder an admin approved is `PENDING` + token; an admin-invited user is `APPROVED` + token. `src/app/admin/approvals/page.tsx:301-356` renders it as a second, always-fetched section below the main pending queue, one wrap-row `Card` per user with a single "Resend link" action (`POST /api/admin/approvals/[id]/resend`).
+- **Confirmed there is no existing cleanup mechanism — these rows genuinely accumulate forever.** No cron touches `User` rows in this state (grepped `src/app/api/cron/` — reminders and sheets-sync only); the only two mutating endpoints scoped to a single awaiting-setup user are `resend` (refreshes the token, does not remove the row from the query) and the ordinary `approve`/`reject` siblings. Reject (`src/app/api/admin/approvals/[id]/reject/route.ts:25-30`) 400s outright unless `status === "PENDING"` — meaning it flatly refuses on the `APPROVED` half of this population (every admin-invited user, whether invited via `/admin/companies/new` or `POST /api/companies/[id]/members/invite`). And even for the `PENDING`+token half where it *would* succeed, no UI button ever calls it against these rows: the only "Reject" button on the page lives in the main pending-queue card list, which is fed by `GET /api/admin/approvals` — filtered to `{ status: "PENDING", approvalToken: null }` (`src/app/api/admin/approvals/route.ts:11-12`), which by construction excludes every row that also appears in the awaiting-setup section. **F40 — reject is real, but unreachable for this population, and it's the wrong tool anyway:** both the reject route and `src/lib/email.ts`'s `sendRejectionEmail` fire a real "you were rejected" email. Reusing it to silently clear an admin-hygiene queue would misinform a founder or teammate DFS already explicitly approved/invited — worse than doing nothing. This rules out extending "Reject" as the answer to Joseph's ask.
+- **Confirmed these users are structurally different from the DD-decline population the Part 16/WS43 founder-cleanup precedent (F34/F35) was built for.** Every creation path that produces an "awaiting setup" row also creates a real `UserCompanyMembership` in the same transaction — there is no "brand-new, still-orphaned account" case here, unlike DD-decline's starting point:
+  - Self-signup (`src/app/api/auth/signup/route.ts:76-100`) creates the `User`, a **new `Company`** with `createdById: user.id`, and an `OWNER` membership, all in one `$transaction`. The founder is the company's creator.
+  - Admin-created company with a founder invite (`src/app/api/companies/route.ts:114-165`) creates the `User` (`status: "APPROVED"`) and an `OWNER` membership on a company whose `createdById` is **the admin** (`companies/route.ts:145`, explicit comment: "unchanged convention — always the admin").
+  - Team-member invite into an existing company (`src/app/api/companies/[id]/members/invite/route.ts:186-216`) creates the `User` and a `MEMBER`/`VIEWER` membership on a company they didn't create and don't own.
+  So every awaiting-setup row already has ≥1 real membership on day one — the F34/F35 "zero remaining memberships ⇒ safe to delete" predicate doesn't even apply here; the question is never "are they orphaned," it's "would deleting them orphan or damage a real company."
+- **Confirmed the FK hazard is narrower here than F35's, but real and different in shape — F41.** `prisma/schema.prisma:97-98` — `Company.createdById` is a required FK to `User` with no `onDelete` clause (Postgres default: `RESTRICT`). For the **self-signup** sub-case, the awaiting-setup user *is* that FK's target — `db.user.delete({ where: { id } })` on that row would throw a raw FK-violation error today, not silently no-op like F35 (there's no join-table indirection to unwind first, unlike `ShareableLink`/`ShareableLinkCompany`). For the **admin-invited** sub-case (both company-creation paths above), the user is never `createdById` of anything — deleting them is clean, and only their `UserCompanyMembership` row(s) cascade away (`onDelete: Cascade`, `prisma/schema.prisma:144-145`), exactly like removing an ordinary team member. Unlike F35, there is **no `ShareableLink`-style risk to check for at all**: every row in this queue has `passwordHash: null`, meaning they have never logged in, and every other `createdById`-style relation on `User` (`ShareableLink`, `CompanyNote`, `UpdateTemplate`, `FundReport`) can only be created from a route behind `requireCompanyAccess`/`requireAdmin` — i.e. a real session, which these accounts have never had (verified by reading each creation route's auth guard). So the *only* FK a hard-delete needs to guard against here is `Company.createdById`, and it's cleanly checkable in advance (no try/catch-and-hope needed, unlike F35's best-effort loop).
+- **Confirmed what "disappear after N days" would mean today, and that it's a genuinely separate concept from token expiry.** `SETUP_TOKEN_TTL_DAYS = 7` (`src/lib/setup-token.ts:4`) governs whether the *link itself* still works — unrelated to whether the *row* should still be in an admin's face. A row already reads `link expired {date}` in `text-laterite` once its token ages out (`page.tsx:337-343`), so "expired" is already visible; what's missing is a way to stop seeing it.
+- **Confirmed the self-serve resend path still works after any soft removal from this list.** `src/app/api/auth/signup/route.ts:37-73` — re-submitting the public signup form with the same email hits `canResendSetupLink(existing)` and auto-resends, regardless of whether an admin has taken any action on the row. This means a soft "get this off my screen" action never actually locks a real founder out — they have a working, independent path back in.
+
+## Decisions made without a Joseph fork (small technical judgment calls, each cheaply reversible)
+
+- **JC-AQ-A — "get out of my sightline" ships as a new, dedicated soft action ("Dismiss"), not by repurposing status/token fields.** A new nullable `User.setupQueueDismissedAt` column is the only schema change; it never touches `status`, `approvalToken`, or `tokenExpiresAt`, so nothing about login eligibility, resend eligibility, or the self-serve path above changes — this is purely a queue-visibility flag. **Reversal:** drop the column later if a different mechanism wins; nothing else references it.
+- **JC-AQ-B — dismiss/undismiss are two `POST` sub-routes (`.../[id]/dismiss`, `.../[id]/undismiss`), not one `PATCH` with a body.** The alerts feature (`PATCH /api/admin/alerts/[id]` with `{ resolved: true }`) is the closest analog elsewhere in the app, but the three existing siblings *in this exact folder* (`approve`, `reject`, `resend`) are all id-only `POST` routes — matching the closer, local convention. **Reversal:** collapsing to one `PATCH` later is a mechanical route-file merge.
+- **JC-AQ-C — the auto-hide-after-N-days threshold is a display-only grouping, computed client-side, not a second schema column or a WHERE-clause filter.** `GET /api/admin/approvals/awaiting` keeps returning every non-`REJECTED`, no-password row unfiltered (dismissed or not, stale or not) — the page groups them into "Awaiting password setup" (active) and a collapsed "Dismissed / stale" section, mirroring the page's own pre-existing `processedApprovals` collapsed-section pattern one screen up. This keeps the feature reversible and inspectable (an admin can always see everything that's there, just deprioritized) rather than truly hidden with no trace, matching the "additive, not surprising" bar. Threshold recommended at **30 days past the token's own expiry** (i.e. `tokenExpiresAt + 30d < now`) — deliberately distinct from and longer than `SETUP_TOKEN_TTL_DAYS` (7d), so a resend (which refreshes `tokenExpiresAt`) automatically pushes a row back out of "stale" with no extra bookkeeping. **Reversal:** one constant.
+- **JC-AQ-D — the stale-threshold constant and its predicate stay out of `src/lib/setup-token.ts` and live directly in the page component.** `setup-token.ts` does `import crypto from "crypto"` for `generateSetupToken()` — a Node core module. Importing anything from that file into a `"use client"` page risks pulling that import into the client bundle (Next/webpack's tree-shaking of an unused named export through a `crypto`-importing sibling function is not something to rely on). The existing page already computes `expired` inline (`page.tsx:339`) rather than importing `isSetupTokenExpired` from that file for the same reason — this follows the same, already-established pattern. **Reversal:** if `setup-token.ts` is ever split into a pure sub-module, the constant can move there.
+- **JC-AQ-E — hard delete is guarded by a new pure predicate, `canHardDeleteFromQueue()`, added to `setup-token.ts` (server-only usage, no client-import conflict) and unit-tested,** matching the house convention of extracting security-relevant predicates (`canResendSetupLink`) rather than inlining them in a route handler.
+
+## Product decision (Q66) — confirmed by Joseph 2026-08-04
+
+**Q66 — Should a hard "delete this account" action ship at all in v1, alongside Dismiss, or is Dismiss (+ the auto-stale grouping) enough for now?**
+
+This was the one genuine fork. Dismiss alone fully answers "I want these to disappear" — it's safe, reversible, has zero email side effects, and directly clears the exact rows in the screenshot. Delete is the literal reading of "or have the option to delete them," but F41 above means it can't be a single uniform action:
+
+- **Option A (not chosen) — Dismiss only.** Ship WS48 minus the `DELETE` endpoint and the "Delete account" button. Simplest, safest, smallest. Documented here for the record; not built.
+- **Option B (chosen) — Dismiss, plus a guarded Delete that's only offered when it's actually safe.** Per F41, a hard delete is clean and safe whenever the account is **not** the creator of any company it belongs to (the admin-invited-founder and team-member sub-cases — likely the majority of what's been sitting since February, since DFS-initiated invites are the normal path here, not self-signup). For that population, "Delete account" fully removes the `User` row (membership cascades away automatically); it's blocked with a clear inline reason for the self-signup/company-creator sub-case, where deleting the account would either crash on the `Company.createdById` FK or require deciding to delete a real, possibly-named company as a side effect — which this workstream deliberately does not do silently. Re-invite after a delete is a normal "invite this email again" from `/admin/companies/[id]` → Members (or `/admin/companies/new` if the company doesn't exist anymore either) — a fresh `User` row, no special recovery path needed, confirmed against `members/invite/route.ts`'s "no user found" branch (`invite/route.ts:186-216`).
+- **Option C (not chosen) — Delete that also silently deletes the self-created `Company` when the account is its creator,** mirroring the DD-decline precedent exactly. Rejected: DD-decline already has an explicit, deliberate admin action ("Decline this deal") authorizing company deletion; there's no equivalent intent here — a stale awaiting-setup row is not evidence the company itself should be destroyed, and doing so as a side effect of an admin-hygiene click is a materially bigger, easier-to-regret action than what was asked for.
+
+**Decided: Option B**, matching Felix's recommendation exactly — it answers both halves of Joseph's message, costs about the same as Option A once the pure `canHardDeleteFromQueue()` guard exists (no extra UI complexity beyond one more button and one more blocked-state message), and never puts a real company at risk. This is now locked in throughout WS48 below: no conditional branches, no "if Q66 = A" alternates — Dismiss/Undismiss and the guarded hard Delete both ship in the same batch.
+
+## WS48 — Dismiss + guarded delete for the awaiting-setup queue (~0.75–1 day)
+
+**Goal:** give the admin a way to get resolved/unwanted rows out of "Awaiting password setup" — always via Dismiss (safe, reversible, no email); optionally via a guarded hard Delete where F41 confirms it's safe. Stale rows (30+ days past their own token expiry) auto-group with dismissed ones. No change to login, resend, or self-serve recovery behavior for any row that isn't explicitly deleted.
+
+### WS48.1 Schema — additive, one nullable column
+
+```prisma
+model User {
+  id             String     @id @default(cuid())
+  email          String     @unique
+  name           String?
+  passwordHash   String?
+  roles          UserRole[] @default([FOUNDER])
+  status         UserStatus @default(PENDING)
+  approvalToken  String?    @unique
+  tokenExpiresAt DateTime?
+  setupQueueDismissedAt DateTime? // WS48 — admin-hygiene only; never affects login/token/resend eligibility
+  googleId       String?    @unique
+  ...
+}
+```
+
+`prisma db push` against production per the house procedure (Vercel env, `--environment=production`). Zero backfill — existing rows read `null` (not dismissed), byte-identical to today.
+
+### WS48.2 `src/lib/setup-token.ts` — one new constant, one new predicate (server-only)
+
+```ts
+/**
+ * Safe to hard-delete from the awaiting-setup queue (WS48/F41): never an
+ * admin, never someone who already finished setup, and never the creator
+ * of a company — Company.createdById is a required FK with no cascade
+ * (Postgres RESTRICT), so deleting a company-creator's User row would
+ * either throw outright or require silently deleting a real company.
+ */
+export function canHardDeleteFromQueue(
+  u: { roles: string[]; passwordHash: string | null },
+  ownedCompanyCount: number
+): boolean {
+  if (u.passwordHash) return false;
+  if (u.roles.includes("ADMIN")) return false;
+  return ownedCompanyCount === 0;
+}
+```
+
+Extend `src/lib/__tests__/setup-token.test.ts` with the truth table: admin ✗ regardless of `ownedCompanyCount`; has-password ✗; `ownedCompanyCount > 0` ✗; plain invited/team-member row with `ownedCompanyCount === 0` ✓.
+
+### WS48.3 `GET api/admin/approvals/awaiting/route.ts` — no filter change, two extra fields
+
+Same `where` as today (Part 9/WS22.1) — dismissed rows must still come back so the collapsed section and any "Undismiss" action have data to work with. Add `setupQueueDismissedAt` and `createdById` on the nested company select:
+
+```ts
+select: {
+  id: true, email: true, name: true, status: true, roles: true,
+  tokenExpiresAt: true, createdAt: true, setupQueueDismissedAt: true,
+  memberships: {
+    include: { company: { select: { id: true, name: true, createdById: true } } },
+  },
+},
+```
+
+(`roles` is new here too — the client needs it to hide the Delete button for the admin-account edge case, mirroring the server-side guard; today's response doesn't select it.)
+
+### WS48.4 `POST api/admin/approvals/[id]/dismiss/route.ts` (new) and `.../undismiss/route.ts` (new)
+
+Siblings of `resend`, same skeleton (`requireAdmin` → 404 if missing → update → audit log → return updated user):
+
+```ts
+// dismiss
+const updated = await db.user.update({
+  where: { id },
+  data: { setupQueueDismissedAt: new Date() },
+  select: { id: true, email: true, setupQueueDismissedAt: true },
+});
+await logAdminAction(actor!, "SETUP_QUEUE_DISMISSED", {
+  targetType: "User",
+  targetId: id,
+  metadata: { email: updated.email },
+});
+```
+
+`undismiss` is the same shape with `setupQueueDismissedAt: null` and `"SETUP_QUEUE_UNDISMISSED"`. No eligibility guard needed beyond "user exists" — dismissing/undismissing a row that's since completed setup (or been rejected) is inert, and the GET query already stops returning REJECTED/passworded rows regardless.
+
+### WS48.5 `DELETE api/admin/approvals/[id]/route.ts` (new)
+
+```ts
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { user: actor, error } = await requireAdmin();
+    if (error) return error;
+    const { id } = await params;
+
+    const target = await db.user.findUnique({
+      where: { id },
+      include: {
+        memberships: {
+          include: { company: { select: { id: true, name: true, createdById: true } } },
+        },
+      },
+    });
+    if (!target) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const ownedCompanies = target.memberships
+      .map((m) => m.company)
+      .filter((c) => c.createdById === id);
+
+    if (!canHardDeleteFromQueue(target, ownedCompanies.length)) {
+      const reason = target.passwordHash
+        ? "This account has already completed setup."
+        : target.roles.includes("ADMIN")
+          ? "Admin accounts can't be deleted from this queue."
+          : `This account created ${ownedCompanies.map((c) => c.name).join(", ")} — deleting it here would either fail or require deleting that company too, which this action doesn't do. Use "Dismiss" instead, or delete the company from Admin → Companies if you want to remove it entirely.`;
+      return NextResponse.json({ error: reason }, { status: 409 });
+    }
+
+    await db.user.delete({ where: { id } }); // memberships cascade — prisma/schema.prisma:144-145
+
+    await logAdminAction(actor!, "SETUP_QUEUE_USER_DELETED", {
+      targetType: "User",
+      targetId: id,
+      metadata: { email: target.email, companyNames: target.memberships.map((m) => m.company.name) },
+    });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("DELETE /api/admin/approvals/[id] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+```
+
+The 409 message is defense-in-depth — WS48.6's UI already hides/disables the button in the blocked case, but the endpoint must refuse safely even if called directly.
+
+### WS48.6 `src/app/admin/approvals/page.tsx` — Dismiss/Delete UI, stale grouping
+
+- Local, page-only constant (per JC-AQ-D): `const STALE_AFTER_DAYS = 30;` and a small inline predicate mirroring the existing `expired` calc at line 339: `const isStale = (u) => !u.tokenExpiresAt || new Date(u.tokenExpiresAt).getTime() + STALE_AFTER_DAYS * 86400000 < Date.now();`.
+- Split the fetched `awaitingUsers` into `activeAwaiting = awaitingUsers.filter(u => !u.setupQueueDismissedAt && !isStale(u))` and `dismissedOrStale = awaitingUsers.filter(u => u.setupQueueDismissedAt || isStale(u))`.
+- `activeAwaiting` renders exactly as today, plus one new secondary-variant button per row, `Dismiss` (`EyeOff` icon, `POST .../dismiss`), next to the existing `Resend link` button — same `resendStates`-style per-id loading/result local state, new sibling state object (`dismissStates`) so the two actions don't fight over the same key.
+- Compute `const isCompanyCreator = u.memberships.some(m => m.company.createdById === u.id);` per row. Render a `Trash2`-icon `Delete account` button using the exact two-step "click to arm → Confirm Delete / Cancel" inline pattern already used on `admin/companies/[id]/page.tsx:630-659` (own local `confirmDeleteId` state, not a modal) — but only when `!isCompanyCreator`; when `isCompanyCreator`, render a muted inline note instead ("Created a company — use Dismiss") rather than a disabled button with no explanation.
+- New collapsed section below, mirroring the page's existing `processedApprovals` block (`opacity-60` cards, same shape): heading "Dismissed / stale ({count})", each row keeps `Resend link` (still fully functional — dismissal never touched `approvalToken`) and gains `Undismiss` (only shown when `setupQueueDismissedAt` is actually set — a purely-stale-but-never-dismissed row has nothing to "undismiss," it'll just drop out of this group on its own once resent).
+- Section-visibility rule stays additive: if both `activeAwaiting` and `dismissedOrStale` are empty, the whole "Awaiting password setup" heading disappears exactly as it does today.
+
+### WS48.7 Bookkeeping
+
+- `ROADMAP.md`: short annotation on the existing Approvals bullet (Admin Features) once shipped — "Awaiting password setup" rows can be dismissed, or deleted outright when safe (F41's guard), instead of accumulating indefinitely; fold into "Existing Features."
+- No `route-access.ts`/middleware change — these are all authenticated `/api/admin/*` routes, same shape as every sibling in this folder.
+
+## WS48 acceptance checklist
+
+- [ ] `npm run typecheck && npm run lint && npm test` green; `setup-token.test.ts` covers `canHardDeleteFromQueue`'s truth table
+- [ ] Dismiss a row → disappears from "Awaiting password setup," reappears under "Dismissed / stale"; `SETUP_QUEUE_DISMISSED` audit row with the email in metadata
+- [ ] Undismiss → row returns to the active section; `SETUP_QUEUE_UNDISMISSED` audit row
+- [ ] A row whose `tokenExpiresAt` is >30 days in the past auto-appears under "Dismissed / stale" with no admin action taken; resending it (refreshing `tokenExpiresAt`) moves it back to the active section on next load
+- [ ] Delete on an admin-invited/team-member row (not a company creator) → row and its `UserCompanyMembership` are gone; the company it belonged to is untouched, still has its other members; `SETUP_QUEUE_USER_DELETED` audit row with `companyNames` in metadata
+- [ ] Delete on a self-signup row (company creator) → button doesn't render; a direct `curl -X DELETE` against the endpoint 409s with the explanatory message, company and account both untouched
+- [ ] Re-inviting a deleted account's email via `/admin/companies/[id]` → Members creates a fresh `User` row and membership, no dead end
+- [ ] Reject/Approve on the main pending queue, and Resend on any awaiting-setup row, remain byte-identical to today
+- [ ] 375px check: new buttons wrap per the page's existing Pattern B card row, no horizontal scroll
+- [ ] Grep guard: no diffs under `src/lib/auth.ts`, `auth-guard.ts`, `route-access.ts`, `src/lib/setup-token.ts`'s existing exports (`generateSetupToken`, `isSetupTokenExpired`, `canResendSetupLink` unchanged), or the DD-decline cleanup path (`src/app/api/companies/[id]/route.ts`)
+
+**UX impact:** additive — new "Dismiss"/"Undismiss" and (where F41's guard allows it) "Delete account" affordances plus a collapsed section on an admin-only page; no founder, investor, or LP surface is touched; no existing row's Resend/Approve/Reject behavior changes for any row that isn't explicitly deleted. Delete itself is the one genuinely destructive action in this workstream — irreversible by design, but narrowly scoped (never a company creator, never an admin, never a completed account) and gated behind an explicit two-step confirm, matching the existing company-delete UI pattern. **Cost impact:** none — one nullable Postgres column, no new services, no new dependencies. **Schema:** additive only (`User.setupQueueDismissedAt`), per the house `db push` convention.
+
+## Part 21 sequencing
+
+Single workstream, no conditional branches (Q66 confirmed = Option B). WS48.1 (schema) first, then WS48.2/.3 (server predicate + GET fields) in parallel with nothing blocking them, then WS48.4 (dismiss/undismiss) and WS48.5 (delete) in either order — both are unconditional and independent of each other — then WS48.6 (UI) last since it depends on all four routes existing. Total ~0.75–1 day.
+
+## Part 21 roadmap bookkeeping
+
+Until WS48 ships: `ROADMAP.md` gets a short `Planned` forward-pointer blockquote at the top of the Roadmap section (see below) plus a one-line annotation on the existing Approvals bullet. Once shipped: fold into "Existing Features" (Admin Features → Approvals), remove the blockquote, update the top `_Last updated_` line.
