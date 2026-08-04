@@ -5022,3 +5022,335 @@ async function handleDownloadDoc(docId: string, docName: string) {
 ## Part 19 roadmap bookkeeping
 
 Until WS45 ships: `ROADMAP.md` carries a `Planned` forward-pointer blockquote (added in this same edit) at the top of the Roadmap section, plus a short annotation on the existing "Document Management" bullet list noting the known forced-download gap and F37/F38, matching the F31/Setup-Wizard annotation convention used before that gap was fixed. Once WS45 ships: fold "View" into the existing Document Management bullets (it's an enhancement to an already-listed feature, not a new one), remove the `Planned` blockquote, and update the top `_Last updated_` line.
+
+---
+
+# Part 20 — Founder Document Upload for Active Companies (F39, WS46–WS47)
+
+_Requested by Joseph 2026-08-04, from a real incident: a founder ("Acme," now `Company.stage: "ACTIVE"`) went through the `/diligence` checklist and uploaded 5 documents (cap table, bank statements, certificate of incorporation, business license, passport) that never actually saved, because of a since-fixed R2 storage-credentials bug. Now that the company is promoted out of `DILIGENCE`, the founder has no way to re-upload anything — `/diligence` renders `null` the instant `stage !== "DILIGENCE"`, no founder-facing document UI exists anywhere else, and there is no admin action to revert a company's stage. Joseph explicitly chose the broader fix over a narrow one-off ("give founders a real document upload page for active companies... this exact gap will recur regardless of this specific incident") and asked for this to be scoped properly before Alvin builds it. **Q65 (the one genuine product fork below) confirmed by Joseph 2026-08-04: Option A — upload/view/download only, no archive/delete on the founder page, matching Felix's recommendation exactly.** **This Part is planning only — no code has shipped.**_
+
+## Method
+
+Every claim in the request was re-verified against the working tree, not assumed:
+
+- **Confirmed:** `src/app/diligence/page.tsx:208–210` — `if (diligence.stage !== "DILIGENCE") { return null; }` — the DD checklist page is a dead end for any promoted company, exactly as reported.
+- **Confirmed, no founder document UI exists elsewhere:** grepped `document`/`Document`/`s3Key`/`download` across `src/app/company/profile/page.tsx` (zero matches — same finding Part 19 already made) and across all of `src/app/dashboard` and `src/app/updates` for any `documents/upload` POST call — nothing besides the update-composer's own per-update attachment picker, which is scoped to a single update, not a general company document library.
+- **Confirmed, no admin stage-revert action exists:** `src/app/api/companies/[id]/route.ts`'s `PATCH` handler never reads or writes `stage` (grepped the whole file — the only `stage` reference is an unrelated comment on the `DELETE` handler's DD-founder-cleanup branch); `src/app/admin/companies/[id]/page.tsx`'s edit form has no `stage` field, only `fundingStage` (a different, funding-round field — confirmed by reading the edit form's `Select` block, `FUNDING_STAGES` is `["Pre-seed", "Seed", "Series A", "Series B+"]`). Building that admin action was explicitly *not* what Joseph asked for — noted here only to confirm the premise, not proposed as a workstream.
+- **Confirmed the reusable upload machinery is exactly as described:** `POST /api/documents/upload` (`src/app/api/documents/upload/route.ts`) is a generic, company-scoped, presigned-URL endpoint gated only by `requireCompanyAccess` — nothing about it is DD-specific or admin-specific. It already accepts `docType`/`isInternal` on create and enforces the MIME/extension allowlist server-side.
+- **Confirmed `GET /api/companies/[id]/documents` needs no new logic for founder use:** `src/app/api/companies/[id]/documents/route.ts` already filters `isInternal` rows out for any non-admin caller (Part 16/WS42, F33) — a founder-facing list built directly on this route inherits that protection automatically. Verified by reading the route, not assumed from the ROADMAP claim.
+- **Confirmed the View/Download pattern (Part 19/WS45) is not yet a shared component** — `grep -rl isInlineViewable src` returns exactly `src/lib/documents.ts`, `src/app/admin/companies/[id]/page.tsx`, and `src/app/updates/[id]/page.tsx`. The admin table's per-row action cell (`src/app/admin/companies/[id]/page.tsx:1278–1310`) is View (conditional) + Download + Archive/Unarchive — not tangled with any docType-edit control (docType is set once at upload time; there is no per-row docType dropdown, contrary to what a skim of the surrounding filter-bar `Select` might suggest). Archive is the only admin-only piece, and it's a single, cleanly separable button. See JC-FD-E below for the call on whether to extract a shared component now that this would be a 3rd call site.
+- **Confirmed `PATCH /api/documents/[id]` has no role or ownership check today — new finding, not in Joseph's framing.** Read `src/app/api/documents/[id]/route.ts`'s `PATCH` handler in full: it calls `requireCompanyAccess(document.companyId)` (any company member, any role) and then accepts `docType` and `archive` from the request body with no further authorization check — no `roles.includes("ADMIN")`, no ownership (`uploadedById`) check, and critically, **no `isInternal` check**. Contrast with the same file's `GET` handler four lines above, which does 403 a non-admin on an `isInternal` document (the WS42/F33 fix). Concretely: today, any founder member of a company — using nothing but the browser devtools or `curl`, no UI needed, since the admin UI is the only front door that calls this route — can archive, unarchive, or retype *any* document belonging to their company, including `isInternal: true` rows like a fellow member's passport or bank statements. This is **F39**, continuing the numbering from Part 19 (F38). It predates this Part and was never contingent on Q65's answer — a founder gets zero archive/delete affordance in the new UI either way (Q65 = A, confirmed below), but that's a UI-layer decision; the endpoint itself was directly callable all along, with no UI required, so it needs closing regardless of what the founder page does or doesn't render. The natural place to close it is this same workstream, since Alvin will already be touching this exact file and this exact access-control shape (matching the WS42/WS45 house convention of fixing a gap in the same pass that would otherwise widen it — except here the gap already exists today, pre-dating any UI change).
+- **Confirmed this resolves the Acme situation with no other blocker.** `requireCompanyAccess` only requires an `APPROVED` session user with an active `UserCompanyMembership` row — it has no dependency on `Company.stage`. A founder on an `ACTIVE` company has exactly the same access to `POST /api/documents/upload` as one on a `DILIGENCE` company; the only thing that changed was the *page* to reach it (`/diligence` self-disables). Once WS47 ships, the resolution really is "log into Molly and use the new page" — whether to hold the interim founder-facing email until then or send it now is a timing call for Joseph, noted in the handoff summary rather than as its own Q, since it doesn't change anything about how this Part is built.
+- **Confirmed no conflict with the DD checklist's own completion tracking.** `src/lib/diligence.ts`'s `getDdDocumentSummary()` (lines 77–96) queries `Document` by `companyId` + `docType ∈ DD_DOC_TYPES`, not by which page uploaded it. A `DILIGENCE`-stage founder who uploads a `passport` via the new general page (see JC-FD-B — it isn't stage-gated) satisfies the DD checklist's own tracking exactly as if they'd uploaded it via `/diligence` itself; recompute is still on-read (the existing, unchanged behavior — visiting `/diligence` or an admin loading `/admin/diligence` recomputes and persists `completedAt`), so this is additive, not a new interaction to design around.
+
+## Decisions made without a Joseph fork (small technical judgment calls, each cheaply reversible)
+
+- **JC-FD-A — new page at `/company/documents`, own sidebar entry, not folded into `/company/profile`.** Read `src/app/company/profile/page.tsx` in full: it's already a complete edit-mode/view-mode form (logo, name, description, website, sector, geography, funding stage) with no natural slot for a document list, and the codebase's own precedent (`/company/metrics` is already a sibling page to `/company/profile`, not a section within it) argues for a sibling page here too. **Reversal:** moving JSX between two client pages later is mechanical, not risky.
+- **JC-FD-B — the "Documents" nav item is NOT gated by `Company.stage`, unlike the "Diligence" item.** Initially assumed the opposite (matching Joseph's own "active, non-DD companies" framing), but Part 16/Q55's actual, confirmed precedent is that a DD-stage founder gets *full, non-blocking Molly access from day one* — Updates, Metrics, Team, and Investor Links are all already ungated by `stage`; only `/diligence` itself (the DD-specific questionnaire) is stage-scoped. Gating "Documents" would be the one inconsistent exception, and — per the Method section above — a DD founder uploading via this page doesn't fight the DD checklist's own tracking, it feeds it. So: shown in the founder nav unconditionally, exactly like Company Profile/Team. **Reversal:** one added `selectedCompany?.stage !== "DILIGENCE" &&` condition in `sidebar.tsx`, same one-line pattern already used for the Diligence item, if this turns out confusing in practice.
+- **JC-FD-C — all 10 `DOC_TYPES` are uploadable/visible here, including the 5 DD-specific ones.** Not really a fork: restricting the founder page to the original 5 (Pitch Deck/Financials/Legal/Product/Other) would silently fail to fix the actual incident this Part exists to fix — Acme's 5 missing documents are cap table, bank statements, certificate of incorporation, business license, and passport, all DD-only types. **Reversal:** the dropdown is one array reference; trivially narrowed later.
+- **JC-FD-D — `passport`/`bank_statements` auto-tag `isInternal: true` on this page too, with no founder-facing toggle, matching `/diligence`'s exact precedent.** No product reason this sensitivity judgment should differ by which page the same file type is uploaded from. The founder gets no manual internal/shared toggle at all (matching `/diligence`, diverging from the admin upload control, which does expose one) — introducing founder-controlled visibility on sensitive-by-default types wasn't asked for and would be a real, separate product decision if ever wanted. **Reversal:** promote the constant to a per-type-configurable map later; today it's a 2-value `Set`.
+- **JC-FD-E — the founder page duplicates the View/Download action-pair JSX a third time rather than extracting a shared component.** This *is* cleanly extractable (Method section above — Archive is the only non-shared piece, and it's separable), so the "don't assume, read the JSX" question resolves in favor of "could extract." But Part 19's own judgment calls (JC-VD-C) deliberately kept that pattern minimal and un-componentized when it was duplicated a 2nd time, and touching two already-shipped, stable pages purely to shave duplication for a 3rd caller is churn with no user-facing benefit and non-zero regression risk for pages outside this Part's actual goal. Staying consistent with the established precedent: **copy, don't extract, this time too.** **Reversal:** if a 4th caller or a future inline-viewable-type change ever needs all three call sites to move in lockstep, that's the natural trigger to extract `src/components/document-actions.tsx` (View + Download only; Archive stays inline where it's used) touching all three sites in one pass.
+- **JC-FD-F — `formatFileSize()` moves from a local function in `src/app/admin/companies/[id]/page.tsx` to `src/lib/utils.ts`, alongside `formatDate`/`normalizeUrl`.** Unlike JC-FD-E, this one is a pure, byte-identical, zero-JSX one-liner being duplicated a 2nd time — no styling/markup coupling, no drift risk, and it's exactly the kind of helper `utils.ts` already exists for. **Reversal:** trivial either direction.
+- **F39's fix is `requireAdmin()` on `PATCH /api/documents/[id]`,** per Q65 = A below (confirmed, not just recommended) — no founder-side archive/retype in v1, so the endpoint itself is admin-only, full stop. See WS46.3.
+
+## Product decision (Q65) — confirmed by Joseph 2026-08-04
+
+**Q65 — Can founders archive their own uploads on this new page, or is it upload + view + download only (no undo), leaving archive entirely admin-only as it is today?**
+
+This was a genuine product fork, not a technical call — it traded off a real failure mode (a founder accidentally hiding a document DFS is waiting on, e.g. mis-clicking archive on the very passport a compliance reviewer needs) against a real UX cost (a founder who fat-fingers an upload — wrong file, wrong type — has no self-serve way to fix it, and has to email DFS to ask for a manual archive).
+
+- **Option A — upload, view, download only. No archive/delete anywhere on this page.** Matches `/diligence`'s own precedent exactly (that page has never had archive/delete either, through two full Parts of iteration). Founders correcting a mistake ask an admin, same as today. Closes F39 with the simplest possible fix: `PATCH /api/documents/[id]` becomes admin-only (`requireAdmin()`), a strict tightening with no legitimate caller broken (only the admin UI calls this route today).
+- **Option B (not chosen) — founders may archive (never unarchive, never hard-delete) only documents where `uploadedById` is their own user id and `isInternal` is `false`.** Documented here for the record in case self-serve correction is ever revisited; not built.
+
+**Decided: Option A**, matching Felix's recommendation exactly — the smaller, safer slice, matching the one directly-comparable precedent in this codebase, with the downside (an admin has to manually fix a founder's mis-upload) being a rare, low-cost email away. This is now locked in throughout WS46/WS47 below: no conditional branches, no "if Q65 = B" alternates — the founder page ships with zero archive/delete affordance, and the endpoint is admin-only regardless of which page calls it.
+
+## WS46 — Prep: shared constants, shared helper, and closing F39 (~0.25–0.5 day)
+
+**Goal:** land the small, low-risk groundwork this Part depends on.
+
+### WS46.1 `src/lib/constants.ts` — export `AUTO_INTERNAL_DOC_TYPES`
+
+```ts
+// Part 20, WS46 — hoisted out of src/app/diligence/page.tsx so the new
+// founder documents page (WS47) can apply the identical auto-tagging
+// rule without a second, driftable copy of this set.
+export const AUTO_INTERNAL_DOC_TYPES = new Set(["passport", "bank_statements"]);
+```
+
+`src/app/diligence/page.tsx` drops its local `const AUTO_INTERNAL_DOC_TYPES = new Set([...])` (line 49) and imports it from `@/lib/constants` instead — its own `handleUpload` call site (line 152) is otherwise untouched, byte-identical behavior.
+
+### WS46.2 `src/lib/utils.ts` — add `formatFileSize`
+
+```ts
+export function formatFileSize(bytes: number | null | undefined): string {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+```
+
+`src/app/admin/companies/[id]/page.tsx` deletes its local copy (lines 583–588) and imports this instead — same output for every existing call. `src/app/company/documents/page.tsx` (WS47) imports the same function rather than a 3rd copy.
+
+### WS46.3 `src/app/api/documents/[id]/route.ts` — close F39
+
+Per Q65 = A (confirmed): the route becomes admin-only, full stop — no branch, no founder path at all, whether or not they're the uploader.
+
+```ts
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const document = await db.document.findUnique({
+      where: { id },
+      select: { companyId: true, archivedAt: true },
+    });
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    // Part 20, WS46 (F39) — this route previously ran requireCompanyAccess
+    // only, meaning any founder member of the company (not just admins)
+    // could archive/unarchive/retype ANY document, including isInternal
+    // ones, via direct API calls — the admin UI was the only front door,
+    // but never the only caller this route allowed. Per Q65 (confirmed
+    // 2026-08-04, Option A): the founder documents page (WS47) ships with
+    // no archive/delete affordance at all, so this endpoint has no
+    // legitimate non-admin caller — admin-only, not just UI-hidden.
+    const { error } = await requireAdmin();
+    if (error) return error;
+
+    // ...body validation, db.document.update... unchanged
+```
+
+`GET /api/documents/[id]` (the download-metadata route, already role-gated by isInternal since F33) is untouched — this fix only touches `PATCH`.
+
+**WS46 acceptance checklist**
+- [ ] `/diligence` uploads still auto-tag `passport`/`bank_statements` as `isInternal: true`, now via the shared constant — no behavior change
+- [ ] Admin company page's file-size column renders identically after switching to the shared `formatFileSize`
+- [ ] `PATCH /api/documents/[id]` 403s any non-admin caller outright — including a founder attempting to archive/retype their *own* upload, confirming F39 is closed at the endpoint, not just hidden from the UI (new regression test); admin archive/unarchive/retype from `/admin/companies/[id]` still works exactly as before
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+## WS47 — Founder-facing Company Documents page (~0.75–1 day)
+
+**Goal:** `/company/documents` — a general, freeform document library for the founder's own company: upload (any `DOC_TYPES` value), search/filter by type, and view/download every non-`isInternal` document the company has (whether uploaded by a founder, a teammate, or an admin), reusing `POST /api/documents/upload` and `GET /api/companies/[id]/documents` as-is.
+
+### WS47.1 `src/app/company/documents/page.tsx` (new)
+
+Standard `AppShell`/`PageHeader` composition, structurally modeled on the admin company page's Documents tab (upload control + filter bar + table) minus the admin-only pieces (no "Internal only" checkbox, no per-row Archive button — per Q65 = A, confirmed, this page never renders one):
+
+```tsx
+"use client";
+// Part 20, WS47 — general company document library for founders.
+// Resolves the gap /diligence left behind once a company is promoted
+// out of DILIGENCE (that page returns null for any non-DD company) and
+// gives every founder — DD or ACTIVE alike, per JC-FD-B — a real place
+// to upload/view/download company documents outside the update composer.
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Upload, FileText, Search, Eye, Download, FolderOpen } from "lucide-react";
+import { AppShell } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useCompany } from "@/context/company-context";
+import { DOC_TYPES, AUTO_INTERNAL_DOC_TYPES } from "@/lib/constants";
+import { isInlineViewable } from "@/lib/documents";
+import { formatDate, formatFileSize } from "@/lib/utils";
+
+interface Document {
+  id: string;
+  name: string;
+  mimeType: string | null;
+  size: number | null;
+  docType: string | null;
+  createdAt: string;
+  uploadedBy: string | null;
+}
+
+export default function CompanyDocumentsPage() {
+  const { selectedCompany, loading: companyLoading } = useCompany();
+  const companyId = selectedCompany?.id;
+
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [uploadDocType, setUploadDocType] = useState("");
+  const [docSearch, setDocSearch] = useState("");
+  const [docTypeFilter, setDocTypeFilter] = useState("");
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const loadDocuments = useCallback(
+    async (id: string, opts?: { search?: string; docType?: string }) => {
+      const params = new URLSearchParams();
+      if (opts?.search) params.set("search", opts.search);
+      if (opts?.docType) params.set("docType", opts.docType);
+      const res = await fetch(`/api/companies/${id}/documents?${params}`);
+      if (!res.ok) throw new Error("Failed to load documents");
+      const data = await res.json();
+      setDocuments(data.data ?? data ?? []);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (companyLoading || !companyId) {
+      setLoading(false);
+      return;
+    }
+    loadDocuments(companyId).catch(() =>
+      setMessage({ type: "error", text: "Failed to load documents." })
+    ).finally(() => setLoading(false));
+  }, [companyId, companyLoading, loadDocuments]);
+
+  async function handleUpload(file: File) {
+    if (!companyId) return;
+    setUploading(true);
+    try {
+      const initRes = await fetch("/api/documents/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId,
+          name: file.name,
+          mimeType: file.type || "application/octet-stream",
+          docType: uploadDocType || null,
+          isInternal: AUTO_INTERNAL_DOC_TYPES.has(uploadDocType),
+        }),
+      });
+      if (!initRes.ok) {
+        const errData = await initRes.json().catch(() => null);
+        throw new Error(errData?.error ?? "Failed to initiate upload");
+      }
+      const { uploadUrl } = await initRes.json();
+
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("Upload to storage failed");
+
+      await loadDocuments(companyId, { search: docSearch, docType: docTypeFilter });
+      setMessage({ type: "success", text: `"${file.name}" uploaded successfully.` });
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed." });
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDownload(docId: string, docName: string) {
+    try {
+      const res = await fetch(`/api/documents/${docId}`);
+      if (!res.ok) throw new Error("Failed to get download link");
+      const data = await res.json();
+      const a = document.createElement("a");
+      a.href = data.downloadUrl;
+      a.download = docName;
+      a.click();
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Download failed." });
+    }
+  }
+
+  // ...loading/no-company guard states, same idiom as company/profile...
+
+  return (
+    <AppShell>
+      <PageHeader
+        title="Documents"
+        description="Files shared with the Molly team — cap tables, financials, legal documents, and more."
+      />
+      {/* message banner — same pattern as company/profile */}
+      <div className="mb-4 flex flex-wrap items-end gap-3">
+        <Select value={uploadDocType} onChange={(e) => setUploadDocType(e.target.value)} className="w-auto">
+          <option value="">No type</option>
+          {DOC_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
+        </Select>
+        <Button variant="secondary" size="sm" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+          <Upload className="mr-2 h-3.5 w-3.5" />
+          {uploading ? "Uploading..." : "Upload"}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleUpload(file);
+          }}
+        />
+      </div>
+      {/* search + type filter bar, table with Name/Type/Date/Uploaded By/Size/Actions
+          columns — same table shell, EmptyState, and View/Download action-pair JSX
+          as admin/companies/[id]/page.tsx's Documents tab (Pattern A: overflow-x-auto,
+          min-w table), minus the Visibility column and Archive button per Q65=A */}
+    </AppShell>
+  );
+}
+```
+
+No `isInternal` display badge on this page (nothing in the returned list is ever internal — the API already filters it out for non-admins, so a "Shared"-only badge would be pure noise, unlike the admin table where both states can appear).
+
+### WS47.2 `src/components/layout/sidebar.tsx` — nav entry
+
+```tsx
+import { FolderOpen } from "lucide-react"; // add to existing lucide-react import
+
+const founderNav = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Updates", href: "/updates", icon: FileText },
+  { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
+  { label: "Investor Links", href: "/links", icon: Link2 },
+  { label: "Company Profile", href: "/company/profile", icon: Building2 },
+  // Part 20, WS47 — sits with Company Profile in the "manage your
+  // company's records" cluster, not with Team/Service Providers.
+  // Ungated by stage (JC-FD-B) — matches the FolderOpen icon already
+  // used for the equivalent admin Documents tab.
+  { label: "Documents", href: "/company/documents", icon: FolderOpen },
+  { label: "Team", href: "/team", icon: Users },
+  { label: "Service Providers", href: "/providers", icon: Wrench },
+];
+```
+
+No conditional wrapper needed (unlike the Diligence item) — renders for every founder unconditionally, so the existing `founderNav.slice(1).map(renderItem)` line in the nav render picks it up with zero other changes.
+
+### WS47.3 Tests
+
+- Extend `src/lib/__tests__/document-internal-access.test.ts` (or add a sibling) with F39's regression cases per WS46.3's checklist above.
+- No new pure-logic module is introduced by WS47 itself (the page reuses existing, already-tested routes) — no new unit-test file required, matching the "route/page glue doesn't need its own unit test" convention already used for `/diligence` and `company/profile`.
+
+## WS47 acceptance checklist
+
+- [ ] `/company/documents` reachable from the founder sidebar for every founder, regardless of `Company.stage`
+- [ ] Upload works for all 10 `DOC_TYPES` values (including the 5 DD-specific ones) via the existing presigned-upload flow; `passport`/`bank_statements` are tagged `isInternal: true` automatically, with no visible toggle
+- [ ] The list shows every non-`isInternal` document for the company — including ones uploaded by an admin via `/admin/companies/[id]` before this page existed — confirmed live against a real company with admin-uploaded documents
+- [ ] An `isInternal` document (e.g. a passport) never appears in this list for a non-admin founder, and its `/api/documents/[id]`/`/view` endpoints still 403 for that founder even with a guessed id (regression, not new — confirming WS42/WS45's existing fix still holds through this new caller)
+- [ ] View (conditional on `isInlineViewable`) and Download both work per document row, matching Part 19's behavior exactly
+- [ ] No archive/delete control appears anywhere on this page (Q65 = A, confirmed) — upload, view, and download are the only three actions a founder can take
+- [ ] `PATCH /api/documents/[id]` rejects any non-admin caller outright, including a founder attempting to archive/retype their own upload directly against the endpoint with no UI involved (F39 closed at the endpoint, not just hidden from the UI) — verified via the new test, not just code review
+- [ ] Acme (or any real founder on an `ACTIVE` company) can log in and successfully re-upload cap table / bank statements / certificate of incorporation / business license / passport through this page — the actual incident this Part exists to resolve
+- [ ] 375px check (Pattern A table scroll, same shell as the admin Documents tab)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+- [ ] Grep guard: no diffs under `src/lib/auth.ts`, `auth-guard.ts`, `route-access.ts`, `src/app/lp/**`, `src/app/share/**`, `/diligence`'s own upload flow (untouched, still calls the same route directly, not through this page)
+
+**UX impact:** purely additive — a new page and a new (always-visible) sidebar item for founders; no existing founder or admin surface changes behavior. `/diligence` is completely untouched (still the DD-specific 5-slot checklist it always was); this is a separate, general-purpose surface. The one behavior *change* anywhere in this Part is F39's tightening of `PATCH /api/documents/[id]` — which only removes an access path that was never exposed through any UI, so no real user or workflow is affected. **Cost impact:** none — reuses the existing S3/R2 presigned-upload flow, `GET /api/companies/[id]/documents`, and the Part 19 `isInlineViewable`/View-Download pattern; zero new services, zero new dependencies. **Schema:** none — no new fields, no new model.
+
+## Part 20 sequencing
+
+WS46 first (small, mostly mechanical, and F39 should close before a second UI surface can call the now-more-exposed route). WS47 depends on WS46.1/WS46.2 (the shared constant and helper). Q65 is confirmed (Option A), so both workstreams below are final — no conditional branches left to resolve before Alvin starts. Total ~1–1.5 days.
+
+## Part 20 roadmap bookkeeping
+
+Until WS46/WS47 ship: `ROADMAP.md` gets a `Planned` forward-pointer blockquote at the top of the Roadmap section (matching the WS45 convention) summarizing the gap and pointing here, plus a short annotation on the Founder Features' "Due Diligence checklist" bullet noting that promoted (`ACTIVE`) companies now have a separate, general document page rather than a dead end. Once shipped: fold "Documents" into Founder Features as its own bullet (new nav surface, not an enhancement to an existing one), remove the `Planned` blockquote, and update the top `_Last updated_` line.
