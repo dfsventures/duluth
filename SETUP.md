@@ -83,6 +83,24 @@ For storing uploaded documents and logos. Works with AWS S3, Cloudflare R2, or M
 2. Create an IAM user with S3 access.
 3. Fill in the same variables. Set `S3_ENDPOINT` to `https://s3.amazonaws.com`.
 
+### Configure CORS (required — browser uploads will silently fail without this)
+
+Document uploads happen directly from the browser to your bucket via a presigned URL. Without a CORS policy, the
+browser blocks the upload with a generic network error that gives no indication CORS is the cause — credentials can
+be completely valid and uploads will still fail.
+
+**Cloudflare R2:**
+1. In the bucket's Settings, find **CORS Policy** and add a rule allowing `GET`, `PUT`, and `HEAD` from your app's
+   origin(s) — both your local dev URL (e.g. `http://localhost:3000`) and your production domain.
+
+**AWS S3:**
+1. In the bucket's **Permissions** tab, edit **Cross-origin resource sharing (CORS)** and add an equivalent policy
+   allowing `GET`/`PUT`/`HEAD` from the same origin(s).
+
+Once your app is deployed, use the **"Send Test Upload"** button on `/admin/settings` (Storage section) to confirm
+credentials and CORS are both actually working — it exercises the exact same browser→bucket path a real document
+upload takes.
+
 ### Email — Resend (required for approval emails)
 
 1. Go to [resend.com](https://resend.com) and create a free account.
