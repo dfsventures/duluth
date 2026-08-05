@@ -6313,3 +6313,208 @@ Q67 and Q68 are both confirmed (Option B and Option A respectively), so every wo
 `ROADMAP.md`'s `Planned` forward-pointer blockquote (at the top of the Roadmap section, above the existing Part 22 audit blockquote, matching the "newest first" convention already used there) now states Q67/Q68 as confirmed rather than open, and that the plan is final and awaiting a separate implementation green light. The existing F44 annotation on the Fork Configuration bullet points at this Part's WS52. No other "Existing Features" bullet changes — nothing in this Part has shipped, so no shipped-feature language is added anywhere. Once WS49–WS53 actually ship (a future session, once Joseph green-lights Alvin), this section gets replaced with the usual shipped summary and folded into the relevant "Existing Features" bullets (Settings → new Storage section; Document Management → orphan reconciliation; Audit Log → document PATCH now covered).
 
 ---
+
+# Part 24 — Optional Admin Note on LP Report-Published Email (WS54, F47)
+
+_Requested by Joseph 2026-08-05, after a full design back-and-forth in which the feature and its copy were settled with an approved mockup — treated here as **decided**, then verified against the current working tree per house convention (claims re-read against real code, not trusted). **Confirmed feature:** an optional free-text note on the report-publish flow that renders as its own paragraph in the LP report-published email — after the "We've just published…" paragraph, before the "Read the Report" button — and, when left blank (the default), produces byte-identical output to today's email. **Also confirmed, independent of the note:** permanently remove "It's a short read." from the "We've just published…" paragraph. **Planning only — no code written; Alvin not engaged.** Joseph has said he is ready to hand to Alvin once this plan is written, but the implementation itself is a separate, later step._
+
+## Method — what was verified
+
+Every claim in the request was re-read against the working tree before scoping:
+
+- **`sendLpReportPublishedEmail` is a fully-fixed template today.** `src/lib/email.ts:555–578`, read in full. Its opts are exactly `{ email, lpName?, fundName, reportTitle }` — no per-send customization surface exists. The body paragraph at line 567 ends with the literal "It's a short read." The button follows at line 569 as `<p>${primaryButton(link, "Read the Report →")}</p>`. So the note's insertion point (between lines 567 and 569) and the copy deletion are both exactly where the request describes.
+- **The publish route is the only caller.** `grep` for `sendLpReportPublishedEmail` across `src/` returns exactly one call site: `POST /api/admin/reports/[id]/publish` (`src/app/api/admin/reports/[id]/publish/route.ts:135–140`), inside the opt-in `if (notify)` loop over `lpFundMembership` rows (best-effort per recipient, F12 lesson intact). No other production caller; two test files mock it (`report-publish-notify.test.ts`, `report-publish-fund-snapshot.test.ts`).
+- **The publish route already audit-logs.** Line 150–154: `logAdminAction(user!, "REPORT_PUBLISHED", { targetType: "FundReport", targetId: id, metadata: { mentionCount, notify, ...(notifyResult ? { notifyResult } : {}) } })`. So capturing the note is a metadata addition to an existing call, not a new audit surface (settles the request's Q2 concern — JC-A below).
+- **The confirm-publish dialog is client state on the report editor page.** `src/app/admin/reports/[id]/page.tsx` — `confirmPublish`/`notifyLps` are plain `useState` (lines 45–46); the dialog block is lines 307–342; the `notify` flag is sent from `handlePublish` at line 193 as `JSON.stringify({ notify: notifyLps })`. `notifyLps` has no reset logic anywhere — it simply persists in component state for the page's lifetime and resets on unmount/navigation. The note field will mirror this exactly (JC-D below).
+- **No shared HTML-escape helper is imported by `email.ts`.** The codebase's only `escapeHtml` lives in `src/lib/pdf.ts:140–146` (escapes `&`, `<`, `>`, `"`) and is module-private — not exported, not imported anywhere else. `email.ts` interpolates its dynamic values raw. The one existing raw-HTML interpolation into an email body (`sendUpdatePublishedEmail`, `opts.body` at line 224) is deliberate — that value is trusted TipTap-generated markup — which is *not* the trust model for a plain-text note (see F47 and WS54.1).
+
+## F47 — `sendLpReportPublishedEmail` interpolates admin/LP-authored text into the email HTML unescaped (pre-existing, low severity)
+
+Found while verifying the sanitization question. The current template interpolates three dynamic values raw into HTML:
+
+- `${opts.reportTitle}` inside `<strong>…</strong>` (line 567) — admin-authored (`FundReport.title`, validated only for length ≤200 and non-empty in `PATCH /api/admin/reports/[id]`, never HTML-escaped).
+- `${firstName}` inside `heading(...)` (line 566) — derived from `opts.lpName`, which an admin sets on the LP record.
+- `${opts.fundName}` in the **subject** line (line 563) — harmless: email subjects are plain text, not HTML, so no escaping is needed or wanted there.
+
+A report title or LP name containing `<`, `>`, `&`, or `"` would break the email's markup today (e.g. a title like `Q1 & Q2 <SPV>` renders wrong or drops content). This is not a new issue this Part introduces — it is the *same* class of issue the new note field must avoid, so the cheapest correct move is to add the escape helper once and apply it to the note **and** to `reportTitle`/`firstName` in the same edit, closing F47 as a side effect. Severity is low (admin/LP-authored input, not attacker-controlled, and the blast radius is a single transactional email's own markup — no session, no stored XSS surface), which is why it went unnoticed; but it is a real correctness bug on the exact function being touched, so it is fixed here rather than left as a known raw interpolation next to a newly-escaped one.
+
+## Judgment calls made (flagged per decision protocol, all cheaply reversible)
+
+- **JC-A — the note is captured in the existing `REPORT_PUBLISHED` audit metadata, and nowhere else (no persistence, no visibility on the report later).** This matches the confirmed design (transient, per-publish, email-only). Two keys are added to the existing `metadata` object: `noteIncluded: boolean` and, when present, `note: <trimmed text>` (the verbatim note that went to LPs — audit rows live in the DB, never the repo, so no confidentiality concern with the public repo). No schema change. **Reversal:** delete the two keys. **Not escalated** because the confirmed spec already fixes the note as transient; if Joseph later wants the note *persisted and shown on the report itself or in a per-report send history*, that is a separate additive change (one nullable `FundReport` column) — noted here as available on request, not built, and not a blocker for this Part.
+- **JC-B — a single local `escapeHtml` helper is added to `email.ts` (mirroring `pdf.ts`'s exactly) rather than exporting `pdf.ts`'s.** Importing an escape helper from the PDF module into the email module would be odd cross-module coupling; a private helper co-located in `email.ts` matches how `pdf.ts` already keeps its own. The note is treated as **plain text**: escape first, then convert `\n` → `<br>` so multi-line notes keep their line breaks without opening any raw-HTML/injection surface. **Reversal:** trivial (delete the helper + its call sites).
+- **JC-C — the note is capped at 500 characters**, enforced both client-side (`maxLength={500}` on the textarea) and server-side (trim, then 400 if `>500`), mirroring the existing title-length validation pattern in `PATCH /api/admin/reports/[id]` (`length > 200` → 400). 500 comfortably fits the "short paragraph" the mockup shows. **Reversal:** change one constant. (This is the one spot closest to a product choice; flagged explicitly. If Joseph wants a different ceiling, it is a one-line change — not worth blocking the handoff.)
+- **JC-D — the note field is plain component state with no special reset logic, matching `notifyLps` exactly.** It initializes empty, persists while the editor page stays mounted (so an unpublish → edit → republish within the same session re-shows the last-typed note — convenient, and consistent with how `notifyLps` already behaves for the checkbox beside it), and resets naturally on navigation or reload. No stale note survives leaving the page. This is the least-surprising behavior and adds zero code beyond the `useState`. **Reversal:** add a one-line reset in the publish/cancel handler if a fresh-every-time field is later preferred.
+
+## WS54 — Optional admin note + "short read" copy removal + F47 escaping — ~0.5 day
+
+**Goal:** add an optional, transient, per-publish free-text note to the LP report-published email, rendered only when non-empty and byte-identical to today when empty; permanently drop "It's a short read."; and escape the note plus the pre-existing raw `reportTitle`/`firstName` interpolations (F47) in the same edit.
+
+### WS54.1 `src/lib/email.ts` — escape helper, new opt, conditional note paragraph, copy removal
+
+Add a module-private helper near the other shared helpers (after `assertSent`, mirroring `pdf.ts:140–146` exactly plus a newline→`<br>` step for the multi-line note case):
+
+```ts
+/** Escapes plain-text values before interpolation into email HTML. Mirrors src/lib/pdf.ts. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+```
+
+Then update `sendLpReportPublishedEmail`'s signature and body (note the new optional `note`, the escaped `reportTitle`/`firstName`, the dropped "It's a short read.", and the conditional paragraph slotted exactly between the intro paragraph and the button):
+
+```ts
+export async function sendLpReportPublishedEmail(opts: {
+  email: string;
+  lpName?: string | null;
+  fundName: string;
+  reportTitle: string;
+  note?: string | null; // WS54: optional per-publish admin note; absent/blank → no paragraph
+}) {
+  const link = `${BASE_URL}/lp`;
+  const firstName = opts.lpName?.trim() ? opts.lpName.trim().split(" ")[0] : null;
+
+  // WS54: plain-text note — escape, then preserve author line breaks. Empty/blank
+  // yields no markup at all, so the email is byte-identical to today when omitted.
+  const noteTrimmed = opts.note?.trim();
+  const noteParagraph = noteTrimmed
+    ? `\n      <p style="margin: 0 0 24px;">${escapeHtml(noteTrimmed).replace(/\n/g, "<br>")}</p>`
+    : "";
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: TEAM_EMAIL,
+    to: opts.email,
+    subject: `Your ${opts.fundName} report is here`,
+    html: emailWrapper(`
+      ${eyebrow("Fund Report")}
+      ${heading(firstName ? `Hi ${escapeHtml(firstName)},` : "Hello,")}
+      <p style="margin: 0 0 24px;">We've just published <strong>${escapeHtml(opts.reportTitle)}</strong>, our latest letter on how the fund is doing, plus a look at the portfolio companies behind the numbers.</p>${noteParagraph}
+
+      <p>${primaryButton(link, "Read the Report →")}</p>
+
+      <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
+        If you have a question, or even a disagreement, just hit reply.
+      </p>
+      <p style="margin: 16px 0 0; color: ${C.tide};">The ${ORG_NAME} team</p>
+    `),
+  });
+  assertSent(result, "lp-report-published");
+}
+```
+
+Note: `subject` keeps `${opts.fundName}` raw — subjects are plain text (F47). The empty-note branch emits the exact same character sequence as today around the button (the intro `<p>` is immediately followed by the blank line + button `<p>`), satisfying the byte-identical requirement.
+
+### WS54.2 `src/app/api/admin/reports/[id]/publish/route.ts` — accept, validate, forward, audit the note
+
+Read and length-validate the note alongside the existing `notify` flag near the top of the handler (after `const notify = body?.notify === true;`, ~line 17):
+
+```ts
+const noteRaw = typeof body?.note === "string" ? body.note.trim() : "";
+if (noteRaw.length > 500) {
+  return NextResponse.json({ error: "Note must be 500 characters or fewer." }, { status: 400 });
+}
+const note = noteRaw || null;
+```
+
+Forward it into the per-recipient send (inside the `if (notify)` loop, ~line 135):
+
+```ts
+await sendLpReportPublishedEmail({
+  email: m.lp.email,
+  lpName: m.lp.name,
+  fundName: report.fund.name,
+  reportTitle: report.title,
+  note, // WS54
+});
+```
+
+Add it to the existing audit metadata (JC-A) — the `REPORT_PUBLISHED` call at ~line 150:
+
+```ts
+await logAdminAction(user!, "REPORT_PUBLISHED", {
+  targetType: "FundReport",
+  targetId: id,
+  metadata: {
+    mentionCount: mentionedIds.length,
+    notify,
+    noteIncluded: note !== null,
+    ...(note ? { note } : {}),
+    ...(notifyResult ? { notifyResult } : {}),
+  },
+});
+```
+
+Design note: the note is validated and audit-logged **regardless of `notify`**, but only *sent* when `notify` is true (it can only reach an email through the `if (notify)` loop). A note typed with the checkbox unchecked goes nowhere and is recorded as `noteIncluded: true` in the audit row but produces no email — acceptable, and the UI (WS54.3) will naturally only make the field meaningful alongside the checkbox. Keeping validation unconditional avoids a silent "your 600-char note was ignored because notify was off" surprise.
+
+### WS54.3 `src/app/admin/reports/[id]/page.tsx` — note textarea in the confirm-publish dialog
+
+Add state beside `notifyLps` (line 46):
+
+```ts
+const [lpNote, setLpNote] = useState("");
+```
+
+Send it from `handlePublish` (line 193):
+
+```ts
+body: JSON.stringify({ notify: notifyLps, note: lpNote.trim() || undefined }),
+```
+
+Render an optional textarea inside the confirm-publish block (lines 307–342), below the notify checkbox — shown only as a natural companion to it, matching the dialog's existing ochre styling and the app's native-control convention (no new UI library idiom). Sketch, placed after the `notifyLps` `<label>` and before the Cancel/Confirm buttons (or, for layout, as a full-width row beneath the existing `flex` row):
+
+```tsx
+{notifyLps && (
+  <div className="mt-2 w-full">
+    <label htmlFor="lp-note" className="mb-1 block text-xs text-ochre">
+      Add a note to the email (optional)
+    </label>
+    <textarea
+      id="lp-note"
+      value={lpNote}
+      onChange={(e) => setLpNote(e.target.value)}
+      maxLength={500}
+      rows={3}
+      placeholder="A short personal note — appears above the “Read the Report” button. Leave blank to send the standard email."
+      className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50"
+    />
+    <p className="mt-1 text-right text-xs text-muted-foreground">{lpNote.length}/500</p>
+  </div>
+)}
+```
+
+Gating the textarea behind `notifyLps` keeps the field from implying it does anything when no email is being sent (mirrors the server design note in WS54.2). JC-D: `lpNote` is never explicitly reset — it persists with the page like `notifyLps`.
+
+### WS54.4 Tests — extend `src/lib/__tests__/report-publish-notify.test.ts`
+
+The existing suite mocks the email fn and asserts the notify loop. Add cases (no new file needed):
+
+- **note forwarded when present:** `POST(req({ notify: true, note: "See you at the AGM." }))` with two LP memberships → `mockSendLpReportPublishedEmail` called with an object whose `note === "See you at the AGM."` for each recipient.
+- **note omitted → `note` is `null`/absent in the send call** (byte-identical-when-empty contract at the route boundary): `POST(req({ notify: true }))` → each call's `note` is `null`.
+- **over-limit note → 400, no publish, no send:** `POST(req({ notify: true, note: "x".repeat(501) }))` → `res.status === 400`, `mockFundReportUpdate` not called, `mockSendLpReportPublishedEmail` not called.
+- (Optional, if worth a unit-level pin) a direct `email.ts` test is not currently the house pattern for this function — the route-level assertions above are the established coverage shape (`report-publish-notify.test.ts` mocks the email fn rather than exercising its HTML), so the byte-identical-when-empty guarantee is documented and reviewed rather than snapshot-tested. Flagged as a JC: if Joseph wants a rendered-HTML snapshot test proving the empty-note output equals a stored golden, that is an easy additive test but a new pattern for this module.
+
+**WS54 acceptance checklist**
+- [ ] With the note blank, the sent email is byte-identical to today's except that "It's a short read." is gone (verified by comparing the `emailWrapper(...)` content string, or a live send to a test address).
+- [ ] With a note filled in, it renders as its own paragraph after the intro and before the button, with author line breaks preserved.
+- [ ] A note containing `<`, `>`, `&`, `"` renders as literal text, not markup (F47) — and a report title / LP name with the same characters now also renders correctly.
+- [ ] "It's a short read." appears nowhere in the codebase.
+- [ ] Server rejects a >500-char note with 400 and does not publish or send.
+- [ ] `REPORT_PUBLISHED` audit rows carry `noteIncluded` (and `note` when present).
+- [ ] The textarea appears in the confirm-publish dialog only when "Notify this fund's LPs by email" is checked; character counter works; existing publish/notify behavior is otherwise unchanged.
+- [ ] `report-publish-notify.test.ts` extended and green.
+
+**UX impact:** Additive and admin-only. The confirm-publish dialog gains an optional textarea that appears only when an admin has already opted into notifying LPs; leaving it blank changes nothing an LP sees versus today (aside from the one-line "It's a short read." copy removal, a deliberate improvement). No founder, LP-portal, or investor-link surface changes. No existing admin flow is blocked or reordered.
+
+**Cost impact:** None. No new dependency, no schema change, no new env var, no new service — one email template edit, one route edit, one client edit, and a test extension, all on the existing Resend/Postgres stack.
+
+**Effort:** ~0.5 day.
+
+## Roadmap bookkeeping
+
+`ROADMAP.md` gets a new `Planned` forward-pointer blockquote at the top of the Roadmap section (above the Part 23 blockquote, newest-first), describing Part 24 / WS54 / F47 as scoped-not-built. The LP portal "Existing Features" bullet (which already documents the "Notify this fund's LPs by email" checkbox and template #12) gets no shipped-language change yet — nothing has shipped. When WS54 ships, that bullet absorbs the optional-note detail and the "short read" copy change, and this section is replaced with the usual shipped summary.
+
+---
