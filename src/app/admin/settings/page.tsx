@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
-import { Mail, Bell, BookOpen } from "lucide-react";
+import { Mail, Bell, BookOpen, HardDrive } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmailSettingsPanel } from "./email-settings-panel";
 import { DigestRecipientsPanel } from "./digest-recipients-panel";
+import { StorageSettingsPanel } from "./storage-settings-panel";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -56,6 +57,19 @@ export default async function SettingsPage() {
         </div>
 
         <EmailSettingsPanel hasApiKey={hasApiKey} emailFrom={emailFrom} />
+      </section>
+
+      <section className="mt-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
+            <HardDrive className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Storage</h2>
+            <p className="text-xs text-muted-foreground">Document uploads via S3-compatible storage</p>
+          </div>
+        </div>
+        <StorageSettingsPanel />
       </section>
 
       <section className="mt-6 rounded-xl border border-border bg-card p-6">
