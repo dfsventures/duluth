@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { EmailSettingsPanel } from "./email-settings-panel";
 import { DigestRecipientsPanel } from "./digest-recipients-panel";
 import { StorageSettingsPanel } from "./storage-settings-panel";
+import { OrphanedDocumentsPanel } from "./orphaned-documents-panel";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -70,6 +71,8 @@ export default async function SettingsPage() {
           </div>
         </div>
         <StorageSettingsPanel />
+        <hr className="my-6 border-border" />
+        <OrphanedDocumentsPanel />
       </section>
 
       <section className="mt-6 rounded-xl border border-border bg-card p-6">

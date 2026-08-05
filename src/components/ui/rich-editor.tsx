@@ -154,11 +154,19 @@ export function RichEditor({
       const { uploadUrl, document } = await res.json();
 
       // Upload to S3/R2
-      await fetch(uploadUrl, {
+      const putRes = await fetch(uploadUrl, {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type },
       });
+      // Part 23, WS50 (F42) — previously unchecked: the image was inserted
+      // into the editor unconditionally, even when the PUT never reached
+      // storage, leaving a silently-broken image reference in the update
+      // body with no indication to the founder that anything failed.
+      if (!putRes.ok) {
+        window.alert("Image upload failed. Please try again.");
+        return;
+      }
 
       // Insert image into editor using the download endpoint
       const imageUrl = `/api/documents/${document.id}/view`;
