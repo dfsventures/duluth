@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin, requireCompanyAccess } from "@/lib/auth-guard";
 import { getDownloadUrl } from "@/lib/s3";
 import { DOC_TYPES } from "@/lib/constants";
+import { logAdminAction } from "@/lib/audit";
 
 const VALID_DOC_TYPES = DOC_TYPES.map((d) => d.value);
 
@@ -74,7 +75,7 @@ export async function PATCH(
     // 2026-08-04, Option A): the founder documents page (WS47) ships with
     // no archive/delete affordance at all, so this endpoint has no
     // legitimate non-admin caller — admin-only, not just UI-hidden.
-    const { error } = await requireAdmin();
+    const { user, error } = await requireAdmin();
     if (error) return error;
 
     const body = await request.json();
@@ -98,6 +99,16 @@ export async function PATCH(
     }
 
     const updated = await db.document.update({ where: { id }, data });
+
+    // Part 23, WS51 (F45) — mirrors admin/templates/[id]/route.ts's exact
+    // pattern: derive the action name from the archive flag, falling back
+    // to "retyped" for a docType-only change (not reachable from any UI
+    // today, per Method above, but the route accepts docType generically
+    // so the log should describe it accurately if that ever changes).
+    const action =
+      body.archive === true ? "DOCUMENT_ARCHIVED" : body.archive === false ? "DOCUMENT_UNARCHIVED" : "DOCUMENT_RETYPED";
+    await logAdminAction(user!, action, { targetType: "Document", targetId: id, metadata: { companyId: document.companyId } });
+
     return NextResponse.json(updated);
   } catch (err) {
     console.error("PATCH /api/documents/[id] error:", err);

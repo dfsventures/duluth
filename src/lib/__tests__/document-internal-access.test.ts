@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth-guard", () => ({ requireCompanyAccess: vi.fn(), requireAdmin: vi.fn() }));
 vi.mock("@/lib/s3", () => ({ getDownloadUrl: vi.fn(() => Promise.resolve("https://s3.example.com/signed")) }));
+vi.mock("@/lib/audit", () => ({ logAdminAction: vi.fn() }));
 
 const mockDocumentFindMany = vi.fn();
 const mockDocumentFindUnique = vi.fn();
@@ -30,6 +31,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { requireCompanyAccess, requireAdmin } from "@/lib/auth-guard";
+import { logAdminAction } from "@/lib/audit";
 import { GET as getCompanyDocuments } from "@/app/api/companies/[id]/documents/route";
 import { GET as getDocument, PATCH as patchDocument } from "@/app/api/documents/[id]/route";
 import { GET as getDocumentView } from "@/app/api/documents/[id]/view/route";
@@ -37,6 +39,7 @@ import { GET as getUpdate } from "@/app/api/updates/[id]/route";
 
 const mockRequireCompanyAccess = vi.mocked(requireCompanyAccess);
 const mockRequireAdmin = vi.mocked(requireAdmin);
+const mockLogAdminAction = vi.mocked(logAdminAction);
 
 const FOUNDER = { id: "founder-1", email: "founder@acme.com", roles: ["FOUNDER"] };
 const UPLOADER = { id: "uploader-1", email: "uploader@acme.com", roles: ["FOUNDER"] };
@@ -69,6 +72,7 @@ beforeEach(() => {
   mockDocumentFindUnique.mockReset();
   mockDocumentUpdate.mockReset();
   mockUpdateFindUnique.mockReset();
+  mockLogAdminAction.mockReset();
 });
 
 describe("GET /api/companies/[id]/documents — isInternal filtering", () => {
@@ -232,6 +236,65 @@ describe("PATCH /api/documents/[id] — F39: admin-only, closed at the endpoint"
     expect(mockDocumentUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "doc-1" } })
     );
+  });
+
+  // Part 23, WS51 (F45) — PATCH became admin-only in Part 20/WS46 but never
+  // got audit-logged, unlike every other admin mutation route in the app.
+  // Action name derives from the archive flag, mirroring
+  // admin/templates/[id]/route.ts's PATCH exactly.
+  describe("audit logging (F45)", () => {
+    it("logs DOCUMENT_ARCHIVED when archive: true", async () => {
+      mockDocumentFindUnique.mockResolvedValue({ companyId: "company-1", archivedAt: null });
+      mockRequireAdmin.mockResolvedValue({ user: ADMIN, error: null } as any);
+      mockDocumentUpdate.mockResolvedValue({ id: "doc-1", archivedAt: new Date() });
+
+      await patchDocument(patchReq({ archive: true }), params("doc-1"));
+
+      expect(mockLogAdminAction).toHaveBeenCalledWith(
+        ADMIN,
+        "DOCUMENT_ARCHIVED",
+        expect.objectContaining({ targetType: "Document", targetId: "doc-1", metadata: { companyId: "company-1" } })
+      );
+    });
+
+    it("logs DOCUMENT_UNARCHIVED when archive: false", async () => {
+      mockDocumentFindUnique.mockResolvedValue({ companyId: "company-1", archivedAt: new Date() });
+      mockRequireAdmin.mockResolvedValue({ user: ADMIN, error: null } as any);
+      mockDocumentUpdate.mockResolvedValue({ id: "doc-1", archivedAt: null });
+
+      await patchDocument(patchReq({ archive: false }), params("doc-1"));
+
+      expect(mockLogAdminAction).toHaveBeenCalledWith(
+        ADMIN,
+        "DOCUMENT_UNARCHIVED",
+        expect.objectContaining({ targetType: "Document", targetId: "doc-1" })
+      );
+    });
+
+    it("logs DOCUMENT_RETYPED for a docType-only change", async () => {
+      mockDocumentFindUnique.mockResolvedValue({ companyId: "company-1", archivedAt: null });
+      mockRequireAdmin.mockResolvedValue({ user: ADMIN, error: null } as any);
+      mockDocumentUpdate.mockResolvedValue({ id: "doc-1", docType: "financials" });
+
+      await patchDocument(patchReq({ docType: "financials" }), params("doc-1"));
+
+      expect(mockLogAdminAction).toHaveBeenCalledWith(
+        ADMIN,
+        "DOCUMENT_RETYPED",
+        expect.objectContaining({ targetType: "Document", targetId: "doc-1" })
+      );
+    });
+
+    it("does not log when the request is rejected before the update (403)", async () => {
+      mockDocumentFindUnique.mockResolvedValue({ companyId: "company-1", archivedAt: null });
+      mockRequireAdmin.mockResolvedValue({
+        user: null,
+        error: { status: 403, __marker: "requireAdmin" },
+      } as any);
+
+      await patchDocument(patchReq({ archive: true }), params("doc-1"));
+      expect(mockLogAdminAction).not.toHaveBeenCalled();
+    });
   });
 
   it("still 404s a missing document before the admin check runs", async () => {
