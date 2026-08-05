@@ -5628,3 +5628,686 @@ Confirmed the root cause first: `tailwind.config.ts:26-28` defines `muted.DEFAUL
 Five findings (F42–F46), none blocking, all cheap: F43 (storage test-upload diagnostic) and F42 (upload-confirmation / orphan-detection) are the two most valuable given this session's real incident and are natural companions — worth scoping together as a small follow-up workstream. F45 (audit-log the now-admin-only document PATCH) is a one-line addition. F44 (fallback-string drift) is a trivial dedup. F46 (SETUP.md CORS step) needs a human or a differently-scoped agent to actually touch `SETUP.md`, which is outside this audit's edit permissions.
 
 ---
+
+# Part 23 — Platform Audit Follow-Up: Storage Integrity, Audit-Log Coverage & Docs (F42–F46, WS49–WS53)
+
+_Requested by Joseph 2026-08-04: turn Part 22's five findings (F42–F46) into a proper implementation plan — decision banner, findings recap, goal/code-sketch/acceptance-checklist per workstream, matching every prior Part's convention. **Planning only. No code has been written or changed as part of this Part, and Alvin has not been engaged — Joseph explicitly said to hold off on implementation until further notice.** Two of the five findings (F42, F43) fork on a real product question each; both are open below as Q67/Q68, each with a Felix recommendation, awaiting Joseph's decision before any workstream in this Part is "final" the way Q65/Q66 were by the time their own Parts shipped._
+
+## Method
+
+Every claim in Part 22's own write-up for F42–F46 was re-verified against the current working tree before scoping anything, per house convention — not re-derived, but not trusted either:
+
+- **F42 re-confirmed exactly as described, plus one additional call site Part 22's own write-up didn't enumerate.** `POST /api/documents/upload` (`src/app/api/documents/upload/route.ts:69–85`) still calls `getUploadUrl()` then `db.document.create(...)` and returns before any `PUT` happens — unchanged. Four client call sites all follow the same init→PUT shape: `src/app/company/documents/page.tsx:81–103`, `src/app/admin/companies/[id]/page.tsx` (`~507–511`), `src/app/setup-wizard/page.tsx` (`~199–210`), and `src/components/ui/rich-editor.tsx:142–165` (the update composer's inline-image picker). The first three all check the PUT's response (`if (!putRes.ok) throw new Error(...)`) and surface a toast — matching Part 22's "the client shows an error toast" framing. **`rich-editor.tsx` does not** — read in full: line 157's `PUT` result is never assigned or checked at all (`await fetch(uploadUrl, { method: "PUT", ... })` with no `if (!res.ok)` guard), and the very next line unconditionally inserts `<img src="/api/documents/{document.id}/view">` into the update body regardless of whether the upload actually landed. This is the same root cause as F42 (no confirmation step), just with no client-side error surfaced at all — a founder gets a permanently broken inline image in a published update with zero indication anything failed. Folded into F42 below (WS50) as additional verification detail, not a new finding number — it's the same root cause Part 22 already identified, on a call site the original audit's grep pass over the three form-based upload pages missed. Schema re-check holds: `prisma/schema.prisma:210–228`'s `Document` model has exactly three outgoing FKs (`company`, `update`, `uploadedBy`) and, confirmed by grepping every other model, zero incoming FKs — a hard `db.document.delete()` on an orphaned row is still safe.
+- **F43 re-confirmed.** `src/lib/s3.ts` (48 lines, read in full) exports only `getUploadUrl`/`getDownloadUrl` — no `HeadObjectCommand`/`DeleteObjectCommand` import anywhere in the file or the codebase (`grep -rln "HeadObjectCommand\|DeleteObjectCommand" src` — zero matches). `@aws-sdk/client-s3` (already a dependency, `package.json:30`, `^3.990.0`) exports both, so adding either needs no new package. `/admin/settings`'s Email section (`src/app/admin/settings/email-settings-panel.tsx` + `POST /api/admin/test-email/route.ts`) is confirmed as the pattern to mirror: a `requireAdmin()`-gated route, a `logAdminAction()` call (`"TEST_EMAIL_SENT"`), and a small client panel with idle/sending/success/error states rendering a `Button` + inline status text.
+- **F44 re-confirmed.** `src/lib/email.ts:7` — `` const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <noreply@dfs.vc>`; `` — not exported (confirmed: `grep -n "^export" src/lib/email.ts` lists 15 `send*` functions, no `FROM`). `src/app/admin/settings/page.tsx:17` — `` const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>"; `` — an independent, now-stale copy, used only to render the "Sending from:" line in `EmailSettingsPanel`. Both still short-circuit to the same real `EMAIL_FROM` env value in production, so this remains invisible today, exactly as Part 22 described.
+- **F45 re-confirmed.** `src/app/api/documents/[id]/route.ts`'s `PATCH` handler (lines 53–106) calls `const { error } = await requireAdmin();` — no `user` destructured, no `logAdminAction` import, no call anywhere in the file. Confirmed the house pattern to mirror lives one directory over: `src/app/api/admin/templates/[id]/route.ts`'s own `PATCH` derives its audit action name from a ternary on the archive flag (`body.archived === true ? "TEMPLATE_ARCHIVED" : body.archived === false ? "TEMPLATE_UNARCHIVED" : "TEMPLATE_UPDATED"`) — the exact shape this workstream reuses for `docType`/`archive`. Confirmed the only real caller today (`src/app/admin/companies/[id]/page.tsx:550–554`) sends `{ archive }` only, never `docType` (docType is set once at upload time, per Part 20's own Method section) — so the "retyped" branch is defensive/future-proof today, not dead weight added for no reason.
+- **F46 re-confirmed.** `SETUP.md:73–79`'s Cloudflare R2 steps (create bucket → API token → fill in four `S3_*` vars) have no CORS step, confirmed by reading the full section. Separately noticed, out of scope for this Part: `SETUP.md`'s prerequisites still mention `pgvector` (removed from the codebase with the OpenAI RAG chatbot, per `MEMORY.md`) — a real doc-staleness item, but a distinct one from F46 and not part of the five findings Joseph asked to be scoped here; flagging it here only so it isn't lost, not proposing a workstream for it.
+
+## Open product decisions (Q67–Q68) — awaiting Joseph
+
+Both questions below are genuine forks, not technical calls — per protocol, neither is silently decided. Every workstream in this Part is written to be final once these are answered; nothing ships to Alvin until they are.
+
+### Q67 — How aggressive should orphaned-`Document`-row reconciliation be?
+
+Three shapes are possible for what happens once a scan finds a `Document` row whose `s3Key` doesn't exist in storage:
+
+- **Option A — fully automatic delete.** The scan itself deletes any row it finds orphaned, no human in the loop. Fastest to use, zero admin effort, but the riskiest: a `HeadObjectCommand` false negative (a transient credentials/network blip *during the scan itself*, a bucket/region misconfiguration, or any bug in the check) would silently and permanently destroy a real, legitimate document row with no recovery path — the exact opposite of what this workstream should do, given the incident that prompted it was itself a credentials problem.
+- **Option B (recommended) — admin-visible review list, manual delete per row.** The scan is read-only and lists candidates (name, company, uploader, upload date); an admin reviews and deletes individually, each delete re-verified server-side (a second `HeadObjectCommand` at delete time, not just trusting the earlier scan result) and audit-logged. Matches this codebase's own established precedent for exactly this shape of decision — Part 21/Q66 deliberately chose a guarded manual delete over silent automatic cleanup for the awaiting-setup queue, for the same reason (irreversible action, real user data, low but non-zero false-positive risk).
+- **Option C — read-only report only, no delete affordance in-app at all.** The scan lists candidates but offers no delete button; an admin who wants to clean up still runs a one-off script against production, same as this session's own manual cleanup of the 16 Acme rows. Safest, but doesn't actually close the gap Part 22 flagged — "no self-service way to fix this without a human running a script directly against the production database" is the problem statement, not an acceptable end state.
+- **Felix's recommendation: Option B.** It's the one that actually gives an admin standing, repeatable, self-service tooling (closing the real gap) without the destructive blast radius of Option A, and it costs about the same to build as Option C once the scan-and-list UI exists anyway.
+
+**Also folded into this question: should this workstream also add a write-path "confirm" signal (Part 22's option (a) — the client calls a lightweight endpoint after a successful `PUT`, so future orphans are prevented, not just detected later)?** Felix's recommendation is **no, not in this pass** — the scan tool (Option B above) checks ground truth directly (does the object exist in the bucket), so it's a complete, self-sufficient answer to F42 on its own; it doesn't depend on any client ever calling back, so it also catches the "tab closed before any confirm request could fire" case that a confirm-step alone would still miss. A confirm-step would touch five client call sites (`company/documents`, `admin/companies/[id]`, `setup-wizard`, `diligence`, `rich-editor`) plus a new schema column, for a benefit (faster detection) that a periodically-run scan already delivers at a fraction of the cost. **This is a scope/judgment call, not a product fork** — flagged here for visibility since it affects what ships in v1, cheaply reversible (adding a confirm step later is a small, additive follow-on, not a rework of anything WS50 builds).
+
+### Q68 — Does the storage health-check (and the orphan-scan tool) need its own page, or fold into `/admin/settings`?
+
+- **Option A (recommended) — fold both into `/admin/settings`, as new sections beside Email/Reminders/Digest Recipients.** The page's own description (`src/app/admin/settings/page.tsx:24`, "Platform configuration and diagnostics") already frames it as exactly this kind of surface, and the Email section is a byte-for-byte precedent for the test-upload panel (button + status, `requireAdmin`-gated route, `logAdminAction` call). No new sidebar entry, no new route-access consideration, no new page shell to build.
+- **Option B — a dedicated `/admin/storage` (or `/admin/documents`) page.** Justifiable if the orphan-review list ever grows into something that needs its own real estate (pagination, filters, bulk actions) — but nothing about F42/F43 as scoped needs that; the scan is a single on-demand action and the review list is expected to be small (this session's own incident produced 16 rows for one company, not thousands).
+- **Felix's recommendation: Option A.** Matches the page's own stated purpose, costs less to build, and is trivially reversible — extracting a panel into its own page later is a mechanical move, not a rework, if the orphan list ever does grow large enough to need one.
+
+## WS49 — Storage Test-Upload Diagnostic (F43) — ~0.25–0.5 day
+
+**Goal:** give an admin a one-click way to confirm S3/R2 credentials *and* CORS are actually working end-to-end, mirroring the existing "Send Test Email" pattern — the diagnostic that would have caught the 167-day R2 outage immediately instead of only surfacing when a real founder hit it.
+
+**Depends on Q68 being answered A or B** — sketch below assumes A (fold into `/admin/settings`); if B, the same two panels/routes move to a new page instead, no other change.
+
+### WS49.1 `src/lib/s3.ts` — add `objectExists` and `deleteObject`
+
+```ts
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  HeadObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+// ...existing getClient()/BUCKET/getUploadUrl()/getDownloadUrl() unchanged...
+
+/**
+ * Check whether an object actually exists in the bucket. Used by the
+ * storage test-upload diagnostic (Part 23, WS49) and the orphaned-document
+ * scan (Part 23, WS50) — both need to answer "is this key really there?"
+ * rather than trust anything client-reported.
+ */
+export async function objectExists(key: string): Promise<boolean> {
+  try {
+    await getClient().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    return true;
+  } catch (err: unknown) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (status === 404) return false;
+    throw err; // a real credentials/permission/network error should surface, not be swallowed as "missing"
+  }
+}
+
+export async function deleteObject(key: string): Promise<void> {
+  await getClient().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+}
+```
+
+### WS49.2 `src/app/api/admin/storage/test-upload/route.ts` (new) — issue a presigned URL for a throwaway key
+
+```ts
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
+import { requireAdmin } from "@/lib/auth-guard";
+import { getUploadUrl } from "@/lib/s3";
+
+export async function POST() {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
+  const key = `_health-check/${randomUUID()}.txt`;
+  const uploadUrl = await getUploadUrl(key, "text/plain");
+  return NextResponse.json({ uploadUrl, key });
+}
+```
+
+### WS49.3 `src/app/api/admin/storage/test-upload/confirm/route.ts` (new) — verify + clean up
+
+```ts
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth-guard";
+import { objectExists, deleteObject } from "@/lib/s3";
+import { logAdminAction } from "@/lib/audit";
+
+export async function POST(request: Request) {
+  const { user, error } = await requireAdmin();
+  if (error) return error;
+
+  const { key } = await request.json();
+  if (typeof key !== "string" || !key.startsWith("_health-check/")) {
+    return NextResponse.json({ error: "Invalid key" }, { status: 400 });
+  }
+
+  try {
+    const exists = await objectExists(key);
+    if (!exists) {
+      await logAdminAction(user!, "STORAGE_TEST_UPLOAD_FAILED", {
+        metadata: { key, reason: "object not found after PUT" },
+      });
+      return NextResponse.json(
+        { error: "The browser's upload never reached storage — check S3/R2 credentials and CORS policy." },
+        { status: 502 }
+      );
+    }
+    await deleteObject(key);
+    await logAdminAction(user!, "STORAGE_TEST_UPLOAD_SUCCEEDED", { metadata: { key } });
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    await logAdminAction(user!, "STORAGE_TEST_UPLOAD_FAILED", {
+      metadata: { key, reason: err instanceof Error ? err.message : "unknown" },
+    });
+    return NextResponse.json({ error: "Could not verify or clean up the test object." }, { status: 500 });
+  }
+}
+```
+
+### WS49.4 `src/app/admin/settings/storage-settings-panel.tsx` (new) — mirrors `email-settings-panel.tsx` exactly
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { CheckCircle2, XCircle, Send } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+type Status = "idle" | "uploading" | "verifying" | "success" | "error";
+
+export function StorageSettingsPanel() {
+  const [status, setStatus] = useState<Status>("idle");
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function handleTestUpload() {
+    setStatus("uploading");
+    setMessage(null);
+    try {
+      const initRes = await fetch("/api/admin/storage/test-upload", { method: "POST" });
+      const initData = await initRes.json();
+      if (!initRes.ok) throw new Error(initData.error || "Could not get a presigned URL.");
+
+      // Same code path a real document upload takes — this exercises the
+      // browser-side CORS preflight, not just the server-side credentials.
+      const putRes = await fetch(initData.uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": "text/plain" },
+        body: "molly-storage-health-check",
+      });
+      if (!putRes.ok) throw new Error("The browser could not PUT to storage — likely a CORS policy issue.");
+
+      setStatus("verifying");
+      const confirmRes = await fetch("/api/admin/storage/test-upload/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: initData.key }),
+      });
+      const confirmData = await confirmRes.json();
+      if (!confirmRes.ok) throw new Error(confirmData.error || "Verification failed.");
+
+      setStatus("success");
+      setMessage("Upload, verification, and cleanup all succeeded.");
+    } catch (err) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Test upload failed.");
+    }
+  }
+
+  const busy = status === "uploading" || status === "verifying";
+
+  return (
+    <>
+      <div className="mt-3 flex items-center gap-3">
+        <Button variant="secondary" size="sm" onClick={handleTestUpload} disabled={busy}>
+          <Send className="mr-2 h-3.5 w-3.5" />
+          {status === "uploading" ? "Uploading..." : status === "verifying" ? "Verifying..." : "Send Test Upload"}
+        </Button>
+        {status === "success" && (
+          <span className="flex items-center gap-1.5 text-sm text-acacia">
+            <CheckCircle2 className="h-4 w-4" />
+            {message}
+          </span>
+        )}
+        {status === "error" && (
+          <span className="flex items-center gap-1.5 text-sm text-laterite">
+            <XCircle className="h-4 w-4" />
+            {message}
+          </span>
+        )}
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Uploads a small file directly from your browser — the same path a real document upload takes — verifies it
+        landed in storage, then deletes it. Exercises credentials and CORS together.
+      </p>
+    </>
+  );
+}
+```
+
+### WS49.5 `src/app/admin/settings/page.tsx` — new "Storage" section
+
+```tsx
+import { HardDrive } from "lucide-react"; // add to existing lucide-react import
+import { StorageSettingsPanel } from "./storage-settings-panel";
+// ...
+
+<section className="mt-6 rounded-xl border border-border bg-card p-6">
+  <div className="mb-5 flex items-center gap-3">
+    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
+      <HardDrive className="h-5 w-5 text-primary" />
+    </div>
+    <div>
+      <h2 className="text-sm font-semibold text-foreground">Storage</h2>
+      <p className="text-xs text-muted-foreground">Document uploads via S3-compatible storage</p>
+    </div>
+  </div>
+  <StorageSettingsPanel />
+</section>
+```
+
+Placed after the Email section (same "external credential" category), before Reminders.
+
+**WS49 acceptance checklist**
+- [ ] "Send Test Upload" succeeds on a correctly-configured environment (real click-through against production, not just code review)
+- [ ] Deliberately breaking `S3_ACCESS_KEY_ID` (or simulating via a bad bucket name) makes the button fail with a clear, actionable message, not a raw stack trace
+- [ ] The test object never persists — confirmed by checking the bucket after a successful run (nothing under `_health-check/`)
+- [ ] Both success and failure paths write an `AuditLog` row (`STORAGE_TEST_UPLOAD_SUCCEEDED` / `STORAGE_TEST_UPLOAD_FAILED`), visible on `/admin/audit`
+- [ ] No new dependency added — `HeadObjectCommand`/`DeleteObjectCommand` come from the already-installed `@aws-sdk/client-s3`
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** additive only — a new section on `/admin/settings`, admin-only, no founder/investor-facing change. **Cost impact:** none — reuses the existing S3/R2 credentials and the already-installed AWS SDK; the test object is bytes, not a billable event beyond what any single real upload already costs.
+
+## WS50 — Orphaned Document Detection & Reconciliation (F42) — ~0.75–1.25 day
+
+**Goal:** give an admin a repeatable, self-service way to find and clean up `Document` rows whose S3/R2 object doesn't actually exist — closing the gap that made this session's 16-row cleanup a one-off, unaudited script — and fix the one call site (`rich-editor.tsx`) that doesn't even surface an error today.
+
+**Depends on Q67 being answered.** Sketch below assumes Option B (recommended: admin-visible review list, manual delete, no write-path confirm step in v1); if Joseph picks a different option, only WS50.3/WS50.4 (the delete route and the UI's delete affordance) change shape — the scan route (WS50.2) and the `rich-editor.tsx` fix (WS50.5) are the same regardless.
+
+### WS50.1 `src/lib/s3.ts`
+
+Reuses `objectExists` from WS49.1 — no additional changes needed here.
+
+### WS50.2 `src/app/api/admin/documents/orphan-scan/route.ts` (new) — read-only scan
+
+```ts
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth-guard";
+import { objectExists } from "@/lib/s3";
+
+// Caps concurrent HeadObject calls so a large Document table doesn't open
+// hundreds of simultaneous requests against S3/R2 in one scan.
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  async function worker() {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
+export async function POST() {
+  const { error } = await requireAdmin();
+  if (error) return error;
+
+  const documents = await db.document.findMany({
+    select: {
+      id: true,
+      name: true,
+      s3Key: true,
+      createdAt: true,
+      archivedAt: true,
+      company: { select: { name: true } },
+      uploadedBy: { select: { email: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const checked = await mapWithConcurrency(documents, 10, async (doc) => ({
+    doc,
+    exists: await objectExists(doc.s3Key),
+  }));
+
+  const orphaned = checked.filter((c) => !c.exists).map((c) => c.doc);
+  return NextResponse.json({ scanned: documents.length, orphaned });
+}
+```
+
+No DB writes here — safe to run any time, same low-stakes ethos as "Send Test Email."
+
+### WS50.3 `src/app/api/admin/documents/[id]/orphan/route.ts` (new) — guarded delete (Q67 = Option B)
+
+```ts
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { requireAdmin } from "@/lib/auth-guard";
+import { objectExists } from "@/lib/s3";
+import { logAdminAction } from "@/lib/audit";
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { user, error } = await requireAdmin();
+  if (error) return error;
+
+  const { id } = await params;
+  const document = await db.document.findUnique({ where: { id } });
+  if (!document) {
+    return NextResponse.json({ error: "Document not found" }, { status: 404 });
+  }
+
+  // Re-verify at delete time, not just trusting the earlier scan result —
+  // cheap, and guards against acting on a stale list (e.g. this exact
+  // row's upload was retried and actually landed in the interim).
+  const exists = await objectExists(document.s3Key);
+  if (exists) {
+    return NextResponse.json(
+      { error: "This document's file now exists in storage — refusing to delete. Re-run the scan." },
+      { status: 409 }
+    );
+  }
+
+  await db.document.delete({ where: { id } });
+  await logAdminAction(user!, "DOCUMENT_ORPHAN_DELETED", {
+    targetType: "Document",
+    targetId: id,
+    metadata: { name: document.name, companyId: document.companyId, s3Key: document.s3Key },
+  });
+  return NextResponse.json({ success: true });
+}
+```
+
+`Document` has no incoming FKs (confirmed in Method above), so this is a plain `delete`, no cascade concerns.
+
+### WS50.4 `src/app/admin/settings/orphaned-documents-panel.tsx` (new) — scan + review-list UI
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/utils";
+
+interface OrphanedDoc {
+  id: string;
+  name: string;
+  createdAt: string;
+  company: { name: string };
+  uploadedBy: { email: string };
+}
+
+export function OrphanedDocumentsPanel() {
+  const [scanning, setScanning] = useState(false);
+  const [scanned, setScanned] = useState<number | null>(null);
+  const [orphaned, setOrphaned] = useState<OrphanedDoc[]>([]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleScan() {
+    setScanning(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/documents/orphan-scan", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Scan failed.");
+      setScanned(data.scanned);
+      setOrphaned(data.orphaned);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Scan failed.");
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!window.confirm("Permanently delete this document row? This cannot be undone.")) return;
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/admin/documents/${id}/orphan`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Delete failed.");
+      setOrphaned((prev) => prev.filter((d) => d.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <>
+      <div className="flex items-center gap-3">
+        <Button variant="secondary" size="sm" onClick={handleScan} disabled={scanning}>
+          <RefreshCw className="mr-2 h-3.5 w-3.5" />
+          {scanning ? "Scanning..." : "Scan for orphaned documents"}
+        </Button>
+        {scanned !== null && (
+          <span className="text-xs text-muted-foreground">
+            {scanned} document{scanned === 1 ? "" : "s"} checked, {orphaned.length} orphaned
+          </span>
+        )}
+      </div>
+      {error && (
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-laterite">
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {error}
+        </p>
+      )}
+      {orphaned.length > 0 && (
+        <div className="mt-4 overflow-x-auto rounded-md border border-border">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40 text-left text-muted-foreground">
+                <th className="px-3 py-2 font-medium">Name</th>
+                <th className="px-3 py-2 font-medium">Company</th>
+                <th className="px-3 py-2 font-medium">Uploaded by</th>
+                <th className="px-3 py-2 font-medium">Created</th>
+                <th className="px-3 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {orphaned.map((doc) => (
+                <tr key={doc.id} className="border-b last:border-0">
+                  <td className="px-3 py-2">{doc.name}</td>
+                  <td className="px-3 py-2">{doc.company.name}</td>
+                  <td className="px-3 py-2">{doc.uploadedBy.email}</td>
+                  <td className="px-3 py-2">{formatDate(doc.createdAt)}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleDelete(doc.id)}
+                      disabled={deletingId === doc.id}
+                    >
+                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                      {deletingId === doc.id ? "Deleting..." : "Delete"}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="mt-2 text-xs text-muted-foreground">
+        Checks every document's file against storage and lists any row whose file is missing (most often caused by
+        an interrupted upload — a dropped connection, an expired link, or a storage outage). Nothing is deleted
+        automatically; review each row before removing it.
+      </p>
+    </>
+  );
+}
+```
+
+Rendered inside the same "Storage" `<section>` as `StorageSettingsPanel` (WS49.5), beneath it, separated by a divider — both are storage diagnostics, and per Q68 = A this is the natural single home for the whole class.
+
+### WS50.5 `src/components/ui/rich-editor.tsx` — check the PUT result before inserting the image
+
+```tsx
+const handleImageUpload = useCallback(
+  async (file: File) => {
+    if (!editor || !companyId) return;
+
+    const res = await fetch("/api/documents/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, name: file.name, mimeType: file.type, isInternal: false }),
+    });
+    if (!res.ok) return;
+    const { uploadUrl, document } = await res.json();
+
+    const putRes = await fetch(uploadUrl, {
+      method: "PUT",
+      body: file,
+      headers: { "Content-Type": file.type },
+    });
+    // Part 23, WS50 (F42) — previously unchecked: the image was inserted
+    // into the editor unconditionally, even when the PUT never reached
+    // storage, leaving a silently-broken image reference in the update
+    // body with no indication to the founder that anything failed.
+    if (!putRes.ok) {
+      window.alert("Image upload failed. Please try again.");
+      return;
+    }
+
+    const imageUrl = `/api/documents/${document.id}/view`;
+    editor.chain().focus().setImage({ src: imageUrl, alt: file.name }).run();
+  },
+  [editor, companyId]
+);
+```
+
+`window.alert` matches this same file's existing pattern (`setLink`, a few lines above, already uses `window.prompt`) — no new UI idiom introduced. The now-orphaned `Document` row this failure path still creates is exactly what WS50.2–.4's scan/review tool exists to catch later.
+
+### WS50.6 Tests
+
+- New `src/lib/__tests__/s3-object-exists.test.ts` (or co-located with an existing s3 test if one exists) — mock the S3 client, assert `objectExists` returns `false` on a 404 and re-throws on any other error status (the "don't swallow a real credentials error as if the file were just missing" behavior called out in WS49.1's comment).
+- New route-level test or manual-verification checklist item for `DELETE /api/admin/documents/[id]/orphan` confirming the re-verify-before-delete guard (409 when the object does exist) — matches the codebase's existing convention of testing pure/guard logic over full route integration where feasible.
+
+**WS50 acceptance checklist**
+- [ ] Scan correctly flags a document whose S3 key doesn't exist (verified against a deliberately-orphaned test row, not just code review) and does *not* flag any real, existing document
+- [ ] Delete only succeeds when the object is confirmed still missing at delete time; re-uploading to the same key (or any other change that makes the object exist again) makes the delete request 409 instead of removing the row
+- [ ] Every delete writes a `DOCUMENT_ORPHAN_DELETED` audit row with the document's name/company/key, visible on `/admin/audit`
+- [ ] `rich-editor.tsx`'s image upload surfaces a clear failure to the founder and does not insert a broken image reference when the PUT fails (regression test or manual repro against a deliberately-broken upload URL)
+- [ ] Scan performance is reasonable at the app's real document volume (concurrency-limited, not fully sequential) — spot-checked against production's real document count, not just a small local sample
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** additive only — a new review tool on `/admin/settings`, admin-only. The one behavior *change* is `rich-editor.tsx`'s new failure path, which only replaces "silently insert a broken image" with "show an alert and don't insert anything" — a strict improvement, no legitimate workflow regresses. **Cost impact:** none — reuses existing S3/R2 credentials and Prisma; `HeadObjectCommand` calls are billed identically to the `GetObjectCommand`/`PutObjectCommand` calls already happening on every normal upload/download.
+
+## WS51 — Audit-Log the Document PATCH Route (F45) — ~0.1–0.25 day
+
+**Goal:** close the one gap Part 22 found where an admin mutation route (`PATCH /api/documents/[id]`, admin-only since Part 20/F39) doesn't call `logAdminAction()`, unlike the other 45 admin mutation routes in the app.
+
+### WS51.1 `src/app/api/documents/[id]/route.ts`
+
+```ts
+import { logAdminAction } from "@/lib/audit"; // add to imports
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    const document = await db.document.findUnique({
+      where: { id },
+      select: { companyId: true, archivedAt: true },
+    });
+    if (!document) {
+      return NextResponse.json({ error: "Document not found" }, { status: 404 });
+    }
+
+    const { user, error } = await requireAdmin(); // was: const { error } = ...
+    if (error) return error;
+
+    const body = await request.json();
+    const data: Record<string, unknown> = {};
+
+    if (body.docType !== undefined) {
+      if (body.docType !== null && !VALID_DOC_TYPES.includes(body.docType)) {
+        return NextResponse.json({ error: "Invalid docType" }, { status: 400 });
+      }
+      data.docType = body.docType;
+    }
+    if (body.archive === true) {
+      data.archivedAt = new Date();
+    } else if (body.archive === false) {
+      data.archivedAt = null;
+    }
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
+    }
+
+    const updated = await db.document.update({ where: { id }, data });
+
+    // Part 23, WS51 (F45) — mirrors admin/templates/[id]/route.ts's exact
+    // pattern: derive the action name from the archive flag, falling back
+    // to "retyped" for a docType-only change (not reachable from any UI
+    // today, per Method above, but the route accepts docType generically
+    // so the log should describe it accurately if that ever changes).
+    const action =
+      body.archive === true ? "DOCUMENT_ARCHIVED" : body.archive === false ? "DOCUMENT_UNARCHIVED" : "DOCUMENT_RETYPED";
+    await logAdminAction(user!, action, { targetType: "Document", targetId: id, metadata: { companyId: document.companyId } });
+
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("PATCH /api/documents/[id] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+```
+
+**WS51 acceptance checklist**
+- [ ] Archiving a document from `/admin/companies/[id]` writes a `DOCUMENT_ARCHIVED` row to `/admin/audit`; unarchiving writes `DOCUMENT_UNARCHIVED`
+- [ ] `GET /api/documents/[id]` (the download-metadata route) is untouched — this fix only touches `PATCH`
+- [ ] No behavior change to the actual archive/unarchive/retype functionality — this is logging-only
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** none visible to any founder or admin workflow — purely an internal audit-trail addition. **Cost impact:** none — one more `AuditLog` row per document mutation, same table already used by 45 other routes.
+
+## WS52 — Dedup the `EMAIL_FROM` Fallback (F44) — ~0.1 day
+
+**Goal:** close the duplicate-source-of-truth bug before it's forgotten — `admin/settings/page.tsx` should display whatever `email.ts` would actually send from, guaranteed, not an independently-maintained copy of the same literal.
+
+### WS52.1 `src/lib/email.ts` — export the existing constant
+
+```ts
+export const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <noreply@dfs.vc>`;
+```
+
+(Was `const FROM = ...`, un-exported — this is the only change to this file. No other line in `email.ts` changes.)
+
+### WS52.2 `src/app/admin/settings/page.tsx` — import instead of re-deriving
+
+```ts
+import { FROM as emailFrom } from "@/lib/email";
+// delete: const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>";
+```
+
+The rest of the file is unchanged — `emailFrom` is still passed to `<EmailSettingsPanel emailFrom={emailFrom} />` exactly as before, just sourced from one place instead of two.
+
+**Deliberately not changed in this workstream:** the fallback literal's domain (`dfs.vc`, not `dfslab.net`). Part 22 flagged that this domain may not match `dfslab.net`'s actual verified-in-Resend status, but confirming that requires checking the Resend dashboard, not the code — out of scope for a dedup fix, and changing a fallback value that's never actually hit in production (since `EMAIL_FROM` is set) isn't something to bundle into a "remove duplication" workstream. **Flagged for Joseph:** worth a two-minute check in the Resend dashboard next time you're in there — if `dfslab.net` is verified and `dfs.vc` isn't, updating this one literal (now single-sourced, so a one-line change fixes both display and actual send behavior at once) closes the "every transactional email silently sends from an unverified domain if `EMAIL_FROM` is ever unset" risk Part 22 called out. Not blocking this workstream either way.
+
+**WS52 acceptance checklist**
+- [ ] `/admin/settings`'s "Sending from:" line renders identically to today (since `EMAIL_FROM` is set in production, this is a no-op in practice — confirm via a diff of the rendered page, not just code review)
+- [ ] Grep confirms exactly one definition of the fallback string left in the codebase (`grep -rn "noreply@dfs.vc" src` → one hit, in `email.ts`)
+- [ ] `npm run typecheck && npm run lint && npm test` green
+
+**UX impact:** none in production today (both expressions already resolve to the real `EMAIL_FROM` env value); prevents a future silent-drift bug an admin could otherwise waste time chasing. **Cost impact:** none.
+
+## WS53 — `SETUP.md` R2/S3 CORS Step (F46) — docs-only, ~0.1 day once someone with edit access applies it
+
+**Goal:** close the gap where a new fork following `SETUP.md` today would hit this session's exact incident (valid credentials, silently-blocked browser uploads from a missing CORS policy). **This agent cannot apply this change** — `SETUP.md` is outside Felix's edit scope (`ROADMAP.md`/`README.md`/`docs/**` only) — so this workstream is the exact text to insert, for a human or a differently-scoped agent to apply.
+
+### WS53.1 Recommended insertion into `SETUP.md`, immediately after the existing R2/S3 steps (currently ending at line 79)
+
+```markdown
+### Configure CORS (required — browser uploads will silently fail without this)
+
+Document uploads happen directly from the browser to your bucket via a presigned URL. Without a CORS policy, the
+browser blocks the upload with a generic network error that gives no indication CORS is the cause — credentials can
+be completely valid and uploads will still fail.
+
+**Cloudflare R2:**
+1. In the bucket's Settings, find **CORS Policy** and add a rule allowing `GET`, `PUT`, and `HEAD` from your app's
+   origin(s) — both your local dev URL (e.g. `http://localhost:3000`) and your production domain.
+
+**AWS S3:**
+1. In the bucket's **Permissions** tab, edit **Cross-origin resource sharing (CORS)** and add an equivalent policy
+   allowing `GET`/`PUT`/`HEAD` from the same origin(s).
+
+Once your app is deployed, use the **"Send Test Upload"** button on `/admin/settings` (Storage section) to confirm
+credentials and CORS are both actually working — it exercises the exact same browser→bucket path a real document
+upload takes.
+```
+
+The last paragraph's cross-reference to "Send Test Upload" should only be added once WS49 has actually shipped — if `SETUP.md` gets this fix before WS49 exists, drop that sentence for now and add it back later.
+
+**WS53 acceptance checklist**
+- [ ] A fresh fork following the updated `SETUP.md` end-to-end (R2 or S3) successfully completes a browser upload on the first try, with no CORS error
+- [ ] No other section of `SETUP.md` is touched by this change
+
+**UX impact:** none to the running app — documentation only, read by whoever sets up a new fork. **Cost impact:** none.
+
+## Sequencing
+
+Q67 and Q68 block everything else — no workstream below is "final" the way house convention requires before Alvin starts, per Joseph's explicit hold. Once both are answered: WS49 first (small, self-contained, and WS50's UI panel sits in the same "Storage" section WS49 creates — building WS50 first would mean placing its panel somewhere temporary). WS50 next (shares `objectExists` from WS49.1). WS51 and WS52 are both fully independent of WS49/WS50 and of each other — either order, or in parallel. WS53 is docs-only and has no code dependency on anything else, but its own text references WS49's "Send Test Upload" button by name, so it reads best applied after WS49 ships (not a hard blocker, just better sequencing). Total estimated effort once decisions land: ~1.5–2.5 days across all five workstreams.
+
+## Roadmap bookkeeping
+
+`ROADMAP.md` gets a new `Planned` forward-pointer blockquote at the top of the Roadmap section (above the existing Part 22 audit blockquote, matching the "newest first" convention already used there), summarizing this Part and noting Q67/Q68 are open. The existing F44 annotation on the Fork Configuration bullet gets a one-line addition pointing at this Part's WS52. No other "Existing Features" bullet changes — nothing in this Part has shipped, so no shipped-feature language is added anywhere. Once WS49–WS53 actually ship (a future session, after Joseph confirms Q67/Q68 and green-lights Alvin), this section gets replaced with the usual shipped summary and folded into the relevant "Existing Features" bullets (Settings → new Storage section; Document Management → orphan reconciliation; Audit Log → document PATCH now covered).
+
+---
