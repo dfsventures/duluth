@@ -7,6 +7,7 @@ import { EmailSettingsPanel } from "./email-settings-panel";
 import { DigestRecipientsPanel } from "./digest-recipients-panel";
 import { StorageSettingsPanel } from "./storage-settings-panel";
 import { OrphanedDocumentsPanel } from "./orphaned-documents-panel";
+import { FROM as emailFrom } from "@/lib/email";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -16,7 +17,6 @@ export default async function SettingsPage() {
 
   const hasApiKey = !!process.env.RESEND_API_KEY;
   const teamEmail = process.env.TEAM_EMAIL || "joseph@dfs.vc";
-  const emailFrom = process.env.EMAIL_FROM || "Molly <noreply@dfs.vc>";
 
   return (
     <AppShell>
