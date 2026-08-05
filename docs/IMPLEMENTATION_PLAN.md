@@ -5631,7 +5631,7 @@ Five findings (F42–F46), none blocking, all cheap: F43 (storage test-upload di
 
 # Part 23 — Platform Audit Follow-Up: Storage Integrity, Audit-Log Coverage & Docs (F42–F46, WS49–WS53)
 
-_Requested by Joseph 2026-08-04: turn Part 22's five findings (F42–F46) into a proper implementation plan — decision banner, findings recap, goal/code-sketch/acceptance-checklist per workstream, matching every prior Part's convention. **Planning only. No code has been written or changed as part of this Part, and Alvin has not been engaged — Joseph explicitly said to hold off on implementation until further notice.** Two of the five findings (F42, F43) fork on a real product question each; both are open below as Q67/Q68, each with a Felix recommendation, awaiting Joseph's decision before any workstream in this Part is "final" the way Q65/Q66 were by the time their own Parts shipped._
+_Requested by Joseph 2026-08-04: turn Part 22's five findings (F42–F46) into a proper implementation plan — decision banner, findings recap, goal/code-sketch/acceptance-checklist per workstream, matching every prior Part's convention. **Q67 and Q68 confirmed by Joseph 2026-08-04, both per Felix's recommendation exactly: Q67 = Option B (admin-reviewed list before delete, scan-only for v1 — no write-path confirm signal) and Q68 = fold the new diagnostics into the existing `/admin/settings` page, beside the existing Email section.** This is now locked in throughout WS49/WS50 below: no conditional branches, no "if Q67 = A/C" or "if Q68 = B" alternates. **Planning only. No code has been written or changed as part of this Part, and Alvin has not been engaged — Joseph confirmed the two open decisions but has not green-lit implementation; that is a separate, later step.**_
 
 ## Method
 
@@ -5643,32 +5643,34 @@ Every claim in Part 22's own write-up for F42–F46 was re-verified against the 
 - **F45 re-confirmed.** `src/app/api/documents/[id]/route.ts`'s `PATCH` handler (lines 53–106) calls `const { error } = await requireAdmin();` — no `user` destructured, no `logAdminAction` import, no call anywhere in the file. Confirmed the house pattern to mirror lives one directory over: `src/app/api/admin/templates/[id]/route.ts`'s own `PATCH` derives its audit action name from a ternary on the archive flag (`body.archived === true ? "TEMPLATE_ARCHIVED" : body.archived === false ? "TEMPLATE_UNARCHIVED" : "TEMPLATE_UPDATED"`) — the exact shape this workstream reuses for `docType`/`archive`. Confirmed the only real caller today (`src/app/admin/companies/[id]/page.tsx:550–554`) sends `{ archive }` only, never `docType` (docType is set once at upload time, per Part 20's own Method section) — so the "retyped" branch is defensive/future-proof today, not dead weight added for no reason.
 - **F46 re-confirmed.** `SETUP.md:73–79`'s Cloudflare R2 steps (create bucket → API token → fill in four `S3_*` vars) have no CORS step, confirmed by reading the full section. Separately noticed, out of scope for this Part: `SETUP.md`'s prerequisites still mention `pgvector` (removed from the codebase with the OpenAI RAG chatbot, per `MEMORY.md`) — a real doc-staleness item, but a distinct one from F46 and not part of the five findings Joseph asked to be scoped here; flagging it here only so it isn't lost, not proposing a workstream for it.
 
-## Open product decisions (Q67–Q68) — awaiting Joseph
+## Product decisions (Q67–Q68) — confirmed by Joseph 2026-08-04
 
-Both questions below are genuine forks, not technical calls — per protocol, neither is silently decided. Every workstream in this Part is written to be final once these are answered; nothing ships to Alvin until they are.
+Both questions below were genuine forks, not technical calls — per protocol, neither was silently decided. Both are now confirmed, each matching Felix's recommendation exactly.
 
 ### Q67 — How aggressive should orphaned-`Document`-row reconciliation be?
 
-Three shapes are possible for what happens once a scan finds a `Document` row whose `s3Key` doesn't exist in storage:
+Three shapes were possible for what happens once a scan finds a `Document` row whose `s3Key` doesn't exist in storage:
 
 - **Option A — fully automatic delete.** The scan itself deletes any row it finds orphaned, no human in the loop. Fastest to use, zero admin effort, but the riskiest: a `HeadObjectCommand` false negative (a transient credentials/network blip *during the scan itself*, a bucket/region misconfiguration, or any bug in the check) would silently and permanently destroy a real, legitimate document row with no recovery path — the exact opposite of what this workstream should do, given the incident that prompted it was itself a credentials problem.
-- **Option B (recommended) — admin-visible review list, manual delete per row.** The scan is read-only and lists candidates (name, company, uploader, upload date); an admin reviews and deletes individually, each delete re-verified server-side (a second `HeadObjectCommand` at delete time, not just trusting the earlier scan result) and audit-logged. Matches this codebase's own established precedent for exactly this shape of decision — Part 21/Q66 deliberately chose a guarded manual delete over silent automatic cleanup for the awaiting-setup queue, for the same reason (irreversible action, real user data, low but non-zero false-positive risk).
+- **Option B — admin-visible review list, manual delete per row.** The scan is read-only and lists candidates (name, company, uploader, upload date); an admin reviews and deletes individually, each delete re-verified server-side (a second `HeadObjectCommand` at delete time, not just trusting the earlier scan result) and audit-logged. Matches this codebase's own established precedent for exactly this shape of decision — Part 21/Q66 deliberately chose a guarded manual delete over silent automatic cleanup for the awaiting-setup queue, for the same reason (irreversible action, real user data, low but non-zero false-positive risk).
 - **Option C — read-only report only, no delete affordance in-app at all.** The scan lists candidates but offers no delete button; an admin who wants to clean up still runs a one-off script against production, same as this session's own manual cleanup of the 16 Acme rows. Safest, but doesn't actually close the gap Part 22 flagged — "no self-service way to fix this without a human running a script directly against the production database" is the problem statement, not an acceptable end state.
-- **Felix's recommendation: Option B.** It's the one that actually gives an admin standing, repeatable, self-service tooling (closing the real gap) without the destructive blast radius of Option A, and it costs about the same to build as Option C once the scan-and-list UI exists anyway.
 
-**Also folded into this question: should this workstream also add a write-path "confirm" signal (Part 22's option (a) — the client calls a lightweight endpoint after a successful `PUT`, so future orphans are prevented, not just detected later)?** Felix's recommendation is **no, not in this pass** — the scan tool (Option B above) checks ground truth directly (does the object exist in the bucket), so it's a complete, self-sufficient answer to F42 on its own; it doesn't depend on any client ever calling back, so it also catches the "tab closed before any confirm request could fire" case that a confirm-step alone would still miss. A confirm-step would touch five client call sites (`company/documents`, `admin/companies/[id]`, `setup-wizard`, `diligence`, `rich-editor`) plus a new schema column, for a benefit (faster detection) that a periodically-run scan already delivers at a fraction of the cost. **This is a scope/judgment call, not a product fork** — flagged here for visibility since it affects what ships in v1, cheaply reversible (adding a confirm step later is a small, additive follow-on, not a rework of anything WS50 builds).
+**Decided: Option B**, matching Felix's recommendation exactly — the one that actually gives an admin standing, repeatable, self-service tooling (closing the real gap) without the destructive blast radius of Option A, and it costs about the same to build as Option C once the scan-and-list UI exists anyway. This is now locked in throughout WS50 below: no conditional branches, no "if Q67 = A/C" alternates — the scan is read-only and every delete is a guarded, individually-reviewed, audit-logged admin action.
+
+**Also confirmed as part of this same question: no write-path "confirm" signal in v1** (Part 22's option (a) — the client calling a lightweight endpoint after a successful `PUT`, so future orphans are prevented rather than only detected later). Scan-only, matching Felix's recommendation: the scan tool (Option B above) checks ground truth directly (does the object exist in the bucket), so it's a complete, self-sufficient answer to F42 on its own; it doesn't depend on any client ever calling back, so it also catches the "tab closed before any confirm request could fire" case that a confirm-step alone would still miss. A confirm-step would touch five client call sites (`company/documents`, `admin/companies/[id]`, `setup-wizard`, `diligence`, `rich-editor`) plus a new schema column, for a benefit (faster detection) that a periodically-run scan already delivers at a fraction of the cost. Deferred, not built here — cheaply reversible: adding a confirm step later is a small, additive follow-on, not a rework of anything WS50 builds.
 
 ### Q68 — Does the storage health-check (and the orphan-scan tool) need its own page, or fold into `/admin/settings`?
 
-- **Option A (recommended) — fold both into `/admin/settings`, as new sections beside Email/Reminders/Digest Recipients.** The page's own description (`src/app/admin/settings/page.tsx:24`, "Platform configuration and diagnostics") already frames it as exactly this kind of surface, and the Email section is a byte-for-byte precedent for the test-upload panel (button + status, `requireAdmin`-gated route, `logAdminAction` call). No new sidebar entry, no new route-access consideration, no new page shell to build.
+- **Option A — fold both into `/admin/settings`, as new sections beside Email/Reminders/Digest Recipients.** The page's own description (`src/app/admin/settings/page.tsx:24`, "Platform configuration and diagnostics") already frames it as exactly this kind of surface, and the Email section is a byte-for-byte precedent for the test-upload panel (button + status, `requireAdmin`-gated route, `logAdminAction` call). No new sidebar entry, no new route-access consideration, no new page shell to build.
 - **Option B — a dedicated `/admin/storage` (or `/admin/documents`) page.** Justifiable if the orphan-review list ever grows into something that needs its own real estate (pagination, filters, bulk actions) — but nothing about F42/F43 as scoped needs that; the scan is a single on-demand action and the review list is expected to be small (this session's own incident produced 16 rows for one company, not thousands).
-- **Felix's recommendation: Option A.** Matches the page's own stated purpose, costs less to build, and is trivially reversible — extracting a panel into its own page later is a mechanical move, not a rework, if the orphan list ever does grow large enough to need one.
+
+**Decided: Option A**, matching Felix's recommendation exactly — matches the page's own stated purpose, costs less to build, and is trivially reversible — extracting a panel into its own page later is a mechanical move, not a rework, if the orphan list ever does grow large enough to need one. This is now locked in throughout WS49/WS50 below: both new panels live on `/admin/settings`, beside the existing Email section, no separate page.
 
 ## WS49 — Storage Test-Upload Diagnostic (F43) — ~0.25–0.5 day
 
 **Goal:** give an admin a one-click way to confirm S3/R2 credentials *and* CORS are actually working end-to-end, mirroring the existing "Send Test Email" pattern — the diagnostic that would have caught the 167-day R2 outage immediately instead of only surfacing when a real founder hit it.
 
-**Depends on Q68 being answered A or B** — sketch below assumes A (fold into `/admin/settings`); if B, the same two panels/routes move to a new page instead, no other change.
+Per Q68 (confirmed = Option A): both new panels live on `/admin/settings`, beside the existing Email section — no new page, no new sidebar entry.
 
 ### WS49.1 `src/lib/s3.ts` — add `objectExists` and `deleteObject`
 
@@ -5881,7 +5883,7 @@ Placed after the Email section (same "external credential" category), before Rem
 
 **Goal:** give an admin a repeatable, self-service way to find and clean up `Document` rows whose S3/R2 object doesn't actually exist — closing the gap that made this session's 16-row cleanup a one-off, unaudited script — and fix the one call site (`rich-editor.tsx`) that doesn't even surface an error today.
 
-**Depends on Q67 being answered.** Sketch below assumes Option B (recommended: admin-visible review list, manual delete, no write-path confirm step in v1); if Joseph picks a different option, only WS50.3/WS50.4 (the delete route and the UI's delete affordance) change shape — the scan route (WS50.2) and the `rich-editor.tsx` fix (WS50.5) are the same regardless.
+Per Q67 (confirmed = Option B): the scan is read-only, and every deletion is a guarded, individually-reviewed, audit-logged admin action — no automatic cleanup, and no write-path confirm step in v1 (scan-only, also confirmed under Q67 above).
 
 ### WS50.1 `src/lib/s3.ts`
 
@@ -5944,7 +5946,7 @@ export async function POST() {
 
 No DB writes here — safe to run any time, same low-stakes ethos as "Send Test Email."
 
-### WS50.3 `src/app/api/admin/documents/[id]/orphan/route.ts` (new) — guarded delete (Q67 = Option B)
+### WS50.3 `src/app/api/admin/documents/[id]/orphan/route.ts` (new) — guarded delete (Q67 confirmed = Option B)
 
 ```ts
 export const dynamic = "force-dynamic";
@@ -6111,7 +6113,7 @@ export function OrphanedDocumentsPanel() {
 }
 ```
 
-Rendered inside the same "Storage" `<section>` as `StorageSettingsPanel` (WS49.5), beneath it, separated by a divider — both are storage diagnostics, and per Q68 = A this is the natural single home for the whole class.
+Rendered inside the same "Storage" `<section>` as `StorageSettingsPanel` (WS49.5), beneath it, separated by a divider — both are storage diagnostics, and per Q68 (confirmed = Option A) this is the natural single home for the whole class.
 
 ### WS50.5 `src/components/ui/rich-editor.tsx` — check the PUT result before inserting the image
 
@@ -6304,10 +6306,10 @@ The last paragraph's cross-reference to "Send Test Upload" should only be added 
 
 ## Sequencing
 
-Q67 and Q68 block everything else — no workstream below is "final" the way house convention requires before Alvin starts, per Joseph's explicit hold. Once both are answered: WS49 first (small, self-contained, and WS50's UI panel sits in the same "Storage" section WS49 creates — building WS50 first would mean placing its panel somewhere temporary). WS50 next (shares `objectExists` from WS49.1). WS51 and WS52 are both fully independent of WS49/WS50 and of each other — either order, or in parallel. WS53 is docs-only and has no code dependency on anything else, but its own text references WS49's "Send Test Upload" button by name, so it reads best applied after WS49 ships (not a hard blocker, just better sequencing). Total estimated effort once decisions land: ~1.5–2.5 days across all five workstreams.
+Q67 and Q68 are both confirmed (Option B and Option A respectively), so every workstream below is final — no conditional branches left to resolve. Recommended build order, whenever implementation is green-lit: WS49 first (small, self-contained, and WS50's UI panel sits in the same "Storage" section WS49 creates — building WS50 first would mean placing its panel somewhere temporary). WS50 next (shares `objectExists` from WS49.1). WS51 and WS52 are both fully independent of WS49/WS50 and of each other — either order, or in parallel. WS53 is docs-only and has no code dependency on anything else, but its own text references WS49's "Send Test Upload" button by name, so it reads best applied after WS49 ships (not a hard blocker, just better sequencing). Total estimated effort: ~1.5–2.5 days across all five workstreams. **Still not handed to Alvin** — Joseph has confirmed the two open decisions, so this plan is final and ready, but implementation itself has not been green-lit; that remains a separate, later step.
 
 ## Roadmap bookkeeping
 
-`ROADMAP.md` gets a new `Planned` forward-pointer blockquote at the top of the Roadmap section (above the existing Part 22 audit blockquote, matching the "newest first" convention already used there), summarizing this Part and noting Q67/Q68 are open. The existing F44 annotation on the Fork Configuration bullet gets a one-line addition pointing at this Part's WS52. No other "Existing Features" bullet changes — nothing in this Part has shipped, so no shipped-feature language is added anywhere. Once WS49–WS53 actually ship (a future session, after Joseph confirms Q67/Q68 and green-lights Alvin), this section gets replaced with the usual shipped summary and folded into the relevant "Existing Features" bullets (Settings → new Storage section; Document Management → orphan reconciliation; Audit Log → document PATCH now covered).
+`ROADMAP.md`'s `Planned` forward-pointer blockquote (at the top of the Roadmap section, above the existing Part 22 audit blockquote, matching the "newest first" convention already used there) now states Q67/Q68 as confirmed rather than open, and that the plan is final and awaiting a separate implementation green light. The existing F44 annotation on the Fork Configuration bullet points at this Part's WS52. No other "Existing Features" bullet changes — nothing in this Part has shipped, so no shipped-feature language is added anywhere. Once WS49–WS53 actually ship (a future session, once Joseph green-lights Alvin), this section gets replaced with the usual shipped summary and folded into the relevant "Existing Features" bullets (Settings → new Storage section; Document Management → orphan reconciliation; Audit Log → document PATCH now covered).
 
 ---
