@@ -137,3 +137,77 @@ describe("POST /api/admin/reports/[id]/publish — notify (Q7 = B)", () => {
     expect(data.notifyResult).toEqual({ notified: 1, failed: 1 });
   });
 });
+
+// Part 24, WS54 — optional per-publish admin note forwarded to the email fn
+// and captured in the REPORT_PUBLISHED audit metadata.
+describe("POST /api/admin/reports/[id]/publish — optional note (WS54)", () => {
+  it("forwards the note to sendLpReportPublishedEmail for every recipient when present", async () => {
+    mockLpFundMembershipFindMany.mockResolvedValue([
+      { lp: { email: "lp-a@example.com" } },
+      { lp: { email: "lp-b@example.com" } },
+    ]);
+    mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
+
+    const res = await POST(req({ notify: true, note: "See you at the AGM." }), {
+      params: Promise.resolve({ id: "report-1" }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockSendLpReportPublishedEmail).toHaveBeenCalledTimes(2);
+    for (const call of mockSendLpReportPublishedEmail.mock.calls) {
+      expect(call[0].note).toBe("See you at the AGM.");
+    }
+  });
+
+  it("forwards note: null when the note is absent or blank (byte-identical-when-empty contract)", async () => {
+    mockLpFundMembershipFindMany.mockResolvedValue([{ lp: { email: "lp-a@example.com" } }]);
+    mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
+
+    const res = await POST(req({ notify: true }), { params: Promise.resolve({ id: "report-1" }) });
+    expect(res.status).toBe(200);
+    expect(mockSendLpReportPublishedEmail).toHaveBeenCalledWith(expect.objectContaining({ note: null }));
+
+    mockSendLpReportPublishedEmail.mockClear();
+    const res2 = await POST(req({ notify: true, note: "   " }), { params: Promise.resolve({ id: "report-1" }) });
+    expect(res2.status).toBe(200);
+    expect(mockSendLpReportPublishedEmail).toHaveBeenCalledWith(expect.objectContaining({ note: null }));
+  });
+
+  it("rejects a note over 500 characters with 400 and never publishes or sends", async () => {
+    const res = await POST(req({ notify: true, note: "x".repeat(501) }), {
+      params: Promise.resolve({ id: "report-1" }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(data.error).toMatch(/500 characters/);
+    expect(mockFundReportUpdate).not.toHaveBeenCalled();
+    expect(mockSendLpReportPublishedEmail).not.toHaveBeenCalled();
+  });
+
+  it("records noteIncluded and the verbatim note on the REPORT_PUBLISHED audit row", async () => {
+    mockLpFundMembershipFindMany.mockResolvedValue([{ lp: { email: "lp-a@example.com" } }]);
+    mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
+    const { logAdminAction } = await import("@/lib/audit");
+
+    await POST(req({ notify: true, note: "See you at the AGM." }), { params: Promise.resolve({ id: "report-1" }) });
+
+    expect(logAdminAction).toHaveBeenCalledWith(
+      expect.anything(),
+      "REPORT_PUBLISHED",
+      expect.objectContaining({
+        metadata: expect.objectContaining({ noteIncluded: true, note: "See you at the AGM." }),
+      })
+    );
+  });
+
+  it("records noteIncluded: false and omits note when no note is given", async () => {
+    const { logAdminAction } = await import("@/lib/audit");
+
+    await POST(req({ notify: false }), { params: Promise.resolve({ id: "report-1" }) });
+
+    const call = (logAdminAction as ReturnType<typeof vi.fn>).mock.calls.at(-1);
+    expect(call?.[2].metadata.noteIncluded).toBe(false);
+    expect(call?.[2].metadata).not.toHaveProperty("note");
+  });
+});

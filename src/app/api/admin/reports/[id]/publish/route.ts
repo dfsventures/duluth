@@ -16,6 +16,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await request.json().catch(() => ({}));
     const notify = body?.notify === true;
 
+    // WS54: optional per-publish note, only ever sent when notify is true, but
+    // validated unconditionally so a >500-char note is never silently dropped.
+    const noteRaw = typeof body?.note === "string" ? body.note.trim() : "";
+    if (noteRaw.length > 500) {
+      return NextResponse.json({ error: "Note must be 500 characters or fewer." }, { status: 400 });
+    }
+    const note = noteRaw || null;
+
     const report = await db.fundReport.findUnique({ where: { id }, include: { fund: { select: { name: true } } } });
     if (!report) return NextResponse.json({ error: "Report not found" }, { status: 404 });
     if (report.status !== "DRAFT") {
@@ -137,6 +145,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             lpName: m.lp.name,
             fundName: report.fund.name,
             reportTitle: report.title,
+            note, // WS54
           });
           notified++;
         } catch (emailError) {
@@ -150,7 +159,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await logAdminAction(user!, "REPORT_PUBLISHED", {
       targetType: "FundReport",
       targetId: id,
-      metadata: { mentionCount: mentionedIds.length, notify, ...(notifyResult ? { notifyResult } : {}) },
+      metadata: {
+        mentionCount: mentionedIds.length,
+        notify,
+        noteIncluded: note !== null,
+        ...(note ? { note } : {}),
+        ...(notifyResult ? { notifyResult } : {}),
+      },
     });
     return NextResponse.json({ ...published, notifyResult });
   } catch (err) {

@@ -42,6 +42,15 @@ function assertSent(result: { data: unknown; error: unknown }, context: string) 
   }
 }
 
+/** Escapes plain-text values before interpolation into email HTML. Mirrors src/lib/pdf.ts. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 /** Small-caps mono eyebrow label — DFS's section-number pattern, minus the number. */
 function eyebrow(label: string, color: string = C.sky): string {
   return `<p style="margin: 0 0 6px; font-family: ${FONT_MONO}; font-size: 11px; font-weight: 600; color: ${color}; text-transform: uppercase; letter-spacing: 0.1em;">${label}</p>`;
@@ -552,9 +561,22 @@ export async function sendLpOtpEmail(email: string, code: string) {
   assertSent(result, "lp-otp");
 }
 
-export async function sendLpReportPublishedEmail(opts: { email: string; lpName?: string | null; fundName: string; reportTitle: string }) {
+export async function sendLpReportPublishedEmail(opts: {
+  email: string;
+  lpName?: string | null;
+  fundName: string;
+  reportTitle: string;
+  note?: string | null; // WS54: optional per-publish admin note; absent/blank → no paragraph
+}) {
   const link = `${BASE_URL}/lp`;
   const firstName = opts.lpName?.trim() ? opts.lpName.trim().split(" ")[0] : null;
+
+  // WS54: plain-text note — escape, then preserve author line breaks. Empty/blank
+  // yields no markup at all, so the email is byte-identical to today when omitted.
+  const noteTrimmed = opts.note?.trim();
+  const noteParagraph = noteTrimmed
+    ? `\n      <p style="margin: 0 0 24px;">${escapeHtml(noteTrimmed).replace(/\n/g, "<br>")}</p>`
+    : "";
 
   const result = await resend.emails.send({
     from: FROM,
@@ -563,8 +585,8 @@ export async function sendLpReportPublishedEmail(opts: { email: string; lpName?:
     subject: `Your ${opts.fundName} report is here`,
     html: emailWrapper(`
       ${eyebrow("Fund Report")}
-      ${heading(firstName ? `Hi ${firstName},` : "Hello,")}
-      <p style="margin: 0 0 24px;">We've just published <strong>${opts.reportTitle}</strong>, our latest letter on how the fund is doing, plus a look at the portfolio companies behind the numbers. It's a short read.</p>
+      ${heading(firstName ? `Hi ${escapeHtml(firstName)},` : "Hello,")}
+      <p style="margin: 0 0 24px;">We've just published <strong>${escapeHtml(opts.reportTitle)}</strong>, our latest letter on how the fund is doing, plus a look at the portfolio companies behind the numbers.</p>${noteParagraph}
 
       <p>${primaryButton(link, "Read the Report →")}</p>
 

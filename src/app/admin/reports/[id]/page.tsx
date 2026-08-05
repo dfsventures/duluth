@@ -44,6 +44,7 @@ export default function AdminReportEditorPage() {
   const [saving, setSaving] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [notifyLps, setNotifyLps] = useState(false);
+  const [lpNote, setLpNote] = useState("");
   const [publishing, setPublishing] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -190,7 +191,7 @@ export default function AdminReportEditorPage() {
       const res = await fetch(`/api/admin/reports/${reportId}/publish`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ notify: notifyLps }),
+        body: JSON.stringify({ notify: notifyLps, note: lpNote.trim() || undefined }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => null);
@@ -338,6 +339,23 @@ export default function AdminReportEditorPage() {
               </Button>
             </div>
           </div>
+          {notifyLps && (
+            <div className="mt-2 w-full">
+              <label htmlFor="lp-note" className="mb-1 block text-xs text-ochre">
+                Add a note to the email (optional)
+              </label>
+              <textarea
+                id="lp-note"
+                value={lpNote}
+                onChange={(e) => setLpNote(e.target.value)}
+                maxLength={500}
+                rows={3}
+                placeholder="A short personal note — appears above the “Read the Report” button. Leave blank to send the standard email."
+                className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50"
+              />
+              <p className="mt-1 text-right text-xs text-muted-foreground">{lpNote.length}/500</p>
+            </div>
+          )}
         </div>
       )}
 
