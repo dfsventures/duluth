@@ -6518,3 +6518,195 @@ The existing suite mocks the email fn and asserts the notify loop. Add cases (no
 `ROADMAP.md` gets a new `Planned` forward-pointer blockquote at the top of the Roadmap section (above the Part 23 blockquote, newest-first), describing Part 24 / WS54 / F47 as scoped-not-built. The LP portal "Existing Features" bullet (which already documents the "Notify this fund's LPs by email" checkbox and template #12) gets no shipped-language change yet — nothing has shipped. When WS54 ships, that bullet absorbs the optional-note detail and the "short read" copy change, and this section is replaced with the usual shipped summary.
 
 ---
+
+# Part 25 — Dedicated Security Audit (F48–F50, WS55–WS57)
+
+_Requested by Joseph 2026-08-06: a real, systematic **security** review, distinct from the general platform-quality audits (Parts 17, 22). Scope followed the eight areas Joseph enumerated: (1) every document route, (2) every admin route's guard, (3) the DD/diligence surface, (4) session/auth core, (5) the "sessionless client hits middleware" family, (6) secrets/credentials handling, (7) rate-limiting coverage, (8) injection/XSS beyond F47. **Audit-and-report only — no product code changed as part of this Part.** Every claim below was verified by reading the cited file at the cited lines against the current working tree, not trusted from a prior commit message or write-up. F-numbering continues from F47 (Part 24). Two real findings (F48, F49) and one low-severity gap (F50); the rest of the surface is documented as verified-clean so Joseph knows what was actually checked._
+
+## Severity summary (read this first)
+
+| # | Severity | One-line | Location |
+|---|----------|----------|----------|
+| **F48** | **HIGH** | Broken object-level authorization (IDOR): any approved user can read **any** company's full investor update (body, metrics, documents) as HTML | `src/app/api/updates/[id]/pdf/route.ts:12` |
+| **F49** | **MEDIUM** | HTML/link injection into transactional emails — the F47/WS54 `escapeHtml` fix reached only **one** of ~8 email functions; founder- and even **unauthenticated**-controlled text still lands raw in admin- and invitee-facing emails | `src/lib/email.ts` (multiple `send*`) |
+| **F50** | **LOW** | No rate limit on the team-invite endpoint — an authenticated OWNER/admin can drive unbounded Resend sends to arbitrary addresses | `src/app/api/companies/[id]/members/invite/route.ts` |
+
+Everything else checked out — see "Verified clean" at the end. **This is the first real object-level-authz bug found in the update surface; every _document_ route (the historically buggy area) is clean this pass — the gap had migrated one resource over, to the update PDF route, which never got the company-scoping every sibling update route has.**
+
+---
+
+## F48 — IDOR in `GET /api/updates/[id]/pdf`: no company scoping (HIGH)
+
+**Evidence.** `src/app/api/updates/[id]/pdf/route.ts:12` guards with `requireAuth()` **only** — it confirms the caller is *some* approved user, then at line 17 loads the update by the path `id`, at line 25 calls `generateUpdateHTML(id)`, and returns the rendered HTML. It never checks that the caller has access to `update.companyId`. `generateUpdateHTML` (`src/lib/pdf.ts:9–22`) loads the update with `company`, all `metricValues` (+definitions), and `documents`, and renders the full confidential investor update.
+
+**Why it's a real vulnerability.** Every *other* route in the update family derives the company from the resource and calls `requireCompanyAccess(update.companyId)`:
+- `src/app/api/updates/[id]/route.ts:14-24` (DELETE/GET) — `findUnique → requireCompanyAccess(existing.companyId)`
+- `src/app/api/updates/[id]/comments/route.ts:14-24` (GET/POST) — same pattern
+
+The PDF route is the lone exception. `requireAuth()` returns success for *any* `APPROVED` user (`src/lib/auth-guard.ts:9-25`), so a founder who is a member of Company A can call `GET /api/updates/{an-update-id-belonging-to-Company-B}/pdf` and receive Company B's full update — metrics, narrative body, and document list. This is exactly the June documents-IDOR class (broken object-level authorization / horizontal privilege escalation), on the update resource.
+
+**Exploitability caveat (does not downgrade the finding).** Update IDs are cuids, not sequential integers, so this is not trivially mass-enumerable — an attacker needs to obtain a target update's ID (they leak through URLs, the `/updates/[id]/download` path, forwarded links, logs, etc.). Broken object-level authz is a vulnerability regardless of ID guessability; ranked HIGH because the exposed data is the platform's most confidential (portfolio metrics + investor narrative) and the fix is one line with zero UX cost.
+
+**No legitimate caller is affected by fixing it.** The only client caller is `src/app/updates/[id]/download/page.tsx:12` (`window.open('/api/updates/${id}/pdf')`), always for an update the founder already has access to; admins pass `requireCompanyAccess` too (it short-circuits `true` for admins). So swapping `requireAuth()` for the sibling pattern is invisible to every real user.
+
+## WS55 — Scope the update-PDF route to the update's company (F48) — ~0.1 day
+
+**Goal:** close the IDOR by matching the exact pattern the sibling update routes already use.
+
+**File:** `src/app/api/updates/[id]/pdf/route.ts`
+
+**Step — replace the guard (lines 12–23 region):**
+```ts
+// BEFORE
+const { error } = await requireAuth();
+if (error) return error;
+
+const { id } = await params;
+
+const update = await db.update.findUnique({
+  where: { id },
+  select: { companyId: true },
+});
+if (!update) {
+  return NextResponse.json({ error: "Update not found" }, { status: 404 });
+}
+
+// AFTER — mirror src/app/api/updates/[id]/route.ts:14-24 exactly
+const { id } = await params;
+
+const update = await db.update.findUnique({
+  where: { id },
+  select: { companyId: true },
+});
+if (!update) {
+  return NextResponse.json({ error: "Update not found" }, { status: 404 });
+}
+
+const { error } = await requireCompanyAccess(update.companyId);
+if (error) return error;
+```
+Swap the import on line 3 from `requireAuth` to `requireCompanyAccess` (from `@/lib/auth-guard`). Everything below (the `generateUpdateHTML` call, the `text/html` response) is unchanged.
+
+**Acceptance checklist:**
+- [ ] A founder member of Company A gets 403 from `GET /api/updates/{Company-B-update-id}/pdf` (was 200 + full HTML).
+- [ ] A founder still gets their own update's PDF from `/updates/[id]/download`.
+- [ ] An admin still gets any update's PDF (admin short-circuit in `requireCompanyAccess`).
+- [ ] 404 (not 403) still returned for a nonexistent update id — order preserved: existence check derives `companyId`, then access check runs (same as the sibling route; a caller can already learn existence of arbitrary update ids via the 404-vs-403 split, matching the established house behavior — acceptable, not worsened here).
+- [ ] Consider a regression test alongside the existing auth-guard tests asserting a non-member is refused.
+
+**UX impact:** none — the only front door is the founder's own download page and the admin view, both unaffected.
+**Cost impact:** none.
+**Effort:** ~0.1 day (one-line-equivalent guard swap + optional test).
+
+---
+
+## F49 — Unescaped user text in transactional emails: F47's fix reached only one of ~8 email functions (MEDIUM)
+
+**Evidence.** Part 24/WS54 added `escapeHtml` to `src/lib/email.ts:46-52` and applied it **only inside `sendLpReportPublishedEmail`** (`escapeHtml` used at lines 578, 588, 589 — the note, `firstName`, and `reportTitle`). Every other `send*` function still interpolates dynamic, user-controlled values raw into the HTML body. Confirmed by reading each function:
+
+| Function | Raw-interpolated user value(s) | Recipient | Who controls the value |
+|----------|-------------------------------|-----------|------------------------|
+| `sendNewSignupNotification` (`:244-265`, via `fieldRow` `:122-130`) | `founderName`, `founderEmail` | **Admins** (`TEAM_EMAIL`) | **Unauthenticated** — straight from the `/api/auth/signup` body (`src/app/api/auth/signup/route.ts:16`), `name` is any string, only email-format-validated |
+| `sendCommentNotificationEmail` (`:528`) | `commenterName`, `updateTitle`, `updatePeriod`, `companyName` | Admins + company members | Founder (comment author, update title, company name) |
+| `sendDiligenceCompletedAdminNotification` (`:404-407`) | `founderName`, `founderEmail`, `companyName` | **Admins** | Founder |
+| `sendTeamInviteEmail` (`:312`) | `inviterName`, `companyName` | Invitee (arbitrary third-party email) | Founder |
+| `sendMemberAddedEmail` (`:433`) | `inviterName`, `companyName` | Invitee | Founder |
+| `sendUpdatePublishedEmail` (`:226-233` region) | `companyName` (body is trusted TipTap by design — leave it) | Admin team | Founder |
+| `sendUpdateReminderEmail` (`:284,289`) | `companyName` | Founder (self) | Founder |
+| `sendDiligenceInviteEmail` (`:340-341`) | `companyName` | Founder | Admin (company created admin-side) — lower |
+
+`companyName` is fully founder-controlled and unsanitized: set at self-service signup (`src/app/api/auth/signup/route.ts:86-91`, raw `companyName`) and editable via `PATCH /api/companies/[id]` (`name` in `allowedFields`, `src/app/api/companies/[id]/route.ts:89-104`, no sanitization). `founderName` in `sendNewSignupNotification` is **unauthenticated** input.
+
+**Impact & severity.** This is HTML injection into email markup, not stored browser XSS: mainstream email clients strip `<script>`, so the realistic blast radius is (a) **link injection / content spoofing** — e.g. a signup `name` of `Acme <a href="https://evil.example">click to approve</a>` renders a live attacker link inside the DFS admin approval email, an unauthenticated → admin-inbox phishing primitive; and (b) broken/garbled rendering from stray `<`, `>`, `&`, `"`. No session, no cookie theft, no script execution. Ranked **MEDIUM** (not LOW like F47) precisely because — unlike F47's admin/LP-authored `reportTitle` — several of these values are **founder-controlled or outright unauthenticated** and cross a trust boundary into **admin** and **third-party-invitee** inboxes. The escape helper already exists in the file; this is applying it consistently, exactly the remediation F47 established.
+
+**Scope note (do NOT over-escape):** `subject:` lines stay raw — subjects are plain text, not HTML (the F47/WS54 write-up already settled this, `IMPLEMENTATION_PLAN.md:6409`). `sendUpdatePublishedEmail`'s `opts.body` stays raw — it is trusted TipTap-generated markup by design (the one deliberate raw-HTML interpolation, same rationale as the report body's `dangerouslySetInnerHTML`). Only *plain-text* dynamic values interpolated into the HTML *body* get wrapped.
+
+## WS56 — Apply `escapeHtml` to the remaining email templates (F49) — ~0.5 day
+
+**Goal:** wrap every plain-text, user-controlled value interpolated into an email HTML body in the existing `escapeHtml` (`src/lib/email.ts:46`), matching what WS54 already did for `sendLpReportPublishedEmail`. No new dependency, no new helper — the function is right there.
+
+**File:** `src/lib/email.ts` only.
+
+**Steps (per function — wrap the value, leave everything else byte-identical):**
+- `fieldRow(label, value)` (`:122`) — the cleanest single fix: escape `value` **inside the helper** (`...color: ${C.obsidian};">${escapeHtml(value)}</p>`). This covers `sendNewSignupNotification`'s `founderName`/`founderEmail` and `sendDiligenceCompletedAdminNotification`'s `fieldRow` fields in one edit. Verify no caller passes intentional markup through `fieldRow` (grep shows only plain labels/values — safe).
+- `sendTeamInviteEmail` (`:312`) — `${escapeHtml(opts.inviterName ?? "A teammate")}` and `<strong>${escapeHtml(opts.companyName)}</strong>`.
+- `sendMemberAddedEmail` (`:433`) — same two.
+- `sendCommentNotificationEmail` (`:528`) — escape `commenterName`, `updateTitle`, `updatePeriod`, `companyName`.
+- `sendDiligenceInviteEmail` (`:340-341`) — escape `companyName` (both occurrences).
+- `sendDiligenceCompletedAdminNotification` (`:404`) — escape the inline `${opts.founderName || opts.founderEmail}` and `${opts.companyName}` (the `fieldRow` ones are covered by the helper fix above).
+- `sendUpdateReminderEmail` (`:284,289`) — escape `companyName`.
+- `sendUpdatePublishedEmail` — escape any plain-text `companyName`/title interpolation in the body; **leave `opts.body` raw** (trusted TipTap).
+
+Leave all `subject:` lines untouched.
+
+**Acceptance checklist:**
+- [ ] A company named `Q1 & <SPV> "Special"` renders as literal text in every email that names it (team invite, member added, comment notification, reminder, published, DD notifications), not as broken/garbled markup.
+- [ ] A signup submitted with `name` = `Acme <a href="https://evil.example">x</a>` produces an admin notification email where that string appears as literal text, not a live link.
+- [ ] `sendLpReportPublishedEmail` is unchanged (already escaped in WS54).
+- [ ] `opts.body` in `sendUpdatePublishedEmail` still renders as rich HTML (regression: don't double-escape the trusted body).
+- [ ] Subjects unchanged.
+
+**UX impact:** invisible for all normal inputs (plain company/person names contain no HTML metacharacters); the only visible change is that pathological inputs now render correctly instead of breaking. No UX regression.
+**Cost impact:** none.
+**Effort:** ~0.5 day (8 functions, mechanical, plus a couple of assertion tests).
+
+---
+
+## F50 — No rate limit on the team-invite endpoint (LOW)
+
+**Evidence.** `POST /api/companies/[id]/members/invite` (`src/app/api/companies/[id]/members/invite/route.ts`) is gated to an OWNER of the company or an admin (`:18-26`) but has **no `checkRateLimit` call**. Each successful call fires a Resend email (`sendTeamInviteEmail`/`sendMemberAddedEmail`) to a client-supplied address (`:29`). An authenticated OWNER founder can therefore drive unbounded outbound email to arbitrary addresses — a spam-relay / Resend-cost amplification vector. Contrast the unauthenticated email paths, which are all rate-limited: signup (`signup`, 10/hr/IP), set-password + resend, LP OTP request (`lp-otp-ip` 10 + `lp-otp-email` 5), LP verify. The company-creation admin path (`POST /api/companies`, which can also send a DD invite email) has the same gap but is admin-only, so lower still.
+
+**Why LOW, not higher:** requires an authenticated, admin-**approved** founder-owner (not an anonymous attacker), and abuse is audit-adjacent (memberships/users get created). It is genuine outbound-email-abuse surface the task explicitly asked about (item 7), just behind an auth wall.
+
+## WS57 — Rate-limit the invite endpoint (F50) — ~0.25 day
+
+**Goal:** cap invite-email volume per inviter, reusing the existing Postgres rate limiter (no Redis, no new cost line).
+
+**File:** `src/app/api/companies/[id]/members/invite/route.ts`
+
+**Step — after the OWNER/admin check (~:26), before creating anything:**
+```ts
+import { checkRateLimit } from "@/lib/rate-limit";
+// keyed by inviter user id, not IP — the abuse unit is "one account blasting invites"
+if (!(await checkRateLimit("member-invite", user.id, 20))) {
+  return NextResponse.json(
+    { error: "Too many invitations. Try again in an hour." },
+    { status: 429 }
+  );
+}
+```
+Pick the cap to sit comfortably above any real team-building session (20/hr/inviter suggested; confirm with Joseph — see decision note). Optionally apply the same guard to the admin DD-invite branch in `POST /api/companies` keyed on the admin's id.
+
+**Decision for Joseph (product):** the limit value. Recommendation: **20/hour/inviter** — well past a realistic onboarding burst, tight enough to blunt scripted abuse. Cheaply reversible (one integer). Not choosing silently since it's a UX-facing threshold.
+
+**Acceptance checklist:**
+- [ ] 21st invite within an hour from the same inviter returns 429.
+- [ ] Normal team setup (a handful of invites) is unaffected.
+- [ ] Limit is per inviter id, so one abusive owner can't rate-limit another company's owner.
+
+**UX impact:** invisible under normal use; a hard cap only a scripted abuser would hit.
+**Cost impact:** none (existing `RateLimit` table); *reduces* worst-case Resend spend.
+**Effort:** ~0.25 day.
+
+---
+
+## Verified clean (what was actually checked and found correct)
+
+So Joseph knows the scope was covered, not just where bugs were found:
+
+- **Every `src/app/api/admin/**` route calls `requireAdmin()`.** Enumerated all 55 admin route files; each imports and calls `requireAdmin` (grep-verified guard-per-file table). No admin route falls back to `requireCompanyAccess` or nothing. `companies/[id]/notes*` and `companies/[id]/remind` correctly use `requireAdmin` too (company notes are admin-only by design; an admin legitimately reaches any company's notes).
+- **Document routes — the historically buggy area — are clean this pass.** `GET/PATCH /api/documents/[id]` (`:29-37` role+company check on GET; `:78` `requireAdmin` on PATCH, F45 audit log present `:108-110`), `GET /api/documents/[id]/view` (`:24-32`, isInternal role check present), `POST /api/documents/upload` (`:62` company access), `GET /api/companies/[id]/documents` (`:12` company access + the documented own-upload isInternal carve-out `:37`), and the WS50 admin orphan routes (`orphan-scan` `:28` and `[id]/orphan` DELETE `:13`, both `requireAdmin`, delete re-verifies non-existence at `:25` before acting) — all correctly guarded, company-scoped, and isInternal-aware. The cross-company reachability test (Company A → Company B by document id) fails closed at every route: each loads the doc, then runs `requireCompanyAccess(document.companyId)`.
+- **The token-scoped share doc proxy** (`GET /api/share/[token]/doc/[docId]`, `:36-49`) correctly rejects (as 404, no existence oracle) any doc that is `isInternal` or not covered by the link's companies — the June-IDOR containment holds; it is not a general public documents endpoint.
+- **Diligence surface.** Founder A cannot read/write Company B's diligence: both `GET` and `PATCH /api/companies/[id]/diligence` gate on `requireCompanyAccess(id)` (`:54`, `:98`). `PATCH` accepts only `isUsIncorporated`/`stellarWhyText`/`stellarTimelineText` (`:115-123`) — never `completedAt`/`closedAt`/`isStellarEcosystem` (recomputed/admin-only). Promote (`POST /api/admin/diligence/[id]/promote`) is `requireAdmin` + guarded to `stage === "DILIGENCE"` (`:34`) inside a transaction (`:38-41`). The account-deletion-on-company-delete cleanup (`DELETE /api/companies/[id]`, `:161-224`) is still correctly narrowed: only `stage === "DILIGENCE"` companies (`:162`), only zero-remaining-membership users (`:194-197`), never an admin (`:203`), with F35's ShareableLink handling and reported-not-swallowed failures intact.
+- **Session/auth core.** `requireAuth` enforces `status === "APPROVED"` (`auth-guard.ts:16-18`) before any role check. `route-access.ts`'s `PUBLIC_PREFIXES` (`:41`) is unchanged from its documented set — the `"/" ` entry is an **exact** match (`:47` `pathname === "/"`), so the Feb prefix-match bypass cannot recur (and is regression-tested). No new session-bypassing pattern was added this session. `set-password` handles REJECTED tokens and expiry (`:48-61`) and is rate-limited.
+- **The "sessionless client hits middleware" family.** No route needing a public exemption is missing one, and — checking the *converse* over-exemption risk — nothing on `PUBLIC_PREFIXES` is over-broad: `/api/share`, `/api/cron`, `/api/lp`, `/brand`, `/share`, `/lp`, `/investors`, `/login`, `/signup`, `/set-password`, `/api/auth`, `/api/dev` each has its own in-route gate (token, `CRON_SECRET`, `lp_session` cookie, or is genuinely public). `/api/dev/bootstrap` is additionally hard-disabled unless `NODE_ENV !== production` **and** `ALLOW_DEV_BOOTSTRAP === "true"` (`dev/bootstrap/route.ts:11`) — safe in production.
+- **Secrets/credentials handling.** The WS49 storage diagnostics leak nothing sensitive: `test-upload` returns only a presigned URL + a `_health-check/`-prefixed key (`test-upload/route.ts:12-14`); `confirm` validates the key is `_health-check/`-prefixed before touching it (`:13-15`) and returns only success/generic-error text — no bucket name, no credentials, no object listing. `orphan-scan` returns document metadata (name/company/uploader-email/s3Key) to **admins only** — s3Key is an internal path, not a credential, and the audience is admin. No API response, log line, or client payload was found returning `S3_*`/`RESEND_API_KEY`/`CRON_SECRET`/session secrets. (`admin/settings` was already hardened in the Jul security pass to expose only booleans.)
+- **Rate-limiting coverage.** All unauthenticated email/credential paths are limited: signup, set-password (+resend, +token-status GET), LP OTP request (IP+email buckets), LP verify (IP+email). LP OTP additionally has a fail-closed per-row attempt cap and timing-safe compare (`lp/auth/verify/route.ts:45-57`). The gap is F50 (authenticated invite path).
+- **LP auth.** OTP request returns a constant generic response regardless of LP existence (`request/route.ts:11-14`), verify returns one generic error for every failure mode, increments attempts before comparing, uses `crypto.timingSafeEqual`, and sets an httpOnly/secure/sameSite cookie (`verify/route.ts:71-78`). Solid.
+- **Investor-link ownership.** `GET/DELETE /api/links/[id]` scope to `createdById` for non-admins (`links/[id]/route.ts:21-23, 53-55`).
+
+## ROADMAP bookkeeping
+
+`ROADMAP.md`'s `_Last updated_` line gains a Part 25 entry, and a `Planned`/audit forward-pointer blockquote is added at the top of the roadmap describing F48–F50 / WS55–WS57 as **found, scoped, not yet built** (newest-first, above the Part 24 pointer). The "Transactional emails" bullet under Authentication & Access gets an inline F49 annotation (the escape helper exists but is applied to only one of the email functions). No "Existing Features" bullet gains shipped-language — nothing in this Part has shipped. F48's fix, when it ships, is a security correction with no user-facing feature to describe; F49/F50 likewise fold into their existing bullets on ship.
+
+---
