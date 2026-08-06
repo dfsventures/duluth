@@ -26,13 +26,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Too many attempts. Try again in an hour." }, { status: 429 });
     }
 
-    const lp = await db.limitedPartner.findUnique({ where: { email } });
-    if (!lp) {
+    // Part 26 (WS59, D1): resolve through LpEmail rather than
+    // LimitedPartner.email — a code requested from address X is verifiable
+    // from address Y of the same LP for free, since the OTP row is keyed
+    // off lpId, not the email string.
+    const match = await db.lpEmail.findUnique({ where: { email }, select: { lpId: true } });
+    if (!match) {
       return NextResponse.json({ error: GENERIC_ERROR }, { status: 400 });
     }
 
     const otp = await db.lpOtpCode.findFirst({
-      where: { lpId: lp.id, consumedAt: null },
+      where: { lpId: match.lpId, consumedAt: null },
       orderBy: { createdAt: "desc" },
     });
     if (!otp) {
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
 
     await db.$transaction([
       db.lpOtpCode.update({ where: { id: otp.id }, data: { consumedAt: new Date() } }),
-      db.lpSession.create({ data: { token, lpId: lp.id, expiresAt } }),
+      db.lpSession.create({ data: { token, lpId: match.lpId, expiresAt } }),
     ]);
 
     const response = NextResponse.json({ ok: true });

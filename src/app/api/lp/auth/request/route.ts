@@ -29,11 +29,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Too many requests. Try again in an hour." }, { status: 429 });
     }
 
-    const lp = await db.limitedPartner.findUnique({ where: { email } });
-    if (lp) {
+    // Part 26 (WS59, D1): resolve through LpEmail rather than
+    // LimitedPartner.email so ANY of an LP's addresses can request a code.
+    // The OTP row is keyed off lpId, not the email string, so nothing
+    // downstream changes.
+    const match = await db.lpEmail.findUnique({ where: { email }, select: { lpId: true } });
+    if (match) {
       const code = newOtpCode();
       await db.lpOtpCode.create({
-        data: { lpId: lp.id, codeHash: sha256(code), expiresAt: new Date(Date.now() + OTP_TTL_MS) },
+        data: { lpId: match.lpId, codeHash: sha256(code), expiresAt: new Date(Date.now() + OTP_TTL_MS) },
       });
       try {
         await sendLpOtpEmail(email, code);
