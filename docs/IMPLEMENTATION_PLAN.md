@@ -6710,3 +6710,213 @@ So Joseph knows the scope was covered, not just where bugs were found:
 `ROADMAP.md`'s `_Last updated_` line gains a Part 25 entry, and a `Planned`/audit forward-pointer blockquote is added at the top of the roadmap describing F48–F50 / WS55–WS57 as **found, scoped, not yet built** (newest-first, above the Part 24 pointer). The "Transactional emails" bullet under Authentication & Access gets an inline F49 annotation (the escape helper exists but is applied to only one of the email functions). No "Existing Features" bullet gains shipped-language — nothing in this Part has shipped. F48's fix, when it ships, is a security correction with no user-facing feature to describe; F49/F50 likewise fold into their existing bullets on ship.
 
 ---
+
+# Part 26 — Multiple Email Addresses per LP (WS58–WS61, F51)
+
+_Requested by Joseph 2026-08-06, following a Felix feasibility investigation that was **deliberately stopped before a plan was written**, pending his direction. Joseph has now confirmed the direction — his exact answers are the locked-in decision banner below. This Part turns that into the real, file-by-file plan, re-verified against the working tree (every claim re-read against live code, not the stale scoping notes). **Planning only — no product code written; Alvin not engaged.**_
+
+## Confirmed decisions (Joseph, 2026-08-06 — locked, not to be re-litigated)
+
+- **D1 — Interpretation A: any of an LP's addresses logs into the same account with the same fund access.** Login is not restricted to a single "primary" address. All of an LP's addresses are equal for authentication purposes.
+- **D2 — Report-published notification fans out to ALL of an LP's addresses**, not just a primary, while never double-mailing the same person for the same fund.
+- **D3 — Session-revocation semantics ("the later" option): removing ONE of an LP's addresses does NOT log them out.** Only removing their **last remaining** address (i.e., the address count would drop to **zero**) revokes sessions. This is a behavior change from today, where `PATCH /api/admin/lps/[id]` nukes all sessions on **any** email edit.
+
+## Method — what was verified against the working tree
+
+Every load-bearing claim was re-read against live code before scoping:
+
+- **`LimitedPartner` today** (`prisma/schema.prisma:671–683`): `email String @unique // stored lowercased/trimmed`, `name String?`, plus relations `funds LpFundMembership[]`, `sessions LpSession[]`, `otpCodes LpOtpCode[]`. `LpOtpCode` (`:698–711`) and `LpSession` (`:713–725`) are **both `lpId`-keyed**, not email-keyed — confirming the scoping finding that sessions/OTP codes need **no change** for multi-email. `@@unique([lpId, fundId])` on `LpFundMembership` (`:694`) is the load-bearing fact behind F51 below.
+- **OTP request** (`src/app/api/lp/auth/request/route.ts:32`): `const lp = await db.limitedPartner.findUnique({ where: { email } });` — the single lookup to re-point. The code is emailed to the **requesting** address (`sendLpOtpEmail(email, code)` at `:39`), not fanned out — correct and unchanged under D1.
+- **OTP verify** (`src/app/api/lp/auth/verify/route.ts:29`): same `findUnique({ where: { email } })`, then `db.lpOtpCode.findFirst({ where: { lpId: lp.id, consumedAt: null } })` (`:34`). Since the OTP is looked up by `lpId`, a code requested from address X is verifiable from address Y of the same LP with zero extra work — exactly D1's intent, for free.
+- **Admin create** (`src/app/api/admin/lps/route.ts:47–49`): clash-check is `db.limitedPartner.findUnique({ where: { email } })` — misses any address held only as a **secondary** `LpEmail` once that table exists, so it must be re-pointed (WS60).
+- **Admin edit** (`src/app/api/admin/lps/[id]/route.ts:29–45`): on email change it clash-checks `LimitedPartner.email`, sets `data.email`, and `deleteMany({ where: { lpId: id } })` **all sessions** inside the transaction (the D3 behavior being replaced). Name-only edits skip the revocation (`:65–73` of the test confirm this).
+- **Admin UI** (`src/app/admin/lps/page.tsx`): single `Email *` `<Input>` (`:203–216`) with an `emailChangeWarning` banner (`:217–219`) whose copy ("Changing this email signs the LP out everywhere") becomes **false** under D3 and must change. Fund membership is already reconciled via a **separate** sub-route (`/api/admin/lps/[id]/funds`, `:98–111`) — the exact pattern the new address sub-routes should mirror.
+- **Fund sub-route precedent** (`src/app/api/admin/lps/[id]/funds/route.ts`): `POST` upserts a membership, `DELETE` removes one, each `requireAdmin`-gated and audit-logged (`LP_FUND_ASSIGNED` / `LP_FUND_UNASSIGNED`, `:27`, `:50`). The address sub-route copies this shape exactly.
+- **Publish notification loop** (`src/app/api/admin/reports/[id]/publish/route.ts:134–157`): `db.lpFundMembership.findMany({ where: { fundId: report.fundId }, include: { lp: { select: { email, name } } } })`, then one `sendLpReportPublishedEmail` per membership, best-effort (`try/catch`, `notified`/`failed` counters — the F12 "one bad address never blocks the rest" lesson). **A publish is scoped to exactly one report → one `report.fundId`.** See F51.
+- **All `LimitedPartner.email` / `limitedPartner` read sites** (full `grep` across `src/`): the auth routes above, the three admin routes above, the publish loop, and one **test** (`src/lib/__tests__/lp-email-change.test.ts`) that exercises the `PATCH` session-revocation — no others. **`getLp()` returns `lp.email`** (`src/lib/lp-auth.ts:92`) in its `LpContext`, but a `grep` of `src/app/lp/**` confirms **no LP-portal page ever renders `ctx.lp.email`** (the layout shows only a sign-out button; the page shows a report library). So there is **no "signed in as X" surface** to confuse when an LP logs in via a secondary address — a genuine, verified non-regression, not an assumption.
+
+## F51 — the "double-mail an LP on multiple funds" dedup concern does NOT exist in the current loop shape (assumption corrected)
+
+The task brief asked to verify, not assume, whether the publish fan-out needs dedup so "a person on multiple funds within the same publish batch isn't double-mailed for the same fund." **Verified against the code: it does not, and cannot in the current shape.** Two independent facts guarantee it:
+
+1. **A publish is single-fund.** The loop is `where: { fundId: report.fundId }` — one report belongs to exactly one fund. There is no "publish batch" spanning multiple funds; an LP on funds A and B who both publish gets two *separate* publish actions, each its own opt-in decision. Cross-fund double-mailing is structurally impossible within one publish.
+2. **`@@unique([lpId, fundId])`** means each LP has **at most one** membership row per fund, so the loop already visits each LP **exactly once**.
+
+Fanning out to that LP's addresses (WS61) sends to each of its `LpEmail` rows, and because **`LpEmail.email` is globally `@unique`**, no address can appear twice across the whole loop. **Therefore no dedup logic (no `Set`, no distinct) is required** — the fan-out is a clean nested loop. This is recorded as a finding (per the "correct assumptions you find" rule) so a future reader doesn't add defensive dedup that the invariant already makes dead code. (If a future feature ever introduces a genuinely multi-fund publish, this finding is the flag to revisit.)
+
+## Schema shape (WS58) and the `LimitedPartner.email` judgment call
+
+New additive table, mirroring the existing LP-model conventions (cuid ids, `@@map` snake_case, `onDelete: Cascade` from the parent LP, lowercased/trimmed emails):
+
+```prisma
+model LpEmail {
+  id        String   @id @default(cuid())
+  lpId      String
+  email     String   @unique // stored lowercased/trimmed; GLOBALLY unique across all LPs — preserves "two LPs can't claim the same address"
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  lp LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+
+  @@index([lpId])
+  @@map("lp_emails")
+}
+```
+
+`LimitedPartner` gains the back-relation `emails LpEmail[]`.
+
+- **JC1 — keep `LimitedPartner.email` as a synced mirror of the primary address, NOT deprecated in this Part.** The real global-uniqueness guarantee moves to `LpEmail.email @unique`; `LimitedPartner.email` becomes a denormalized convenience mirror always equal to whichever `LpEmail` has `isPrimary = true`. Rationale: `getLp()`, the admin GET, and any future display code can keep reading one scalar without a join, and the many-small-reads churn is avoided. Fully dropping the column is a later, **destructive** change needing explicit sign-off — out of scope here. **Reversal:** cheap — a follow-up WS can switch the remaining readers to `emails` and then drop the column with Joseph's approval.
+- **JC2 — `LimitedPartner.email` is made NULLABLE in this Part.** This is required, not cosmetic: D3 permits an LP to reach **zero** addresses (last one removed), and a mirror in a **`@unique` NOT NULL** column cannot represent that — worse, leaving a stale value in a unique column would **falsely occupy that address in the unique index and block re-adding it to a different LP** (a real bug, not hypothetical). Nullable-mirror = null when zero addresses; Postgres permits multiple NULLs under a unique constraint, so multiple zero-address LPs coexist cleanly. **NOT NULL → NULL is a non-destructive relaxation (no row loses data), so it stays inside the "additive-only" guardrail** — but it is flagged prominently here so Joseph can veto. **Reversal:** re-tighten to NOT NULL only after the mirror is fully retired. All three current mirror-readers already tolerate the value being absent for a logged-out LP (see WS59/WS61 notes), and after backfill every existing LP has a non-null mirror, so the relaxation changes nothing for today's data.
+- **Primary invariant** is app-enforced (in the same transactions that mutate addresses), not a DB partial-unique index — Prisma can't cleanly express "exactly one `isPrimary` per `lpId`," and the app already enforces comparable invariants elsewhere. Invariant: **for a given LP, `LimitedPartner.email` equals the `LpEmail` row with `isPrimary = true`, or is `null` iff the LP has zero addresses.**
+
+## Backfill (WS58)
+
+One `LpEmail` row per existing `LimitedPartner`, marked primary, mirroring the current `email`. Idempotent, reversible, matches the `scripts/*.sql` precedent (`migrate-roles.sql` etc., run via `psql $DATABASE_URL -f`). Per MEMORY, additive `prisma db push` against prod is the confirmed-safe workflow; the data backfill is a separate one-shot SQL step run once, after the push:
+
+```sql
+-- scripts/backfill-lp-emails.sql — run AFTER `prisma db push` adds lp_emails.
+-- Idempotent: ON CONFLICT (email) DO NOTHING means a re-run is a no-op.
+BEGIN;
+INSERT INTO "lp_emails" ("id", "lpId", "email", "isPrimary", "createdAt")
+SELECT gen_random_uuid()::text, "id", "email", true, now()
+FROM "limited_partners"
+WHERE "email" IS NOT NULL
+ON CONFLICT ("email") DO NOTHING;
+COMMIT;
+```
+
+(cuid vs `gen_random_uuid()` — the backfilled id format doesn't matter; only app-created rows need cuids for consistency, and nothing parses the id. Reversal: `DELETE FROM "lp_emails";` then re-tighten the column — the mirror is untouched by the backfill.)
+
+---
+
+## WS58 — `LpEmail` schema + backfill — ~0.25–0.5 day
+
+**Goal:** land the additive `LpEmail` table, the `emails` back-relation, the nullable-mirror relaxation (JC2), and a one-shot idempotent backfill so every existing LP owns exactly one primary `LpEmail` — with zero behavior change until WS59–WS61 read from it.
+
+**Steps**
+1. `prisma/schema.prisma` — add the `LpEmail` model above; add `emails LpEmail[]` to `LimitedPartner`; change `email String @unique` → `email String? @unique` (JC2). Keep `@unique` on the mirror.
+2. `scripts/backfill-lp-emails.sql` (new) — the idempotent `INSERT … ON CONFLICT DO NOTHING` above, with a header comment matching `migrate-roles.sql`'s usage/what-it-does style.
+3. Apply: `prisma db push` (additive + the nullable relaxation), then `psql $DATABASE_URL -f scripts/backfill-lp-emails.sql`. **Order matters** — push first (creates the table), backfill second.
+
+**Acceptance checklist**
+- [ ] `npx prisma validate` passes; `prisma db push` reports only additive changes + the `email` nullability relaxation (no column drops, no data loss warnings).
+- [ ] After backfill, `SELECT count(*) FROM limited_partners` equals `SELECT count(*) FROM lp_emails WHERE "isPrimary"`; every `lp_emails.email` matches its LP's `limited_partners.email`.
+- [ ] Re-running the backfill SQL is a no-op (0 rows inserted).
+- [ ] No `src/**` change in this WS — the app still reads `LimitedPartner.email` everywhere and behaves identically.
+
+**UX impact:** none (invisible schema + data step).
+**Cost impact:** none (one Neon table, no new service).
+
+## WS59 — Resolve OTP request/verify through `LpEmail` — ~0.25 day
+
+**Goal:** any of an LP's addresses can request and verify a code (D1), by swapping the two `LimitedPartner.findUnique({ where: { email } })` lookups for a resolution through `LpEmail` → owning LP. Sessions/OTP rows stay `lpId`-keyed (no change — verified).
+
+**Steps**
+1. `src/app/api/lp/auth/request/route.ts:32` — replace with a lookup through the address table, resolving to the owning LP:
+   ```ts
+   const match = await db.lpEmail.findUnique({ where: { email }, select: { lpId: true } });
+   if (match) {
+     const code = newOtpCode();
+     await db.lpOtpCode.create({ data: { lpId: match.lpId, /* …unchanged… */ } });
+     // …sendLpOtpEmail(email, code) unchanged — code goes to the requesting address
+   }
+   ```
+   The generic-response / no-existence-oracle behavior (JC7) is untouched — still one constant response whether or not `match` exists.
+2. `src/app/api/lp/auth/verify/route.ts:29` — same swap: `const match = await db.lpEmail.findUnique({ where: { email }, select: { lpId: true } });` then guard `if (!match)` with the existing generic error, and use `match.lpId` in the existing `lpOtpCode.findFirst({ where: { lpId: match.lpId, consumedAt: null } })`. Everything downstream (attempt increment, timing-safe compare, session create keyed by `lpId`, cookie) is unchanged.
+
+**Acceptance checklist**
+- [ ] Requesting a code from a **secondary** address of an LP creates an `LpOtpCode` for that LP and emails the code to that secondary address.
+- [ ] Verifying with a secondary address (code + that address) mints a session for the same `lpId` and lands on the same funds as the primary would.
+- [ ] Request/verify from a non-existent address still returns the identical generic response/error (no oracle) — re-verify the JC7 property holds after the swap.
+- [ ] No change to `LpSession`/`LpOtpCode` shape or keys; existing LP-auth tests still pass (extend them for the secondary-address path).
+
+**UX impact:** additive — LPs with one address see no difference; LPs with several can now use any of them. No "signed in as" surface exists to show the wrong address (verified).
+**Cost impact:** none.
+
+## WS60 — Admin address management: sub-routes, `[id]` PATCH change, UI, audit — ~0.75–1.25 day
+
+**Goal:** turn the single `Email *` input into a manage-addresses list (add / remove / set-primary), re-point the create/edit clash-check at `LpEmail`'s global uniqueness, implement the D3 "revoke only when count hits zero" rule, and audit-log each address mutation matching the existing `LP_FUND_ASSIGNED`/`LP_FUND_UNASSIGNED` convention.
+
+**Steps**
+1. **`src/app/api/admin/lps/[id]/emails/route.ts` (new)** — mirrors the `/funds` sub-route shape (`requireAdmin`, load LP, mutate, audit, best-effort). Three methods:
+   - `POST` `{ email, isPrimary? }` — validate format (reuse the in-file `EMAIL_REGEX`), lowercase/trim, **clash-check against `LpEmail` globally** (`db.lpEmail.findUnique({ where: { email } })` → "Another LP already uses this email."). Create the `LpEmail` in a transaction; if it's the LP's **first** address or `isPrimary` was requested, set it primary (clear any prior primary) and sync `LimitedPartner.email`. Audit `LP_EMAIL_ADDED` (`metadata: { email, isPrimary }`).
+   - `DELETE` `{ email }` — delete that `LpEmail`. Then, in the same transaction, apply the **D3 rule**:
+     ```ts
+     const remaining = await tx.lpEmail.findMany({ where: { lpId: id } });
+     if (remaining.length === 0) {
+       await tx.limitedPartner.update({ where: { id }, data: { email: null } });
+       await tx.lpSession.deleteMany({ where: { lpId: id } }); // ONLY here — count hit zero
+     } else if (wasPrimary) {
+       const next = remaining[0]; // oldest remaining, deterministic
+       await tx.lpEmail.update({ where: { id: next.id }, data: { isPrimary: true } });
+       await tx.limitedPartner.update({ where: { id }, data: { email: next.email } });
+     }
+     ```
+     Audit `LP_EMAIL_REMOVED` (`metadata: { email, sessionsRevoked: remaining.length === 0 }`).
+   - `PATCH` `{ email }` (set-primary) — mark that address primary, clear the old primary, sync the mirror. **Does not touch sessions** (not a removal). Audit `LP_EMAIL_PRIMARY_CHANGED` (`metadata: { email }`).
+2. **`src/app/api/admin/lps/route.ts`** — the create path (`POST`): re-point the clash-check from `limitedPartner.findUnique` to `lpEmail.findUnique({ where: { email } })`; create the LP **and** its first `LpEmail` (primary) in a transaction, keeping the mirror in sync. `GET` gains `emails` in the response (`include: { emails: { orderBy: { createdAt: "asc" } } }`, map to `{ email, isPrimary }[]`) so the list UI can render the address column and counts.
+3. **`src/app/api/admin/lps/[id]/route.ts`** — **strip email handling from `PATCH`**: it becomes **name-only** (email is now managed exclusively via the sub-route). Delete the `emailChanged` branch and its `deleteMany` session-revocation (the D3 change lives in the sub-route now). This removes the "revoke on any email edit" behavior at its source.
+4. **`src/app/admin/lps/page.tsx`** — replace the single `Email *` `<Input>` (and the now-false `emailChangeWarning` banner) with a **manage-addresses list** inside the edit modal: each row shows the address, a "Primary" badge / "Make primary" action, and a remove (×) control; an add-address input + button appends. New LP creation still takes one initial address (required). Wire the add/remove/set-primary controls to the WS60.1 sub-routes, reconciling like the existing fund-membership diff loop (`:96–111`) — or call the sub-routes directly on each control click (simpler; matches `/funds`). The table's "Email" column (`:169`) renders the primary + a "+N" count when an LP has multiple; a zero-address LP shows "No address" (JC2's null mirror). **JC3 (below)** governs the remove-last-address confirm copy.
+5. **`src/lib/__tests__/lp-email-change.test.ts`** — this test asserts the **old** revoke-on-any-email-edit behavior on `PATCH /api/admin/lps/[id]`; that behavior is being removed. **Replace it** with tests for the new sub-route: (a) removing a non-last address does **not** revoke sessions; (b) removing the **last** address sets the mirror null **and** revokes sessions in one transaction; (c) removing the primary (with others remaining) promotes the oldest remaining and re-syncs the mirror, no revocation; (d) adding an address already owned by another LP is rejected against `LpEmail`. Keep the name-only PATCH test (name changes still never touch sessions).
+
+- **JC3 — the UI warns but does not block removing the last address.** Removing the last address is allowed per D3 (it revokes sessions and nulls the mirror; the LP survives with name/funds intact and can be given a new address later), but the remove control shows a confirm dialog when it's the final address: "This is their only address — removing it signs them out and they won't be able to log in until you add another. Continue?" Non-last removals need no confirm. **Reversal:** trivial copy/guard change if Joseph later wants last-address removal blocked outright or routed to "delete LP instead."
+
+**Acceptance checklist**
+- [ ] Adding a second address to an LP succeeds; it appears in the list and (WS59) can log in.
+- [ ] Adding an address already held by **another** LP (as primary **or** secondary) is rejected with the clash message — verify against a secondary, the case the old `limitedPartner.findUnique` check missed.
+- [ ] Removing a non-primary or non-last address leaves the LP logged in (no `LpSession` rows deleted).
+- [ ] Removing the **primary** while others remain promotes the oldest remaining to primary and updates `LimitedPartner.email` to match; sessions untouched.
+- [ ] Removing the **last** address deletes all `LpSession` rows for that LP and sets `LimitedPartner.email = null`; the freed address can immediately be added to a different LP.
+- [ ] `PATCH /api/admin/lps/[id]` with a `name` change never deletes sessions; it no longer accepts `email`.
+- [ ] Each of add / remove / set-primary writes exactly one audit row (`LP_EMAIL_ADDED` / `LP_EMAIL_REMOVED` / `LP_EMAIL_PRIMARY_CHANGED`) with the address in `metadata`, and remove records `sessionsRevoked`.
+- [ ] The `/admin/lps` table shows the primary + "+N" for multi-address LPs and "No address" for a zero-address LP.
+- [ ] `lp-email-change.test.ts` replaced per WS60.5; full Vitest suite green.
+
+**UX impact:** admin-facing only. The single-email field becomes an address list (additive capability). The old, now-inaccurate "changing this email signs the LP out everywhere" warning is removed; a narrower last-address warning replaces it (JC3). No founder/LP/investor surface changes. LPs gain the ability to log in from any of their addresses.
+**Cost impact:** none (Neon + existing routes only).
+
+## WS61 — Report-published notification fan-out to all addresses — ~0.25 day
+
+**Goal:** the opt-in publish notification reaches **every** address of each LP on the fund (D2), keeping the F12 best-effort per-recipient guarantee, and — per F51 — **without** dedup logic, because the single-fund + `@@unique([lpId, fundId])` + globally-unique-`LpEmail` invariants already guarantee each address is mailed at most once.
+
+**Steps**
+1. `src/app/api/admin/reports/[id]/publish/route.ts:135–157` — include the LP's addresses and nest the send:
+   ```ts
+   const memberships = await db.lpFundMembership.findMany({
+     where: { fundId: report.fundId },
+     include: { lp: { select: { name: true, emails: { select: { email: true } } } } },
+   });
+   let notified = 0, failed = 0;
+   for (const m of memberships) {
+     for (const addr of m.lp.emails) {           // F51: no dedup needed — see the finding
+       try {
+         await sendLpReportPublishedEmail({ email: addr.email, lpName: m.lp.name, fundName: report.fund.name, reportTitle: report.title, note });
+         notified++;
+       } catch (emailError) {
+         console.error(`Failed to send LP report-published email to ${addr.email}:`, emailError);
+         failed++;
+       }
+     }
+   }
+   ```
+   `notified`/`failed` now count **addresses**, not LPs — a harmless, more-accurate semantic; the `notifyResult` in the response and the `REPORT_PUBLISHED` audit metadata carry the address-level counts. (An LP with zero addresses — WS60's edge case — contributes nothing to the loop, correctly: they can't receive anything.)
+2. Tests — extend `src/lib/__tests__/report-publish-notify.test.ts` (the existing notify test) for an LP with two addresses receiving two sends, and confirm no address is mailed twice across a multi-LP fund.
+
+**Acceptance checklist**
+- [ ] Publishing with notify on, for a fund whose LP has two addresses, sends the report-published email to **both**.
+- [ ] A failing send to one address still delivers to the LP's other addresses and to other LPs (best-effort intact); `failed` increments, publish succeeds.
+- [ ] No address is mailed twice within one publish (verified structurally by F51; asserted by the test).
+- [ ] An LP with zero addresses is silently skipped (no throw, no send).
+
+**UX impact:** LPs with multiple addresses now receive publish notifications at each — the intended behavior (D2). Single-address LPs see no change. No change to the opt-in nature of the notification.
+**Cost impact:** none new. More Resend sends **only** when an LP genuinely has multiple addresses (a handful of extra transactional emails, well within existing Resend usage) — no new cost line.
+
+## Dependency order & handoff
+
+WS58 (schema + backfill) is the hard prerequisite for all three. WS59 (auth lookup) and WS61 (fan-out) each depend only on WS58 and are independent of each other. WS60 (admin management) depends on WS58 and should land before or with WS59 so there is a UI to create second addresses to test WS59/WS61 against. Suggested sequence: **WS58 → WS60 → WS59 → WS61**.
+
+## ROADMAP bookkeeping (Part 26)
+
+`ROADMAP.md` gets a newest-first `Planned — Part 26` blockquote at the top of the Roadmap section (above the Part 24 pointer) describing WS58–WS61 / F51 as **scoped, decisions locked, not yet built** — no "Existing Features" bullet gains shipped-language (nothing has shipped). On ship, the multi-email capability folds into the existing **LP portal** bullet under Authentication & Access. No new P2/P3 table row is warranted — this is an enhancement to a shipped feature, not a new roadmap item.
+
+---
