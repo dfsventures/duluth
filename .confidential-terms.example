@@ -1,0 +1,16 @@
+# Copy this file to .confidential-terms (gitignored) and add the REAL terms,
+# one per line. The pre-commit hook (scripts/hooks/pre-commit) blocks any commit
+# whose staged additions contain one. This .example is committed; .confidential-terms
+# is NEVER committed. Matching is case-insensitive, substring, additions-only.
+#
+# Categories to populate with your real values:
+#   - portfolio company names and their known aliases
+#   - fund / vehicle names / labels
+#   - founder and LP personal names
+#   - vetted-vendor firm names and contact emails
+#
+# Example entries (synthetic — replace, do not commit real ones here):
+Acme
+AcmeHQ
+example.com
+FUND1

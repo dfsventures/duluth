@@ -134,3 +134,16 @@ Theming stays a source edit by design (not yet runtime-configurable):
 - The `LogoMark` component (`src/components/ui/logo-mark.tsx`) and the color token object at the top of `src/lib/email.ts` are the two places brand colors are centralized if you want to re-theme beyond swapping CSS variables
 
 See the Fork Configuration item in [ROADMAP.md](./ROADMAP.md) for the full history of this work.
+
+Before committing anything (fork or upstream), read the **"Confidentiality & synthetic-data convention"** at the top of `docs/IMPLEMENTATION_PLAN.md` and set up the local pre-commit guardrail — see [Confidentiality guardrail](#confidentiality-guardrail) below.
+
+## Confidentiality guardrail
+
+A local pre-commit hook (`scripts/hooks/pre-commit`) blocks a commit whose staged additions contain a term from your own gitignored `.confidential-terms` blocklist (portfolio-company names, fund/vehicle names, LP names, vendor contacts, etc.) — see the "Confidentiality & synthetic-data convention" at the top of `docs/IMPLEMENTATION_PLAN.md` for the full rule. One-time setup per clone:
+
+```bash
+git config core.hooksPath scripts/hooks
+cp .confidential-terms.example .confidential-terms   # then edit in your real terms
+```
+
+`core.hooksPath` is local repo config, not committed, so this runs once per clone. `.confidential-terms` is gitignored — the real list never ships. The hook no-ops with a note if `.confidential-terms` doesn't exist yet. A genuine false positive can be bypassed with `git commit --no-verify`; set `CONFIDENTIAL_WARN_ONLY=1` to downgrade the hook to warn-only.

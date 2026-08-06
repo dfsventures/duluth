@@ -1,0 +1,38 @@
+#!/bin/sh
+# Confidentiality guardrail (Part 28, WS65). Blocks a commit whose staged
+# additions contain a known-real-sensitive term. Terms live in a gitignored
+# .confidential-terms (never committed). Override a false positive with
+# `git commit --no-verify`. Set CONFIDENTIAL_WARN_ONLY=1 to warn instead of block.
+set -eu
+ROOT="$(git rev-parse --show-toplevel)"
+TERMS="$ROOT/.confidential-terms"
+
+if [ ! -f "$TERMS" ]; then
+  echo "note: .confidential-terms not found — confidentiality scan skipped."
+  echo "      copy .confidential-terms.example to .confidential-terms and fill in real terms."
+  exit 0
+fi
+
+# staged additions only (drop the leading '+'), excluding the diff's +++ header lines
+ADDED="$(git diff --cached --unified=0 --no-color | grep '^+' | grep -v '^+++' || true)"
+[ -n "$ADDED" ] || exit 0
+
+HIT=0
+while IFS= read -r term; do
+  case "$term" in ''|\#*) continue ;; esac      # skip blanks and comments
+  if printf '%s\n' "$ADDED" | grep -iqF -- "$term"; then
+    echo "BLOCKED: staged change adds a confidential term: \"$term\""
+    HIT=1
+  fi
+done < "$TERMS"
+
+if [ "$HIT" -eq 1 ]; then
+  echo ""
+  echo "This commit adds one or more terms from your local .confidential-terms list."
+  echo "Use a synthetic placeholder (Acme / example.com / FUND1) — see the"
+  echo "'Confidentiality & synthetic-data convention' section in docs/IMPLEMENTATION_PLAN.md."
+  [ "${CONFIDENTIAL_WARN_ONLY:-0}" = "1" ] && { echo "(warn-only: allowing commit)"; exit 0; }
+  echo "Override a genuine false positive with:  git commit --no-verify"
+  exit 1
+fi
+exit 0

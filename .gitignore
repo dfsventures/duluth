@@ -49,3 +49,7 @@ next-env.d.ts
 
 # confidential source data for the LP portal importer (WS16) — must never enter git
 *.xlsx
+
+# real confidentiality-guardrail terms (Part 28, WS65) — must never enter git;
+# see .confidential-terms.example for the format and scripts/hooks/pre-commit
+.confidential-terms

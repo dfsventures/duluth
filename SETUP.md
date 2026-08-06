@@ -148,13 +148,15 @@ The LP portal (`/lp`) needs no setup to run — its tables are dormant until an 
 
 ```bash
 # Dry-run (default) — parses, validates, and prints what WOULD be written. Touches nothing.
-npx tsx scripts/import-investment-tracker.ts ~/Downloads/"Your Investment Tracker.xlsx"
+npx tsx scripts/import-investment-tracker.ts ~/Downloads/"Your Investment Tracker.xlsx" --vehicles=A,B,C
 
 # Real run — pass --write once the dry-run report looks right.
-DATABASE_URL="<your DATABASE_URL>" npx tsx scripts/import-investment-tracker.ts <path> --write
+DATABASE_URL="<your DATABASE_URL>" npx tsx scripts/import-investment-tracker.ts <path> --vehicles=A,B,C --write
 ```
 
-**Confidentiality note (this repo is public/MIT):** the importer takes the spreadsheet path as a CLI argument pointing *outside* the repo — never commit the source file, a fixture derived from it, or its dry-run terminal output (which prints real valuations). `*.xlsx` is already in `.gitignore` as a defensive backstop. The importer is idempotent (safe to re-run; it upserts funds/companies and only creates a deal row if an identical one doesn't already exist), so a partial failure can simply be re-run with `--write` again.
+`--vehicles` is your deployment's actual fund-vehicle slugs (comma-separated, matching the spreadsheet's column headers) — pass them at run time only, never commit them. Omitting the flag falls back to a generic illustrative default that won't match a real spreadsheet.
+
+**Confidentiality note (this repo is public/MIT):** the importer takes the spreadsheet path as a CLI argument pointing *outside* the repo — never commit the source file, a fixture derived from it, its dry-run terminal output (which prints real valuations), or the real `--vehicles` value. `*.xlsx` is already in `.gitignore` as a defensive backstop. The importer is idempotent (safe to re-run; it upserts funds/companies and only creates a deal row if an identical one doesn't already exist), so a partial failure can simply be re-run with `--write` again.
 
 No new environment variables are required for the LP portal or the importer — it reuses `DATABASE_URL` and the existing Resend configuration (for the OTP email LPs receive when signing in at `/lp`).
 
@@ -165,6 +167,17 @@ No new environment variables are required for the LP portal or the importer — 
 3. In the admin dashboard (`/admin/approvals`), approve the sign-up.
 4. Check the founder's email (or the Resend dashboard) for the password-set link.
 5. Set a password and log in as the founder.
+
+## 7. Set up the confidentiality guardrail (recommended, one-time per clone)
+
+This repo is public/MIT — a local pre-commit hook blocks commits that add a term from your own gitignored blocklist (real company/fund/LP/vendor names):
+
+```bash
+git config core.hooksPath scripts/hooks
+cp .confidential-terms.example .confidential-terms   # then edit in your real terms
+```
+
+See the "Confidentiality & synthetic-data convention" at the top of `docs/IMPLEMENTATION_PLAN.md` for the full rule, and `scripts/hooks/pre-commit` for what the hook checks. `.confidential-terms` never gets committed; a false positive can be bypassed with `git commit --no-verify`.
 
 ---
 
