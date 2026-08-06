@@ -4,8 +4,6 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -16,38 +14,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (!existing) return NextResponse.json({ error: "LP not found" }, { status: 404 });
 
     const body = await request.json();
-    const data: { name?: string | null; email?: string } = {};
 
+    // Part 26/WS60: email is now managed exclusively via
+    // /api/admin/lps/[id]/emails — this route is name-only. It no longer
+    // accepts (or revokes sessions for) an email change; the D3
+    // "revoke-only-at-zero-addresses" rule lives in the sub-route.
+    const data: { name?: string | null } = {};
     if (body.name !== undefined) data.name = body.name?.trim() || null;
 
-    let emailChanged = false;
-    if (body.email !== undefined) {
-      const email = body.email?.trim().toLowerCase();
-      if (!email || !EMAIL_REGEX.test(email)) {
-        return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
-      }
-      if (email !== existing.email) {
-        const clash = await db.limitedPartner.findUnique({ where: { email } });
-        if (clash) return NextResponse.json({ error: "Another LP already uses this email." }, { status: 400 });
-        data.email = email;
-        emailChanged = true;
-      }
-    }
-
-    // Email change revokes all active sessions in the same transaction (Q10)
-    // — the old inbox must not retain access via a live cookie.
-    const lp = await db.$transaction(async (tx) => {
-      const updated = await tx.limitedPartner.update({ where: { id }, data });
-      if (emailChanged) {
-        await tx.lpSession.deleteMany({ where: { lpId: id } });
-      }
-      return updated;
-    });
+    const lp = await db.limitedPartner.update({ where: { id }, data });
 
     await logAdminAction(user!, "LP_UPDATED", {
       targetType: "LimitedPartner",
       targetId: id,
-      metadata: emailChanged ? { from: existing.email, to: lp.email, sessionsRevoked: true } : { name: lp.name },
+      metadata: { name: lp.name },
     });
     return NextResponse.json(lp);
   } catch (err) {

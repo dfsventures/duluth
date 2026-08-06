@@ -14,7 +14,10 @@ export async function GET() {
     if (error) return error;
 
     const lps = await db.limitedPartner.findMany({
-      include: { funds: { include: { fund: { select: { id: true, name: true, slug: true } } } } },
+      include: {
+        funds: { include: { fund: { select: { id: true, name: true, slug: true } } } },
+        emails: { orderBy: { createdAt: "asc" } },
+      },
       orderBy: { createdAt: "desc" },
     });
 
@@ -25,6 +28,7 @@ export async function GET() {
         name: lp.name,
         createdAt: lp.createdAt,
         funds: lp.funds.map((m) => ({ id: m.fund.id, name: m.fund.name, slug: m.fund.slug })),
+        emails: lp.emails.map((e) => ({ email: e.email, isPrimary: e.isPrimary })),
       }))
     );
   } catch (err) {
@@ -44,25 +48,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A valid email is required." }, { status: 400 });
     }
 
-    const existing = await db.limitedPartner.findUnique({ where: { email } });
+    // D1/WS60: uniqueness now lives on LpEmail, not LimitedPartner.email —
+    // this also catches a clash against another LP's SECONDARY address.
+    const existing = await db.lpEmail.findUnique({ where: { email } });
     if (existing) {
       return NextResponse.json({ error: "An LP with this email already exists." }, { status: 400 });
     }
 
     const fundIds: string[] = Array.isArray(body.fundIds) ? body.fundIds : [];
 
-    const lp = await db.limitedPartner.create({
-      data: {
-        email,
-        name: body.name?.trim() || null,
-        funds: fundIds.length > 0 ? { create: fundIds.map((fundId: string) => ({ fundId })) } : undefined,
-      },
-      include: { funds: { include: { fund: { select: { id: true, name: true, slug: true } } } } },
+    const lp = await db.$transaction(async (tx) => {
+      const created = await tx.limitedPartner.create({
+        data: {
+          email,
+          name: body.name?.trim() || null,
+          funds: fundIds.length > 0 ? { create: fundIds.map((fundId: string) => ({ fundId })) } : undefined,
+          emails: { create: { email, isPrimary: true } }, // first address is always primary
+        },
+        include: {
+          funds: { include: { fund: { select: { id: true, name: true, slug: true } } } },
+          emails: { orderBy: { createdAt: "asc" } },
+        },
+      });
+      return created;
     });
 
     await logAdminAction(user!, "LP_CREATED", { targetType: "LimitedPartner", targetId: lp.id, metadata: { email } });
     return NextResponse.json(
-      { id: lp.id, email: lp.email, name: lp.name, createdAt: lp.createdAt, funds: lp.funds.map((m) => ({ id: m.fund.id, name: m.fund.name, slug: m.fund.slug })) },
+      {
+        id: lp.id,
+        email: lp.email,
+        name: lp.name,
+        createdAt: lp.createdAt,
+        funds: lp.funds.map((m) => ({ id: m.fund.id, name: m.fund.name, slug: m.fund.slug })),
+        emails: lp.emails.map((e) => ({ email: e.email, isPrimary: e.isPrimary })),
+      },
       { status: 201 }
     );
   } catch (err) {

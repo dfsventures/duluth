@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Handshake, Plus, X, Pencil, Trash2 } from "lucide-react";
+import { Handshake, Plus, X, Pencil, Trash2, Star } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,18 @@ interface FundOption {
   slug: string;
 }
 
+interface LpEmail {
+  email: string;
+  isPrimary: boolean;
+}
+
 interface Lp {
   id: string;
-  email: string;
+  email: string | null;
   name: string | null;
   createdAt: string;
   funds: FundOption[];
+  emails: LpEmail[];
 }
 
 export default function AdminLpsPage() {
@@ -33,7 +39,11 @@ export default function AdminLpsPage() {
   const [form, setForm] = useState<{ email: string; name: string; fundIds: string[] }>({ email: "", name: "", fundIds: [] });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [emailChangeWarning, setEmailChangeWarning] = useState(false);
+
+  // WS60: address-list management state for the edit modal.
+  const [newAddress, setNewAddress] = useState("");
+  const [addressError, setAddressError] = useState("");
+  const [addressBusy, setAddressBusy] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -50,18 +60,34 @@ export default function AdminLpsPage() {
     loadData();
   }, [loadData]);
 
+  // Refetch the LP list and re-point editTarget at the refreshed row, so the
+  // address list in an open edit modal reflects a just-completed mutation
+  // without closing the modal.
+  async function refreshLps(id?: string) {
+    const res = await fetch("/api/admin/lps");
+    if (!res.ok) return;
+    const data: Lp[] = await res.json();
+    setLps(data);
+    if (id) {
+      const updated = data.find((l) => l.id === id);
+      if (updated) setEditTarget(updated);
+    }
+  }
+
   function openNew() {
     setEditTarget("new");
     setForm({ email: "", name: "", fundIds: [] });
     setSaveError("");
-    setEmailChangeWarning(false);
+    setNewAddress("");
+    setAddressError("");
   }
 
   function openEdit(lp: Lp) {
     setEditTarget(lp);
-    setForm({ email: lp.email, name: lp.name ?? "", fundIds: lp.funds.map((f) => f.id) });
+    setForm({ email: "", name: lp.name ?? "", fundIds: lp.funds.map((f) => f.id) });
     setSaveError("");
-    setEmailChangeWarning(false);
+    setNewAddress("");
+    setAddressError("");
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -82,10 +108,12 @@ export default function AdminLpsPage() {
         }
       } else {
         const lp = editTarget as Lp;
+        // WS60: email is managed via the address list below — this PATCH is
+        // name-only now.
         const res = await fetch(`/api/admin/lps/${lp.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: form.email, name: form.name || null }),
+          body: JSON.stringify({ name: form.name || null }),
         });
         if (!res.ok) {
           const d = await res.json().catch(() => null);
@@ -132,6 +160,76 @@ export default function AdminLpsPage() {
     }));
   }
 
+  async function handleAddAddress(lp: Lp) {
+    const email = newAddress.trim();
+    if (!email) return;
+    setAddressBusy(true);
+    setAddressError("");
+    try {
+      const res = await fetch(`/api/admin/lps/${lp.id}/emails`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setAddressError(d?.error ?? "Failed to add address");
+        return;
+      }
+      setNewAddress("");
+      await refreshLps(lp.id);
+    } finally {
+      setAddressBusy(false);
+    }
+  }
+
+  async function handleRemoveAddress(lp: Lp, email: string) {
+    const isLast = lp.emails.length === 1;
+    if (isLast) {
+      const ok = window.confirm(
+        "This is their only address — removing it signs them out and they won't be able to log in until you add another. Continue?"
+      );
+      if (!ok) return;
+    }
+    setAddressBusy(true);
+    setAddressError("");
+    try {
+      const res = await fetch(`/api/admin/lps/${lp.id}/emails`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setAddressError(d?.error ?? "Failed to remove address");
+        return;
+      }
+      await refreshLps(lp.id);
+    } finally {
+      setAddressBusy(false);
+    }
+  }
+
+  async function handleMakePrimary(lp: Lp, email: string) {
+    setAddressBusy(true);
+    setAddressError("");
+    try {
+      const res = await fetch(`/api/admin/lps/${lp.id}/emails`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setAddressError(d?.error ?? "Failed to set primary address");
+        return;
+      }
+      await refreshLps(lp.id);
+    } finally {
+      setAddressBusy(false);
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
@@ -163,59 +261,114 @@ export default function AdminLpsPage() {
             <Th></Th>
           </TableHead>
           <tbody>
-            {lps.map((lp) => (
-              <TableRow key={lp.id}>
-                <td className="px-4 py-2.5 font-medium">{lp.name ?? "—"}</td>
-                <td className="px-4 py-2.5 font-mono text-xs">{lp.email}</td>
-                <td className="px-4 py-2.5">
-                  <div className="flex flex-wrap gap-1">
-                    {lp.funds.length === 0 ? (
-                      <span className="text-xs text-muted-foreground">None</span>
+            {lps.map((lp) => {
+              const primary = lp.emails.find((e) => e.isPrimary) ?? lp.emails[0];
+              return (
+                <TableRow key={lp.id}>
+                  <td className="px-4 py-2.5 font-medium">{lp.name ?? "—"}</td>
+                  <td className="px-4 py-2.5 font-mono text-xs">
+                    {!primary ? (
+                      <span className="text-muted-foreground">No address</span>
                     ) : (
-                      lp.funds.map((f) => (
-                        <span key={f.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
-                          {f.slug}
-                        </span>
-                      ))
+                      <>
+                        {primary.email}
+                        {lp.emails.length > 1 && <span className="ml-1 text-muted-foreground">+{lp.emails.length - 1}</span>}
+                      </>
                     )}
-                  </div>
-                </td>
-                <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{formatDate(lp.createdAt)}</td>
-                <td className="px-4 py-2.5">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => openEdit(lp)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
-                      <Pencil className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => handleDelete(lp.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-              </TableRow>
-            ))}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex flex-wrap gap-1">
+                      {lp.funds.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">None</span>
+                      ) : (
+                        lp.funds.map((f) => (
+                          <span key={f.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
+                            {f.slug}
+                          </span>
+                        ))
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{formatDate(lp.createdAt)}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => openEdit(lp)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleDelete(lp.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </TableRow>
+              );
+            })}
           </tbody>
         </Table>
       )}
 
       {editTarget && (
-        <Modal title={editTarget === "new" ? "New LP" : `Edit — ${(editTarget as Lp).email}`} onClose={() => setEditTarget(null)}>
+        <Modal title={editTarget === "new" ? "New LP" : `Edit — ${(editTarget as Lp).name ?? (editTarget as Lp).email ?? "LP"}`} onClose={() => setEditTarget(null)}>
           <form onSubmit={handleSave} className="space-y-4">
-            <Input
-              label="Email *"
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => {
-                setForm((f) => ({ ...f, email: e.target.value }));
-                if (editTarget !== "new" && e.target.value.trim().toLowerCase() !== (editTarget as Lp).email) {
-                  setEmailChangeWarning(true);
-                } else {
-                  setEmailChangeWarning(false);
-                }
-              }}
-            />
-            {emailChangeWarning && (
-              <p className="text-xs text-ochre">Changing this email signs the LP out everywhere — their old sessions are revoked immediately.</p>
+            {editTarget === "new" ? (
+              <Input
+                label="Email *"
+                type="email"
+                required
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            ) : (
+              <div>
+                <label className="label mb-1.5 block">Addresses</label>
+                <div className="space-y-1.5">
+                  {(editTarget as Lp).emails.length === 0 && (
+                    <p className="text-xs text-muted-foreground">No address — this LP cannot log in until one is added.</p>
+                  )}
+                  {(editTarget as Lp).emails.map((e) => (
+                    <div key={e.email} className="flex items-center justify-between gap-2 rounded-sm border border-border px-2.5 py-1.5">
+                      <span className="flex items-center gap-1.5 font-mono text-xs">
+                        {e.isPrimary && <Star className="h-3.5 w-3.5 fill-current text-ochre" />}
+                        {e.email}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {!e.isPrimary && (
+                          <button
+                            type="button"
+                            disabled={addressBusy}
+                            onClick={() => handleMakePrimary(editTarget as Lp, e.email)}
+                            className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+                          >
+                            Make primary
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          disabled={addressBusy}
+                          onClick={() => handleRemoveAddress(editTarget as Lp, e.email)}
+                          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite disabled:opacity-50"
+                          title="Remove"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="Add an address"
+                    value={newAddress}
+                    onChange={(e) => setNewAddress(e.target.value)}
+                    className="input-field flex-1"
+                  />
+                  <Button type="button" variant="secondary" size="sm" disabled={addressBusy || !newAddress.trim()} onClick={() => handleAddAddress(editTarget as Lp)}>
+                    Add
+                  </Button>
+                </div>
+                {addressError && <p className="mt-1 text-xs text-laterite">{addressError}</p>}
+              </div>
             )}
             <Input label="Name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
 
