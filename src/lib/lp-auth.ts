@@ -66,7 +66,10 @@ export function isOtpUsable(
 
 export interface LpContext {
   session: { id: string; expiresAt: Date; lastUsedAt: Date };
-  lp: { id: string; email: string; name: string | null };
+  // Part 26/JC2: email is now a nullable mirror of the primary LpEmail row
+  // (null iff the LP has zero addresses). No LP-portal page renders this
+  // (verified) — kept for any future display code that wants a quick scalar.
+  lp: { id: string; email: string | null; name: string | null };
   fundIds: string[];
 }
 

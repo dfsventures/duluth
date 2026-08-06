@@ -139,6 +139,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       let notified = 0;
       let failed = 0;
       for (const m of memberships) {
+        // Part 26/JC2: the mirror is null iff the LP has zero addresses —
+        // nothing to send to. Superseded by the WS61 multi-address fan-out.
+        if (!m.lp.email) continue;
         try {
           await sendLpReportPublishedEmail({
             email: m.lp.email,

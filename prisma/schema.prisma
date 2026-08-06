@@ -670,7 +670,8 @@ model SheetSyncRun {
 
 model LimitedPartner {
   id        String   @id @default(cuid())
-  email     String   @unique // stored lowercased/trimmed
+  email     String?  @unique // Part 26/JC1-JC2: denormalized mirror of the primary LpEmail row;
+  // nullable to represent a (transient) zero-address LP after last-address removal (D3).
   name      String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -678,8 +679,25 @@ model LimitedPartner {
   funds    LpFundMembership[]
   sessions LpSession[]
   otpCodes LpOtpCode[]
+  emails   LpEmail[]
 
   @@map("limited_partners")
+}
+
+// Part 26 (WS58): an LP may hold multiple addresses; any of them can log in
+// (D1) and all receive publish notifications (D2/WS61). Globally unique
+// across all LPs — preserves "two LPs can't claim the same address".
+model LpEmail {
+  id        String   @id @default(cuid())
+  lpId      String
+  email     String   @unique // stored lowercased/trimmed; GLOBALLY unique across all LPs
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  lp LimitedPartner @relation(fields: [lpId], references: [id], onDelete: Cascade)
+
+  @@index([lpId])
+  @@map("lp_emails")
 }
 
 model LpFundMembership {
