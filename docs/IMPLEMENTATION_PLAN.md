@@ -29,6 +29,26 @@ This document is the output of a full codebase-vs-roadmap review. It has five pa
 
 ---
 
+## Confidentiality & synthetic-data convention (MUST READ before appending to this file or committing anything)
+
+_Added 2026-08-06 as Part 28's standing guardrail, after the Part 27 confidentiality audit found real DFS-internal data (F52–F57) had accumulated in this very file, in `ROADMAP.md`, in `prisma/seed.ts`, and in source. This convention exists to stop that recurring. It binds every future Felix/Alvin dispatch and any human editing the repo._
+
+**The rule.** No committed file — narrative docs (this file, `ROADMAP.md`, `README.md`, `SETUP.md`), code comments, source, seed data, or test fixtures — may contain **real DFS-specific operational identifiers**:
+
+- real portfolio-company or founder names, or any detail that identifies one (deal counts, valuations, written-off status, DD-document incidents);
+- real fund-vehicle names/labels or the exact portfolio shape (deal/company/fund counts);
+- real LP names or email addresses;
+- real vetted-vendor names, sites, or contact emails;
+- named DFS team members tied to internal process/decisions.
+
+**Write about them the way Part 27 wrote about its own findings** — by `file:line + category`, never by restating the sensitive content. When a narrative genuinely needs an example value, use a synthetic placeholder from the app's established convention: `Acme` / `AcmeHQ` for companies, `example.com` / `acme.com` for domains and emails, `FUND1`/`FUND2` (or `SPV`/`CAF` generic-shape labels only if illustrating structure, never the real set), `Jane Founder` for people. This is the same discipline already used across `src/**/__tests__/*` and by Part 27's own write-up.
+
+**Why real values are never needed in-repo.** The LP/financial-data importers (`scripts/import-investment-tracker.ts`, `scripts/backfill-rounds.ts`) already establish the ground rule: real deal amounts, valuations, and vehicle sets are read from an **external file passed as a CLI argument** (`.xlsx`, gitignored) at run time and are **never** committed. Extend that same posture to prose: the real name goes in your head or your terminal, the synthetic placeholder goes in the file.
+
+**Automated backstop.** A local pre-commit hook (Part 28, WS65) scans staged additions against a **gitignored** local blocklist of the actual real terms and blocks the commit on a match. The blocklist itself is never committed (that would just relocate the leak); a committed `.confidential-terms.example` documents its format with synthetic entries only. The hook is a safety net, not a substitute for writing synthetically in the first place.
+
+---
+
 ## Part 1 — Review Findings
 
 ### 1.1 Roadmap accuracy check
@@ -6984,5 +7004,229 @@ Real fund-vehicle labels (the seven-vehicle set and the `MISC`/aggregate buckets
 ## ROADMAP bookkeeping (Part 27)
 
 `ROADMAP.md` gets a short newest-first pointer at the top of the Roadmap section noting the confidentiality audit (F52–F57) and that remediation is a pending Joseph decision (history rewrite vs. private vs. accept), with no "Existing Features" change. The `_Last updated_` line gains a Part 27 clause. Deliberately **not** restating any of the leaked strings in `ROADMAP.md` — same file:line/category discipline as this Part.
+
+---
+
+# Part 28 — Confidentiality Remediation (Lower-Severity F54/F56/F57) + Standing Guardrail (WS62–WS65, 2026-08-06)
+
+_Planned 2026-08-06 as the follow-up to Part 27. **Context that scopes this Part:** the two HIGH findings (F52, F53) have already been fully remediated **out of band** by Joseph via a `git filter-repo` history rewrite (file content **and** commit messages scrubbed, verified clean from a fresh GitHub clone, force-pushed). That work is done and is **not** in scope here — this Part does not touch it or re-audit it. What remains are the three lower-severity code/data findings (F54 MEDIUM, F56 MEDIUM, F57 LOW) and a standing guardrail so this class of leak stops recurring._
+
+**Verification pass (2026-08-06, current post-rewrite working tree).** All three lower-severity findings were re-confirmed present before planning — the history rewrite only scrubbed F52/F53's specific company names, not these:
+
+- **F54** — `scripts/import-investment-tracker.ts:29` still hardcodes the real vehicle set in `KNOWN_VEHICLES` (7 real slugs), re-enumerated in the hard-fail message at `:111` and used as anchors/labels at `:105, :150, :191, :348, :444`. Real vehicle labels also in `README.md:42`, `prisma/schema.prisma:512` (`populated for <VEHICLE> only today`) and `:505` (a real group-label example), `src/lib/portfolio-metrics.ts:352` (`null for every fund but <VEHICLE> today`), and `src/components/fund-performance-card.tsx:33` (`for every fund except <VEHICLE> today`). Confirmed present.
+- **F56** — `prisma/seed.ts` still ships DFS's real vetted/community provider directory: `VETTED_PROVIDERS` (7 entries) + `COMMUNITY_PROVIDERS` (~20 entries), with real firm names, real websites, and ~20 real business contact emails. Confirmed present.
+- **F57** — `src/app/admin/companies/[id]/page.tsx:767` placeholder is currently `"e.g. Initech, HashrailsHQ"`. `Initech` is a synthetic value (the rewrite's incidental replacement of one original real name); `HashrailsHQ` is the second slot and its provenance is ambiguous from the working tree alone. Per the brief, **both** slots get an unambiguously-synthetic value regardless. Confirmed present.
+
+**Scope note.** All three code/data fixes live in `src/**`, `prisma/**`, and `scripts/**` — **outside Felix's docs-only edit scope**. They are specified here for **Alvin** to implement. The standing-convention artifact (the header section above, "Confidentiality & synthetic-data convention") **was written by Felix in this pass** (it is docs). The hook script (WS65) is tooling, specified below as a code sketch for Alvin to create.
+
+---
+
+## WS62 — Genericize the real fund-vehicle labels (F54)
+
+**Goal.** Remove DFS's real vehicle names from committed code/docs while keeping the importer functional for both DFS's real sheet and any fork's sheet. Fork-hygiene only; no runtime behavior change for the running app.
+
+**Product/safety decision to confirm (Q69).** The importer currently uses `KNOWN_VEHICLES` for four jobs: (1) locating the vehicle-header row by matching known slugs, (2) validating each deal's vehicle, (3) fund `sortOrder` via `indexOf`, and (4) a **hard-fail drift guard** (`:443–446`) that refuses the import if the sheet's vehicle set differs from the expected set — a deliberate safety feature Joseph relies on. Pure genericization of the constant (renaming slugs to `FUND1…`) would **break DFS's own re-import** (the sheet's real column headers no longer match) and force Joseph to locally re-edit the constant back to real names each run — reintroducing the strings in his working tree. So a straight rename is rejected. Two viable shapes:
+
+- **(A, RECOMMENDED) Pass the expected vehicle set as a CLI argument**, exactly as the xlsx path is already passed. The real slugs live only in Joseph's shell invocation (or a gitignored `.xlsx`-adjacent notes file), never in committed code; the drift guard is preserved (it validates the sheet against the passed set); the committed default is a generic illustrative set used only when no arg is given. This matches the established "real data external via CLI arg" ground rule byte-for-byte and is the cleanest fit.
+- **(B) Data-driven discovery from the sheet** — infer the vehicle columns structurally (e.g. the non-empty cells of the row directly above the "First Deal Date" label row) with no hardcoded set at all. Most fork-friendly, but **loses the drift guard** and carries real regression risk against the real sheet's exact layout (Alvin cannot test it here — the sheet is external and gitignored). Higher churn, higher risk, for a MEDIUM hygiene finding.
+
+**Felix's recommendation: (A).** It removes the real names, keeps the safety guard, and is low-risk. Flagging (B) as a genuine judgment call only because it's the strictly-more-fork-friendly end state — but the risk/reward favors (A). **Cheap reversal:** the choice is localized to `import-investment-tracker.ts`; switching A↔B later is a self-contained edit to that one script.
+
+**File-by-file steps (assuming decision A):**
+
+`scripts/import-investment-tracker.ts`
+- Replace the hardcoded `const KNOWN_VEHICLES = [...] as const;` with a runtime-resolved list. Read from a second CLI positional arg or `--vehicles=`, split on commas, trim; fall back to a generic committed default when absent:
+  ```ts
+  // Vehicle slugs are deployment-specific data — never commit the real set.
+  // Pass them at run time:  tsx import-investment-tracker.ts <path.xlsx> --vehicles=A,B,C
+  const DEFAULT_VEHICLES = ["FUND1", "FUND2", "FUND3", "MISC"] as const; // illustrative only
+  const vehArg = process.argv.find((a) => a.startsWith("--vehicles="));
+  const KNOWN_VEHICLES = vehArg
+    ? vehArg.slice("--vehicles=".length).split(",").map((s) => s.trim()).filter(Boolean)
+    : [...DEFAULT_VEHICLES];
+  ```
+  `VehicleSlug` becomes `string` (drop the `as const` tuple type; the runtime set is the source of truth). All existing `.includes(...)`, `.indexOf(...)`, `.map(...)`, and the `expectedVehicles` drift check keep working unchanged against the resolved array.
+- Rewrite the hard-fail message at `:111` to not enumerate real names: `"Could not find the vehicle-slug header row (expected the slugs passed via --vehicles)."`
+- Update the script's top-of-file usage comment / any `--help` text to document `--vehicles`.
+
+`README.md:42` — replace the parenthetical real-vehicle enumeration with a generic description, e.g. *"limited partners of the funds an admin has configured"* — drop the parenthetical list of real vehicle names entirely (it adds nothing a fork needs).
+
+`prisma/schema.prisma` — `:512` comment `populated for <VEHICLE> only today` → `populated for a single fund today (deployment-specific)`; `:505` group-label example → a generic one (`e.g. "Multi-Asset Cohort Funds"`).
+
+`src/lib/portfolio-metrics.ts:352` — comment `null for every fund but <VEHICLE> today` → `null for every fund without an override today`.
+
+`src/components/fund-performance-card.tsx:33` — comment `for every fund except <VEHICLE> today` → `for funds without a manual override`.
+
+**Also present, but deliberately NOT in WS62's forward-edit scope — the docs-narrative vehicle mentions (F54's "plus mentions in the docs").** The Part 7 and Part 15 narrative in *this file* (~30+ lines, e.g. the `1700s`, `1960s`, `2780s`, `3760s–4070s` ranges) and a line in `ROADMAP.md` still use the real vehicle labels as load-bearing technical detail (specific per-vehicle deal counts, the stale-block analysis, the Part 15 override origin). These are the same class as F52/F53: narrative in a file that is already in **git history**, where a forward edit doesn't remediate the history and a mass find-replace risks garbling technically-meaningful prose. **Recommendation:** fold these into the same `git filter-repo` scrub Joseph already ran for F52/F53 (the real vehicle slugs are a clean, well-bounded set of search strings — the drop-in continuation of that pass), rather than a hand-edit of the narrative now. Flagged as Joseph's decision, consistent with Part 27's "forward edits don't remove history" reasoning; not silently expanded into WS62. If Joseph instead wants a forward-only scrub of the working-tree narrative (accepting history stays as-is), that's a separate ~1–2 h docs-only Felix pass, easy to scope on request.
+
+**Acceptance checklist:**
+- [ ] `grep -ri` for each of the 7 real vehicle slugs across `src/**`, `prisma/**`, `scripts/**`, `README.md` returns zero hits (Alvin runs against the real list; do not paste the list into any committed file or CI log). (The docs-narrative mentions are handled separately per the note above, not by this checklist item.)
+- [ ] `import-investment-tracker.ts` type-checks and, run with `--vehicles=<real set>` against the real sheet, produces the identical import result it did before (Joseph verifies locally — external sheet).
+- [ ] Drift guard still fires when the passed set mismatches the sheet.
+- [ ] App builds; no runtime change to LP/fund pages (comments-only edits in `src/`/`prisma/`).
+
+**UX impact:** none — comments, a README sentence, and a CLI-invocation change to a one-time script. No founder/admin/LP-visible change. **Cost impact:** none. **Effort:** ~1.5–2 h (Alvin), plus a few minutes of Joseph re-running the importer to confirm.
+
+---
+
+## WS63 — Replace the real vendor directory in seed data with synthetic providers (F56)
+
+**Goal.** `prisma/seed.ts` ships obviously-synthetic example providers instead of DFS's real vetted-vendor list, so a fork's seed carries no DFS internal know-how or real contact emails.
+
+**File-by-file steps:**
+
+`prisma/seed.ts`
+- Replace the contents of `VETTED_PROVIDERS` and `COMMUNITY_PROVIDERS` with a small set (keep ~3–4 vetted + ~4–5 community so the seed still demonstrates both statuses and several `CATEGORIES`) of clearly-fictional entries using the app's established placeholder convention. Keep the `CATEGORIES` array and the `main()` upsert loops **unchanged** — only the data literals change. Example entry shape:
+  ```ts
+  {
+    type: "FIRM",
+    name: "Acme Advisory",
+    website: "https://example.com",
+    category: "Advisory & Finance",
+    description: "Example vetted provider — replace with your own directory.",
+    contactEmail: "hello@example.com",
+    country: "Exampleland",
+    city: "Example City",
+  },
+  ```
+- Use only `example.com` / `acme.com`-style domains and emails; no real firm names, sites, LinkedIn URLs, or personal names (the two `INDIVIDUAL`-type entries with real people's LinkedIn profiles must go too). Cover a handful of distinct `CATEGORIES` so the directory UI still looks populated in a fresh fork.
+- Update the closing `console.log` counts automatically follow from array length — no change needed.
+
+**Acceptance checklist:**
+- [ ] `grep` for each real vendor name / domain / contact email (Alvin runs against the real list from the working tree's prior content — but note: after the WS62/WS63 commit, the real values remain in git history; this Part does **not** rewrite history. If Joseph wants seed.ts's real vendor list scrubbed from history too, that folds into the same `filter-repo` decision he already exercised for F52/F53 — flagged, his call, not part of this WS).
+- [ ] Fresh `prisma db seed` against a scratch DB creates providers with only synthetic data.
+- [ ] Provider directory UI renders the synthetic entries across multiple categories with no empty-state.
+
+**UX impact:** none for DFS's production DB (seed is idempotent `findFirst`-guarded and only ever adds; existing real rows in prod are untouched — the seed is for fresh forks). A fork now sees example providers instead of DFS's real ones. **Cost impact:** none. **Effort:** ~1 h (Alvin).
+
+**Judgment call flagged:** the seed's real vendor list, like all Part 27 findings, is also in **git history**. WS63 cleans the working tree/forward; whether to also scrub history is the same coordinated `filter-repo` decision Joseph already made for the HIGH findings — recommend folding seed.ts's old vendor strings into that same scrub if he runs another pass, but it is explicitly out of this WS's scope.
+
+---
+
+## WS64 — Genericize the company-aliases placeholder text (F57)
+
+**Goal.** Both example values in the aliases-field placeholder are unambiguously synthetic.
+
+**File-by-file steps:**
+
+`src/app/admin/companies/[id]/page.tsx:767`
+- Change `placeholder="e.g. Initech, HashrailsHQ"` → `placeholder="e.g. Acme, AcmeHQ"` (the app's own test-fixture convention). This normalizes both slots regardless of which was real.
+
+**Acceptance checklist:**
+- [ ] Placeholder reads `e.g. Acme, AcmeHQ`; neither real company name (nor the ambiguous `HashrailsHQ`) remains.
+- [ ] `grep -ri` for the two names across `src/**` returns zero hits.
+
+**UX impact:** the greyed placeholder example in one admin-only field changes wording; no functional change. **Cost impact:** none. **Effort:** ~5 min (Alvin).
+
+---
+
+## WS65 — Standing confidentiality guardrail: convention doc (done) + pre-commit blocklist hook (Part B)
+
+**Goal.** Prevent *future* real-company/founder/deal/vendor leaks from entering committed files, so the valuable practice of writing detailed plan/audit narratives into this file can continue safely.
+
+### Part B.1 — Written convention (DONE in this pass)
+
+Felix added the **"Confidentiality & synthetic-data convention"** section to the header of this file (above Part 1). Rationale for placement: this is the file future Felix/Alvin dispatches read before appending narrative, and it's where the leaks historically accumulated, so an inline, top-of-file rule is the highest-leverage location and will concretely change what a future dispatch writes. `README.md`'s Fork Configuration area gets a one-line pointer to it (WS62 already edits README; add the pointer in the same commit) so forkers see it too. No separate `CONTRIBUTING.md` — a root file outside `docs/` would fragment the rule away from where it's actually consulted; one canonical block, referenced from README, is better than two that drift.
+
+### Part B.2 — Automated backstop: local pre-commit hook (specified for Alvin)
+
+**Design decisions, resolved:**
+
+- **Where the sensitive-terms list lives:** a **gitignored** file `.confidential-terms` at repo root, one term per line, `#` comments allowed. It is **never committed** — committing the blocklist would just relocate the leak into a tidy manifest of exactly what's sensitive. A committed **`.confidential-terms.example`** documents the format with **synthetic** entries only (`Acme`, `example.com`, `FUND1`). `.gitignore` gains `.confidential-terms` (next to the existing `*.xlsx` "must never enter git" block, which is the same posture).
+- **Hook mechanism:** a committed hook script activated via `git config core.hooksPath scripts/hooks` (a documented one-time setup step) — **no new dependency** (no husky; `package.json` is off-limits and adding a dep violates the no-new-tooling posture). The script is plain POSIX `sh` + `grep`, already present everywhere.
+- **What it scans:** **added lines only** of the staged diff (`git diff --cached --unified=0 | grep '^+'`), case-insensitive, against each blocklist term. Scanning only additions avoids flagging a term that appears in an unchanged context and lets a removal-commit through.
+- **Exceptions:** none needed. Per the established ground rule, there is **no legitimate reason for a real term to appear in a committed file** — real data stays external via CLI args. The deliberate human override is `git commit --no-verify`, documented as the escape hatch for the rare false positive (e.g. a synthetic term that happens to collide). No allowlist to maintain.
+- **Strict-block vs warn-only — GENUINE JUDGMENT CALL for Joseph (Q70):** Felix recommends **strict-block** (non-zero exit aborts the commit). In an agent-driven workflow a warning is noise that gets scrolled past; a hard block with a `--no-verify` escape is the only version that actually changes behavior. The cost is the occasional false-positive friction, cheaply escaped. If Joseph prefers, a `CONFIDENTIAL_WARN_ONLY=1` env flip can downgrade to warn — but the default should block. **Cheap reversal:** it's one `exit 1` vs `exit 0` line.
+- **The hook must not leak the term into shareable logs.** On a local pre-commit hook the output is the developer's own ephemeral terminal (fine to show the matched term to help them). The hook prints `file + line-number + matched term` locally only. It does **not** run in CI, so no risk of a term landing in a public Actions log. (A CI variant would have to redact — see the optional escalation below.)
+
+**Deliverable — `scripts/hooks/pre-commit` (code sketch for Alvin to create, `chmod +x`):**
+```sh
+#!/bin/sh
+# Confidentiality guardrail (Part 28, WS65). Blocks a commit whose staged
+# additions contain a known-real-sensitive term. Terms live in a gitignored
+# .confidential-terms (never committed). Override a false positive with
+# `git commit --no-verify`. Set CONFIDENTIAL_WARN_ONLY=1 to warn instead of block.
+set -eu
+ROOT="$(git rev-parse --show-toplevel)"
+TERMS="$ROOT/.confidential-terms"
+
+if [ ! -f "$TERMS" ]; then
+  echo "note: .confidential-terms not found — confidentiality scan skipped."
+  echo "      copy .confidential-terms.example to .confidential-terms and fill in real terms."
+  exit 0
+fi
+
+# staged additions only (drop the leading '+'), excluding the diff's +++ header lines
+ADDED="$(git diff --cached --unified=0 --no-color | grep '^+' | grep -v '^+++' || true)"
+[ -n "$ADDED" ] || exit 0
+
+HIT=0
+while IFS= read -r term; do
+  case "$term" in ''|\#*) continue ;; esac      # skip blanks and comments
+  if printf '%s\n' "$ADDED" | grep -iqF -- "$term"; then
+    echo "BLOCKED: staged change adds a confidential term: \"$term\""
+    HIT=1
+  fi
+done < "$TERMS"
+
+if [ "$HIT" -eq 1 ]; then
+  echo ""
+  echo "This commit adds one or more terms from your local .confidential-terms list."
+  echo "Use a synthetic placeholder (Acme / example.com / FUND1) — see the"
+  echo "'Confidentiality & synthetic-data convention' section in docs/IMPLEMENTATION_PLAN.md."
+  [ "${CONFIDENTIAL_WARN_ONLY:-0}" = "1" ] && { echo "(warn-only: allowing commit)"; exit 0; }
+  echo "Override a genuine false positive with:  git commit --no-verify"
+  exit 1
+fi
+exit 0
+```
+
+**Deliverable — `.confidential-terms.example` (committed; synthetic content only):**
+```
+# Copy this file to .confidential-terms (gitignored) and add the REAL terms,
+# one per line. The pre-commit hook (scripts/hooks/pre-commit) blocks any commit
+# whose staged additions contain one. This .example is committed; .confidential-terms
+# is NEVER committed. Matching is case-insensitive, substring, additions-only.
+#
+# Categories to populate with your real values:
+#   - portfolio company names and their known aliases
+#   - fund / vehicle names / labels
+#   - founder and LP personal names
+#   - vetted-vendor firm names and contact emails
+#
+# Example entries (synthetic — replace, do not commit real ones here):
+Acme
+AcmeHQ
+example.com
+FUND1
+```
+
+**Setup step (documented in README + SETUP.md by Alvin):**
+```sh
+git config core.hooksPath scripts/hooks
+cp .confidential-terms.example .confidential-terms   # then edit in the real terms
+```
+Because `core.hooksPath` is local repo config (not committed), each clone runs the one-liner once; the README note makes it part of the standard setup. `.confidential-terms` being gitignored means the real list never ships.
+
+**Optional escalation (NOT built now — flagged for Joseph if the local hook feels too bypassable):** a GitHub Actions job that scans the PR diff against the term list stored as a **repo Actions secret** (so it's never committed and is auto-masked in logs), failing the check on a match. This is un-bypassable by `--no-verify` and free (Actions already in use), but adds maintenance (the secret must be kept in sync with the local list) and risks the term appearing un-masked if the workflow echoes it wrong. Recommend shipping the local hook first; add CI only if a real bypass happens.
+
+**Acceptance checklist:**
+- [ ] `scripts/hooks/pre-commit` exists, is executable, and blocks a test commit that adds a term from a local `.confidential-terms`, while allowing one that doesn't.
+- [ ] `git commit --no-verify` bypasses (documented escape).
+- [ ] `.confidential-terms` is in `.gitignore`; `.confidential-terms.example` is committed and contains only synthetic terms.
+- [ ] README + SETUP.md document the two-line setup and reference the convention section.
+- [ ] Hook no-ops with a helpful note when `.confidential-terms` is absent (fresh clone before setup) — does not hard-fail every commit.
+
+**UX impact:** none — developer/agent tooling only; invisible to founders, admins, and LPs. **Cost impact:** none (plain `sh`/`grep`, no dependency, no service). **Effort:** ~1–1.5 h (Alvin), including README/SETUP notes.
+
+---
+
+## Part 28 — open decisions summary
+
+- **Q69 (WS62):** vehicle-set approach — **(A) CLI arg [recommended]** vs (B) data-driven discovery. Recommend A (keeps drift guard, low risk).
+- **Q70 (WS65):** hook posture — **strict-block [recommended]** vs warn-only. Recommend strict-block with `--no-verify` escape.
+- **Standing history question (not new):** WS62/WS63 clean the working tree forward; the *old* vehicle/vendor strings remain in git history. Whether to fold them into another `git filter-repo` pass (like the one already run for F52/F53) is Joseph's call — out of scope for these workstreams.
+
+**Part 28 UX impact:** none across all four workstreams. **Part 28 cost impact:** none. **Part 28 total effort:** ~4–5 h Alvin + a few minutes Joseph (importer re-run) + two Joseph decisions (Q69, Q70).
 
 ---
