@@ -764,7 +764,7 @@ export default function AdminCompanyDetailPage() {
                 <input
                   id="edit-aliases"
                   className="input-field"
-                  placeholder="e.g. Initech, HashrailsHQ"
+                  placeholder="e.g. Acme, AcmeHQ"
                   value={editForm.aliases.join(", ")}
                   onChange={(e) =>
                     setEditForm((prev) =>
