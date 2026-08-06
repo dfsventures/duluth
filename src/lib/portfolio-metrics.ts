@@ -349,7 +349,7 @@ export interface FundPerformanceOverride {
 export interface FundSnapshotPayload {
   fundName: string; // never fund.slug — finding #3
   performance: FundPerformance;
-  performanceOverride: FundPerformanceOverride | null; // Part 15 — null for every fund but CAF1 today
+  performanceOverride: FundPerformanceOverride | null; // Part 15 — null for every fund without an override today
   deals: FundSnapshotDealRow[];
 }
 

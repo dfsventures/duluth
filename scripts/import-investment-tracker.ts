@@ -10,24 +10,41 @@
  * it into a commit, PR body, or issue.
  *
  * Source: the "Deals" sheet ONLY (a clean flat table). The "IRR Calc"
- * sheet is never read — its standalone FUND4 block is stale (missing
- * every 2025-26 deal) and its ALL-aggregate block has valuation cells
- * corrupted by date-formatted numbers. See docs/IMPLEMENTATION_PLAN.md
+ * sheet is never read — its standalone single-vehicle block is stale
+ * (missing every 2025-26 deal) and its ALL-aggregate block has valuation
+ * cells corrupted by date-formatted numbers. See docs/IMPLEMENTATION_PLAN.md
  * Part 7, finding F17, for the full verification.
  *
  * Usage:
  *   # dry run (default) — parses, validates, prints the report; writes nothing
- *   npx tsx scripts/import-investment-tracker.ts <path-to-xlsx>
+ *   npx tsx scripts/import-investment-tracker.ts <path-to-xlsx> [--vehicles=A,B,C]
  *
  *   # real run against prod (env pulled per the house `vercel env pull
  *   # --environment=production` procedure; delete the pulled file after)
- *   DATABASE_URL="<from the pulled env>" npx tsx scripts/import-investment-tracker.ts <path> --write
+ *   DATABASE_URL="<from the pulled env>" npx tsx scripts/import-investment-tracker.ts <path> --vehicles=A,B,C --write
+ *
+ * --vehicles=<comma-separated slugs> — the expected fund-vehicle set for this
+ * deployment. Vehicle slugs are deployment-specific data and must never be
+ * committed (see the Confidentiality & synthetic-data convention at the top
+ * of docs/IMPLEMENTATION_PLAN.md) — pass DFS's real slugs at run time only.
+ * Omitting the flag falls back to a generic illustrative default, which will
+ * not match any real spreadsheet and will trip the drift guard below.
  */
 import * as XLSX from "xlsx";
 import { PrismaClient } from "@prisma/client";
 
-const KNOWN_VEHICLES = ["FUND1", "FUND2", "FUND3", "FUND4", "FUND5", "CAF1", "MISC"] as const;
-type VehicleSlug = (typeof KNOWN_VEHICLES)[number];
+// Vehicle slugs are deployment-specific data — never commit the real set.
+// Pass them at run time:  tsx import-investment-tracker.ts <path.xlsx> --vehicles=A,B,C
+const DEFAULT_VEHICLES = ["FUND1", "FUND2", "FUND3", "MISC"] as const; // illustrative only
+const vehArg = process.argv.find((a) => a.startsWith("--vehicles="));
+const KNOWN_VEHICLES: string[] = vehArg
+  ? vehArg
+      .slice("--vehicles=".length)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+  : [...DEFAULT_VEHICLES];
+type VehicleSlug = string;
 
 const EXPECTED_DEAL_COUNT = 76;
 const EXPECTED_COMPANY_COUNT = 50;
@@ -91,24 +108,24 @@ function findHeaderRow0(sheet: XLSX.WorkSheet): number {
 }
 
 /**
- * Find the row carrying the vehicle-slug column headers (FUND1, FUND2, ...)
- * above the deal table. The implementation briefing claimed these live in
- * columns B-H; the live file actually has them in D-J (verified 2026-07-08)
- * — so this scans for the known slugs rather than trusting either set of
- * hardcoded letters.
+ * Find the row carrying the vehicle-slug column headers (the slugs passed
+ * via --vehicles, e.g. FUND1, FUND2, ...) above the deal table. The
+ * implementation briefing claimed these live in columns B-H; the live file
+ * actually has them in D-J (verified 2026-07-08) — so this scans for the
+ * known slugs rather than trusting either set of hardcoded letters.
  */
 function findVehicleColumns(sheet: XLSX.WorkSheet, beforeRow0: number): { row0: number; cols: Record<VehicleSlug, number> } {
   for (let r0 = 0; r0 < beforeRow0; r0++) {
     const cols: Partial<Record<VehicleSlug, number>> = {};
     for (let c0 = 0; c0 < 40; c0++) {
       const v = cellValue(sheet, r0, c0);
-      if (typeof v === "string" && (KNOWN_VEHICLES as readonly string[]).includes(v.trim())) {
+      if (typeof v === "string" && KNOWN_VEHICLES.includes(v.trim())) {
         cols[v.trim() as VehicleSlug] = c0;
       }
     }
     if (Object.keys(cols).length >= 5) return { row0: r0, cols: cols as Record<VehicleSlug, number> };
   }
-  throw new Error("Could not find the vehicle-slug header row (expected FUND1/FUND2/FUND3/FUND4/FUND5/CAF1/MISC).");
+  throw new Error("Could not find the vehicle-slug header row (expected the slugs passed via --vehicles).");
 }
 
 /** Find a metadata row by its label in column A-D, within [fromRow0, toRow0]. */
@@ -188,7 +205,7 @@ function parseWorkbook(path: string): { deals: RawDeal[]; funds: FundMeta[]; ski
 
     const investmentType = investmentRaw === "Initial" ? "INITIAL" : investmentRaw === "Follow-On" ? "FOLLOW_ON" : null;
 
-    if (!vehicle || !(KNOWN_VEHICLES as readonly string[]).includes(vehicle)) {
+    if (!vehicle || !KNOWN_VEHICLES.includes(vehicle)) {
       skipped.push({ row: rowNum, reason: `Unrecognized vehicle "${vehicle}"` });
       r0++;
       continue;
@@ -419,7 +436,7 @@ async function main() {
   const path = args.find((a) => !a.startsWith("--"));
 
   if (!path) {
-    console.error("Usage: npx tsx scripts/import-investment-tracker.ts <path-to-xlsx> [--write]");
+    console.error("Usage: npx tsx scripts/import-investment-tracker.ts <path-to-xlsx> [--vehicles=A,B,C] [--write]");
     process.exit(1);
   }
 

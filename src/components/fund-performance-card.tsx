@@ -30,7 +30,7 @@ interface FundPerformanceCardProps {
    */
   showCaveat?: boolean;
   /** Part 15, WS37.5 — a fund's manual override (Q46/Q47/Q49/Q50). `null`/absent
-   * for every fund except CAF1 today; when at least one field is non-null
+   * for funds without a manual override; when at least one field is non-null
    * (JC-B), the card switches into override mode: Gross MOIC / Net TVPI /
    * Net DPI replace TVPI/DPI and Gross IRR is hidden. Invested and Implied
    * Value are unaffected either way. */

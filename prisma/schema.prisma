@@ -501,15 +501,15 @@ model MetricAlert {
 model Fund {
   id            String    @id @default(cuid())
   slug          String    @unique // import key, e.g. "FUND1" — never shown to LPs
-  name          String    // display name, editable, e.g. "FUND1" or "DFS Lab SPV I"
-  groupLabel    String?   // e.g. "African Multi-Asset Cohort Funds" (Deals sheet row 3)
+  name          String    // display name, editable, e.g. "FUND1" or "DFS Lab Fund I"
+  groupLabel    String?   // e.g. "Multi-Asset Cohort Funds" (Deals sheet row 3)
   firstDealDate DateTime?
   aumUsd        Decimal?
   sortOrder     Int       @default(0)
 
   // Part 15, WS37.1 — manual admin-entered performance overrides (Q46–Q52).
   // Generic per-fund (Q47), independently nullable so an admin can fill
-  // these in incrementally; populated for CAF1 only today. No "as of"/
+  // these in incrementally; populated for a single fund today (deployment-specific). No "as of"/
   // provenance column (Q51 — no separate staleness note; FUND_UPDATED
   // audit rows already timestamp every change if that history is ever
   // needed).
