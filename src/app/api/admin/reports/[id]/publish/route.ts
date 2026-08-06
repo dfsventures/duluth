@@ -132,28 +132,32 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // publish itself (the F12 lesson).
     let notifyResult: { notified: number; failed: number } | undefined;
     if (notify) {
+      // Part 26 (WS61, D2): fan out to every address of each LP on this
+      // fund, not just the primary. Per F51, no dedup is needed — a publish
+      // is single-fund scoped, @@unique([lpId, fundId]) means this loop
+      // visits each LP exactly once, and LpEmail.email is globally unique,
+      // so no address can appear twice across the whole loop.
       const memberships = await db.lpFundMembership.findMany({
         where: { fundId: report.fundId },
-        include: { lp: { select: { email: true, name: true } } },
+        include: { lp: { select: { name: true, emails: { select: { email: true } } } } },
       });
       let notified = 0;
       let failed = 0;
       for (const m of memberships) {
-        // Part 26/JC2: the mirror is null iff the LP has zero addresses —
-        // nothing to send to. Superseded by the WS61 multi-address fan-out.
-        if (!m.lp.email) continue;
-        try {
-          await sendLpReportPublishedEmail({
-            email: m.lp.email,
-            lpName: m.lp.name,
-            fundName: report.fund.name,
-            reportTitle: report.title,
-            note, // WS54
-          });
-          notified++;
-        } catch (emailError) {
-          console.error(`Failed to send LP report-published email to ${m.lp.email}:`, emailError);
-          failed++;
+        for (const addr of m.lp.emails) {
+          try {
+            await sendLpReportPublishedEmail({
+              email: addr.email,
+              lpName: m.lp.name,
+              fundName: report.fund.name,
+              reportTitle: report.title,
+              note, // WS54
+            });
+            notified++;
+          } catch (emailError) {
+            console.error(`Failed to send LP report-published email to ${addr.email}:`, emailError);
+            failed++;
+          }
         }
       }
       notifyResult = { notified, failed };

@@ -107,8 +107,8 @@ describe("POST /api/admin/reports/[id]/publish — notify (Q7 = B)", () => {
 
   it("emails every LP of the fund once when notify is true", async () => {
     mockLpFundMembershipFindMany.mockResolvedValue([
-      { lp: { email: "lp-a@example.com" } },
-      { lp: { email: "lp-b@example.com" } },
+      { lp: { name: "LP A", emails: [{ email: "lp-a@example.com" }] } },
+      { lp: { name: "LP B", emails: [{ email: "lp-b@example.com" }] } },
     ]);
     mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
 
@@ -122,8 +122,8 @@ describe("POST /api/admin/reports/[id]/publish — notify (Q7 = B)", () => {
 
   it("a failed send for one LP doesn't block the others or the publish itself (F12 lesson)", async () => {
     mockLpFundMembershipFindMany.mockResolvedValue([
-      { lp: { email: "bounces@example.com" } },
-      { lp: { email: "lp-good@example.com" } },
+      { lp: { name: "Bounces", emails: [{ email: "bounces@example.com" }] } },
+      { lp: { name: "Good LP", emails: [{ email: "lp-good@example.com" }] } },
     ]);
     mockSendLpReportPublishedEmail
       .mockRejectedValueOnce(new Error("bounced"))
@@ -136,6 +136,58 @@ describe("POST /api/admin/reports/[id]/publish — notify (Q7 = B)", () => {
     expect(mockFundReportUpdate).toHaveBeenCalled();
     expect(data.notifyResult).toEqual({ notified: 1, failed: 1 });
   });
+
+  // Part 26 (WS61, D2): every address of an LP gets the notification.
+  it("emails an LP with TWO addresses at both, and counts addresses not LPs", async () => {
+    mockLpFundMembershipFindMany.mockResolvedValue([
+      { lp: { name: "Multi LP", emails: [{ email: "personal@example.com" }, { email: "work@example.com" }] } },
+    ]);
+    mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
+
+    const res = await POST(req({ notify: true }), { params: Promise.resolve({ id: "report-1" }) });
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockSendLpReportPublishedEmail).toHaveBeenCalledTimes(2);
+    const sentTo = mockSendLpReportPublishedEmail.mock.calls.map((c) => c[0].email).sort();
+    expect(sentTo).toEqual(["personal@example.com", "work@example.com"]);
+    expect(data.notifyResult).toEqual({ notified: 2, failed: 0 });
+  });
+
+  // F51: single-fund scope + @@unique([lpId, fundId]) + globally-unique
+  // LpEmail.email together guarantee no address is ever mailed twice within
+  // one publish — asserted here across a multi-LP, multi-address fund.
+  it("never mails the same address twice across a multi-LP, multi-address fund", async () => {
+    mockLpFundMembershipFindMany.mockResolvedValue([
+      { lp: { name: "LP A", emails: [{ email: "a1@example.com" }, { email: "a2@example.com" }] } },
+      { lp: { name: "LP B", emails: [{ email: "b1@example.com" }] } },
+    ]);
+    mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
+
+    const res = await POST(req({ notify: true }), { params: Promise.resolve({ id: "report-1" }) });
+    const data = await res.json();
+
+    const sentTo = mockSendLpReportPublishedEmail.mock.calls.map((c) => c[0].email);
+    expect(res.status).toBe(200);
+    expect(sentTo).toHaveLength(3);
+    expect(new Set(sentTo).size).toBe(3); // no duplicates
+    expect(data.notifyResult).toEqual({ notified: 3, failed: 0 });
+  });
+
+  it("silently skips an LP with zero addresses — no throw, no send", async () => {
+    mockLpFundMembershipFindMany.mockResolvedValue([
+      { lp: { name: "No Address LP", emails: [] } },
+      { lp: { name: "Good LP", emails: [{ email: "good@example.com" }] } },
+    ]);
+    mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
+
+    const res = await POST(req({ notify: true }), { params: Promise.resolve({ id: "report-1" }) });
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(mockSendLpReportPublishedEmail).toHaveBeenCalledTimes(1);
+    expect(data.notifyResult).toEqual({ notified: 1, failed: 0 });
+  });
 });
 
 // Part 24, WS54 — optional per-publish admin note forwarded to the email fn
@@ -143,8 +195,8 @@ describe("POST /api/admin/reports/[id]/publish — notify (Q7 = B)", () => {
 describe("POST /api/admin/reports/[id]/publish — optional note (WS54)", () => {
   it("forwards the note to sendLpReportPublishedEmail for every recipient when present", async () => {
     mockLpFundMembershipFindMany.mockResolvedValue([
-      { lp: { email: "lp-a@example.com" } },
-      { lp: { email: "lp-b@example.com" } },
+      { lp: { name: "LP A", emails: [{ email: "lp-a@example.com" }] } },
+      { lp: { name: "LP B", emails: [{ email: "lp-b@example.com" }] } },
     ]);
     mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
 
@@ -160,7 +212,7 @@ describe("POST /api/admin/reports/[id]/publish — optional note (WS54)", () => 
   });
 
   it("forwards note: null when the note is absent or blank (byte-identical-when-empty contract)", async () => {
-    mockLpFundMembershipFindMany.mockResolvedValue([{ lp: { email: "lp-a@example.com" } }]);
+    mockLpFundMembershipFindMany.mockResolvedValue([{ lp: { name: "LP A", emails: [{ email: "lp-a@example.com" }] } }]);
     mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
 
     const res = await POST(req({ notify: true }), { params: Promise.resolve({ id: "report-1" }) });
@@ -186,7 +238,7 @@ describe("POST /api/admin/reports/[id]/publish — optional note (WS54)", () => 
   });
 
   it("records noteIncluded and the verbatim note on the REPORT_PUBLISHED audit row", async () => {
-    mockLpFundMembershipFindMany.mockResolvedValue([{ lp: { email: "lp-a@example.com" } }]);
+    mockLpFundMembershipFindMany.mockResolvedValue([{ lp: { name: "LP A", emails: [{ email: "lp-a@example.com" }] } }]);
     mockSendLpReportPublishedEmail.mockResolvedValue(undefined);
     const { logAdminAction } = await import("@/lib/audit");
 
