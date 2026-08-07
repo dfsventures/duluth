@@ -7225,3 +7225,251 @@ Because `core.hooksPath` is local repo config (not committed), each clone runs t
 **Part 28 UX impact:** none across all four workstreams. **Part 28 cost impact:** none. **Part 28 total effort:** ~4–5 h Alvin + a few minutes Joseph (importer re-run). Both decisions confirmed; WS62–WS65 are ready to hand to Alvin.
 
 ---
+
+# Part 29 — Founder Equity Dilution / Cap-Table Scenario Planner (WS66–WS68, 2026-08-06)
+
+> **Status: PLANNED, not built. Confirmed shape (discussed with Joseph before Felix was engaged).** A new **founder-facing** modeling tool: a founder types their own hypothetical financing assumptions from scratch and sees a stage-by-stage ownership breakdown. Original implementation of standard, well-documented SAFE-note/venture-dilution mechanics — **no external reference tool's code is copied**. Persisted to real schema (unlike the pure live-calculator that inspired it).
+>
+> **One product fork is genuinely open and needs Joseph's call before UI work starts: Q71 — one auto-saved scenario per company vs. multiple named scenarios.** It is surfaced with lettered options and a recommendation below; it changes exactly one schema line and the presence of a list page, nothing in the engine. Everything else is either confirmed shape or a flagged judgment call with a cheap reversal path.
+
+## Confirmed scope boundaries (from the pre-engagement discussion — do NOT re-litigate)
+
+1. **Standalone, self-contained.** Never reads Molly's real `Deal`/`Fund`/`PortfolioCompany` ledger (that data is admin-only and founders have zero visibility into it — deliberate, unchanged here). The founder supplies every input by hand.
+2. **Fixed three-stage structure, not arbitrary rounds.** (a) optional accelerator investment (YC-shaped: a fixed-% first tranche + an optional second tranche that converts as new money at the next round's valuation); (b) optional seed (raise amount + post-money valuation); (c) optional Series A (% sold + post-money valuation). No support for an arbitrary number of custom rounds.
+3. **Persisted, not ephemeral** — real schema, autosaved like a draft.
+4. **Full parity with the reference tool's sophistication:** multiple equal-split founders; an ESOP pool taken as a fixed % before external money; a "friends & family" SAFE group *distinct from* the pre-seed/angel SAFE group; a per-investor **MFN** toggle (an MFN investor's effective cap = the lowest cap among all **non-MFN** investors **in the same group**, computed dynamically); proportional dilution of the accelerator tranches, ESOP, and all SAFEs at each priced round; validation warnings for mathematically impossible models; and a stage-by-stage per-stakeholder breakdown.
+
+## No new F-findings
+
+This is a green-field feature; the codebase-vs-brief review turned up **no roadmap drift or contradiction to record** (the F-sequence stays at F57). Every convention the brief asked Felix to verify was confirmed by reading the code:
+
+- **Pure derived-data engine convention** — `src/lib/portfolio-metrics.ts`, `src/lib/diligence.ts`, `src/lib/share-metrics.ts`, `src/lib/report-snapshot.ts` are all no-DB, no-browser, unit-tested pure modules. The cap-table engine follows this exactly.
+- **Computed data is NOT persisted** — `portfolio-metrics.ts`'s position values are recomputed on read, never stored (only *frozen-at-publish* report snapshots are stored, which does not apply here — a scenario is always live). The engine's stage breakdown is likewise derived-on-read; only the **inputs** persist.
+- **Variable-length structured content → JSON column** — `WeeklyDigest.sections Json // DigestSection[]` is the standing precedent (also `AuditLog.metadata`, `MetricAlert.metadata`, `FundReportMention.snapshot`, `SheetSyncRun.summary`). Normalized child tables (`MetricValue`, `DigestTodo`) are used only where rows are queried/mutated independently — which a scenario's founder/investor lists never are.
+- **One-row-per-company (`CompanyDiligence`, `@@unique companyId`, explicit Save) vs. multi-row drafts (`Update`, autosave)** — the app genuinely has both, which is why Q71 is a real fork and not an obvious call.
+- **Multi-section founder form** — `src/app/diligence/page.tsx` (stacked `Card`s, `AppShell`+`PageHeader`, a success/error banner, conditional sections) is the structural model; the setup wizard (stepped) and report composer (chromeless) are not fits.
+- **Founder company-scoping** — `requireCompanyAccess(companyId)` in `src/lib/auth-guard.ts` is the uniform gate (metrics, diligence, documents all use it).
+
+## Q71 — one scenario vs. multiple named scenarios (OPEN — Joseph decides)
+
+Both patterns exist in this app, so this is a real product decision, not a default.
+
+- **Option A — exactly ONE auto-saved scenario per company.** Schema gets `@@unique([companyId])`; the page is a single self-contained editor that autosaves (draft-style). Mirrors `CompanyDiligence`. *Pro:* simplest UI (no list/new/switch/delete), least surface. *Con:* a founder can't hold "Base case" and "Optimistic seed" side by side — but comparing scenarios is the whole point of a dilution planner, so this caps the feature's value.
+- **Option B — multiple named scenarios (RECOMMENDED).** No `@@unique`; a `name` field; a lightweight list page (`/planner`) + editor (`/planner/[id]`), mirroring the `/updates` list → `/updates/[id]` split the app already ships. Founder creates/names/switches/deletes; autosave-on-existing exactly like the WS20 update-draft composer (a brand-new scenario needs an explicit first save, same as `/updates/new`). *Pro:* matches the feature's inherently comparative nature — Joseph's own "Base case vs. Optimistic seed" framing in the brief. *Con:* one extra list page + a "new" flow (modest, ~0.5 day).
+
+**Felix's recommendation: B.** The motivating use case Joseph described is comparison, the incremental cost over A is small and well-precedented (`/updates` is the exact template), and — importantly — **the schema is written so the decision flips a single line.** WS66 is authored for B; if Joseph picks A, the only deltas are: add `@@unique([companyId])`, drop the `name` column (or keep it unused), and collapse the two pages into one. So this fork does **not** block WS66/WS67 — the engine (WS67) is identical either way, and WS66's model is A-or-B with one annotated line. Only WS68's page count depends on the answer.
+
+## Confirmed judgment calls (Felix's to make; each with a cheap reversal)
+
+- **JC-CT-A — Storage shape: a single `inputs Json` blob (typed `ScenarioInput` in TS), plus a `schemaVersion Int` column.** Not per-field columns. The whole input is one form document always read/written atomically; splitting the three variable-length lists into child tables buys nothing (they're never queried across scenarios) and costs three cascade-delete relations. This is the `WeeklyDigest.sections` precedent. `schemaVersion` (start at `1`) is the cheap forward-compat hedge a JSON blob needs — a future field addition reads old rows by version. *Reversal:* additive columns can always be promoted out of the blob later; nothing is lost.
+- **JC-CT-B — Computed breakdown is never stored.** The API persists/returns only `inputs`; the stage-by-stage result is computed by the pure engine, client-side for live feedback as the founder types. This matches `portfolio-metrics.ts` (compute-on-read) and keeps stored data honest (no stale numbers). Because the engine is framework-free it imports cleanly into both the client and — if a server-side read/admin view/export is ever wanted — a route handler. *Reversal:* server-side recompute is a one-line import of the same function; add whenever needed.
+- **JC-CT-C — Name + icon + placement: "Dilution Planner", `Calculator` icon, in `founderNav` immediately after Metrics** (the analytical/modeling cluster, not the "manage your records" cluster with Profile/Documents). Deliberately **not** called "Cap Table" — this is hypothetical, self-declared modeling, not the founder's authoritative cap table, and the honest name avoids implying Molly now holds their real equity ledger. `Calculator` reads as "planner/tool"; `PieChart` is now free (retired from Deal Ledger in Part 12/WS29) and is the fallback if Joseph prefers an ownership motif. *Reversal:* label/icon are one line in `sidebar.tsx`. **Flagged for Joseph as a light preference check, not a blocker.**
+- **JC-CT-D — Founder-private, no admin UI in v1.** `requireCompanyAccess` already lets an admin read any company's data if a route is hit, but no admin-facing planner surface is built — this is self-declared hypothetical data, no more sensitive than a founder's own metrics, and nothing in the brief asks to surface it to admins or LPs. *Reversal:* an admin read view is purely additive later.
+- **JC-CT-E — Confidentiality (Part 27/28):** all engine tests and any UI placeholder/example values use synthetic data only — `Acme` / `Jane Founder` / `FUND1`, `example.com`. No real founder cap table, investor name, or valuation enters the repo. (The founder's *own runtime* inputs live in the DB like their metrics; that's fine — the rule is about *committed* files.)
+
+---
+
+## WS66 — Schema + persistence API (`CapTableScenario`) — ~0.75–1.25 day
+
+**Goal.** An additive model that stores a founder's scenario inputs as a JSON document, plus company-scoped CRUD routes. Independent of the engine (WS67) — this WS persists and returns raw `inputs` only.
+
+**File-by-file steps:**
+
+`prisma/schema.prisma` — new model (additive; `prisma db push`, additive-only, safe against prod per the established `--environment=production` pull convention):
+```prisma
+// Part 29, WS66 — founder equity-dilution scenario planner. Self-declared
+// hypothetical inputs only; never reads Deal/Fund/PortfolioCompany.
+// `inputs` is a ScenarioInput JSON document (see src/lib/cap-table.ts),
+// same variable-length-structured-content-as-JSON precedent as
+// WeeklyDigest.sections. Computed breakdown is NEVER stored (JC-CT-B).
+model CapTableScenario {
+  id            String   @id @default(cuid())
+  companyId     String
+  name          String   @default("Base case")   // Q71-B; unused/ignored under Q71-A
+  inputs        Json                              // ScenarioInput
+  schemaVersion Int      @default(1)              // JC-CT-A forward-compat
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  // Q71-A ONLY: uncomment for one-scenario-per-company.
+  // @@unique([companyId])
+  @@index([companyId])
+  @@map("cap_table_scenarios")
+}
+```
+Add the back-relations on `Company` (`capTableScenarios CapTableScenario[]`) and `User` (`capTableScenarios CapTableScenario[]`), matching how `diligence`/`memberships`/etc. are declared.
+
+`src/app/api/companies/[id]/scenarios/route.ts` (new) — `GET` (list scenarios for the company) + `POST` (create). Both open with `requireCompanyAccess(id)` and mirror the diligence route's error handling (`export const dynamic = "force-dynamic"`, try/catch, 403 via the guard). `POST` sets `createdById: user.id`, `companyId: id`, and stores the client `inputs` after **server-side shape validation** — hand-validated the same way `PATCH .../diligence` allowlists fields (do not trust the blob wholesale): assert `founders` is an array, `esopPct` a finite number in `[0,100]`, each SAFE `{amount, cap, mfn}` well-typed, optional stages well-shaped. Reject with `400` on malformed input. (Under Q71-A, `POST` becomes an upsert on `companyId`.)
+
+`src/app/api/companies/[id]/scenarios/[scenarioId]/route.ts` (new) — `GET` (one), `PATCH` (autosave — replace `inputs`/`name`, re-validated), `DELETE`. Every handler re-checks `requireCompanyAccess(id)` **and** that the scenario's `companyId === id` (defense-in-depth against an IDOR of the WS55/F48 shape — never trust the `[scenarioId]` alone). `DELETE` is Q71-B only.
+
+**Judgment calls in this WS:** JC-CT-A (JSON blob + `schemaVersion`), JC-CT-B (no stored compute). Model authored for Q71-B; the single `@@unique` line is the only A/B schema delta.
+
+**Acceptance checklist:**
+- [ ] `prisma db push` applies additively; no existing table altered destructively; existing companies unaffected (zero rows to backfill).
+- [ ] `GET`/`POST`/`PATCH`/`DELETE` all 403 a founder who isn't a member of `[id]` and a cross-company `[scenarioId]` (companyId mismatch → 404/403).
+- [ ] Malformed `inputs` (non-array founders, `esopPct` out of range, a SAFE missing `cap`) is rejected `400`, not stored.
+- [ ] Round-trip: `POST` then `GET` returns byte-identical `inputs`.
+- [ ] Route-handler unit tests in the `src/lib/__tests__/*-route.test.ts` style (synthetic data per JC-CT-E).
+
+**UX impact:** none yet — no surface renders these routes until WS68; purely additive schema + endpoints. **Cost impact:** none (one Postgres table, no new service). **Effort:** ~0.75–1.25 day (Alvin).
+
+---
+
+## WS67 — Pure calculation engine `src/lib/cap-table.ts` + tests — ~1–1.5 day
+
+**Goal.** A framework-independent, DB-free, fully unit-tested function that turns a `ScenarioInput` into the stage-by-stage ownership breakdown plus validation issues. Same posture as `portfolio-metrics.ts`/`share-metrics.ts`. **Interface + math described here; Alvin writes the implementation.**
+
+**Interface sketch (`src/lib/cap-table.ts`):**
+```ts
+export interface Founder { name: string; }          // equal split of starting equity
+export interface SafeInvestor {
+  name: string;
+  amount: number;                                    // dollars invested
+  cap: number;                                       // stated valuation cap (dollars)
+  mfn: boolean;                                       // most-favored-nation
+}
+export interface AcceleratorConfig {
+  tranche1Pct: number;                               // fixed % taken as first tranche
+  tranche2Amount?: number;                           // optional; converts as NEW money at seed post-money
+}
+export interface PricedRound { }                      // marker; see seed/seriesA below
+export interface ScenarioInput {
+  companyNameOverride?: string;
+  founders: Founder[];
+  esopPct: number;                                   // taken before external money
+  accelerator?: AcceleratorConfig;                   // stage (a), optional
+  friendsAndFamily: SafeInvestor[];                  // SAFE group #1 (own MFN scope)
+  preSeed: SafeInvestor[];                           // SAFE group #2 (own MFN scope)
+  seed?: { raiseAmount: number; postMoneyValuation: number };      // stage (b), optional
+  seriesA?: { pctSold: number; postMoneyValuation: number };       // stage (c), optional
+}
+
+export type StageId = "start" | "preRound" | "afterSeed" | "afterSeriesA";
+export type StakeholderGroup =
+  | "founder" | "esop" | "accelerator" | "ff" | "preseed" | "seed" | "seriesA";
+
+export interface StakeholderStake {
+  id: string;                                        // stable key for React
+  label: string;                                     // e.g. "Jane Founder", "ESOP", "Accelerator"
+  group: StakeholderGroup;
+  pct: number;                                       // 0–100 ownership at this stage
+}
+export interface ScenarioStage {
+  id: StageId;
+  label: string;                                     // "Starting", "After F&F + Pre-seed + ESOP + Accelerator", ...
+  enabled: boolean;                                  // false stages pass the prior stage through unchanged
+  stakeholders: StakeholderStake[];
+  total: number;                                     // Σ pct — should be ~100 (guarded)
+}
+export interface ValidationIssue {
+  level: "error" | "warning";
+  code: string;                                      // e.g. "FF_EXCEEDS_100", "PRE_ROUND_OVER_ALLOCATED"
+  message: string;
+}
+export interface ScenarioResult {
+  companyName: string;
+  stages: ScenarioStage[];
+  issues: ValidationIssue[];
+}
+
+export function computeCapTable(input: ScenarioInput): ScenarioResult;
+```
+
+**What it must compute (the mechanics — standard SAFE/venture dilution):**
+
+1. **Effective cap + MFN (compute first, per group independently).** For each SAFE group (`friendsAndFamily`, `preSeed`) **separately**: an MFN investor's effective cap = the **lowest `cap` among the non-MFN investors in that same group**; a non-MFN investor's effective cap = their own stated cap. MFN is scoped to the group — an MFN F&F investor never sees pre-seed caps and vice versa. Edge case: if a group has *no* non-MFN investor, an MFN investor falls back to their own stated cap (document this; it's the only sane definition when there's no reference floor). SAFE ownership fraction = `amount / effectiveCap`.
+
+2. **Stage `start` — founders only, equal split.** Each founder = `100 / founders.length`.
+
+3. **Stage `preRound` — after F&F + pre-seed + ESOP + accelerator tranche 1.** Allocate, as % of the company: ESOP = `esopPct`; each SAFE = `amount / effectiveCap × 100`; accelerator tranche 1 = `accelerator.tranche1Pct`. Founders share the **remainder** = `100 − (esop + acceleratorT1 + Σ all SAFE%)`, split equally. (No priced round yet, so these SAFE fractions are treated as direct pre-round ownership — the reference tool's convention.)
+
+4. **Stage `afterSeed` — seed raise (+ accelerator tranche 2 converting).** New issuance: `seedInvestorPct = seed.raiseAmount / seed.postMoneyValuation × 100`; `acceleratorT2Pct = (accelerator.tranche2Amount ?? 0) / seed.postMoneyValuation × 100`. Dilution factor `d = 1 − (seedInvestorPct + acceleratorT2Pct)/100`. Every `preRound` stakeholder's pct ×= `d`; then add a `seed` stakeholder at `seedInvestorPct`, and **add** `acceleratorT2Pct` onto the accelerator's (already-diluted) line (tranche 2 is new money, new shares — not a re-slice of tranche 1).
+
+5. **Stage `afterSeriesA` — % sold.** Every remaining stakeholder ×= `(1 − seriesA.pctSold/100)`; add a `seriesA` stakeholder at `seriesA.pctSold`. `seriesA.postMoneyValuation` is informational (drives an optional implied-$ column in the UI), not the dilution driver — the stated % sold is.
+
+6. **Disabled stages pass through.** If `accelerator`/`seed`/`seriesA` is absent, that stage carries the prior stage's stakeholders forward unchanged with `enabled: false`.
+
+**Validation issues to emit (at minimum):**
+- `error` **`FF_EXCEEDS_100`** — Σ F&F SAFE fractions alone > 100%.
+- `error` **`PRE_ROUND_OVER_ALLOCATED`** — `esop + acceleratorT1 + Σ all SAFE% > 100` (founders would go negative before any priced round).
+- `error` **`SEED_ISSUANCE_INVALID`** — `seedInvestorPct + acceleratorT2Pct ≥ 100` (seed issues ≥ the whole company).
+- `error` / guard — any negative resulting pct at any stage, `cap ≤ 0`, `amount < 0`, `postMoneyValuation ≤ 0`, `pctSold` outside `[0,100]`, `founders.length === 0`.
+- `warning` — Σ of a stage's stakeholders departs from 100 by more than a rounding epsilon (numeric-safety net).
+
+Never throw on bad input — return the issues and a best-effort (clamped) breakdown, so the UI can show *both* the partial table and the warnings, matching how `xirr` returns `null` rather than `NaN`/throwing.
+
+**Tests — `src/lib/__tests__/cap-table.test.ts` (synthetic data only, JC-CT-E):**
+- [ ] Equal founder split (2 and 3 founders).
+- [ ] ESOP-only reduces founders by exactly `esopPct`.
+- [ ] Single SAFE ownership = `amount / cap`.
+- [ ] MFN picks the lowest non-MFN cap **within its group**; a second test proves F&F-MFN ignores a lower pre-seed cap (group isolation).
+- [ ] MFN with no non-MFN peer falls back to own cap.
+- [ ] Accelerator tranche 1 only; then tranche 2 converting at seed post-money (added, not re-sliced).
+- [ ] Seed dilution factor applied to every prior stakeholder; seed line = `raise/post`.
+- [ ] Series A dilutes everyone remaining by exactly `pctSold`.
+- [ ] Every enabled stage sums to ~100 (within epsilon).
+- [ ] `FF_EXCEEDS_100`, `PRE_ROUND_OVER_ALLOCATED`, `SEED_ISSUANCE_INVALID` each fire on a crafted impossible input; a valid input yields zero `error` issues.
+- [ ] Disabled stages pass the prior stage through unchanged.
+
+**UX impact:** none (pure module, no surface). **Cost impact:** none. **Effort:** ~1–1.5 day (Alvin), most of it the test matrix.
+
+---
+
+## WS68 — Founder UI: scenario form + stage-by-stage results + sidebar entry — ~2–3 days
+
+**Goal.** A founder page to enter a scenario and see the live breakdown, in Molly's own design system (Paper/Bone/Obsidian tokens, existing `Card`/`Input`/`Button`/`Table`/`Select` components) — **not** the reference tool's styling. Structural model: `src/app/diligence/page.tsx` (stacked `Card`s, `AppShell`+`PageHeader`, success/error banner, conditional sections).
+
+**File-by-file steps:**
+
+`src/components/layout/sidebar.tsx` — add to `founderNav` after Metrics (JC-CT-C):
+```ts
+import { Calculator } from "lucide-react";
+// ...
+{ label: "Metrics", href: "/company/metrics", icon: BarChart3 },
+{ label: "Dilution Planner", href: "/planner", icon: Calculator },
+```
+
+`src/app/planner/page.tsx` (new) — **Q71-B:** the list page (mirrors `/updates/page.tsx`): the company's scenarios (name + updated date), a "New scenario" button → creates via `POST` and routes to `/planner/[id]`, per-row delete-with-confirm (the app's existing draft-delete confirm idiom). **Q71-A:** this page *is* the editor (single scenario, upsert), no list.
+
+`src/app/planner/[id]/page.tsx` (new, Q71-B) / the editor — `"use client"`, `useCompany()` for `selectedCompany.id` (same as `/diligence`). Loads inputs via `GET`, holds them in React state, **computes the breakdown live client-side by importing `computeCapTable` from `src/lib/cap-table.ts`** (JC-CT-B — instant feedback, no round-trip). Sections, each a `Card`:
+  - **Founders** — add/remove rows (name input each); equal-split is implicit (show the resulting per-founder % as a read-only hint).
+  - **ESOP** — a single `Input` (number, %, labelled "taken before external money").
+  - **Accelerator** — a checkbox "Include an accelerator investment" (the diligence conditional-card / WS11 "schedule for later" disclosure idiom) revealing `tranche1Pct` + optional `tranche2Amount`.
+  - **Friends & Family** and **Pre-seed** — two separate SAFE-list sections, each: add/remove investor rows of `{name, amount, cap, MFN checkbox}`, with the **computed effective cap shown read-only** beside the MFN toggle (recomputed live from the group's other rows).
+  - **Seed** — checkbox-gated `raiseAmount` + `postMoneyValuation`.
+  - **Series A** — checkbox-gated `pctSold` + `postMoneyValuation`.
+  - **Results** — a `Table` (the `src/components/ui/table.tsx` primitive) with one row per stakeholder and one column per **enabled** stage (Starting → After F&F+Pre-seed+ESOP+Accelerator → After Seed → After Series A), each cell an ownership %. Validation `issues` render above it as banners using the brand tokens the diligence page already uses (`border-laterite/30 bg-laterite/10 text-laterite` for `error`, the `ochre` equivalents for `warning`).
+  - **Autosave** — debounced `PATCH` on an existing scenario, matching the WS20 update-draft convention (~30s, suppressed while a manual save is in flight, ambient "Saved · time" indicator). A brand-new scenario requires an explicit first save exactly like `/updates/new` (Q71-B). Under Q71-A, autosave-only (no separate "new" state).
+
+**Reused as-is (no new endpoints beyond WS66):** `AppShell`, `PageHeader`, `Card*`, `Input`, `Button`, `Select`, `Table*`, `useCompany`, the confirm-dialog and "Saved ·" patterns.
+
+**Judgment calls:** JC-CT-C (name/icon/placement), JC-CT-B (client-side compute). Page count depends on **Q71**.
+
+**Acceptance checklist:**
+- [ ] "Dilution Planner" appears in the founder sidebar after Metrics; active-state highlight works via the existing `isActive` logic.
+- [ ] A founder can enter all four scope-4 capabilities (multi-founder, ESOP, two distinct SAFE groups with per-investor MFN, accelerator two-tranche, seed, Series A) and see the stage-by-stage table update live.
+- [ ] The MFN read-out beside a toggled investor shows the correct lowest-non-MFN-cap-in-group value and updates when a peer's cap changes.
+- [ ] Impossible inputs surface the WS67 validation banners without crashing the table.
+- [ ] Autosave persists edits (reload restores them); a new scenario needs an explicit first save (Q71-B).
+- [ ] Renders correctly at 375px per the Part 6 house patterns (scrollable results table = Pattern A; wrapping investor/founder rows = Pattern D; base `grid-cols-1` if any grid is used — the WS14.7 gotcha).
+- [ ] Founder-company-scoped: another company's scenarios are unreachable (server-enforced by WS66; the client only ever passes `selectedCompany.id`).
+
+**UX impact:** purely additive — one new founder sidebar item and its pages; nothing existing changes for founders, admins, or investor-link/LP recipients. Admins gain nothing here (JC-CT-D). **Cost impact:** none (existing Postgres + Vercel; no Anthropic/Resend/S3 calls — it's arithmetic). **Effort:** ~2–3 days (Alvin); the low end assumes Q71-A, the high end Q71-B (list page + new-flow).
+
+---
+
+## Part 29 — summary & open decision
+
+- **Q71 (OPEN, Joseph):** one auto-saved scenario per company (A) vs. multiple named scenarios (B). **Felix recommends B**; the engine (WS67) is identical either way and WS66's schema flips one line, so WS66/WS67 can proceed now and only WS68's page count waits on the answer.
+- **Light preference check (JC-CT-C), not a blocker:** name **"Dilution Planner"** + `Calculator` icon (vs. e.g. "Scenario Planner"/"Cap Table Planner", or a `PieChart` icon). Felix will proceed with "Dilution Planner" unless Joseph prefers otherwise.
+- **Confirmed judgment calls:** JSON-blob storage + `schemaVersion` (JC-CT-A), compute-never-stored (JC-CT-B), founder-private/no-admin-UI (JC-CT-D), synthetic-only test/placeholder data (JC-CT-E). All cheaply reversible.
+- **Dependency order:** WS66 (schema + routes) ∥ WS67 (engine + tests) are independent; WS68 (UI) depends on both **and** on Q71.
+- **Constraints honored:** additive-only schema, no new cost line, no UX regression (net-new surface only), synthetic data throughout committed files.
+- **Part 29 total effort:** ~4–6 days Alvin (WS66 ~1d + WS67 ~1.25d + WS68 ~2–3d), pending Q71.
+
+---
