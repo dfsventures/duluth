@@ -25,6 +25,7 @@ import {
   NotebookPen,
   ClipboardCheck,
   FolderOpen,
+  Calculator,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 import { useCompany } from "@/context/company-context";
@@ -34,6 +35,11 @@ const founderNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Updates", href: "/updates", icon: FileText },
   { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
+  // Part 29, WS68 (JC-CT-C) — sits with Metrics in the analytical/modeling
+  // cluster, not the "manage your records" cluster below. Deliberately
+  // not called "Cap Table" — this is hypothetical, self-declared
+  // modeling, not the founder's authoritative equity ledger.
+  { label: "Dilution Planner", href: "/planner", icon: Calculator },
   { label: "Investor Links", href: "/links", icon: Link2 },
   { label: "Company Profile", href: "/company/profile", icon: Building2 },
   // Part 20, WS47 — sits with Company Profile in the "manage your

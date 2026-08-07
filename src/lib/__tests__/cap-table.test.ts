@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeCapTable, type ScenarioInput } from "@/lib/cap-table";
+import { computeCapTable, effectiveCapsForGroup, type ScenarioInput } from "@/lib/cap-table";
 
 // Part 29, WS67 — pure dilution-engine tests. Synthetic data only
 // (Acme / Jane Founder / John Founder etc., per JC-CT-E) — no real
@@ -335,6 +335,23 @@ describe("computeCapTable — disabled stages pass through unchanged", () => {
     expect(afterSeed.enabled).toBe(true);
     expect(afterSeriesA.enabled).toBe(false);
     expect(afterSeriesA.stakeholders).toEqual(afterSeed.stakeholders);
+  });
+});
+
+describe("effectiveCapsForGroup — used by the WS68 editor's live MFN read-out", () => {
+  it("matches the MFN resolution used inside computeCapTable", () => {
+    const list = [
+      { name: "Investor A", amount: 10_000, cap: 2_000_000, mfn: false },
+      { name: "Investor B", amount: 10_000, cap: 1_000_000, mfn: false },
+      { name: "Investor C (MFN)", amount: 10_000, cap: 5_000_000, mfn: true },
+    ];
+    const caps = effectiveCapsForGroup(list);
+    expect(caps).toEqual([2_000_000, 1_000_000, 1_000_000]);
+  });
+
+  it("returns an empty array for an empty/undefined group", () => {
+    expect(effectiveCapsForGroup([])).toEqual([]);
+    expect(effectiveCapsForGroup(undefined)).toEqual([]);
   });
 });
 

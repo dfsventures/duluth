@@ -186,6 +186,18 @@ function finalizeStage(
   return { id, label, enabled, stakeholders: clamped, total };
 }
 
+/**
+ * Read-only view of each investor's resolved effective cap for a SAFE
+ * group (same MFN resolution computeCapTable uses internally) — exposed
+ * for the WS68 editor UI's live "computed effective cap" read-out beside
+ * an MFN toggle, so the UI never re-implements the MFN rule itself; it
+ * calls the same resolution the engine uses. Discards validation issues
+ * (the editor already gets those from computeCapTable on the full input).
+ */
+export function effectiveCapsForGroup(list: SafeInvestor[] | undefined): number[] {
+  return resolveSafeGroup(list, "investor", []).map((r) => r.effectiveCap);
+}
+
 export function computeCapTable(input: ScenarioInput): ScenarioResult {
   const issues: ValidationIssue[] = [];
   const companyName = input?.companyNameOverride?.trim() || DEFAULT_COMPANY_NAME;
