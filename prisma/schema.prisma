@@ -73,6 +73,7 @@ model User {
   providerEndorsements ProviderEndorsement[]
   createdTemplates     UpdateTemplate[]         @relation("CreatedTemplates")
   createdFundReports   FundReport[]             @relation("CreatedFundReports")
+  capTableScenarios    CapTableScenario[]
 
   @@map("users")
 }
@@ -110,6 +111,7 @@ model Company {
   metricAlerts      MetricAlert[]
   portfolioCompany  PortfolioCompany?
   diligence         CompanyDiligence?
+  capTableScenarios CapTableScenario[]
 
   @@map("companies")
 }
@@ -131,6 +133,28 @@ model CompanyDiligence {
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_diligence")
+}
+
+// Part 29, WS66 — founder equity-dilution scenario planner. Self-declared
+// hypothetical inputs only; never reads Deal/Fund/PortfolioCompany.
+// `inputs` is a ScenarioInput JSON document (see src/lib/cap-table.ts),
+// same variable-length-structured-content-as-JSON precedent as
+// WeeklyDigest.sections. Computed breakdown is NEVER stored (JC-CT-B).
+model CapTableScenario {
+  id            String   @id @default(cuid())
+  companyId     String
+  name          String   @default("Base case")   // Q71-B: multiple named scenarios per company
+  inputs        Json                              // ScenarioInput
+  schemaVersion Int      @default(1)              // JC-CT-A forward-compat
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  @@index([companyId])
+  @@map("cap_table_scenarios")
 }
 
 // ─── User <-> Company ─────────────────────────────────────
