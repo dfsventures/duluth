@@ -150,6 +150,10 @@ export default function AdminCompanyDetailPage() {
   const companyId = params.id as string;
 
   const [company, setCompany] = useState<Company | null>(null);
+  // Part 31, WS79 — read-only, from the new admin-only
+  // GET /api/admin/companies/[id] (never the shared, founder-reachable
+  // GET /api/companies/[id] — D5).
+  const [portfolioCompany, setPortfolioCompany] = useState<{ id: string; name: string } | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -223,6 +227,17 @@ export default function AdminCompanyDetailPage() {
     }
   }, [companyId]);
 
+  const loadPortfolioLink = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/companies/${companyId}`);
+      if (!res.ok) return; // non-fatal — the read-only line just stays hidden
+      const data = await res.json();
+      setPortfolioCompany(data.portfolioCompany ?? null);
+    } catch {
+      // Non-fatal — secondary display-only data.
+    }
+  }, [companyId]);
+
   const loadUpdates = useCallback(async () => {
     try {
       const res = await fetch(`/api/companies/${companyId}/updates`);
@@ -290,12 +305,12 @@ export default function AdminCompanyDetailPage() {
   useEffect(() => {
     async function fetchAll() {
       await loadCompany();
-      await Promise.all([loadUpdates(), loadMetrics(), loadDocuments(), loadMembers(), loadNotes()]);
+      await Promise.all([loadUpdates(), loadMetrics(), loadDocuments(), loadMembers(), loadNotes(), loadPortfolioLink()]);
       setLoading(false);
     }
 
     fetchAll();
-  }, [loadCompany, loadUpdates, loadMetrics, loadDocuments, loadMembers, loadNotes]);
+  }, [loadCompany, loadUpdates, loadMetrics, loadDocuments, loadMembers, loadNotes, loadPortfolioLink]);
 
   function updateEditField(field: keyof Company, value: string | number | null) {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -890,6 +905,16 @@ export default function AdminCompanyDetailPage() {
                   <span>Reminders: Off</span>
                 )}
               </div>
+              {portfolioCompany && (
+                <div className="flex items-center gap-1.5 text-sm">
+                  <Link
+                    href={`/admin/portfolio/${portfolioCompany.id}`}
+                    className="flex items-center gap-1 text-primary hover:underline"
+                  >
+                    Portfolio: {portfolioCompany.name} →
+                  </Link>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
