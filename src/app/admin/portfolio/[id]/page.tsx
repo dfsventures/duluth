@@ -754,7 +754,26 @@ export default function AdminPortfolioCompanyPage() {
           <TrendingUp className="h-4 w-4" />
           Valuation history
         </h3>
-        <form onSubmit={handleRecordMark} className="mb-4 rounded-md border border-border bg-card p-3">
+        {data.marks.length === 0 ? (
+          <EmptyState icon={<TrendingUp className="h-6 w-6" />} title="No valuation marks yet" />
+        ) : (
+          <div className="mb-4 space-y-2">
+            {data.marks.map((m) => (
+              <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="font-medium">${m.valuationUsd.toLocaleString()}</span>
+                  <span className="text-xs text-muted-foreground">{formatDate(m.asOf)}</span>
+                  {m.source === "BACKFILL" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">backfilled</span>}
+                  {m.source === "SHEET" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">from sheet</span>}
+                </div>
+                <button onClick={() => handleDeleteMark(m.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete (history only)">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <form onSubmit={handleRecordMark} className="rounded-md border border-border bg-card p-3">
           <p className="mb-2 text-xs text-muted-foreground">Recording a mark updates the current valuation on all of this company&apos;s deals.</p>
           <div className="flex flex-wrap items-end gap-2">
             <Input
@@ -782,25 +801,6 @@ export default function AdminPortfolioCompanyPage() {
           </div>
           {markError && <p className="mt-2 text-xs text-laterite">{markError}</p>}
         </form>
-        {data.marks.length === 0 ? (
-          <EmptyState icon={<TrendingUp className="h-6 w-6" />} title="No valuation marks yet" />
-        ) : (
-          <div className="space-y-2">
-            {data.marks.map((m) => (
-              <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
-                <div className="flex flex-wrap items-center gap-3 text-sm">
-                  <span className="font-medium">${m.valuationUsd.toLocaleString()}</span>
-                  <span className="text-xs text-muted-foreground">{formatDate(m.asOf)}</span>
-                  {m.source === "BACKFILL" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">backfilled</span>}
-                  {m.source === "SHEET" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">from sheet</span>}
-                </div>
-                <button onClick={() => handleDeleteMark(m.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete (history only)">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {showRoundModal && (

@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, SortableTh, TableRow } from "@/components/ui/table";
 import { Select } from "@/components/ui/select";
 import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
+import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { formatDate } from "@/lib/utils";
 import { parseContactsCSV } from "@/lib/csv";
 
@@ -490,12 +491,16 @@ function AdminPortfolioPageInner() {
           </button>
         </div>
       )}
-      <p className="mb-6 text-sm text-muted-foreground">
-        CSV columns: <code className="rounded bg-muted px-1">company</code>,{" "}
-        <code className="rounded bg-muted px-1">name</code>, <code className="rounded bg-muted px-1">email</code>, optional{" "}
-        <code className="rounded bg-muted px-1">role</code>. <code className="rounded bg-muted px-1">company</code> must match an
-        existing portfolio company — unmatched rows are reported, never created.
-      </p>
+      <div className="mb-6">
+        <ComposerDisclosure label="CSV format">
+          <p className="text-sm text-muted-foreground">
+            CSV columns: <code className="rounded bg-muted px-1">company</code>,{" "}
+            <code className="rounded bg-muted px-1">name</code>, <code className="rounded bg-muted px-1">email</code>, optional{" "}
+            <code className="rounded bg-muted px-1">role</code>. <code className="rounded bg-muted px-1">company</code> must match an
+            existing portfolio company — unmatched rows are reported, never created.
+          </p>
+        </ComposerDisclosure>
+      </div>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>

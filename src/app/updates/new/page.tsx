@@ -303,7 +303,7 @@ export default function NewUpdatePage() {
               }}
               className="w-full max-w-xs border-0 bg-transparent p-0 text-sm text-muted-foreground focus:outline-none focus:ring-0"
             >
-              <option value="">Start from a template ▾</option>
+              <option value="">Start from a template</option>
               {templates.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}

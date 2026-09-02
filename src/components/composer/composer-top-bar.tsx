@@ -62,7 +62,7 @@ export function ComposerTopBar({
         {saveStateLabel && <span className="normal-case tracking-normal text-muted-foreground/80">{saveStateLabel}</span>}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {secondaryActions}
         <Button size="sm" disabled={publishDisabled || publishing} onClick={onPublishClick}>
           {publishing ? "Publishing..." : publishLabel}

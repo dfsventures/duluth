@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { formatDate, daysSince } from "@/lib/utils";
 
 interface Company {
@@ -238,12 +239,16 @@ export default function AdminCompaniesPage() {
       )}
 
       {/* CSV format hint */}
-      <p className="mb-6 text-sm text-muted-foreground">
-        To bulk import, upload a CSV with a{" "}
-        <code className="rounded bg-muted px-1 text-xs">name</code> column and optional{" "}
-        <code className="rounded bg-muted px-1 text-xs">url</code> column. Founders fill in
-        remaining details after gaining access.
-      </p>
+      <div className="mb-6">
+        <ComposerDisclosure label="CSV format">
+          <p className="text-sm text-muted-foreground">
+            To bulk import, upload a CSV with a{" "}
+            <code className="rounded bg-muted px-1 text-xs">name</code> column and optional{" "}
+            <code className="rounded bg-muted px-1 text-xs">url</code> column. Founders fill in
+            remaining details after gaining access.
+          </p>
+        </ComposerDisclosure>
+      </div>
 
       {/* Search */}
       <div className="mb-6">
