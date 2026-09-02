@@ -24,11 +24,48 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data.name = name;
     }
     if (body.country !== undefined) data.country = body.country?.trim() || null;
-    if (body.companyId !== undefined) data.companyId = body.companyId || null;
+
+    // Part 31, WS76.4 (F66) — the companyId branch used to hand `next`
+    // straight to Prisma, so an unknown id (FK violation) or an
+    // already-linked one (P2002 on the @unique constraint, reachable
+    // whenever two co-founders sign up separately — D6) both fell into
+    // the generic catch below and surfaced as an opaque 500. Validated
+    // up front instead, with copy naming the actual conflict.
+    if (body.companyId !== undefined) {
+      const next = body.companyId || null;
+      if (next) {
+        const target = await db.company.findUnique({
+          where: { id: next },
+          select: { id: true, name: true, portfolioCompany: { select: { id: true, name: true } } },
+        });
+        if (!target) {
+          return NextResponse.json({ error: "That company no longer exists." }, { status: 404 });
+        }
+        if (target.portfolioCompany && target.portfolioCompany.id !== id) {
+          return NextResponse.json(
+            { error: `${target.name} is already linked to ${target.portfolioCompany.name}.` },
+            { status: 409 }
+          );
+        }
+      }
+      data.companyId = next;
+    }
 
     const portfolioCompany = await db.portfolioCompany.update({ where: { id }, data });
 
     await logAdminAction(user!, "PORTCO_UPDATED", { targetType: "PortfolioCompany", targetId: id, metadata: data });
+
+    // JC-LK-D — two new audit actions in addition to PORTCO_UPDATED above,
+    // written only when the link actually changed (not on a no-op PATCH
+    // that merely re-sent the same companyId).
+    if (body.companyId !== undefined && existing.companyId !== data.companyId) {
+      await logAdminAction(user!, data.companyId ? "PORTCO_LINKED" : "PORTCO_UNLINKED", {
+        targetType: "PortfolioCompany",
+        targetId: id,
+        metadata: { companyId: data.companyId, previousCompanyId: existing.companyId },
+      });
+    }
+
     return NextResponse.json(portfolioCompany);
   } catch (err) {
     console.error("PATCH /api/admin/portfolio-companies/[id] error:", err);

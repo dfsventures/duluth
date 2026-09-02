@@ -4,10 +4,33 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { approvedCompanyFilter } from "@/lib/company-filters";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const { error } = await requireAdmin();
     if (error) return error;
+
+    // Part 31, WS76.3 (JC-LK-F) — opt-in only. approvedCompanyFilter hides
+    // pending-signup and diligence companies from this endpoint's default
+    // response on purpose (two shipped surfaces depend on that). A link
+    // picker needs to see exactly the companies the default hides — a
+    // brand-new signup is the most common thing an admin needs to link —
+    // so `?linkable=1` bypasses the filter and returns a minimal shape.
+    // The default (no param) response is byte-identical to before.
+    const { searchParams } = new URL(request.url);
+    if (searchParams.get("linkable") === "1") {
+      const companies = await db.company.findMany({
+        orderBy: { createdAt: "desc" },
+        select: { id: true, name: true, createdAt: true, portfolioCompany: { select: { id: true } } },
+      });
+      return NextResponse.json(
+        companies.map((c) => ({
+          id: c.id,
+          name: c.name,
+          createdAt: c.createdAt,
+          portfolioCompanyId: c.portfolioCompany?.id ?? null,
+        }))
+      );
+    }
 
     const companies = await db.company.findMany({
       where: approvedCompanyFilter,
