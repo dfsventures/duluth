@@ -44,6 +44,7 @@ function AdminReportsPageInner() {
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [fundFilter, setFundFilter] = useState(searchParams.get("fundId") ?? "");
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   const [showNew, setShowNew] = useState(false);
   const [newFundId, setNewFundId] = useState("");
@@ -85,6 +86,12 @@ function AdminReportsPageInner() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const filteredReports = reports.filter((r) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return r.title.toLowerCase().includes(term) || r.fund.name.toLowerCase().includes(term);
+  });
 
   function openNew() {
     setNewFundId(fundFilter || funds[0]?.id || "");
@@ -145,6 +152,16 @@ function AdminReportsPageInner() {
         </Select>
       </div>
 
+      {!loading && reports.length > 0 && (
+        <div className="mb-6">
+          <Input
+            placeholder="Search by report title or fund..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
@@ -153,9 +170,11 @@ function AdminReportsPageInner() {
         </div>
       ) : reports.length === 0 ? (
         <EmptyState icon={<FileText className="h-8 w-8" />} title="No reports yet" description="Create the first fund report." />
+      ) : filteredReports.length === 0 ? (
+        <EmptyState icon={<FileText className="h-8 w-8" />} title="No matches" description="Try a different search term." />
       ) : (
         <div className="space-y-2">
-          {reports.map((r) => (
+          {filteredReports.map((r) => (
             <Link
               key={r.id}
               href={`/admin/reports/${r.id}`}

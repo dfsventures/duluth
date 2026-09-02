@@ -90,6 +90,7 @@ export default function AdminLinksPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [search, setSearch] = useState("");
 
   const loadData = useCallback(async () => {
     try {
@@ -220,6 +221,13 @@ export default function AdminLinksPage() {
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   }
+
+  const filteredLinks = links.filter((link) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    if ((link.label ?? "").toLowerCase().includes(term)) return true;
+    return link.companies.some((c) => c.company.name.toLowerCase().includes(term));
+  });
 
   // Group updates by company for display in the picker
   const updatesByCompany = publishedUpdates.reduce<Record<string, { company: PublishedUpdate["company"]; updates: PublishedUpdate[] }>>(
@@ -431,8 +439,19 @@ export default function AdminLinksPage() {
           action={<Button size="sm" onClick={() => setShowForm(true)}><Plus className="mr-2 h-4 w-4" />New Link</Button>}
         />
       ) : (
+        <>
+          <div className="mb-6">
+            <Input
+              placeholder="Search by label or company..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {filteredLinks.length === 0 ? (
+            <EmptyState icon={<Link2 className="h-10 w-10" />} title="No matches" description="Try a different search term." />
+          ) : (
         <div className="space-y-4">
-          {links.map((link) => {
+          {filteredLinks.map((link) => {
             const expired = link.expiresAt ? new Date(link.expiresAt) < new Date() : false;
             return (
               <Card key={link.id} className={expired ? "opacity-60" : ""}>
@@ -514,6 +533,8 @@ export default function AdminLinksPage() {
             );
           })}
         </div>
+          )}
+        </>
       )}
     </AppShell>
   );

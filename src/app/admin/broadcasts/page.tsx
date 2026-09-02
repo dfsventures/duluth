@@ -38,6 +38,7 @@ export default function AdminBroadcastsPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -91,6 +92,10 @@ export default function AdminBroadcastsPage() {
     }
   }
 
+  const filteredBroadcasts = broadcasts.filter((b) =>
+    (b.subject || "").toLowerCase().includes(search.trim().toLowerCase())
+  );
+
   async function handleDeleteDraft(e: React.MouseEvent, id: string) {
     e.preventDefault();
     e.stopPropagation();
@@ -126,8 +131,19 @@ export default function AdminBroadcastsPage() {
       ) : broadcasts.length === 0 ? (
         <EmptyState icon={<Megaphone className="h-8 w-8" />} title="No broadcasts yet" description="Write the first email to your portfolio companies." />
       ) : (
+        <>
+          <div className="mb-6">
+            <Input
+              placeholder="Search by subject..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          {filteredBroadcasts.length === 0 ? (
+            <EmptyState icon={<Megaphone className="h-8 w-8" />} title="No matches" description="Try a different search term." />
+          ) : (
         <div className="space-y-2">
-          {broadcasts.map((b) => (
+          {filteredBroadcasts.map((b) => (
             <Link
               key={b.id}
               href={`/admin/broadcasts/${b.id}`}
@@ -159,6 +175,8 @@ export default function AdminBroadcastsPage() {
             </Link>
           ))}
         </div>
+          )}
+        </>
       )}
 
       {showNew && (

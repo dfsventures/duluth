@@ -34,6 +34,7 @@ export default function AdminLpsPage() {
   const [lps, setLps] = useState<Lp[]>([]);
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   const [editTarget, setEditTarget] = useState<Lp | "new" | null>(null);
   const [form, setForm] = useState<{ email: string; name: string; fundIds: string[] }>({ email: "", name: "", fundIds: [] });
@@ -153,6 +154,15 @@ export default function AdminLpsPage() {
     loadData();
   }
 
+  // Part 32, WS86 (D2) — an LP has many LpEmail rows (Part 26), so search
+  // must match any of them, not just the primary one shown in the table.
+  const filteredLps = lps.filter((lp) => {
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    if (lp.name?.toLowerCase().includes(term)) return true;
+    return lp.emails.some((e) => e.email.toLowerCase().includes(term));
+  });
+
   function toggleFund(fundId: string) {
     setForm((f) => ({
       ...f,
@@ -243,6 +253,16 @@ export default function AdminLpsPage() {
         }
       />
 
+      {!loading && lps.length > 0 && (
+        <div className="mb-6">
+          <Input
+            placeholder="Search by LP name or email..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
@@ -251,6 +271,8 @@ export default function AdminLpsPage() {
         </div>
       ) : lps.length === 0 ? (
         <EmptyState icon={<Handshake className="h-8 w-8" />} title="No LPs yet" description="Add an LP to grant them access to fund reports." />
+      ) : filteredLps.length === 0 ? (
+        <EmptyState icon={<Handshake className="h-8 w-8" />} title="No matches" description="Try a different search term." />
       ) : (
         <Table tableClassName="min-w-[640px]">
           <TableHead>
@@ -261,7 +283,7 @@ export default function AdminLpsPage() {
             <Th></Th>
           </TableHead>
           <tbody>
-            {lps.map((lp) => {
+            {filteredLps.map((lp) => {
               const primary = lp.emails.find((e) => e.isPrimary) ?? lp.emails[0];
               return (
                 <TableRow key={lp.id}>
