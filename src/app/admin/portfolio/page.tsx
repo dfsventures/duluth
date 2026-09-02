@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
-import { Layers, Building2, Landmark, DollarSign, Search, Upload, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Layers, Building2, Landmark, DollarSign, Search, Upload, CheckCircle2, AlertCircle, X, LinkIcon, Unlink } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,8 +12,31 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, SortableTh, TableRow } from "@/components/ui/table";
 import { Select } from "@/components/ui/select";
+import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
 import { formatDate } from "@/lib/utils";
 import { parseContactsCSV } from "@/lib/csv";
+
+type PortfolioTab = "deals" | "links";
+
+interface UnlinkedPortfolioCompany {
+  id: string;
+  name: string;
+  contactCount: number;
+}
+
+interface LinkSuggestionRow {
+  companyId: string;
+  companyName: string;
+  tier: "STRONG" | "MEDIUM" | "WEAK";
+  reasons: string[];
+}
+
+interface OrphanCompany {
+  id: string;
+  name: string;
+  createdAt: string;
+  ownerEmail: string;
+}
 
 interface ContactsImportResult {
   created: number;
@@ -108,6 +132,94 @@ function compareSortValues(a: number | string | null, b: number | string | null,
 }
 
 export default function AdminPortfolioPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminPortfolioPageInner />
+    </Suspense>
+  );
+}
+
+function AdminPortfolioPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get("tab") === "links" ? "links" : "deals";
+  const [activeTab, setActiveTab] = useState<PortfolioTab>(requestedTab);
+
+  function selectTab(tab: PortfolioTab) {
+    setActiveTab(tab);
+    router.replace(tab === "links" ? "/admin/portfolio?tab=links" : "/admin/portfolio");
+  }
+
+  // Part 31, WS78.2 — the standing "Links" tab. Loaded lazily on first
+  // visit (JC-LK-B: in-memory scoring over ~50 rows, no need to fetch it
+  // on the default deal-ledger view).
+  const [linksLoaded, setLinksLoaded] = useState(false);
+  const [linksLoading, setLinksLoading] = useState(false);
+  const [unlinkedPortcos, setUnlinkedPortcos] = useState<UnlinkedPortfolioCompany[]>([]);
+  const [suggestionsByPortco, setSuggestionsByPortco] = useState<Record<string, LinkSuggestionRow[]>>({});
+  const [orphanCompanies, setOrphanCompanies] = useState<OrphanCompany[]>([]);
+  const [linkDialogFor, setLinkDialogFor] = useState<{ id: string; name: string; contactEmails: string[] } | null>(
+    null
+  );
+
+  // Fetches this row's own contacts first so the shared dialog's D3
+  // checkbox can hide itself when the owner is already a contact here —
+  // the same "never offer a no-op" rule as WS77/WS78.1, just fetched
+  // on demand since this tab doesn't otherwise load per-company contacts.
+  async function openLinkDialog(pc: { id: string; name: string }) {
+    let contactEmails: string[] = [];
+    try {
+      const res = await fetch(`/api/admin/portfolio/companies/${pc.id}`);
+      if (res.ok) {
+        const detail: { contacts: { email: string }[] } = await res.json();
+        contactEmails = detail.contacts.map((c) => c.email);
+      }
+    } catch {
+      // Non-fatal — dialog still works, just may offer a redundant checkbox.
+    }
+    setLinkDialogFor({ ...pc, contactEmails });
+  }
+
+  const loadLinks = useCallback(async () => {
+    setLinksLoading(true);
+    try {
+      const [portcosRes, suggRes] = await Promise.all([
+        fetch("/api/admin/portfolio-companies"),
+        fetch("/api/admin/portfolio-companies/link-suggestions"),
+      ]);
+      if (portcosRes.ok) {
+        const all: { id: string; name: string; companyId: string | null; contactCount: number }[] = await portcosRes.json();
+        setUnlinkedPortcos(
+          all
+            .filter((p) => !p.companyId)
+            .map((p) => ({ id: p.id, name: p.name, contactCount: p.contactCount }))
+        );
+      }
+      if (suggRes.ok) {
+        const data: {
+          results: { portfolioCompanyId: string; matches: LinkSuggestionRow[] }[];
+          companiesWithoutPortfolioCompany: OrphanCompany[];
+        } = await suggRes.json();
+        const map: Record<string, LinkSuggestionRow[]> = {};
+        for (const r of data.results ?? []) map[r.portfolioCompanyId] = r.matches;
+        setSuggestionsByPortco(map);
+        setOrphanCompanies(data.companiesWithoutPortfolioCompany ?? []);
+      }
+    } finally {
+      setLinksLoading(false);
+      setLinksLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "links" && !linksLoaded) loadLinks();
+  }, [activeTab, linksLoaded, loadLinks]);
+
+  function handleLinked() {
+    setLinkDialogFor(null);
+    loadLinks();
+  }
+
   const [deals, setDeals] = useState<PortfolioDeal[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,6 +329,138 @@ export default function AdminPortfolioPage() {
         }
       />
 
+      {/* Part 31, WS78.2 — the standing "Links" tab. The deal ledger
+          remains the default tab and is otherwise untouched. */}
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b">
+        <button
+          onClick={() => selectTab("deals")}
+          className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === "deals"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
+          }`}
+        >
+          <Layers className="h-4 w-4" />
+          Deal Ledger
+        </button>
+        <button
+          onClick={() => selectTab("links")}
+          className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            activeTab === "links"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
+          }`}
+        >
+          <LinkIcon className="h-4 w-4" />
+          Links
+        </button>
+      </div>
+
+      {activeTab === "links" ? (
+        <div className="space-y-8">
+          <div>
+            <h2 className="mb-1 text-sm font-semibold text-foreground">Unlinked portfolio companies</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Cap-table entries with no linked Molly account. Linking is always an explicit choice — nothing here is
+              automatic.
+            </p>
+            {linksLoading && !linksLoaded ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : unlinkedPortcos.length === 0 ? (
+              <EmptyState icon={<LinkIcon className="h-8 w-8" />} title="Every portfolio company is linked." />
+            ) : (
+              <Table>
+                <TableHead>
+                  <Th>Portfolio company</Th>
+                  <Th>Contacts</Th>
+                  <Th>Top suggestion</Th>
+                  <Th></Th>
+                </TableHead>
+                <tbody>
+                  {unlinkedPortcos.map((pc) => {
+                    const matches = suggestionsByPortco[pc.id] ?? [];
+                    const top = matches[0];
+                    return (
+                      <TableRow key={pc.id}>
+                        <td className="px-4 py-2.5 font-medium">
+                          <Link href={`/admin/portfolio/${pc.id}`} className="hover:underline">
+                            {pc.name}
+                          </Link>
+                        </td>
+                        <td className="px-4 py-2.5 text-sm text-muted-foreground">{pc.contactCount}</td>
+                        <td className="px-4 py-2.5 text-sm">
+                          {top ? (
+                            <span>
+                              {top.companyName}{" "}
+                              <span className="text-xs text-muted-foreground">({top.tier.toLowerCase()})</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No suggestion</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => openLinkDialog({ id: pc.id, name: pc.name })}
+                          >
+                            {top ? "Link" : "Find match"}
+                          </Button>
+                        </td>
+                      </TableRow>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            )}
+          </div>
+
+          <div>
+            <h2 className="mb-1 text-sm font-semibold text-foreground">Operational companies with no portfolio company</h2>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Molly accounts not yet represented in the cap table. Read-only — linking always happens from the
+              portfolio-company side.
+            </p>
+            {linksLoading && !linksLoaded ? (
+              <div className="space-y-3">
+                {[...Array(2)].map((_, i) => (
+                  <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
+                ))}
+              </div>
+            ) : orphanCompanies.length === 0 ? (
+              <EmptyState icon={<Unlink className="h-8 w-8" />} title="Every Molly account has a portfolio company." />
+            ) : (
+              <Table>
+                <TableHead>
+                  <Th>Company</Th>
+                  <Th>Created</Th>
+                  <Th>Owner</Th>
+                  <Th></Th>
+                </TableHead>
+                <tbody>
+                  {orphanCompanies.map((c) => (
+                    <TableRow key={c.id}>
+                      <td className="px-4 py-2.5 font-medium">{c.name}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap text-sm text-muted-foreground">{formatDate(c.createdAt)}</td>
+                      <td className="px-4 py-2.5 text-sm text-muted-foreground">{c.ownerEmail}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <Link href={`/admin/companies/${c.id}`} className="text-sm text-primary hover:underline">
+                          View company
+                        </Link>
+                      </td>
+                    </TableRow>
+                  ))}
+                </tbody>
+              </Table>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
       {importResult && (
         <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-acacia">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
@@ -395,6 +639,18 @@ export default function AdminPortfolioPage() {
             ))}
           </tbody>
         </Table>
+      )}
+        </>
+      )}
+
+      {linkDialogFor && (
+        <PortcoLinkDialog
+          portfolioCompanyId={linkDialogFor.id}
+          portfolioCompanyName={linkDialogFor.name}
+          existingContactEmails={linkDialogFor.contactEmails}
+          onClose={() => setLinkDialogFor(null)}
+          onLinked={handleLinked}
+        />
       )}
     </AppShell>
   );

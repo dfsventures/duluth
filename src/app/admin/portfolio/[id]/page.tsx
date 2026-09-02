@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 import { parseContactsCSV } from "@/lib/csv";
+import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
 
@@ -124,6 +125,13 @@ export default function AdminPortfolioCompanyPage() {
   const [importResult, setImportResult] = useState<ContactsImportResult | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const contactsFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Part 31, WS78.1 — the first writer UI for PortfolioCompany.companyId
+  // (F65). The picker itself is the shared PortcoLinkDialog (WS78/WS79.3)
+  // used identically by the Links tab on /admin/portfolio.
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -348,6 +356,34 @@ export default function AdminPortfolioCompanyPage() {
     }
   }
 
+  // Part 31, WS78.1 — link/unlink handlers. The picker UI itself is the
+  // shared PortcoLinkDialog (rendered below).
+  function handleLinked(contactNote?: string) {
+    setShowLinkModal(false);
+    if (contactNote) setMessage({ type: "error", text: contactNote });
+    load();
+  }
+
+  async function handleUnlink() {
+    setUnlinking(true);
+    try {
+      const res = await fetch(`/api/admin/portfolio-companies/${companyId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: null }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        setMessage({ type: "error", text: d?.error ?? "Failed to unlink." });
+        return;
+      }
+      setShowUnlinkConfirm(false);
+      load();
+    } finally {
+      setUnlinking(false);
+    }
+  }
+
   if (loading) {
     return (
       <AppShell>
@@ -393,15 +429,45 @@ export default function AdminPortfolioCompanyPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-foreground">{data.name}</h1>
-            <div className="mt-1 flex flex-wrap gap-4 text-xs text-muted-foreground">
+            <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
               {data.country && <span>{data.country}</span>}
               {data.latestValuation !== null && <span>Latest valuation ${data.latestValuation.toLocaleString()}</span>}
-              {data.company && (
-                <Link href={`/admin/companies/${data.company.id}`} className="text-primary hover:underline">
-                  View operational company profile
-                </Link>
+              {data.company ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>Molly account: {data.company.name}</span>
+                  <Link href={`/admin/companies/${data.company.id}`} className="text-primary hover:underline">
+                    View operational company profile
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setShowUnlinkConfirm(true)}
+                    className="text-laterite hover:underline"
+                  >
+                    Unlink
+                  </button>
+                </span>
+              ) : (
+                <span className="flex flex-wrap items-center gap-2">
+                  <span>Molly account: not linked</span>
+                  <button type="button" onClick={() => setShowLinkModal(true)} className="text-primary hover:underline">
+                    Link…
+                  </button>
+                </span>
               )}
             </div>
+            {showUnlinkConfirm && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm text-ochre">
+                <span>Unlink {data.company?.name} from this portfolio company?</span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" disabled={unlinking} onClick={() => setShowUnlinkConfirm(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" size="sm" disabled={unlinking} onClick={handleUnlink}>
+                    {unlinking ? "Unlinking..." : "Confirm Unlink"}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -777,6 +843,16 @@ export default function AdminPortfolioCompanyPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showLinkModal && (
+        <PortcoLinkDialog
+          portfolioCompanyId={companyId}
+          portfolioCompanyName={data.name}
+          existingContactEmails={data.contacts.map((c) => c.email)}
+          onClose={() => setShowLinkModal(false)}
+          onLinked={handleLinked}
+        />
       )}
     </AppShell>
   );

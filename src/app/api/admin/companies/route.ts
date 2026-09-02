@@ -16,11 +16,20 @@ export async function GET(request: Request) {
     // brand-new signup is the most common thing an admin needs to link —
     // so `?linkable=1` bypasses the filter and returns a minimal shape.
     // The default (no param) response is byte-identical to before.
+    // ownerEmail/ownerName (WS78.1) are the createdBy founder's identity —
+    // what D3's "also add as contact" checkbox writes to the portfolio
+    // company's contact list once a company is picked to link.
     const { searchParams } = new URL(request.url);
     if (searchParams.get("linkable") === "1") {
       const companies = await db.company.findMany({
         orderBy: { createdAt: "desc" },
-        select: { id: true, name: true, createdAt: true, portfolioCompany: { select: { id: true } } },
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          portfolioCompany: { select: { id: true } },
+          createdBy: { select: { email: true, name: true } },
+        },
       });
       return NextResponse.json(
         companies.map((c) => ({
@@ -28,6 +37,8 @@ export async function GET(request: Request) {
           name: c.name,
           createdAt: c.createdAt,
           portfolioCompanyId: c.portfolioCompany?.id ?? null,
+          ownerEmail: c.createdBy.email,
+          ownerName: c.createdBy.name,
         }))
       );
     }
