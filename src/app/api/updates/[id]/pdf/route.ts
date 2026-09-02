@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/auth-guard";
+import { requireCompanyAccess } from "@/lib/auth-guard";
 import { generateUpdateHTML } from "@/lib/pdf";
 import { db } from "@/lib/db";
 
@@ -9,9 +9,6 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { error } = await requireAuth();
-    if (error) return error;
-
     const { id } = await params;
 
     const update = await db.update.findUnique({
@@ -21,6 +18,9 @@ export async function GET(
     if (!update) {
       return NextResponse.json({ error: "Update not found" }, { status: 404 });
     }
+
+    const { error } = await requireCompanyAccess(update.companyId);
+    if (error) return error;
 
     const html = await generateUpdateHTML(id);
     if (!html) {
