@@ -31,7 +31,18 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(pendingUsers);
+    // Part 31, WS77 (F64) — the admin/approvals page has always rendered
+    // approval.companyName, but this route never returned that key, so
+    // the pending card never showed the company a founder typed. Mirrors
+    // how the awaiting-setup section (further down the same page) already
+    // derives it: memberships[0].company.name.
+    const result = pendingUsers.map((u) => ({
+      ...u,
+      companyId: u.memberships[0]?.company?.id ?? null,
+      companyName: u.memberships[0]?.company?.name ?? null,
+    }));
+
+    return NextResponse.json(result);
   } catch (err) {
     console.error("GET /api/admin/approvals error:", err);
     return NextResponse.json(
