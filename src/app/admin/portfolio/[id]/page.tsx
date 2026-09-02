@@ -592,7 +592,7 @@ export default function AdminPortfolioCompanyPage() {
             <code className="rounded bg-muted px-1">email</code>, optional{" "}
             <code className="rounded bg-muted px-1">role</code>. A{" "}
             <code className="rounded bg-muted px-1">company</code> column is optional here — rows without one are added to this
-            company.
+            company. To upload contacts for many companies at once, use Portfolio Contacts.
           </p>
         </form>
       </div>

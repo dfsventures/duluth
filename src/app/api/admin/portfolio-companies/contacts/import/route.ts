@@ -86,7 +86,7 @@ export async function POST(request: Request) {
           // company is a row-level error, never a silent write elsewhere.
           if (defaultPortfolioCompanyId && match.id !== defaultPortfolioCompanyId) {
             errors.push(
-              `Row ${row.row}: names "${companyCell}" — use the portfolio-wide import on the Deal Ledger page`
+              `Row ${row.row}: names "${companyCell}" — use the portfolio-wide import on the Portfolio Contacts page`
             );
             skipped++;
             continue;
