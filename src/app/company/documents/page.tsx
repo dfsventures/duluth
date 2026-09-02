@@ -23,6 +23,7 @@ import { useCompany } from "@/context/company-context";
 import { DOC_TYPES, AUTO_INTERNAL_DOC_TYPES } from "@/lib/constants";
 import { isInlineViewable } from "@/lib/documents";
 import { formatDate, formatFileSize } from "@/lib/utils";
+import { ORG_NAME } from "@/lib/org";
 
 interface Document {
   id: string;
@@ -148,7 +149,7 @@ export default function CompanyDocumentsPage() {
     <AppShell>
       <PageHeader
         title="Documents"
-        description="Files shared with the Molly team — cap tables, financials, legal documents, and more."
+        description={`Files shared with the ${ORG_NAME} team — cap tables, financials, legal documents, and more.`}
       />
 
       {message && (

@@ -759,7 +759,7 @@ export default function UpdateDetailPage() {
                           {comment.author.name ?? comment.author.email}
                         </span>
                         {comment.author.roles.includes("ADMIN") && (
-                          <Badge variant="info">Molly</Badge>
+                          <Badge variant="info">{ORG_NAME}</Badge>
                         )}
                         <span className="text-xs text-muted-foreground">
                           {formatDate(comment.createdAt)}

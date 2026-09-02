@@ -263,7 +263,7 @@ export default function AdminDiligencePage() {
         <EmptyState
           icon={<Inbox className="h-10 w-10" />}
           title="No companies in due diligence"
-          description="Companies invited from Add Company with due diligence turned on will appear here."
+          description="Nothing is waiting on you right now. Turn on due diligence when you add a company to route it into this queue."
         />
       ) : (
         <div className="space-y-6">

@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { useCompany } from "@/context/company-context";
+import { ORG_NAME } from "@/lib/org";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -170,7 +171,7 @@ export default function CompanyProfilePage() {
     <AppShell>
       <PageHeader
         title="Company Profile"
-        description="Manage your company information visible to the Molly team."
+        description={`Manage your company information visible to the ${ORG_NAME} team.`}
       />
 
       {message && (
