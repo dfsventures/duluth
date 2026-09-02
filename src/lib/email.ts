@@ -4,7 +4,7 @@ import { SETUP_TOKEN_TTL_DAYS } from "@/lib/setup-token";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
-export const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <noreply@dfs.vc>`;
+export const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <hello@dfs.vc>`;
 const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfs.vc";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
