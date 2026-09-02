@@ -119,11 +119,12 @@ MIT — free to use, fork, and modify. See [LICENSE](./LICENSE) for details.
 
 ### Fork Configuration
 
-A fork can rename the deployment with env vars only — no source edits needed for these four:
+A fork can rename the deployment with env vars only — no source edits needed for these five:
 
 - `NEXT_PUBLIC_ORG_NAME` — organization display name in UI copy, page titles, and emails (default `"DFS Lab"`)
 - `NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN` — email domain granted admin access via Google OAuth, no leading `@` (default `"dfs.vc"`)
 - `EMAIL_LOGO_PATH` — path under `public/` to the logo shown in transactional email headers (default `"/brand/dfs-logo-primary.png"`; recommended ~54×22px to avoid letterboxing)
+- `ORG_LOGO_PATH` — path under `public/` to the logo shown in the LP portal header (default `"/brand/dfs-logo-primary.png"`). Server-side only (the LP layout is a Server Component), so no `NEXT_PUBLIC_` prefix and no rebuild needed — drop your own file in `public/brand/` and point this at it.
 - `SUPPORT_EMAIL` — contact address on the public `/investors` page and the rejection email's reply-to (default `"support@dfs.vc"`)
 
 `NEXT_PUBLIC_*` vars are inlined into the client bundle at build time, so changing them requires a redeploy, not just an env edit. With none of the above set, a deploy behaves byte-identically to unconfigured DFS Lab defaults.

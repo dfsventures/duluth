@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { getLp } from "@/lib/lp-auth";
 import { LpSignOutButton } from "@/components/lp/lp-sign-out-button";
-import { ORG_NAME } from "@/lib/org";
+import { ORG_NAME, ORG_LOGO_PATH } from "@/lib/org";
 
 // Confidential LP surface on an otherwise public (MIT) app — never index it.
 export const metadata: Metadata = {
@@ -23,7 +23,7 @@ export default async function LpLayout({ children }: { children: React.ReactNode
       <header className="flex items-center justify-between border-b border-bone px-6 py-5 print:hidden sm:px-10">
         <Link href="/lp" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/dfs-logo-primary.png" alt={ORG_NAME} width={72} height={30} />
+          <img src={ORG_LOGO_PATH} alt={ORG_NAME} width={72} height={30} />
         </Link>
         {ctx && <LpSignOutButton />}
       </header>
