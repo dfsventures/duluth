@@ -8058,3 +8058,355 @@ Order of operations, mirroring the report publish route (freeze → publish → 
 - **Constraints honored:** additive-only schema (four new tables, four back-relation fields, one additive `include` and one additive `_count` on existing routes); no new cost line (`resend.batch.send` ships in the installed SDK; CSV parsing is hand-rolled client-side, no library added); no UX regression (admin-only surfaces; the sole edits to existing files are one sidebar line, one section on `/admin/portfolio/[id]`, and two additive API response fields); synthetic data throughout committed files.
 
 ---
+
+# Part 31 — Linking Founder Signups to Existing Portfolio Companies (WS75–WS79, F63–F67, 2026-09-01)
+
+> **Status: PLANNED, not built. All six product decisions CONFIRMED (Joseph, 2026-09-01) — nothing open. Ready for Alvin.** The six were posed as Q72–Q77 and are recorded below as **D1–D6**; every one landed on the recommended option, none reversed. Part 30 introduced `PortfolioCompany` + `PortfolioCompanyContact` as the portfolio's people directory. It deliberately did not touch signup. The consequence, verified below: a founder who is *already* a contact on an existing `PortfolioCompany` can sign up at `/signup`, get a brand-new unlinked `Company`, and be approved by an admin who is never told the two records describe the same business. Part 31 closes that loop — **without** a schema change and **without** any founder-visible surface.
+
+## The gap, verified line-by-line (not taken on trust)
+
+- **`src/app/api/auth/signup/route.ts:16`** takes `{ name, email, companyName }` — `companyName` is freeform text the founder types (`src/app/signup/page.tsx:114-118`, a plain `Input` labelled "Company Name"; no autocomplete, no lookup).
+- **`:76-100`** — one transaction creates `User` (`FOUNDER`, `PENDING`), `Company` (`name: companyName`, `createdById`), and a `UserCompanyMembership` (`OWNER`). **There is no read of `PortfolioCompany` or `PortfolioCompanyContact` anywhere in the file**, and no `Company` de-duplication of any kind (`Company.name` is not `@unique` — `prisma/schema.prisma:86`).
+- **`src/app/api/admin/approvals/[id]/approve/route.ts`** — mints a setup token, mails it, audits `USER_APPROVED`. **No portfolio lookup, no linking, no mention of `PortfolioCompany`.**
+- **`src/app/admin/approvals/page.tsx`** — the pending card renders name, email, "Signed up <date>", Reject/Approve. No match affordance. (And, per **F64** below, not even the company name.)
+- **The link that exists:** `PortfolioCompany.companyId String? @unique` (`prisma/schema.prisma:563`) with `company Company? @relation(… onDelete: SetNull)` (`:567`). Writable through exactly two places: `POST /api/admin/portfolio-companies` (`route.ts:66`, `companyId: body.companyId || null`) and `PATCH /api/admin/portfolio-companies/[id]` (`[id]/route.ts:27`). **Confirmed API-only — see F65.**
+
+**Net effect today:** silent duplication. One real business, two unrelated rows (`Company` for the operational product, `PortfolioCompany` for the cap table), and nothing anywhere that says so.
+
+## Method — what was verified against the working tree
+
+- **Every `.tsx` fetch of `portfolio-companies`** (`grep -rn "portfolio-companies" src --include="*.tsx"`): `/admin/broadcasts` and `/admin/broadcasts/[id]` (list, for the audience picker), `/admin/reports/[id]` (mention picker), `/admin/funds/[id]` (list + `POST` create-from-deal-form), `/admin/portfolio/[id]` (marks, contacts), `/admin/portfolio` (contacts import). **Not one of them sends `companyId`.** The create call at `src/app/admin/funds/[id]/page.tsx:287-291` posts `{ name, country }` only.
+- **Every consumer of the link:** `GET /api/admin/portfolio-companies` returns `companyId` and `company` (`route.ts:22, 33-34`) — the broadcast pickers ignore both and read only `contactCount` (`src/app/admin/broadcasts/[id]/page.tsx:42, 155, 451`). `GET /api/admin/portfolio/companies/[id]` includes `company: { select: { id, name } }` (`route.ts:21`), consumed by exactly one thing: the "View operational company profile" link on `src/app/admin/portfolio/[id]/page.tsx:399-403`. **That is the entire behavioral footprint of `PortfolioCompany.companyId` — see F67.**
+- **The reverse direction is completely unaware:** `grep -rn "portfolioCompany\|PortfolioCompany" src/app/admin/companies src/app/api/companies src/app/api/admin/companies` → **zero hits**. Nothing on the operational-company side knows the cap-table entity exists.
+- **The admin company list filter** — `GET /api/admin/companies` applies `approvedCompanyFilter` (`src/lib/company-filters.ts:10-15`): `NOT { createdBy: { status: "PENDING", approvalToken: null } }` AND `NOT { stage: "DILIGENCE" }`. **A brand-new signup's `Company` matches the first exclusion exactly**, so it is invisible to that endpoint until approval. Any link picker built naively on it cannot see the very company that needs linking (handled in WS76 / JC-LK-F).
+- **Available matching signals, all confirmed present:** `PortfolioCompanyContact.email` (stored trimmed + lowercased, `prisma/schema.prisma:593` and enforced at `src/app/api/admin/portfolio-companies/[id]/contacts/route.ts:24`), `PortfolioCompany.name` (`@unique`, `:561`), `Company.name` (not unique, `:86`), `Company.aliases String[] @default([])` (`:94` — admin-editable at `src/app/admin/companies/[id]/page.tsx:761-780` via `PATCH /api/companies/[id]`, and **read by nothing today**), and the signup email itself (lowercased at `signup/route.ts:79`).
+- **House patterns to reuse:** pure-lib + unit tests (`src/lib/broadcast-recipients.ts`, `src/lib/share-metrics.ts`); the never-guess doctrine (`src/lib/sheet-link.ts`, quoted in Part 30's JC-BC-L); the tab shell (`src/app/admin/funds/page.tsx:140-161`, `border-b-2 … border-primary text-primary`); the ochre inline-confirm panel (`src/app/admin/reports/[id]/page.tsx:308-360`); `logAdminAction(actor, action, { targetType, targetId, metadata })` with free-string actions rendered raw at `/admin/audit`.
+- **No schema change is required by any part of this plan.** Every column it needs already exists.
+
+---
+
+## F63 — ROADMAP (and this plan's own Part 30 header) still call Part 30 "PLANNED, NOT yet built" (LOW, docs-only)
+
+Part 30 shipped: commits `e683e4a` (WS69) through `2c04ab7` (WS74), with `src/app/admin/broadcasts/**`, `src/app/api/admin/broadcasts/**`, `src/lib/broadcast-recipients.ts`, `src/lib/csv.ts` and four schema models all present in the working tree. `ROADMAP.md:3` and `:7` still describe it as planned. **Annotated in `ROADMAP.md` in this same pass** (Part 30's bullet flipped to SHIPPED; the header line updated). The Part 30 header in this file is left as the historical planning record, as with every earlier Part.
+
+## F64 — `/admin/approvals` has never displayed the company name a founder typed (MEDIUM, real bug, directly in this Part's path)
+
+`src/app/admin/approvals/page.tsx:36` declares `companyName: string | null` on the `Approval` interface and `:299-301` renders `{approval.companyName && <> &middot; {approval.companyName}</>}`. But `GET /api/admin/approvals` (`src/app/api/admin/approvals/route.ts:14-32`) selects `id, email, name, roles, status, createdAt, memberships { include: { company: { select: { id, name } } } }` — **there is no `companyName` key in the response**. The field is always `undefined`, so the branch never renders. An admin looking at a pending signup today sees the founder's name, email and date, and **not** the company they typed.
+
+The same page derives it correctly ten lines further down for the awaiting-setup section (`:412`, `u.memberships?.[0]?.company?.name ?? null`), so the two halves of one page disagree. The fix is one line and is folded into WS77 — Part 31 cannot show *matches* on a card that does not even show the *name*.
+
+## F65 — `PortfolioCompany.companyId` has no writer UI anywhere in the app (MEDIUM, the gap's proximate cause)
+
+Confirmed by exhaustive grep (above): the field is settable only by hand-crafted API calls. The only *reader* is a nav link. In practice this means the link is almost certainly `null` on every production row, including for portfolio companies whose founders are active Molly users. WS78.1 adds the missing widget.
+
+## F66 — the PATCH that sets the link returns a 500 for two ordinary user errors (LOW today, MEDIUM once a UI drives it)
+
+`src/app/api/admin/portfolio-companies/[id]/route.ts:27` does `data.companyId = body.companyId || null` and hands it straight to `db.portfolioCompany.update`. Two reachable states both fall into the generic `catch` and surface as `{ error: "Internal server error" }` with status 500:
+
+1. **`companyId` names a `Company` that does not exist** → Prisma foreign-key violation.
+2. **`companyId` is already linked to a different `PortfolioCompany`** → `P2002` on the `@unique` constraint. This is not exotic: two co-founders of the same startup each signing up creates two `Company` rows, and `companyId` being `@unique` means only one can ever be linked (see D6).
+
+Nobody has hit these because nothing writes the field (F65). WS76 turns them into a 404 and a 409 carrying the conflicting portfolio company's name.
+
+## F67 — linking is behaviorally inert; it changes nothing about broadcasts, emails, or access (informational — stated so a future reader does not assume otherwise)
+
+Setting `PortfolioCompany.companyId` today affects exactly one thing: whether `/admin/portfolio/[id]` shows a "View operational company profile" link. In particular:
+
+- **Broadcasts are unaffected, by design.** Part 30 **D4** is explicit: recipients come from `PortfolioCompanyContact` and nothing else, *even where a linked `Company` has real founder logins*. `src/lib/broadcast-recipients.ts` takes contact rows only; `src/app/api/admin/broadcasts/[id]/publish/route.ts` and `…/recipients/route.ts` never touch `User` or `UserCompanyMembership`. **Linking a company does not add anyone to any broadcast.** That is exactly why **D3**'s "also add the founder as a contact" checkbox exists — the link is structural, the checkbox is the only thing in this Part that changes who receives mail, and it is an explicit admin choice on every link.
+- No email, no share link, no metric, no reminder, no LP report reads the link.
+- Access control is untouched: founder access flows through `UserCompanyMembership`, LP access through `LpSession`. Neither knows about `PortfolioCompany`.
+
+So Part 31's value is **admin legibility and future optionality**, not an immediate behavior change. Worth saying out loud before spending 3–4 days on it.
+
+---
+
+## Confirmed decisions (D1–D6 — locked by Joseph 2026-09-01, do NOT re-litigate)
+
+> These were posed as open questions Q72–Q77 in the first draft of this Part and are **all now decided — every one as recommended, none reversed.** The Q-numbers are kept in the headings because `ROADMAP.md` and the project memory reference them. **Disambiguation:** Part 30 also numbers its decisions D1–D9; wherever this Part cites one of those it says **"Part 30 D4"** in full, and a bare `D1`–`D6` always means Part 31's. The options tables and "alternative worth naming" notes are preserved deliberately: they are the record of what was considered and declined, so a future reader does not reopen a settled question by accident.
+
+### D1 (was Q72) — Matching happens at approval time **and** in a standing "Links" view; **never** on the public signup form
+
+| | Option | What it looks like | Outcome |
+|---|---|---|---|
+| **A** | **Signup-time**, founder-facing | As the founder types, `/signup` suggests existing portfolio companies to pick from | **REJECTED** |
+| **B** | **Approval-time**, admin-facing | The `/admin/approvals` pending card shows suggested `PortfolioCompany` matches with a "Link & approve" button | **CHOSEN** |
+| **C** | **Standing reconciliation view** | An admin surface listing unlinked portfolio companies with suggested operational companies, worked through whenever | **CHOSEN** |
+| **D** | **B + C** | Both | **CHOSEN (D1)** |
+
+**Decision: B + C. A is rejected outright and must not be built** — no matching, suggestion, autocomplete, or existence check of any kind is added to `/signup` or to any unauthenticated route. Every suggestion endpoint in this Part is `requireAdmin()`-guarded.
+
+- **A is a confidentiality problem, not just a UX one.** `/signup` is unauthenticated (`src/lib/route-access.ts` public paths; rate-limited 10/hr/IP at `signup/route.ts:9`, which limits volume, not existence). Any suggest-as-you-type endpoint there is an oracle over the real portfolio-company roster — the exact data class Parts 27/28 spent two audits protecting, and the same reasoning that made the Part 9 self-serve resend take **no** email input (no enumeration oracle). It is also untrustworthy input: a founder can click any suggestion.
+- **B is where the human already is.** An admin must act on every signup anyway; showing a match there costs them nothing and catches the case at the exact moment it arises.
+- **C is the only thing that fixes the backlog** (every portfolio company already unlinked, F65) and the no-signup cases (an admin-created company; a company whose founders never signed up). Once WS75's matcher is a pure function, C is mostly UI.
+
+### D2 (was Q73) — Four signals in three tiers, and **nothing ever auto-links**
+
+Confirmed tiers (all four signals verified available above):
+
+- **STRONG · `CONTACT_EMAIL`** — the signup email exactly equals some `PortfolioCompanyContact.email` on that company (both already normalized lowercase). The strongest evidence available, and stronger than any name string.
+- **STRONG · `NAME_EXACT` / `ALIAS_EXACT`** — normalized-equal names: lowercase, trim, collapse whitespace, strip punctuation, strip a conservative trailing legal-suffix list (`inc, inc., llc, l.l.c., ltd, ltd., limited, plc, corp, co, gmbh, bv, pty, sarl, sas, ug`). Compared against `Company.name` **and** each `Company.aliases` entry.
+- **MEDIUM · `EMAIL_DOMAIN`** — the signup email's domain matches the domain of some contact email on that company, **excluding a free-provider list** (`gmail.com, googlemail.com, yahoo.*, outlook.com, hotmail.*, live.*, icloud.com, me.com, proton.me, protonmail.com, aol.com, yandex.*, zoho.com, mail.com`). Without that exclusion this tier is pure noise in this portfolio, where founders commonly sign up from Gmail.
+- **WEAK · `NAME_TOKENS`** — after normalization, one name's tokens (length ≥ 3, suffixes dropped) are a subset/prefix of the other's. Catches "Acme" ↔ "Acme Technologies"; also generates false positives.
+
+**Decision: show STRONG and MEDIUM by default, put WEAK behind a "show weaker matches" toggle, and never auto-link anything — an admin always clicks to confirm, including on an exact contact-email match.** No code path in this Part may write `PortfolioCompany.companyId` without an explicit admin action. Rationale for no auto-link even on `CONTACT_EMAIL`: the contact list is admin-maintained and deliberately allows one address at several companies (Part 30 JC-BC-B — a serial founder, an advisor, a shared operator), so an exact hit is strong but not certain; and a wrong auto-link is silent and invisible to everyone. This follows `src/lib/sheet-link.ts`'s stated doctrine — *"never guesses: anything ambiguous or unmatched is flagged, not forced"* — which Part 30 already adopted as JC-BC-L.
+
+*The alternative considered and declined:* auto-link on `CONTACT_EMAIL` alone, admin notified after the fact. Cheaper for the admin, and reversible via Unlink. **Declined for v1**; trivially adoptable later (it is one branch in WS76).
+
+### D3 (was Q74) — Contact rows coexist untouched, **and** linking offers a default-checked "also add this founder as a contact"
+
+**Decision, first half: matched `PortfolioCompanyContact` rows coexist, untouched. No merge, no delete, no rewrite.** A `PortfolioCompanyContact` is a *mailing directory entry*; a `User` is a *login identity*. They are different facts that happen to be about the same person. Deleting either on link is destructive and lossy (it would silently remove someone from future broadcasts), and Part 30's D4 depends on the contact list being the complete, self-contained audience.
+
+**Restating F67 for the record: linking changes nothing about broadcast delivery.** Nobody is added to or removed from any broadcast by linking, now or later, unless that is separately decided.
+
+**Decision, second half: yes — every link affordance carries a default-checked "Also add `jane@acme.com` as a contact on Acme" checkbox.** Under Part 30's D4 an approved founder with a live Molly login receives **no** broadcasts unless an admin has typed them into the contact list, which is the exact surprise that Part 30 D4 warned about; a newly linked active founder should actually receive future broadcasts. Implemented as a second call to the already-shipped, already-audited `POST /api/admin/portfolio-companies/[id]/contacts` (JC-LK-I), which validates, normalizes, dedupes and writes `PORTCO_CONTACT_ADDED` itself. **It is checked by default and always uncheckable** — the admin can decline it on any given link. Unchecking is the whole opt-out; removing the contact afterwards is the whole reversal.
+
+**Scope note now that this is locked:** the checkbox appears in **both** link surfaces — the approvals card (WS77) and the portfolio-side link dialog (WS78.1) — and is hidden (not merely unchecked) when the address is already a contact on that company, so the admin is never offered a no-op. The contact's `name` comes from `User.name`; `role` is left null.
+
+*Alternative considered and declined:* never touch contacts on link (link purely structural). Cleaner conceptually, but leaves the "why didn't our newest founder get the broadcast?" trap fully armed.
+
+### D4 (was Q75) — Non-blocking: Approve stays one click, and linking can happen before, during, or after approval
+
+**Decision: non-blocking.** Approve stays exactly one click and behaves exactly as it does today, even when a suggestion is showing. Linking is available **before** approval (from the standing Links view), **during** it (the "Link & approve" button), or **after** it (the portfolio-side widget) — the two actions are independent, and neither is ever a precondition of the other. When suggestions exist, a small block appears under the founder's details with the top match and its reason ("matched by contact email"), plus **Link & approve** alongside the unchanged **Approve**. When there are no suggestions — which will be the common case — the card is unchanged apart from F64's fix.
+
+Blocking is rejected because approval is time-sensitive (the founder is waiting on a set-password email, the Part 9/WS21 population), because most signups will legitimately have no match, and because a mandatory confirm over an empty list is friction with no information in it.
+
+*Sub-decision, deliberately deferred:* there is no persisted "not a match" dismissal in v1, so the standing view (WS78) will keep showing a pair an admin has already judged. If that becomes annoying the cheap fix is one additive nullable column modeled on `User.setupQueueDismissedAt` (Part 21, WS48) — named here, not built.
+
+### D5 (was Q76) — Zero founder-visible change, anywhere
+
+**Decision: the founder sees nothing.** No founder-facing surface mentions the link, the portfolio company, or the match; the founder's own `Company.name` stays exactly what they typed even when linked to a differently-spelled `PortfolioCompany`. **Acceptance rule for every workstream below: no file under a founder route (`/dashboard`, `/updates`, `/metrics`, `/company`, `/team`, `/documents`, `/planner`, `/links`) and no founder-reachable API response changes shape in this Part.** This is what keeps Part 31 inside the no-UX-regression constraint trivially.
+
+*Alternative considered and declined:* an optional "also rename the operational company to `Acme Inc` (the portfolio spelling)" checkbox on link. **Declined** — renaming a founder's company under them is visible, surprising, and buys nothing (the link itself carries the association). Easy to add later; the reverse is not.
+
+### D6 (was Q77) — Two co-founders producing two `Company` rows stays out of scope; the collision is made visible, not solved
+
+Verified consequence: two `Company` rows (name is not unique), and `PortfolioCompany.companyId` is `@unique`, so **only one can ever be linked**. **Decision: out of scope for Part 31, but made visible rather than silent** — F66's new 409 means the admin attempting the second link is told *"Acme is already linked to the company created by jane@acme.com"* instead of getting a 500. Actually merging two operational `Company` rows is genuinely destructive (memberships, updates, metrics, documents, share links, diligence, scenarios all hang off `companyId`) and deserves its own Part with its own sign-off if it is ever wanted.
+
+---
+
+## Judgment calls (Felix's; each with its reversal path)
+
+- **JC-LK-A — the matcher is a pure, DB-free, unit-tested lib** (`src/lib/portco-match.ts`), following `src/lib/broadcast-recipients.ts` and `src/lib/share-metrics.ts`. Routes fetch candidates and call it. *Reversal:* inline it into the one route that survives.
+- **JC-LK-B — suggestions are computed on demand and never stored.** The candidate set is ~50 `PortfolioCompany` rows plus their contacts — one `findMany` and in-memory scoring, comfortably inside a request. No new table, no index, no cache, no cron. *Reversal:* if the portfolio ever grows 100×, add a Postgres `ILIKE` prefilter before scoring; the lib's signature does not change.
+- **JC-LK-C — the free-email-provider list is a constant in the matcher lib**, not config or an env var. *Reversal:* it is one array.
+- **JC-LK-D — two new audit actions, `PORTCO_LINKED` and `PORTCO_UNLINKED`**, written in addition to whatever `PORTCO_UPDATED` the PATCH already logs. `/admin/audit` renders `log.action` as a raw mono string (`src/app/admin/audit/page.tsx:68`), so no UI change is needed.
+- **JC-LK-E — the write reuses the existing `PATCH /api/admin/portfolio-companies/[id]`** rather than inventing a `…/link` route; it already accepts `companyId`. WS76 hardens it in place. *Reversal:* split into a dedicated route if the PATCH ever gets crowded.
+- **JC-LK-F — the "companies available to link" list is a new opt-in query param on the existing admin companies endpoint (`?linkable=1`), never a change to its default response.** `approvedCompanyFilter` hides pending-signup and diligence companies from `/admin/companies` and the admin dashboard *on purpose*; widening the default would be a UX regression on two shipped surfaces. The param bypasses the filter and is read by nothing else. *Reversal:* delete the param.
+- **JC-LK-G — synthetic fixtures only** (`Acme`, `Northwind`, `founder@example.com`), Part 27/28 discipline. A name-matching test file is the single most tempting place in this repo to paste real portfolio names — it must not happen.
+- **JC-LK-H — no schema change in this Part at all.** Every column already exists. This is the main reason the estimate is 3–4 days rather than a week.
+- **JC-LK-I — D3's "add as contact" side effect is a second client call to the shipped contacts route**, not a new field on the PATCH. Reuses a route that already validates, normalizes, dedupes and audits (`PORTCO_CONTACT_ADDED`). *Reversal:* it is one `fetch` in one handler.
+
+---
+
+## WS75 — `src/lib/portco-match.ts`: the pure matcher + tests — ~0.5 day
+
+**Goal.** One tested function that, given a typed company name (+ aliases + a signup email) and the portfolio-company candidate set, returns ranked, reason-annotated suggestions. No DB, no I/O.
+
+**File-by-file steps:**
+
+`src/lib/portco-match.ts` (new):
+
+```ts
+// Part 31, WS75 — pure suggestion engine for linking an operational Company
+// to an existing PortfolioCompany. No DB access: callers fetch candidates
+// and pass them in (the broadcast-recipients.ts / share-metrics.ts shape).
+// It NEVER decides — it ranks. Every link is an explicit admin click
+// (Part 31 D2), following sheet-link.ts's "never guesses: anything ambiguous or
+// unmatched is flagged, not forced" doctrine.
+
+export type MatchReason =
+  | "CONTACT_EMAIL"   // signup email == a contact email on this company (STRONG)
+  | "NAME_EXACT"      // normalized company names are equal            (STRONG)
+  | "ALIAS_EXACT"     // a Company.aliases entry normalizes equal      (STRONG)
+  | "EMAIL_DOMAIN"    // non-free email domain shared with a contact   (MEDIUM)
+  | "NAME_TOKENS";    // token containment after normalization         (WEAK)
+
+export type MatchTier = "STRONG" | "MEDIUM" | "WEAK";
+
+export interface PortcoCandidate {
+  id: string;
+  name: string;
+  companyId: string | null;      // already linked? still returned, flagged
+  contactEmails: string[];       // normalized lowercase (Part 30 stores them that way)
+}
+
+export interface MatchInput {
+  companyName: string;
+  aliases?: string[];
+  signupEmail?: string | null;
+}
+
+export interface PortcoMatch {
+  portfolioCompanyId: string;
+  portfolioCompanyName: string;
+  tier: MatchTier;
+  reasons: MatchReason[];        // sorted, deduped — drives the "why" copy in the UI
+  alreadyLinked: boolean;        // true ⇒ UI shows it but disables Link (F66's 409 case)
+}
+
+// Free providers never imply a shared employer. Without this list the
+// EMAIL_DOMAIN tier matches every Gmail founder to every Gmail contact.
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "outlook.com",
+  "hotmail.com", "hotmail.co.uk", "live.com", "icloud.com", "me.com",
+  "proton.me", "protonmail.com", "aol.com", "yandex.com", "zoho.com", "mail.com",
+]);
+
+const LEGAL_SUFFIXES = new Set([
+  "inc", "llc", "ltd", "limited", "plc", "corp", "co", "gmbh", "bv", "pty", "sarl", "sas", "ug",
+]);
+
+export function normalizeCompanyName(raw: string): string { /* lower, strip punctuation, collapse ws, drop trailing legal suffix */ }
+export function emailDomain(email: string): string | null { /* null for blank/invalid/free */ }
+export function matchPortfolioCompanies(input: MatchInput, candidates: PortcoCandidate[]): PortcoMatch[];
+```
+
+Ordering contract: `STRONG` before `MEDIUM` before `WEAK`; within a tier, more reasons first, then `portfolioCompanyName` ascending. Deterministic — the tests assert exact arrays.
+
+`src/lib/__tests__/portco-match.test.ts` (new) — synthetic data only (JC-LK-G):
+1. `"Acme, Inc."` ↔ `PortfolioCompany "Acme"` → STRONG / `NAME_EXACT`.
+2. `jane@acme.com` signing up as `"Akme"` where Acme has contact `jane@acme.com` → STRONG / `CONTACT_EMAIL` (name mismatch does not demote).
+3. `jane@gmail.com` where Northwind has contact `bob@gmail.com` → **no** `EMAIL_DOMAIN` match.
+4. `jane@acme.com` where Acme has contact `bob@acme.com` → MEDIUM / `EMAIL_DOMAIN`.
+5. `Company.aliases = ["Acme Technologies"]` → STRONG / `ALIAS_EXACT`.
+6. `"Acme"` vs `"Acme Technologies"` with nothing else → WEAK / `NAME_TOKENS`.
+7. A candidate with `companyId !== null` is returned with `alreadyLinked: true`, not filtered out.
+8. Empty name + no email → `[]`.
+9. Two reasons on one candidate → single entry, `reasons` deduped and sorted.
+10. Ordering across all three tiers is exactly as specified.
+
+**Acceptance checklist:** file imports nothing from `@/lib/db`; `npx vitest run src/lib/__tests__/portco-match.test.ts` green; every fixture name/address synthetic; `normalizeCompanyName` exported and separately tested.
+
+**UX impact:** none — nothing renders. **Cost impact:** none (pure CPU, no dependency).
+
+## WS76 — API: suggestion endpoints + hardened link write — ~0.75 day
+
+**Goal.** Serve suggestions to both surfaces, and make the link write safe to drive from a UI.
+
+**File-by-file steps:**
+
+1. **`src/app/api/admin/approvals/[id]/matches/route.ts`** (new, `GET`). `requireAdmin()` → load the pending `User` with `memberships.company { id, name, aliases }` → load all `PortfolioCompany` with `{ id, name, companyId, contacts: { select: { email: true } } }` → call `matchPortfolioCompanies({ companyName, aliases, signupEmail: user.email }, candidates)` → return `{ companyId, companyName, signupEmail, matches }`. **Each match also carries `signupEmailIsAlreadyContact: boolean`** (computed from the same contact rows already loaded — no extra query), which is what drives D3's checkbox visibility in WS77 without a second round-trip. 404 if the user or their owned company is missing. Read-only; no audit row (the house does not audit reads).
+2. **`src/app/api/admin/portfolio-companies/link-suggestions/route.ts`** (new, `GET`). Powers WS78.2. For every `PortfolioCompany` with `companyId === null`, run the matcher against **all** `Company` rows (no `approvedCompanyFilter` — JC-LK-F) and return `{ portfolioCompanyId, portfolioCompanyName, matches: [{ companyId, companyName, tier, reasons }] }`, plus a `companiesWithoutPortfolioCompany` list for the reverse-orphan panel. Note the inversion: here the *candidates* are companies and the *input* is a portfolio company, so the route builds `PortcoCandidate`-shaped rows from `Company` + the portfolio company's own contact emails. Keep both directions going through the one lib.
+3. **`src/app/api/admin/companies/route.ts`** — add `?linkable=1` (JC-LK-F): when present, drop `approvedCompanyFilter` and return `{ id, name, createdAt, portfolioCompanyId }` for the manual-search fallback in the link dialog. Default response byte-identical to today.
+4. **`src/app/api/admin/portfolio-companies/[id]/route.ts`** — harden the `companyId` branch (F66):
+
+```ts
+if (body.companyId !== undefined) {
+  const next = body.companyId || null;
+  if (next) {
+    const target = await db.company.findUnique({
+      where: { id: next },
+      select: { id: true, name: true, portfolioCompany: { select: { id: true, name: true } } },
+    });
+    if (!target) return NextResponse.json({ error: "That company no longer exists." }, { status: 404 });
+    if (target.portfolioCompany && target.portfolioCompany.id !== id) {
+      return NextResponse.json(
+        { error: `${target.name} is already linked to ${target.portfolioCompany.name}.` },
+        { status: 409 }
+      );
+    }
+  }
+  data.companyId = next;
+}
+```
+
+…then, after the update, write the link-specific audit row **in addition to** the existing `PORTCO_UPDATED`:
+
+```ts
+if (body.companyId !== undefined && existing.companyId !== data.companyId) {
+  await logAdminAction(user!, data.companyId ? "PORTCO_LINKED" : "PORTCO_UNLINKED", {
+    targetType: "PortfolioCompany",
+    targetId: id,
+    metadata: { companyId: data.companyId, previousCompanyId: existing.companyId },
+  });
+}
+```
+
+`Company.portfolioCompany` is the existing back-relation of `PortfolioCompany.company` — confirm the generated client exposes it before writing the query (it should; `PortfolioCompany.company` is declared at `prisma/schema.prisma:567`). If Prisma named it differently, use `db.portfolioCompany.findUnique({ where: { companyId: next } })` instead — same result, one extra query.
+
+5. **`src/lib/__tests__/portco-link-route.test.ts`** (new, optional but cheap) — table-driven assertions on the guard logic extracted as a small pure helper, matching how `broadcast-publish.test.ts` tests route logic without a live DB.
+
+**Acceptance checklist:** all four routes `requireAdmin()`-guarded; `GET /api/admin/companies` unchanged without the param (diff the JSON on a real row); linking a non-existent company → 404 with copy; linking an already-linked company → 409 naming the conflict; a successful link writes exactly one `PORTCO_LINKED` row visible at `/admin/audit`; unlink writes `PORTCO_UNLINKED`; suggestion endpoints return `[]` (not 500) for a company with no contacts and no name overlap.
+
+**UX impact:** none yet (no UI calls these). The only change to a shipped endpoint is opt-in behind a query param. **Cost impact:** none — two extra `findMany`s against ~50-row and low-hundreds-row tables on admin-only pages.
+
+## WS77 — `/admin/approvals`: fix F64, then suggest and link-and-approve — ~0.75 day
+
+**Goal.** The approving admin sees the typed company name *and*, when one exists, the portfolio company it probably is.
+
+**File-by-file steps:**
+
+1. **`src/app/api/admin/approvals/route.ts`** — F64 fix, server side: add `companyName: u.memberships[0]?.company?.name ?? null` (and `companyId`) to a mapped response instead of returning the raw rows. Keep `memberships` in the payload so nothing else breaks.
+2. **`src/app/admin/approvals/page.tsx`**:
+   - The `Approval` interface gains `companyId: string | null`; `companyName` now actually arrives. The existing `:299-301` render starts working with no further change.
+   - After `loadApprovals()`, fire one `GET /api/admin/approvals/[id]/matches` per pending row (there are single digits of these; a `Promise.all` over the loaded list is fine — no new endpoint shape needed). Store in `matchStates: Record<string, PortcoMatch[]>`. Failure is silent and the card degrades to today's behavior, exactly like `loadAwaiting()`'s catch at `:105-108`.
+   - Render, only when `matches.length > 0`, a block under the founder details in the ochre-suggestion idiom (`rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm`), e.g. *"Looks like **Acme** in the portfolio — matched by contact email."* with a `<select>` when there is more than one candidate (native `<select>` is the house convention; `react-select` is an unused dep) and a "show weaker matches" toggle per **D2**. Beneath it, the **D3** default-checked checkbox — "Also add `jane@acme.com` as a contact on Acme" — rendered only when the signup email is not already a contact on the selected candidate (the `matches` payload carries that flag from WS76, so no extra fetch). It re-evaluates when the `<select>` changes candidate.
+   - Buttons become **Link & approve** (primary) and **Approve** (secondary) when a match block is showing; unchanged single **Approve** otherwise. Per **D4** the plain **Approve** is always present and always one click — it must never be hidden, disabled, or gated behind dismissing the suggestion.
+   - `handleAction(id, "approve")` is **untouched**. A new `handleLinkAndApprove(id, portfolioCompanyId, addContact)` runs strictly in this order, which matters now that both halves are confirmed:
+     1. `PATCH /api/admin/portfolio-companies/[portfolioCompanyId] { companyId }`. On 4xx, surface the server's message inline (`text-destructive`, the existing `state.error` slot at `:306-310`) and **stop — do not approve.** The 409 copy from F66 is what makes D6's co-founder collision legible here.
+     2. If `addContact`, `POST /api/admin/portfolio-companies/[portfolioCompanyId]/contacts { email, name }`. **Non-fatal** — a failure (other than the 400 "already has that contact", which counts as success) shows a secondary note and does **not** stop step 3. The link already succeeded and must not be rolled back.
+     3. Call the existing `handleAction(id, "approve")` so the setup email and `USER_APPROVED` audit row go out through the exact shipped path. Approval must never be silently skipped or silently doubled — guard on the existing `actionStates[id].loading`.
+3. Mobile: the new block (suggestion line, `<select>`, checkbox) is a full-width stacked child inside the existing `flex flex-wrap` card — Part 6 pattern C. Check at 375px.
+
+**Acceptance checklist:** a pending signup now shows its company name (F64 — verify against a real pending row, this is the regression that has been live since the page was written); a signup whose email matches a contact shows a STRONG suggestion with the right reason copy; **Approve** alone still works, still sends the setup email, and is still one click with a suggestion on screen (**D4**); **Link & approve** with the box checked produces `PORTCO_LINKED` + `PORTCO_CONTACT_ADDED` + `USER_APPROVED` audit rows, in that order; with the box unchecked, the same minus `PORTCO_CONTACT_ADDED`; a 409 from the link leaves the user **un-approved** with a readable error naming the conflicting company; a failed contact-add still approves and still leaves the link in place; approving first and linking later from `/admin/portfolio/[id]` reaches the identical end state (**D4**); no suggestions ⇒ the card is visually identical to today plus the company name; 375px clean.
+
+**UX impact:** admin-only, additive; the one behavioral change is that a previously-invisible field becomes visible (a fix, not a regression). **D5 check:** no founder-facing file is touched — the only signup-adjacent server change is the shape of an admin-only JSON response. **Cost impact:** none.
+
+## WS78 — the standing reconciliation surface — ~1–1.25 day
+
+**Goal.** Work the backlog: link portfolio companies independently of any single signup, and give `PortfolioCompany.companyId` its first writer UI (F65).
+
+**File-by-file steps:**
+
+**78.1 — the per-company link widget.** `src/app/admin/portfolio/[id]/page.tsx` header card (`:392-407`, where the read-only "View operational company profile" link lives today):
+- Linked: `Molly account: Acme` + the existing profile link + a secondary **Unlink** with the ochre inline-confirm panel (`src/app/admin/reports/[id]/page.tsx:308-360` idiom).
+- Unlinked: `Molly account: not linked` + a **Link…** button opening the existing `Modal` component used elsewhere on admin pages, containing (a) suggestions from `GET /api/admin/portfolio-companies/link-suggestions` filtered to this company (or a per-id variant), (b) a search box backed by `GET /api/admin/companies?linkable=1`, and (c) the **D3 default-checked** "Also add `<owner email>` as a contact on `<portfolio company>`" checkbox, rendered only when that address is not already a contact on this company (hidden, not disabled, when it is — never offer a no-op).
+- `GET /api/admin/portfolio/companies/[id]` already returns `company` (`route.ts:21, 62`) — no change needed to feed the linked state.
+
+**78.2 — the "Links" tab on `/admin/portfolio`.** Tab shell copied from `src/app/admin/funds/page.tsx:140-161` (`?tab=links`, `border-b-2 … border-primary text-primary`), the deal-ledger table staying as the default tab:
+- **Unlinked portfolio companies** — one row each: name, contact count, top suggested `Company` with its reason, a **Link** button, and a "no suggestion" state that offers the search dialog.
+- **Operational companies with no portfolio company** (the reverse orphans, from the same endpoint) — name, created date, owner email, and a link to `/admin/companies/[id]`. Read-only; its job is to make "this founder's company is not in the cap table at all" visible, which is currently invisible anywhere in the app.
+- Empty state via the existing `EmptyState` component: "Every portfolio company is linked."
+
+**Acceptance checklist:** `/admin/portfolio/[id]` can link and unlink, and the header reflects it without a reload; linking with the D3 checkbox left checked creates the contact and it appears in the same page's Contacts section on reload; unchecking it links without creating a contact; the checkbox does not render when the address is already a contact; `?tab=links` deep-links; the tab is the only nav change (no new sidebar item — JC placement note below); linking from the tab updates the row in place; both lists are correct against a hand-checked sample; the reverse-orphan list includes pending-signup companies (proving JC-LK-F's `linkable=1` path works); 375px clean per Part 6 patterns A (scrollable table) and B (wrap-row cards).
+
+*No sidebar item is added* — this is reconciliation housekeeping inside an existing page, not a destination. One line if that turns out wrong.
+
+**UX impact:** admin-only, purely additive; the deal ledger remains the default tab and is untouched. **Cost impact:** none.
+
+## WS79 — link-aware affordances on the operational side — ~0.5 day
+
+**Goal.** Make the link visible from the direction that currently has zero awareness of it (verified: no hit for `PortfolioCompany` anywhere under `src/app/admin/companies` or `src/app/api/companies`).
+
+**File-by-file steps:**
+1. `src/app/api/admin/companies/[id]`-equivalent read (or the page's existing loader) gains `portfolioCompany: { select: { id: true, name: true } }`.
+2. `src/app/admin/companies/[id]/page.tsx` header shows `Portfolio: Acme →` linking to `/admin/portfolio/[id]`, or nothing when unlinked. Read-only — all linking stays on the portfolio side, one writer surface.
+3. **The shared D3 contact-add handler** (used by WS77 and WS78.1, written once here or in a small shared client helper — implementer's call): after a successful link, if the checkbox is checked, `POST /api/admin/portfolio-companies/[portfolioCompanyId]/contacts { email, name }` with the owner's `User.email` / `User.name` and no `role`. A 400 "already has that contact" is treated as **success**, not an error (the desired end state is reached either way). A failure here **never** rolls back or reports failure on the link itself — the link is the primary action; surface the contact-add problem as a secondary inline note. Same non-fatal posture as the LP publish notify loop (the F12 lesson).
+
+**Acceptance checklist:** an unlinked company's page is byte-identical to today; a linked one shows one new line; the contact-add is audited as `PORTCO_CONTACT_ADDED` (existing action, no new type) and shows up in the portfolio company's Contacts section; a contact-add failure leaves the link intact.
+
+**UX impact:** admin-only, one additive line. **D5 check:** nothing here is founder-reachable — `/admin/companies/[id]` is admin-only. **Cost impact:** none.
+
+---
+
+## Sequencing & handoff (Part 31)
+
+- **WS75 → WS76 → (WS77 ∥ WS78) → WS79.** WS77 and WS78 are independent once the API lands. **WS79's step 3 is the shared D3 contact-add handler** — whoever reaches it first writes it; the other calls it.
+- **Nothing is blocked on a decision.** D1–D6 are confirmed and the Part requires no schema change, so WS75 can start immediately.
+- **Ship-first order if the work is split across sessions:** WS77's F64 one-liner, then WS78.1's link widget (F65). Those two alone turn "impossible to see, impossible to do" into "visible and doable"; the matcher is the convenience layer on top.
+- **Total effort:** ~3.5–4 days (WS75 0.5 + WS76 0.75 + WS77 0.75 + WS78 1.25 + WS79 0.5), with **no schema change** (JC-LK-H).
+
+## Part 31 — confirmed decisions summary
+
+| | Decision (locked 2026-09-01) | What it means for the implementer |
+|---|---|---|
+| **D1** (Q72) | Matching happens at **approval time** and in a **standing "Links" view**; **never** on `/signup` | Every suggestion endpoint is `requireAdmin()`-guarded. No unauthenticated route learns anything about the portfolio roster |
+| **D2** (Q73) | Contact-email exact + normalized name/alias exact = STRONG; non-free shared email domain = MEDIUM; token containment = WEAK behind a toggle. **Never auto-link** | No code path writes `PortfolioCompany.companyId` without an explicit admin click — not even on an exact contact-email hit |
+| **D3** (Q74) | Contact rows **coexist untouched**; every link affordance carries a **default-checked** "also add this founder as a contact" | Two surfaces (WS77, WS78.1), one shared handler (WS79.3). Non-fatal: a contact-add failure never undoes the link. Broadcasts are unaffected by the link itself (Part 30 D4 / F67) — the checkbox is the *only* thing that changes who gets mail |
+| **D4** (Q75) | **Non-blocking.** Approve stays one click; linking can happen before, during, or after approval | Plain **Approve** is never hidden, disabled, or gated. All three orderings must reach the same end state |
+| **D5** (Q76) | **Zero founder-visible change** | No founder route or founder-reachable API response changes shape. The founder's `Company.name` is never rewritten to the portfolio spelling |
+| **D6** (Q77) | Two co-founders → two `Company` rows stays **out of scope**; the collision is made **visible** | F66's 409 names the conflicting company instead of returning a 500. No merge logic is written |
+
+**Constraints honored:** **no schema change at all** (every column exists; trivially satisfies additive-only); **no new cost line** (pure in-memory matching over ~50 portfolio companies on admin-only pages — no service, no dependency, no cron); **no UX regression** (admin-only surfaces; the sole edits to shipped behavior are an opt-in query param, two error codes that are currently 500s, and F64's fix which makes a field that was supposed to render actually render). **Zero founder, LP, and investor-link impact.**
+
+---
