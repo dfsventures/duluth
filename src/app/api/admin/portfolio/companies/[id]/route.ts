@@ -25,6 +25,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         },
         rounds: { orderBy: { roundDate: "asc" } },
         marks: { orderBy: { asOf: "desc" } },
+        contacts: { orderBy: { createdAt: "asc" } },
       },
     });
     if (!company) return NextResponse.json({ error: "Portfolio company not found" }, { status: 404 });
@@ -101,6 +102,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       })),
       latestValuation,
       positions: [...byFund.values()],
+      contacts: company.contacts.map((c) => ({
+        id: c.id,
+        name: c.name,
+        email: c.email,
+        role: c.role,
+      })),
     });
   } catch (err) {
     console.error("GET /api/admin/portfolio/companies/[id] error:", err);

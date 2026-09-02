@@ -1,16 +1,26 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
-import { Layers, Building2, Landmark, DollarSign, Search } from "lucide-react";
+import { Layers, Building2, Landmark, DollarSign, Search, Upload, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, SortableTh, TableRow } from "@/components/ui/table";
 import { Select } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
+import { parseContactsCSV } from "@/lib/csv";
+
+interface ContactsImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+  unmatchedCompanies: string[];
+}
 
 interface PortfolioDeal {
   id: string;
@@ -109,6 +119,12 @@ export default function AdminPortfolioPage() {
   // visually shifts until a header is clicked (Q38-A acceptance criterion).
   const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
 
+  // Part 30, WS70.4 — portfolio-wide contacts CSV import entry point.
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ContactsImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+
   const handleSort = useCallback((key: SortKey) => {
     setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: DEFAULT_SORT_DIR[key] }));
   }, []);
@@ -146,12 +162,96 @@ export default function AdminPortfolioPage() {
       .catch(() => {});
   }, []);
 
+  async function handleContactsCSVFile(file: File) {
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+    try {
+      const text = await file.text();
+      const rows = parseContactsCSV(text);
+      if (rows.length === 0) {
+        setImportError('No valid rows found. CSV must have an "email" column.');
+        return;
+      }
+      const res = await fetch("/api/admin/portfolio-companies/contacts/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contacts: rows }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "Import failed");
+      }
+      const result: ContactsImportResult = await res.json();
+      setImportResult(result);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   return (
     <AppShell>
       <PageHeader
         title="Portfolio"
         description="Every deal across every fund — the cross-fund view the per-fund pages don't give you."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" disabled={importing} onClick={() => fileInputRef.current?.click()}>
+              <Upload className="mr-2 h-4 w-4" />
+              {importing ? "Importing..." : "Import contacts (CSV)"}
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleContactsCSVFile(file);
+              }}
+            />
+          </div>
+        }
       />
+
+      {importResult && (
+        <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-acacia">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex-1">
+            <span className="font-medium">Import complete.</span> {importResult.created} created, {importResult.updated} updated
+            {importResult.skipped > 0 && `, ${importResult.skipped} skipped`}.
+            {importResult.unmatchedCompanies.length > 0 && (
+              <p className="mt-1">Unmatched companies: {importResult.unmatchedCompanies.join(", ")}</p>
+            )}
+            {importResult.errors.length > 0 && (
+              <ul className="mt-1 list-disc pl-4 text-laterite">
+                {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            )}
+          </div>
+          <button onClick={() => setImportResult(null)}>
+            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+          </button>
+        </div>
+      )}
+      {importError && (
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">{importError}</span>
+          <button onClick={() => setImportError(null)}>
+            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+          </button>
+        </div>
+      )}
+      <p className="mb-6 text-sm text-muted-foreground">
+        CSV columns: <code className="rounded bg-muted px-1">company</code>,{" "}
+        <code className="rounded bg-muted px-1">name</code>, <code className="rounded bg-muted px-1">email</code>, optional{" "}
+        <code className="rounded bg-muted px-1">role</code>. <code className="rounded bg-muted px-1">company</code> must match an
+        existing portfolio company — unmatched rows are reported, never created.
+      </p>
 
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card>

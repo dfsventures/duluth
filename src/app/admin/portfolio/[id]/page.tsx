@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Layers, History, TrendingUp, Plus, X, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Layers, History, TrendingUp, Plus, X, Pencil, Trash2, Users, Upload, CheckCircle2, AlertCircle } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
+import { parseContactsCSV } from "@/lib/csv";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
 
@@ -61,6 +62,13 @@ interface Position {
   dilutionAware: boolean;
 }
 
+interface Contact {
+  id: string;
+  name: string | null;
+  email: string;
+  role: string | null;
+}
+
 interface CompanyDetail {
   id: string;
   name: string;
@@ -71,6 +79,15 @@ interface CompanyDetail {
   marks: Mark[];
   latestValuation: number | null;
   positions: Position[];
+  contacts: Contact[];
+}
+
+interface ContactsImportResult {
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+  unmatchedCompanies: string[];
 }
 
 function multipleLabel(m: number | null): string {
@@ -97,6 +114,16 @@ export default function AdminPortfolioCompanyPage() {
   const [markForm, setMarkForm] = useState({ valuationUsd: "", asOf: "", notes: "" });
   const [savingMark, setSavingMark] = useState(false);
   const [markError, setMarkError] = useState("");
+
+  // Part 30, WS70.4 — Contacts section state.
+  const [contactForm, setContactForm] = useState({ name: "", email: "", role: "" });
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [savingContact, setSavingContact] = useState(false);
+  const [contactError, setContactError] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ContactsImportResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const contactsFileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -237,6 +264,90 @@ export default function AdminPortfolioCompanyPage() {
     load();
   }
 
+  // Part 30, WS70.4 — Contacts section handlers.
+  function startEditContact(c: Contact) {
+    setEditingContactId(c.id);
+    setContactForm({ name: c.name ?? "", email: c.email, role: c.role ?? "" });
+    setContactError("");
+  }
+
+  function cancelEditContact() {
+    setEditingContactId(null);
+    setContactForm({ name: "", email: "", role: "" });
+    setContactError("");
+  }
+
+  async function handleSaveContact(e: React.FormEvent) {
+    e.preventDefault();
+    const email = contactForm.email.trim();
+    if (!email) return;
+    setSavingContact(true);
+    setContactError("");
+    try {
+      const isEditing = editingContactId !== null;
+      const res = await fetch(`/api/admin/portfolio-companies/${companyId}/contacts`, {
+        method: isEditing ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          isEditing
+            ? { id: editingContactId, name: contactForm.name.trim() || null, email, role: contactForm.role.trim() || null }
+            : { name: contactForm.name.trim() || null, email, role: contactForm.role.trim() || null }
+        ),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.error ?? "Failed to save contact");
+      }
+      cancelEditContact();
+      load();
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingContact(false);
+    }
+  }
+
+  async function handleDeleteContact(id: string) {
+    if (!window.confirm("Remove this contact? They will no longer receive broadcasts to this company.")) return;
+    await fetch(`/api/admin/portfolio-companies/${companyId}/contacts`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    load();
+  }
+
+  async function handleContactsCSVFile(file: File) {
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+    try {
+      const text = await file.text();
+      const rows = parseContactsCSV(text);
+      if (rows.length === 0) {
+        setImportError('No valid rows found. CSV must have an "email" column.');
+        return;
+      }
+      const res = await fetch("/api/admin/portfolio-companies/contacts/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contacts: rows, defaultPortfolioCompanyId: companyId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error ?? "Import failed");
+      }
+      const result: ContactsImportResult = await res.json();
+      setImportResult(result);
+      if (result.created > 0 || result.updated > 0) load();
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+      if (contactsFileInputRef.current) contactsFileInputRef.current.value = "";
+    }
+  }
+
   if (loading) {
     return (
       <AppShell>
@@ -293,6 +404,131 @@ export default function AdminPortfolioCompanyPage() {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Contacts (Part 30, WS70.4) — people first, then numbers */}
+      <div className="mb-6">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold">
+          <Users className="h-4 w-4" />
+          Contacts
+        </h3>
+
+        {importResult && (
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-acacia">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="flex-1">
+              <span className="font-medium">Import complete.</span> {importResult.created} created, {importResult.updated} updated
+              {importResult.skipped > 0 && `, ${importResult.skipped} skipped`}.
+              {importResult.unmatchedCompanies.length > 0 && (
+                <p className="mt-1">Unmatched companies: {importResult.unmatchedCompanies.join(", ")}</p>
+              )}
+              {importResult.errors.length > 0 && (
+                <ul className="mt-1 list-disc pl-4 text-laterite">
+                  {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              )}
+            </div>
+            <button onClick={() => setImportResult(null)}>
+              <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+            </button>
+          </div>
+        )}
+        {importError && (
+          <div className="mb-3 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span className="flex-1">{importError}</span>
+            <button onClick={() => setImportError(null)}>
+              <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+            </button>
+          </div>
+        )}
+
+        {data.contacts.length === 0 ? (
+          <EmptyState icon={<Users className="h-6 w-6" />} title="No contacts yet — broadcasts to this company would reach nobody." />
+        ) : (
+          <div className="mb-3 space-y-1.5">
+            {data.contacts.map((c) => (
+              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border px-2.5 py-1.5">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  {c.name && <span className="font-medium">{c.name}</span>}
+                  <span className="font-mono text-xs">{c.email}</span>
+                  {c.role && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{c.role}</span>}
+                </div>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => startEditContact(c)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                  <button onClick={() => handleDeleteContact(c.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Remove">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form onSubmit={handleSaveContact} className="rounded-md border border-border bg-card p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <input
+              type="text"
+              placeholder="Name"
+              value={contactForm.name}
+              onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))}
+              className="input-field"
+            />
+            <input
+              type="email"
+              placeholder="Email *"
+              required
+              value={contactForm.email}
+              onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))}
+              className="input-field"
+            />
+            <input
+              type="text"
+              placeholder="Role (optional)"
+              value={contactForm.role}
+              onChange={(e) => setContactForm((f) => ({ ...f, role: e.target.value }))}
+              className="input-field"
+            />
+            <Button type="submit" size="sm" disabled={savingContact || !contactForm.email.trim()}>
+              {savingContact ? "Saving..." : editingContactId ? "Save" : "Add"}
+            </Button>
+            {editingContactId && (
+              <Button type="button" variant="secondary" size="sm" onClick={cancelEditContact}>
+                Cancel
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={importing}
+              onClick={() => contactsFileInputRef.current?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {importing ? "Importing..." : "Import CSV"}
+            </Button>
+            <input
+              ref={contactsFileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleContactsCSVFile(file);
+              }}
+            />
+          </div>
+          {contactError && <p className="mt-2 text-xs text-laterite">{contactError}</p>}
+          <p className="mt-2 text-xs text-muted-foreground">
+            CSV columns: <code className="rounded bg-muted px-1">name</code>,{" "}
+            <code className="rounded bg-muted px-1">email</code>, optional{" "}
+            <code className="rounded bg-muted px-1">role</code>. A{" "}
+            <code className="rounded bg-muted px-1">company</code> column is optional here — rows without one are added to this
+            company.
+          </p>
+        </form>
       </div>
 
       {/* Positions (computed, per fund) */}

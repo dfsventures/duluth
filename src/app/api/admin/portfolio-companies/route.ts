@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       },
       include: {
         company: { select: { id: true, name: true } },
-        _count: { select: { deals: true, mentions: true } },
+        _count: { select: { deals: true, mentions: true, contacts: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -34,6 +34,7 @@ export async function GET(request: Request) {
         company: c.company,
         dealCount: c._count.deals,
         mentionCount: c._count.mentions,
+        contactCount: c._count.contacts,
       }))
     );
   } catch (err) {
