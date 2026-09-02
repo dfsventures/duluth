@@ -5,6 +5,9 @@ import { SETUP_TOKEN_TTL_DAYS } from "@/lib/setup-token";
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
 export const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <hello@dfs.vc>`;
+// Broadcasts to portfolio-company contacts send from a personal identity
+// rather than the product name — same mailbox, different display name.
+const BROADCAST_FROM = process.env.BROADCAST_EMAIL_FROM || "Joey from DFS <hello@dfs.vc>";
 const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfs.vc";
 const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
@@ -630,7 +633,7 @@ function broadcastHtml(msg: BroadcastMessage): string {
 /** One message, one recipient — the "send me a test copy" path (JC-BC-F). */
 export async function sendCompanyBroadcastEmail(msg: BroadcastMessage) {
   const result = await resend.emails.send({
-    from: FROM,
+    from: BROADCAST_FROM,
     replyTo: TEAM_EMAIL,
     to: msg.email,
     subject: msg.subject,
@@ -654,7 +657,7 @@ export async function sendCompanyBroadcastEmails(
     try {
       const res = await resend.batch.send(
         chunk.map((m) => ({
-          from: FROM,
+          from: BROADCAST_FROM,
           replyTo: TEAM_EMAIL,
           to: m.email,
           subject: m.subject,
