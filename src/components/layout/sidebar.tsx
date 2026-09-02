@@ -27,6 +27,7 @@ import {
   FolderOpen,
   Calculator,
   Megaphone,
+  Contact,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 import { useCompany } from "@/context/company-context";
@@ -82,6 +83,11 @@ const adminNavGroups = [
     items: [
       { label: "Funds", href: "/admin/funds", icon: Landmark },
       { label: "Deal Ledger", href: "/admin/portfolio", icon: Rows3 },
+      // Part 33, WS89 (D1) — portfolio-WIDE contact + account-link management,
+      // moved off /admin/portfolio, whose job is the cross-fund deal ledger.
+      // Per-company contact CRUD and the link/unlink widget deliberately stay
+      // on /admin/portfolio/[id] — that is per-record management, not this.
+      { label: "Portfolio Contacts", href: "/admin/portfolio-contacts", icon: Contact },
       { label: "LPs", href: "/admin/lps", icon: Handshake },
       { label: "Fund Reports", href: "/admin/reports", icon: NotebookPen },
       // Part 30, WS74 (JC-BC-I) — a PortfolioCompany-side tool (same

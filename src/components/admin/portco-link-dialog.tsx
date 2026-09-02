@@ -32,7 +32,8 @@ interface Props {
 
 // Part 31, WS78 — the one link dialog. Used by both the per-company
 // widget on /admin/portfolio/[id] (WS78.1) and the standing "Links" tab
-// on /admin/portfolio (WS78.2), so there is exactly one place that
+// on /admin/portfolio-contacts (WS78.2, moved in Part 33/WS89), so there
+// is exactly one place that
 // fetches suggestions + the linkable-company list, renders the picker,
 // and drives PATCH + the shared D3 contact-add handler
 // (src/lib/portco-link-contact.ts, WS79.3) — not two copies.
