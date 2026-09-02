@@ -161,7 +161,7 @@ export default function SharePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-sm text-muted-foreground">Loading...</div>
       </div>
     );
@@ -169,7 +169,7 @@ export default function SharePage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 px-4">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
         <AlertCircle className="mb-3 h-10 w-10 text-muted-foreground" />
         <h1 className="text-lg font-semibold">Link unavailable</h1>
         <p className="mt-1 text-sm text-muted-foreground">{error}</p>
@@ -178,11 +178,11 @@ export default function SharePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       {/* Email gate modal */}
       {emailGate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border bg-white p-6 shadow-xl">
+          <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-xl">
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-primary-100">
               <Mail className="h-5 w-5 text-primary-700" />
             </div>

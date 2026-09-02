@@ -15,7 +15,7 @@ type ResendState = "idle" | "sending" | "sent";
 
 function CenteredLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted">
+    <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="text-muted-foreground">Loading...</div>
     </div>
   );
@@ -23,7 +23,7 @@ function CenteredLoading() {
 
 function InvalidCard() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md space-y-8">
         <div className="flex justify-center">
           <LogoMark className="text-4xl" />
@@ -100,7 +100,7 @@ function ExpiredCard({ token }: { token: string }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md space-y-8">
         <div className="flex justify-center">
           <LogoMark className="text-4xl" />
@@ -296,7 +296,7 @@ function SetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="flex justify-center">

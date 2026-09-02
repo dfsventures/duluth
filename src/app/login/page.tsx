@@ -42,7 +42,7 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       {/* Back to home */}
       <div className="mb-6 w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -51,9 +51,7 @@ function LoginForm() {
       </div>
 
       <div className="w-full max-w-md">
-        {/* Card with teal top accent */}
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="h-1 w-full bg-primary" />
           <div className="px-8 py-8">
             <h1 className="mb-1 text-xl font-semibold text-foreground">Welcome back</h1>
             <p className="mb-6 text-sm text-muted-foreground">
@@ -127,7 +125,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-muted">
+        <div className="flex min-h-screen items-center justify-center bg-background">
           <div className="text-muted-foreground">Loading...</div>
         </div>
       }

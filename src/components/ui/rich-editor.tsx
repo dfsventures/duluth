@@ -439,7 +439,7 @@ export function RichEditor({
         .ProseMirror p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
           float: left;
-          color: #94a3b8;
+          color: var(--color-text-muted);
           pointer-events: none;
           height: 0;
         }
@@ -448,7 +448,7 @@ export function RichEditor({
         .ProseMirror ul { list-style-type: disc; padding-left: 1.5rem; margin: 0.5rem 0; }
         .ProseMirror ol { list-style-type: decimal; padding-left: 1.5rem; margin: 0.5rem 0; }
         .ProseMirror li { margin: 0.2rem 0; }
-        .ProseMirror blockquote { border-left: 3px solid #3BBFA0; padding-left: 1rem; color: #64748B; margin: 0.75rem 0; }
+        .ProseMirror blockquote { border-left: 3px solid var(--color-accent, #44688E); padding-left: 1rem; color: var(--color-text-secondary); margin: 0.75rem 0; }
         /* Fully self-contained rather than splitting the shorthand against
            globals.css's ".prose hr" rule (which also covers every read-only
            view) — a "border: none" reset here plus a color-only rule
@@ -466,7 +466,7 @@ export function RichEditor({
         .ProseMirror hr { border: none; border-top: 1px solid var(--color-text-muted); margin: 1rem 0; }
         .ProseMirror p { margin: 0.5rem 0; }
         .ProseMirror strong { font-weight: 600; }
-        .ProseMirror .portco-mention { color: #44688E; text-decoration: underline; text-decoration-color: #44688E; font-weight: 500; }
+        .ProseMirror .portco-mention { color: var(--color-accent, #44688E); text-decoration: underline; text-decoration-color: var(--color-accent, #44688E); font-weight: 500; }
         /* Part 14, WS34.4 — editor-time placeholder only (JC-A); the real
            stat-strip-plus-table never renders inside the editing surface,
            only in Preview and the published/LP pages (WS36). Dashed border

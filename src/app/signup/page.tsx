@@ -44,7 +44,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       {/* Back to home */}
       <div className="mb-6 w-full max-w-md">
         <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -54,7 +54,6 @@ export default function SignupPage() {
 
       <div className="w-full max-w-md">
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="h-1 w-full bg-primary" />
           <div className="px-8 py-8">
             {submitted ? (
               <div className="space-y-4 py-4 text-center">
