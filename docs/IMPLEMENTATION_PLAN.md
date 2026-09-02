@@ -7467,3 +7467,594 @@ import { Calculator } from "lucide-react";
 - **Part 29 total effort:** ~4.5–5.5 days Alvin (WS66 ~1d + WS67 ~1.25d + WS68 ~2.5–3d).
 
 ---
+
+
+# Part 30 — Admin Email Broadcast to Portfolio Companies (WS69–WS74, F58–F62, 2026-09-01)
+
+> **Status: PLANNED, not built. All product decisions CONFIRMED (Joseph, 2026-09-01) — nothing open.** The founder-side counterpart to the LP fund-report publish flow. Today an admin composes a `FundReport` and, on publish, can email every LP address across that fund (`src/app/api/admin/reports/[id]/publish/route.ts`); there is **no equivalent aimed at portfolio companies** — verified, every company-directed email in `src/lib/email.ts` is transactional (approval, invite, reminder, comment, DD). Part 30 adds an admin-composed **broadcast** with the same draft→publish lifecycle.
+>
+> Joseph's framing: *"I want to send our emails to portfolio companies just the way I send emails to LPs."*
+>
+> **This Part was revised on 2026-09-01 after Joseph reviewed the first draft.** The original draft targeted `Company` + `UserCompanyMembership` (real Molly logins). Joseph corrected it: **many portfolio companies are not active Molly users at all**, so routing recipients through app accounts would miss most of the actual portfolio. Targeting moved to `PortfolioCompany` plus a **new, admin-maintained contact list**. The superseded design is not preserved below — this Part reads as the corrected design throughout.
+
+## Confirmed decisions (D1–D9 — locked, do NOT re-litigate)
+
+1. **D1 — New feature, not a repurposing.** A new broadcast model with its own draft→publish lifecycle. Neither `Update` (founder-authored) nor `FundReport` (fund-scoped, LP-facing, mention/snapshot machinery) is reused as the persistence model.
+2. **D2 — Audience unit is `PortfolioCompany`** — the ~50-row cap-table entity already used for LP report mentions (`FundReportMention.portfolioCompanyId`) — **not `Company`**. *(Corrected 2026-09-01; this reverses the first draft's decision.)*
+3. **D3 — Recipients come from a new admin-maintained contact list** (`PortfolioCompanyContact`: name + email, many per company), attached to `PortfolioCompany` by FK. Structurally the `LimitedPartner`/`LpEmail` pattern, with one deliberate divergence (see JC-BC-B).
+4. **D4 — One mechanism for every company, no branching.** Even where a `PortfolioCompany` has a linked `Company` with active founder logins, the broadcast goes to the **contact list**, never to `UserCompanyMembership` users. Joseph chose this explicitly over the alternative (auto-pull founder accounts when the company is active, fall back to contacts otherwise): one path, no dual logic, no "why did this person get it / not get it" ambiguity. **Consequence to state plainly:** contact rows are the single source of truth and must be maintained by an admin — an active founder with a Molly login who is *not* on the contact list receives nothing. WS70 exists to make maintaining that list easy, and WS74's preview makes the consequence visible before every send.
+5. **D5 — Per-broadcast targeting.** The admin picks a subset of portfolio companies with a multi-select audience picker. Not "always the whole portfolio."
+6. **D6 — Draft → publish lifecycle with history.** Write, save, review, later publish (which sends), and see a list of past broadcasts.
+7. **D7 — Dedup by email address.** One address receives one email per broadcast, no matter how many targeted companies list it. Since recipients are plain contact rows (no `User`, no roles, no `UserStatus`), dedup is purely "same normalized email" — there is no APPROVED/FOUNDER-role check anywhere in this feature.
+8. **D8 — The email carries the full body** (no link-out), **there is no founder-facing in-app archive** (inbox only in v1), **no unpublish/undo** (email cannot be unsent) but **retry-unsent and duplicate-as-draft are both built**, and **there is no opt-out control in v1**.
+9. **D9 — Sending domain is already handled.** `EMAIL_FROM` is set on Vercel; `src/lib/email.ts:7` falls back to `` `Molly from ${ORG_NAME} <hello@dfs.vc>` ``. The new template uses the existing module-level `FROM` like every other template.
+
+## Method — what was verified against the working tree (not assumed)
+
+- **The LP publish flow** — `src/app/api/admin/reports/[id]/publish/route.ts`: `requireAdmin()` → `DRAFT`-only guard → snapshot freeze in `db.$transaction` → status flip to `PUBLISHED` → **then** the opt-in notify loop (plain `for…of`, per-recipient `try/catch`, `notified`/`failed` counters, never rethrows — the F12 lesson) → `logAdminAction(user!, "REPORT_PUBLISHED", …)` → response carrying `notifyResult`. **Publish happens before sending**; Part 30 keeps that ordering.
+- **Dedup in the LP loop (F51 revisited).** The brief asked to mirror "the F51 dedup logic." Verified: **there is none to mirror.** F51 concluded dedup was unnecessary *structurally* (single-fund publish + `@@unique([lpId, fundId])` + globally-unique `LpEmail.email`). Part 30's shape defeats all three of those guarantees at once — multi-company targeting, and (per JC-BC-B) contact emails that are **not** globally unique — so it needs real dedup, in WS71.
+- **`PortfolioCompany`** (`prisma/schema.prisma:556`) — `id`, `name @unique`, `country?`, `companyId? @unique` (optional link to an operational `Company`), timestamps; relations `company`, `deals`, `mentions`, `rounds`, `marks`, `cashflows`. **It has no `stage`, `status`, or `active` column of any kind** — see F62.
+- **The LP contact pattern** — `LimitedPartner` (`:695`) holds `name` + a denormalized nullable `email` mirror; `LpEmail` (`:714`) holds `lpId`, `email @unique` (**globally** unique), `isPrimary`, cascade delete, `@@index([lpId])`. `LpFundMembership` (`:727`) is the join with `@@unique([lpId, fundId])`.
+- **LP contact CRUD to mirror** — `src/app/api/admin/lps/[id]/emails/route.ts`: `POST` (add: trim+lowercase, `EMAIL_REGEX` validate, clash check, first-address-is-primary rule, audit `LP_EMAIL_ADDED`), `DELETE` (remove by email in the JSON body, re-promote a new primary, audit `LP_EMAIL_REMOVED`), `PATCH` (set primary, audit `LP_EMAIL_PRIMARY_CHANGED`). The `EMAIL_REGEX` is **duplicated per file by house convention, not centralized** (the file says so explicitly) — WS70 follows that convention rather than "fixing" it.
+- **LP contact UI to mirror** — `src/app/admin/lps/page.tsx:320-370`: inside the edit `Modal`, an "Addresses" block of `rounded-sm border border-border px-2.5 py-1.5` rows, each showing a `Star` for primary plus "Make primary" / `X` remove buttons, with an `input-field` + "Add" `Button` beneath and an inline `text-laterite` error line.
+- **Portfolio-company admin API that already exists** — `GET`/`POST /api/admin/portfolio-companies` (list returns `{ id, name, country, companyId, company, dealCount, mentionCount }`, supports `?fundId=` and `?q=`; create validates a ≤200-char unique name, audits `PORTCO_CREATED`), `PATCH`/`DELETE /api/admin/portfolio-companies/[id]` (delete 409s while deals or mentions exist), and the **sub-route precedent** `/api/admin/portfolio-companies/[id]/marks`. The list endpoint is exactly what the audience picker needs.
+- **Portfolio-company admin UI that already exists** — `/admin/portfolio` is the cross-fund **deal ledger**; its rows link to `/admin/portfolio/[id]`, a per-portfolio-company page (`src/app/admin/portfolio/[id]/page.tsx`, 547 lines) laid out as stacked sections with the `<h3 className="mb-3 flex items-center gap-2 font-semibold">` + icon idiom: header card → "Positions by fund" → "Deals across funds" → rounds → valuation marks. **There is no dedicated portfolio-company list page; creation happens on `/admin/funds/[id]`.** There is **no contact UI anywhere** — hence WS70.
+- **`RichEditor`** (`src/components/ui/rich-editor.tsx:38-66`) — the image toolbar button renders only when `companyId` is passed (`:390`) and `handleImageUpload` no-ops without it (`:139`). The report composer passes none; the broadcast composer won't either. Text, links, lists, headings only.
+- **Composer shell** — `<ComposerTopBar>` (`src/components/composer/composer-top-bar.tsx`: `draftLabel`, `secondaryActions`, `publishLabel`, `onPublishClick`, `publishDisabled`, `publishing`, `overflowItems`) plus the ochre `border-ochre/30 bg-ochre/10` inline confirm panel from `src/app/admin/reports/[id]/page.tsx:308-360`.
+- **Multi-select picker pattern** — `src/app/admin/links/page.tsx:288-380`: a `max-h-72 overflow-y-auto rounded-md border divide-y` scroll container of `<label>` rows with `<input type="checkbox" className="h-4 w-4 rounded border-border accent-primary">`, a running "N across M" summary, and Select-all/Clear buttons. **Inline JSX, not a component, and it selects updates** — copied as a pattern (JC-BC-H).
+- **Email conventions** — module-level `FROM`/`TEAM_EMAIL`/`BASE_URL`, brand token object `C`, helpers `emailWrapper()`, `eyebrow()`, `heading()`, `primaryButton()`, `escapeHtml()`, and `assertSent(result, context)`. **Precedent for embedding rich-text HTML in an email exists**: `sendUpdatePublishedEmail` (`:185-240`) drops TipTap HTML raw into a styled `<div>`.
+- **The existing CSV importer (the pattern WS70.3 mirrors)** — `src/app/api/admin/companies/import/route.ts` (62 lines) + its trigger in `src/app/admin/companies/page.tsx:80-240`. Confirmed conventions: **parsing happens client-side** (`parseCSV`, hand-rolled, no library) and the route receives **JSON rows**, never a file — so there is no multipart handling and no dependency anywhere in this path; header matching is lowercased/quote-stripped with alias sets and a BOM strip; the route is **create-only with skip-on-duplicate** (case-insensitive name match → `skipped++`, never an update); every row is wrapped in its own `try/catch` that pushes a string into `errors: string[]`; it **always returns 200** with `{ created, skipped, errors }` and only 400s an empty/non-array payload; it writes a single `COMPANIES_IMPORTED` audit row carrying counters and **no `targetType`/`targetId`**. The UI is a hidden `<input type="file" accept=".csv">` behind an `Upload`-icon secondary `Button` in the `PageHeader` action, with a dismissible acacia success banner (bulleted `text-laterite` error list) and a laterite failure banner. **One real defect inherited if copied blindly:** `parseCSV` splits on bare commas, so a quoted cell containing a comma shifts every later column — hence WS70.2.
+- **`scripts/import-investment-tracker.ts` + `SheetSyncRun` — checked as prior art and ruled out for this purpose (verified, not assumed).** The script is an `xlsx`-reading, **CLI-only, one-time** importer: dry-run by default, run as `npx tsx … <path-to-xlsx> --write` with a production `DATABASE_URL` pasted in by hand, and its own header comment says the source file must live **outside the repo tree**. It is not admin-triggerable and never becomes a route. `SheetSyncRun` (`prisma/schema.prisma:682`) is the run-history table for the **Google-Sheets deal/valuation sync** (`trigger: "CRON" | "MANUAL" | "DRY_RUN"`), a global integration gated by `sheetsSyncEnabled()` — not a generic "import run" log, and nothing in Part 30 writes to it. **Dead end for contacts.** Two things from that neighborhood *are* genuinely useful, and both are cited where they're used: `src/lib/sheet-link.ts`'s stated doctrine — *"It never invents data and never guesses: anything ambiguous or unmatched is flagged, not forced"* (the basis for JC-BC-L) — and the contrast that `src/lib/sheet-sync-runner.ts:101` **does** auto-create a `PortfolioCompany` by name upsert, but only from the authoritative deal spreadsheet and only after the admin has previewed the diff's `newCompanies` list (JC19), which a contacts CSV is not and does not.
+- **Resend SDK** — `resend@^6.9.2` exposes `resend.batch.send(payload, { batchValidation: "permissive" })` (`node_modules/resend/dist/index.d.mts:354-372, 1096-1101`), ≤100 messages per call, returning `data.data: {id}[]` and, in permissive mode, `data.errors: { index, message }[]`. `replyTo` is in `CreateEmailBaseOptions` (`:282`). No new dependency, no new cost line.
+- **Audit** — `logAdminAction(actor, action, { targetType, targetId, metadata })` never throws; `/admin/audit` renders `log.action` as a raw mono string (`src/app/admin/audit/page.tsx:68`), so new action types need **zero** UI changes.
+- **Timeout posture** — `grep -rn "maxDuration" src/ next.config.js` → **zero hits**; `vercel.json` holds only `crons`. Every route runs on the platform default (F59).
+
+---
+
+## F58 — ROADMAP's sidebar bullet describes a nav layout that no longer exists (LOW, docs-only)
+
+`ROADMAP.md` line 108 states the "Company Operations" sidebar group is "(Approvals, Companies, Updates, Update Templates, Investor Links)". The real group in `src/components/layout/sidebar.tsx` is **Approvals, Diligence, Companies, Updates, Investor Links** — Diligence was added by Part 16, and Update Templates was removed from the sidebar entirely and became a tab on `/admin/updates` (`src/app/admin/templates/page.tsx` is now nothing but `redirect("/admin/updates?tab=templates")`, while ROADMAP line 90 still presented it as its own page). The founder-nav sentence in the same bullet predates Documents (Part 20) and Dilution Planner (Part 29). **Annotated in `ROADMAP.md` in this same pass.** No code change.
+
+## F59 — The publish-time email fan-out has no duration or rate-limit guard (MEDIUM for the new feature, LOW/latent for the existing one)
+
+The LP notify loop fans out with a serial `await` per address inside the request handler, and **no route in this repo sets `export const maxDuration`** (grep-verified). At LP scale this has never mattered. A portfolio broadcast is a different order of magnitude — every contact of every targeted company in one request — and two limits bite: **function duration** (N serial round-trips at ~150–400 ms each will outrun a short default, killing the request mid-loop with no record of who was actually reached) and **Resend request rate** (a tight serial loop outpaces the account's default request rate, turning late recipients into 429s that the existing pattern would silently bucket as failures). **Action here:** the new fan-out is designed around it (JC-BC-E). **The existing LP loop is deliberately NOT changed** — recorded as a latent instance to revisit only if LP counts grow or Joseph asks.
+
+## F60 — Recipient-selection rules already differ between the existing email paths (LOW, informational)
+
+The reminder cron (`src/app/api/cron/reminders/route.ts:29-33, 78-93`) selects `memberships: { role: { in: ["OWNER", "MEMBER"] } }` and mails `membership.user.email` **without checking `User.status` or `User.roles`**, so a never-activated invitee can receive update reminders today. Part 30 no longer overlaps with this population at all (D4: broadcasts never read `UserCompanyMembership`), but the finding stands as a recorded divergence. **No change to the reminder cron is proposed** — altering who receives reminders is a product decision nobody asked for.
+
+## F61 — Portfolio-company endpoints live under two different API namespaces (LOW, a real trap for the implementer)
+
+The same entity is served by two sibling paths: mutations and the list are at **`/api/admin/portfolio-companies`** and **`/api/admin/portfolio-companies/[id]`** (with the `…/[id]/marks` sub-route), while the **read** used by the detail page is at **`/api/admin/portfolio/companies/[id]`** (`src/app/admin/portfolio/[id]/page.tsx:104`). Nothing is broken; it is a naming inconsistency that will send a junior implementer to the wrong file. **Action in this Part:** WS70 puts the new contacts sub-route under the *hyphenated* namespace beside `marks` (`/api/admin/portfolio-companies/[id]/contacts`) and separately extends the detail-page read at `/api/admin/portfolio/companies/[id]` to include contacts. **No renaming or consolidation is proposed** — that would be a gratuitous refactor of shipped, working routes.
+
+## F62 — `PortfolioCompany` has no lifecycle/stage column, so there is no "eligible companies" filter to apply (informational — states a non-existent thing plainly rather than force-fitting one)
+
+The first draft of this Part proposed gating the audience picker with `approvedCompanyFilter` (`src/lib/company-filters.ts`). **That filter is now irrelevant**: it is a `Prisma.CompanyWhereInput` keyed on `Company.stage !== "DILIGENCE"` and `Company.createdBy.status`, and targeting has moved off `Company` entirely. Verified against `prisma/schema.prisma:556`: **`PortfolioCompany` carries no `stage`, `status`, `active`, or `exited` column** — the only lifecycle signal anywhere near it is derived data (`Deal.currentValuation` is documented as "0 = written off"). Therefore:
+
+- The eligible set for the picker is simply **every `PortfolioCompany` row**, ordered by name — which is exactly what `GET /api/admin/portfolio-companies` already returns.
+- No schema field is invented to model "active portfolio company." If that concept is ever wanted, it is its own decision on its own day.
+- The two honest, purely-presentational filters WS74 offers instead are the ones the existing endpoint already supports (`?fundId=`, `?q=`) plus a client-side "hide companies with no contacts" toggle, since a zero-contact company contributes zero recipients and is only noise in the picker.
+
+---
+
+## Judgment calls (Felix's; each with its reversal path)
+
+- **JC-BC-A — Four additive models.** `PortfolioCompanyContact` (the audience directory), `CompanyBroadcast` (the draft), `CompanyBroadcastTarget` (chosen companies), `CompanyBroadcastRecipient` (who was actually mailed, frozen at publish). The last is the direct analogue of `FundReportMention`'s freeze-at-publish: contact lists change, so "who received the January broadcast" is only answerable if it was recorded at send time — and it is what makes retry-unsent exact. *Reversal:* stop writing recipient rows; the table goes inert.
+- **JC-BC-B — Contact emails are unique *per company*, NOT globally — the one deliberate divergence from `LpEmail`.** `LpEmail.email` is globally unique because it is a **login identity** (any address can request an OTP and must resolve to exactly one LP). A `PortfolioCompanyContact` is not an identity — nobody logs in with it — and the same person can legitimately be a contact at two portfolio companies (a serial founder, a shared operator, an advisor). A global unique constraint would make that unrepresentable and would reject a perfectly valid second row. So: `@@unique([portfolioCompanyId, email])`. **This is precisely why D7's send-time dedup is mandatory** rather than structurally free the way F51 found it to be on the LP side. *Reversal:* tightening to global uniqueness later is a migration; loosening a global constraint is not, so the loose-and-dedup direction is the safe default.
+- **JC-BC-C — No `isPrimary` on contacts.** `LpEmail.isPrimary` exists to feed the `LimitedPartner.email` mirror and to pick a login identity. Broadcasts mail **every** contact of a targeted company, so there is no "primary" to choose and no mirror column to keep in sync. Contacts carry an optional free-text `role` label instead (e.g. "CEO", "Finance") purely for admin legibility. *Reversal:* adding `isPrimary` later is an additive boolean.
+- **JC-BC-D — No unpublish route.** `PATCH`/`DELETE` refuse a `PUBLISHED` broadcast (mirroring `src/app/api/admin/reports/[id]/route.ts`); no unpublish endpoint exists, because it would falsely imply un-sending (D8).
+- **JC-BC-E — Fan-out via `resend.batch.send` in chunks of 100 with `batchValidation: "permissive"`, plus `export const maxDuration = 60` on the publish route** (F59). Recipient rows are created **before** sending (status `PENDING`) and updated from the batch response, so a killed request still leaves an accurate record and retry-unsent is exact. Failure isolation survives batching through `errors[].index`. *Reversal:* swap in the LP route's serial `resend.emails.send` loop — recipient bookkeeping is identical either way, so it is a single-function change inside `src/lib/email.ts`.
+- **JC-BC-F — "Send a test to myself" before publish.** `POST …/test` mails the draft to the acting admin's session email only, audit-logged `BROADCAST_TEST_SENT`; `sendTestEmail` (`src/lib/email.ts:602`) is the precedent. The safety valve for an irreversible action. *Reversal:* delete the route + button.
+- **JC-BC-G — The email is per-person, never per-company.** Because of D7 dedup, one recipient can map to several targeted companies, so the template must **not** interpolate a company name into the subject or greeting. Greeting is first-name-or-"Hello,", exactly like `sendLpReportPublishedEmail`.
+- **JC-BC-H — The audience picker is copied as a pattern, not extracted.** The bulk-link picker selects *updates* and is entangled with that page's state; extracting a generic multi-select would refactor a shipped, LP-critical surface for no user-visible gain. WS74 writes its own ~40-line picker with the identical class strings. *Reversal:* extract if a third caller appears (rule of three).
+- **JC-BC-I — Nav: "Broadcasts", `Megaphone` icon.** Placed in the **"Funds & LPs" group after "Fund Reports"**, not in "Company Operations" — under the corrected design this feature is a cap-table/`PortfolioCompany`-side tool (same entity as Deal Ledger and report mentions), and every other `PortfolioCompany` surface already lives in that group. *(This moved as part of the D2 correction; the first draft placed it under Company Operations, which now no longer matches what it targets.)* `Megaphone` is confirmed present in the installed `lucide-react`. *Reversal:* one line.
+- **JC-BC-J — Confidentiality (Parts 27/28).** All fixtures/placeholders synthetic: `Acme`, `Northwind`, `Jane Founder`, `founder@example.com`. No real company, founder, or address in a committed file — this Part touches the exact data class F52/F53 were about, so it matters here more than usual.
+- **JC-BC-K — CSV import is an UPSERT on `(portfolioCompanyId, email)`, not create-only-skip.** This is a deliberate divergence from `companies/import`'s skip-on-duplicate, with a reason: creating a `Company` there is heavyweight (an owner, memberships, invite implications), so refusing to touch an existing one is right; a contact is a two-field record with a natural key, and the expected workflow is "fix the spreadsheet, re-upload." Create-only would make a typo unfixable by CSV, and duplicates are impossible anyway thanks to the unique constraint. Blank CSV cells never overwrite stored values. *Reversal:* flip the `update` branch to a `skipped++` — one branch in one route.
+- **JC-BC-L — A CSV row naming an unknown company is skipped and reported; a `PortfolioCompany` is NEVER created by an import.** This follows `src/lib/sheet-link.ts`'s stated doctrine (never guess, flag instead) rather than `sheet-sync-runner.ts`'s auto-create, because a contacts spreadsheet is not authoritative for company *existence*: a typo would silently mint a ghost portfolio company that then shows up in the deal ledger, the report-mention picker and the broadcast audience list. Unmatched names come back as a **distinct** list so one bad name reads as one line, not thirty. *Reversal:* an "also create missing companies" checkbox is additive later, and would want the sync's preview-then-apply shape rather than a blind write.
+- **JC-BC-M — One import endpoint, two entry points; the CSV is portfolio-wide by default.** Joseph will have one spreadsheet covering many portfolio companies, not one file per company, so the canonical form carries a `company` column and is uploaded from `/admin/portfolio`. The same endpoint accepts an optional `defaultPortfolioCompanyId` so the per-company page can take a two-column `name,email` file; a row naming a *different* company from there is a row-level error rather than a silent write elsewhere. *Reversal:* drop the portfolio-wide button and keep only the scoped one (or vice versa) — the route serves both unchanged.
+
+---
+
+## WS69 — Schema: contacts + broadcast + targets + recipients — ~0.5–0.75 day
+
+**Goal.** Additive persistence for the contact directory, the draft, its audience, and its delivery record. Nothing renders yet.
+
+**File-by-file steps:**
+
+`prisma/schema.prisma` — four new models (additive; apply with `prisma db push` per the established `vercel env pull --environment=production` convention):
+
+```prisma
+// ─── Portfolio-company contacts (Part 30, WS69) ───────────
+// The audience directory for admin broadcasts. Structurally the
+// LimitedPartner/LpEmail pattern, with two deliberate divergences:
+//  - email is unique PER COMPANY, not globally (JC-BC-B) — a contact is
+//    not a login identity, and one person can be a contact at two
+//    portfolio companies. Send-time dedup (WS71) handles the overlap.
+//  - no isPrimary (JC-BC-C) — broadcasts mail every contact, and there is
+//    no denormalized mirror column to keep in sync.
+// D4: this list is the ONLY source of broadcast recipients, even for a
+// PortfolioCompany linked to an active Company with real founder logins.
+model PortfolioCompanyContact {
+  id                 String   @id @default(cuid())
+  portfolioCompanyId String
+  name               String?
+  email              String   // stored trimmed + lowercased
+  role               String?  // free-text label, admin legibility only ("CEO", "Finance")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([portfolioCompanyId, email])
+  @@index([portfolioCompanyId])
+  @@map("portfolio_company_contacts")
+}
+
+// ─── Company broadcasts (Part 30, WS69) ───────────────────
+// The portfolio-side analogue of FundReport: an admin-composed message
+// whose publish step emails the contacts of the targeted portfolio
+// companies.
+model CompanyBroadcast {
+  id          String    @id @default(cuid())
+  subject     String    // also the email subject line
+  body        String    @db.Text // TipTap HTML, same as FundReport.body
+  status      String    @default("DRAFT") // "DRAFT" | "PUBLISHED"
+  publishedAt DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy  User                       @relation("CreatedBroadcasts", fields: [createdById], references: [id])
+  targets    CompanyBroadcastTarget[]
+  recipients CompanyBroadcastRecipient[]
+
+  @@index([status, createdAt])
+  @@map("company_broadcasts")
+}
+
+// The chosen audience — one row per targeted PortfolioCompany (D2).
+model CompanyBroadcastTarget {
+  id                 String @id @default(cuid())
+  broadcastId        String
+  portfolioCompanyId String
+
+  broadcast        CompanyBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, portfolioCompanyId])
+  @@index([portfolioCompanyId])
+  @@map("company_broadcast_targets")
+}
+
+// Frozen-at-publish delivery record — the FundReportMention freeze
+// precedent (JC-BC-A). Rows are created PENDING immediately before the
+// fan-out, then flipped to SENT/FAILED, so a request killed mid-send
+// still leaves an accurate record and "Retry unsent" is exact.
+// email/name are denormalized on purpose: they answer "what address did
+// we actually use in January" after the contact row has since changed.
+model CompanyBroadcastRecipient {
+  id                  String    @id @default(cuid())
+  broadcastId         String
+  contactId           String?   // nullable: keep the record if the contact row is later deleted
+  email               String
+  name                String?
+  portfolioCompanyIds String[]  @default([]) // every targeted company this address was reached through (dedup provenance)
+  status              String    @default("PENDING") // "PENDING" | "SENT" | "FAILED"
+  error               String?   // provider message when FAILED
+  sentAt              DateTime?
+
+  broadcast CompanyBroadcast         @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   PortfolioCompanyContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([broadcastId, email])
+  @@index([broadcastId, status])
+  @@map("company_broadcast_recipients")
+}
+```
+
+Back-relations, declared the way the existing ones are:
+- `PortfolioCompany`: `contacts PortfolioCompanyContact[]` and `broadcastTargets CompanyBroadcastTarget[]`
+- `PortfolioCompanyContact`: `broadcastRecipients CompanyBroadcastRecipient[]`
+- `User`: `createdBroadcasts CompanyBroadcast[] @relation("CreatedBroadcasts")`
+
+`@@unique([broadcastId, email])` is the database-level backstop for D7 — even a resolver bug cannot create two recipient rows for one address on one broadcast.
+
+**Audit action types** (strings only; `/admin/audit` renders them raw): `PORTCO_CONTACT_ADDED`, `PORTCO_CONTACT_UPDATED`, `PORTCO_CONTACT_REMOVED`, `BROADCAST_CREATED`, `BROADCAST_UPDATED`, `BROADCAST_DELETED`, `BROADCAST_PUBLISHED`, `BROADCAST_TEST_SENT`, `BROADCAST_RETRIED`.
+
+**Acceptance checklist:**
+- [ ] `prisma db push` applies additively; no existing table altered; zero rows to backfill.
+- [ ] The same email can exist as a contact on **two different** portfolio companies (JC-BC-B), but a duplicate on the **same** company is rejected.
+- [ ] `@@unique([broadcastId, email])` rejects a duplicate recipient row on one broadcast.
+- [ ] Deleting a `PortfolioCompany` cascades away its contacts and target rows, leaving published broadcasts and their recipient records intact.
+- [ ] Deleting a contact nulls `CompanyBroadcastRecipient.contactId` and preserves the denormalized `email`.
+
+**UX impact:** none (nothing reads these tables yet). **Cost impact:** none (four Postgres tables). **Effort:** ~0.5–0.75 day.
+
+---
+
+## WS70 — Contact management: API sub-routes, CSV import, admin UI (NEW workstream — no surface exists today) — ~1.75–2.25 days
+
+**Goal.** Give admins somewhere to maintain the contact list that D4 makes the single source of truth, **by hand and by CSV upload**. **This workstream exists because verification found no contact UI anywhere in the app** — `PortfolioCompany` today has admin surfaces for deals, rounds, marks and the `Company` link, and none for people. Without WS70 the broadcast feature has an empty audience by construction.
+
+### WS70.1 — Per-contact CRUD sub-route
+
+`src/app/api/admin/portfolio-companies/[id]/contacts/route.ts` (new) — sits beside the existing `…/[id]/marks` sub-route (F61: use the **hyphenated** namespace). Mirrors `src/app/api/admin/lps/[id]/emails/route.ts` handler-for-handler, including its locally-declared `EMAIL_REGEX` (house convention — do not centralize):
+- `POST` — add a contact. `email` trimmed + lowercased, regex-validated; optional `name`, `role` (trim, ≤200 chars each). 404 if the portfolio company doesn't exist. **Duplicate check scoped to this company** (`findUnique({ where: { portfolioCompanyId_email: { … } } })`) → 400 `"This company already has that contact."` — deliberately *not* a global lookup (JC-BC-B). Audit `PORTCO_CONTACT_ADDED` with `{ email }`.
+- `PATCH` — edit `name`/`role` (and `email`, re-validated and re-checked against the same per-company constraint). Audit `PORTCO_CONTACT_UPDATED`.
+- `DELETE` — remove by contact `id` in the JSON body; 404 if the row isn't on this company (defense-in-depth against a cross-company id, the WS55/F48 shape). Audit `PORTCO_CONTACT_REMOVED`. **No session/sessions-revoked logic** — unlike the LP route, a contact is not a login (JC-BC-C), so removing the last contact has no side effect beyond that company contributing no recipients.
+
+`src/app/api/admin/portfolio/companies/[id]/route.ts` (existing, F61's *other* namespace) — extend the `findUnique` `include` with `contacts: { orderBy: { createdAt: "asc" } }` and add them to the JSON response. Purely additive; every existing field is untouched.
+
+`src/app/api/admin/portfolio-companies/route.ts` (existing) — add `contacts: true` to the existing `_count` select and surface `contactCount` in the mapped list response. Additive; the audience picker (WS74) and the "hide companies with no contacts" toggle both read it.
+
+### WS70.2 — Shared CSV line parser `src/lib/csv.ts` + tests
+
+The existing importer's parser (`parseCSV` in `src/app/admin/companies/page.tsx:80-107`) splits on bare commas, so a quoted cell containing a comma — `"Doe, Jane"`, very likely in a real contacts sheet — silently shifts every column after it. Rather than copy that bug into a second importer:
+
+```ts
+// Part 30, WS70.2 — minimal RFC4180-ish field splitter: honors double-quoted
+// fields, "" as an escaped quote, and commas inside quotes. Pure, no
+// dependency (the `xlsx` package is for the one-off CLI importer only, never
+// shipped to the browser). Same posture as share-metrics.ts/report-snapshot.ts.
+export function splitCsvLine(line: string): string[];
+/** Header normalizer: strip BOM, lowercase, trim, drop surrounding quotes. */
+export function normalizeHeader(h: string): string;
+```
+
+Tests — `src/lib/__tests__/csv.test.ts`: bare fields; a quoted field containing a comma; a quoted field containing `""`; trailing empty field; a lone trailing `\r`; a leading BOM on the first header. **This Part does not change `src/app/admin/companies/page.tsx`** — adopting the helper there is a later one-line change, deliberately out of scope so this workstream can't regress a shipped importer.
+
+### WS70.3 — CSV import endpoint (portfolio-wide, upsert)
+
+`src/app/api/admin/portfolio-companies/contacts/import/route.ts` (new) — modeled directly on `src/app/api/admin/companies/import/route.ts` (62 lines), whose conventions are reused verbatim where they fit:
+
+- **Parsing stays on the client, the route takes JSON rows** — exactly like the companies importer (`handleCSVFile` reads the file, `parseCSV` turns it into rows, then `POST`s `{ companies: [...] }`). **No multipart upload, no file ever hits the server, no new dependency.**
+- **Payload:** `{ contacts: ContactRow[], defaultPortfolioCompanyId?: string }` where `ContactRow = { row: number; company?: string; name?: string; email: string; role?: string }`. `row` is the 1-based CSV line number, carried purely so errors can name it.
+- **Guards:** `requireAdmin()`; 400 `"No contacts provided"` when the array is empty or not an array (the companies route's only 400); 400 when `contacts.length > 1000` (an unbounded per-row loop in a request handler is the F59 shape — though DB upserts are local millisecond calls, not third-party sends, so no `maxDuration` is needed here).
+- **Company resolution:** load `db.portfolioCompany.findMany({ select: { id: true, name: true } })` once into a `Map` keyed on `name.trim().toLowerCase()`. A row's company comes from its `company` cell, or from `defaultPortfolioCompanyId` when the cell is blank. **Matching is case-insensitive and trimmed** — a deliberate divergence from `src/lib/sheet-sync.ts:202`, which matches portfolio-company names *exactly*; there exactness is right because a near-miss **auto-creates** a company, whereas here a near-miss creates nothing and lenient matching only reduces false "unmatched" noise.
+- **Unmatched company → skip the row and report it. Never auto-create a `PortfolioCompany`** (JC-BC-L).
+- **Upsert on the natural key** `@@unique([portfolioCompanyId, email])` (JC-BC-K): create when absent (`created++`), otherwise update `name`/`role` **only from non-empty CSV cells** (`updated++`) so a sparse re-upload never blanks good data. A row identical to what is already stored still counts as `updated` — no attempt to diff for a "no change" bucket.
+- **Per-row isolation and partial success**, exactly the companies route's shape: a `try/catch` per row pushing a human-readable string into `errors: string[]`, and **always a 200** with the counters. Row-level failures never abort the batch.
+- **Response:** `{ created, updated, skipped, errors, unmatchedCompanies }` — a superset of the companies route's `{ created, skipped, errors }`. `unmatchedCompanies` is the **distinct** list of company names that matched nothing, so "Acme Holdings" appearing on 30 rows reads as one line, not thirty. `skipped` counts rows dropped for any reason (unmatched company, blank/invalid email, no company resolvable).
+- **Within-file duplicates:** two rows with the same company + normalized email collapse — later row wins (it is an upsert regardless) and counts once.
+- **Normalization matches the manual write path:** `email` trimmed + lowercased, `name`/`role` trimmed, `EMAIL_REGEX`-validated with the same locally-declared regex convention. An invalid address is a row-level error, not a batch failure.
+- **Audit:** one `PORTCO_CONTACTS_IMPORTED` row with `{ created, updated, skipped, errorCount, unmatchedCount, scope }` where `scope` is `"PORTFOLIO"` or `"COMPANY"`. Mirrors `COMPANIES_IMPORTED`, which likewise carries counters and no `targetType`/`targetId`.
+
+**Scoping rule (JC-BC-M) — one endpoint, two entry points:**
+- Called from the **portfolio-wide** page: no `defaultPortfolioCompanyId`. A row with a blank `company` cell is a row-level error (`Row 7: no company named`).
+- Called from a **single company's** page: `defaultPortfolioCompanyId` is that company, so a two-column `name,email` CSV works. A row naming a **different** company is a row-level error (`Row 12: names "Northwind" — use the portfolio-wide import on the Deal Ledger page`) rather than being silently written elsewhere. The per-company page's contract stays honest: this file adds contacts to *this* company.
+
+**Tests — `src/lib/__tests__/portfolio-contacts-import.test.ts`** (mocking `@/lib/db`, `@/lib/auth-guard`, `@/lib/audit` and importing the real `POST`, in the `admin-diligence-route.test.ts` style; synthetic data only, JC-BC-J):
+- [ ] One CSV spanning **three** companies writes contacts to all three in a single call.
+- [ ] Re-uploading the same rows yields `created: 0, updated: N` — no duplicates, no error (JC-BC-K).
+- [ ] A row with a blank `role` cell leaves an existing `role` untouched (sparse re-upload never blanks data).
+- [ ] An unmatched company name is skipped, reported once in `unmatchedCompanies`, and **no `PortfolioCompany` is created** (assert `portfolioCompany.create`/`upsert` are never called — JC-BC-L).
+- [ ] An invalid email is a row-level error naming its row number; every other row still lands; status is 200.
+- [ ] Company matching is case/whitespace-insensitive (`"  acme  "` resolves to `Acme`).
+- [ ] With `defaultPortfolioCompanyId`, a blank company cell resolves to it; a row naming a different company is a row-level error.
+- [ ] Without it, a blank company cell is a row-level error.
+- [ ] Empty array → 400; >1000 rows → 400; neither writes anything.
+- [ ] The `PORTCO_CONTACTS_IMPORTED` audit row carries all five metadata counters.
+
+### WS70.4 — Admin UI
+
+`src/app/admin/portfolio/[id]/page.tsx` (existing) — a new **"Contacts"** section placed **immediately after the header card and before "Positions by fund"** (people first, then numbers), using the page's own section idiom:
+```tsx
+<h3 className="mb-3 flex items-center gap-2 font-semibold">
+  <Users className="h-4 w-4" />
+  Contacts
+</h3>
+```
+Body: the LP address-list block from `src/app/admin/lps/page.tsx:320-370`, adapted — one `rounded-sm border border-border px-2.5 py-1.5` row per contact showing name, mono email and the optional role, with an inline edit affordance and an `X` remove button (`window.confirm` first, matching this page's existing `handleDeleteMark` idiom); beneath it an add row (name / email / role `input-field`s + an "Add" `Button`) and an inline `text-laterite` error line. Empty state is an honest line, not a bare placeholder: **"No contacts yet — broadcasts to this company would reach nobody."** (D4's consequence, stated where it can be fixed.)
+
+Alongside the "Add" row, the **CSV control copied from `src/app/admin/companies/page.tsx:180-200`**: a hidden `<input type="file" accept=".csv" className="hidden" ref={fileInputRef}>` plus a `variant="secondary"` `Button` with the `Upload` icon reading `{importing ? "Importing..." : "Import CSV"}`, and the same two dismissible result banners (acacia success with a `text-laterite` bulleted `errors` list; laterite failure), extended with the two new counters and the unmatched list. Posts with `defaultPortfolioCompanyId` set to this company. A one-line format hint in the companies page's voice: *"CSV columns: `name`, `email`, optional `role`. A `company` column is optional here — rows without one are added to this company."*
+
+`src/app/admin/portfolio/page.tsx` (existing, the cross-fund Deal Ledger) — the **portfolio-wide** entry point: the identical hidden-input + "Import contacts (CSV)" `Button` pair in the existing `PageHeader` `action` slot, posting **without** `defaultPortfolioCompanyId`, with the same result/error banners and the hint *"CSV columns: `company`, `name`, `email`, optional `role`. `company` must match an existing portfolio company — unmatched rows are reported, never created."* This is the right home because it is the only portfolio-wide surface for these companies (**verified: there is no dedicated portfolio-company list page — creation happens on `/admin/funds/[id]`, and `/admin/portfolio`'s rows are what link to each company page**). *Reversal if it feels misplaced there:* move the control into a "Contacts" tab on the same page, one component move, no API change.
+
+Both entry points call the same client parser: `splitCsvLine` from WS70.2 plus a `parseContactsCSV(text)` that mirrors `parseCSV`'s header handling (BOM strip, lowercase, quote strip, alias sets — `company`/`company name`/`portfolio company`; `name`/`contact`/`contact name`/`full name`; `email`/`email address`/`e-mail`; `role`/`title`/`position`), returns `{ row, company, name, email, role }[]`, and shows `"No valid rows found. CSV must have an \"email\" column."` when the header has no email column — the companies page's exact failure idiom.
+
+**Acceptance checklist:**
+- [ ] An admin can add, edit and remove contacts from `/admin/portfolio/[id]`; the list reloads without a full-page refresh.
+- [ ] A duplicate email on the **same** company is rejected with the 400 message; the **same** email added to a **different** portfolio company succeeds (JC-BC-B, proven end-to-end).
+- [ ] `email` is stored trimmed and lowercased; an invalid address is rejected before any write.
+- [ ] A contact id belonging to another company cannot be deleted through this company's route (404).
+- [ ] Uploading a multi-company CSV from `/admin/portfolio` populates contacts across several companies in one pass; the banner reports created / updated / skipped and lists unmatched company names once each.
+- [ ] Uploading the same file twice produces no duplicates and reports the second run as updates (JC-BC-K).
+- [ ] A CSV containing `"Doe, Jane"` in a quoted cell parses correctly (WS70.2 — the bug the existing splitter would have hit).
+- [ ] Uploading from a single company's page with a two-column `name,email` CSV works; a row naming another company is reported, not silently written elsewhere.
+- [ ] No `PortfolioCompany` is ever created by an import (JC-BC-L) — check `/admin/audit` shows `PORTCO_CONTACTS_IMPORTED` and **no** `PORTCO_CREATED` after an import containing an unmatched name.
+- [ ] Each manual mutation writes its `PORTCO_CONTACT_*` audit row.
+- [ ] The empty state names the consequence ("would reach nobody").
+- [ ] Renders at 375px per the Part 6 house patterns (wrapping rows = Pattern D; the header's button pair wraps = Pattern C).
+
+**UX impact:** additive, admin-only — one new section on an existing admin page, one new header button on another, one new count on an existing list response. No founder, LP, or investor-link surface changes; the existing companies CSV importer is untouched. **Cost impact:** none (no new dependency — parsing is hand-rolled client-side, as it already is for companies; `xlsx` stays confined to the CLI script). **Effort:** ~1.75–2.25 days (CRUD + routes ~0.6, `csv.ts` + tests ~0.3, import route + tests ~0.5, UI on both pages ~0.5).
+
+---
+
+
+## WS71 — Pure recipient resolver `src/lib/broadcast-recipients.ts` + tests — ~0.4 day
+
+**Goal.** One tested, DB-free function that turns contact rows into the deduped recipient list. Same posture as `src/lib/share-metrics.ts` / `src/lib/report-snapshot.ts` (pure, no Prisma import, unit-tested), so D7 is provable without standing up a route.
+
+**Interface sketch:**
+
+```ts
+// Part 30, WS71 — the dedup the LP path never needed. F51 found LP
+// dedup structurally free (single-fund publish + @@unique([lpId,fundId])
+// + globally-unique LpEmail.email). None of those hold here: a broadcast
+// is multi-company by design, and contact emails are unique only PER
+// COMPANY (JC-BC-B). So dedup is real, and it is dedup by EMAIL ALONE —
+// there is no User, no role, and no UserStatus anywhere in this loop (D4).
+export interface BroadcastContactRow {
+  portfolioCompanyId: string;
+  portfolioCompanyName: string;
+  contact: { id: string; email: string; name: string | null };
+}
+
+export interface BroadcastRecipient {
+  contactId: string;              // the FIRST contact row that claimed this address
+  email: string;                  // normalized: trimmed + lowercased
+  name: string | null;            // first non-empty name encountered
+  portfolioCompanyIds: string[];  // sorted, deduped
+  portfolioCompanyNames: string[]; // sorted, deduped — drives the "reached via" preview column
+}
+
+export function resolveBroadcastRecipients(rows: BroadcastContactRow[]): BroadcastRecipient[];
+```
+
+**Rules:**
+1. Normalize `email` with `.trim().toLowerCase()`; drop any row whose normalized email is empty. (No regex re-validation here — WS70 validates on write; the resolver's job is grouping, not gatekeeping.)
+2. **Dedup by normalized email.** Merge `portfolioCompanyIds` / `portfolioCompanyNames` across every row that carried it. Keep the first `contactId` seen (deterministic given rule 4) and the first non-empty `name`.
+3. No role, status, or account filtering of any kind — there is no `User` in this path (D4).
+4. Deterministic output: sort recipients by email; sort each recipient's company names alphabetically; make the merge order independent of input order.
+5. Pure — no DB, no `Date.now()`, no environment reads.
+
+**Tests — `src/lib/__tests__/broadcast-recipients.test.ts` (synthetic only, JC-BC-J):**
+- [ ] The same address listed as a contact on **two** targeted companies yields exactly **one** recipient carrying both company names (D7 — the case JC-BC-B makes reachable).
+- [ ] Case/whitespace variants (`" Founder@Example.com "` vs `founder@example.com`) collapse to one recipient with the normalized address.
+- [ ] Two different addresses at one company yield two recipients.
+- [ ] A company with no contacts contributes nothing and does not throw; empty input → `[]`.
+- [ ] Name resolution: a row with a null name followed by one with a name yields the non-null name.
+- [ ] Output ordering is byte-identical for two differently-ordered inputs (both recipient order and per-recipient company-name order).
+
+**UX impact:** none (pure module). **Cost impact:** none. **Effort:** ~0.4 day.
+
+---
+
+## WS72 — Email template + fan-out helper in `src/lib/email.ts` + test — ~0.5–0.75 day
+
+**Goal.** Template #13, following every convention in the file, plus the chunked sender WS73 calls.
+
+**File-by-file steps:**
+
+`src/lib/email.ts` — append after `sendLpReportPublishedEmail`, before `sendTestEmail`:
+
+```ts
+// Part 30, WS72 — admin broadcast to portfolio-company contacts.
+// Person-scoped, never company-scoped (JC-BC-G): one address can be a
+// contact at several targeted companies and gets ONE email (D7), so no
+// company name may appear in the subject or greeting. `bodyHtml` is
+// admin-authored TipTap HTML and is intentionally NOT escaped — the same
+// trust boundary sendUpdatePublishedEmail already accepts; every
+// plain-text field around it IS escaped (the F47 lesson).
+export interface BroadcastMessage {
+  email: string;
+  recipientName?: string | null;
+  subject: string;
+  bodyHtml: string;
+}
+
+function broadcastHtml(msg: BroadcastMessage): string {
+  const firstName = msg.recipientName?.trim() ? msg.recipientName.trim().split(" ")[0] : null;
+  return emailWrapper(`
+    ${eyebrow("From " + ORG_NAME)}
+    ${heading(firstName ? `Hi ${escapeHtml(firstName)},` : "Hello,")}
+    <div style="font-size: 15px; line-height: 1.7; color: ${C.tide};">
+      ${msg.bodyHtml}
+    </div>
+    <p style="margin: 32px 0 0; font-size: 13px; color: ${C.muted};">
+      You're receiving this because ${ORG_NAME} works with your company. Just hit reply if you'd like to talk.
+    </p>
+  `);
+}
+
+/** One message, one recipient — the "send me a test copy" path (JC-BC-F). */
+export async function sendCompanyBroadcastEmail(msg: BroadcastMessage) {
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: TEAM_EMAIL,
+    to: msg.email,
+    subject: msg.subject,
+    html: broadcastHtml(msg),
+  });
+  assertSent(result, "company-broadcast");
+}
+
+/**
+ * Chunked fan-out (JC-BC-E / F59). Batches of 100 via resend.batch.send
+ * with permissive validation, so one bad address fails alone instead of
+ * rejecting the whole batch — the F12 lesson, preserved at batch scale.
+ * NEVER throws: returns one result per input message, in input order.
+ */
+export async function sendCompanyBroadcastEmails(
+  messages: BroadcastMessage[]
+): Promise<{ email: string; ok: boolean; error?: string }[]> {
+  const out: { email: string; ok: boolean; error?: string }[] = [];
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100);
+    try {
+      const res = await resend.batch.send(
+        chunk.map((m) => ({
+          from: FROM,
+          replyTo: TEAM_EMAIL,
+          to: m.email,
+          subject: m.subject,
+          html: broadcastHtml(m),
+        })),
+        { batchValidation: "permissive" }
+      );
+      if (res.error) {
+        // whole-chunk failure (auth, network, quota) — every message in it failed
+        for (const m of chunk) out.push({ email: m.email, ok: false, error: String(res.error) });
+        continue;
+      }
+      // Permissive mode reports per-message failures by their index in the
+      // submitted chunk; every other index went out.
+      const failed = new Map<number, string>(
+        (res.data?.errors ?? []).map((e) => [e.index, e.message])
+      );
+      chunk.forEach((m, idx) =>
+        failed.has(idx)
+          ? out.push({ email: m.email, ok: false, error: failed.get(idx) })
+          : out.push({ email: m.email, ok: true })
+      );
+    } catch (err) {
+      for (const m of chunk) out.push({ email: m.email, ok: false, error: String(err) });
+    }
+  }
+  return out;
+}
+```
+
+**Before writing the mapping, re-read `node_modules/resend/dist/index.d.mts:354-372`** to confirm the installed SDK still exposes `errors: { index, message }[]` in permissive mode. If a future bump drops it, take JC-BC-E's stated reversal (the serial `resend.emails.send` loop) rather than inventing an index mapping.
+
+**Tests — `src/lib/__tests__/company-broadcast-email.test.ts`** (mirrors `lp-report-published-email.test.ts`: mock only the `resend` SDK and exercise the real function — the mock class now needs a `batch` member alongside `emails`):
+- [ ] The rendered HTML contains the body markup **verbatim** (a `<strong>`/`<ul>` survives; the body is not escaped).
+- [ ] Plain-text fields are escaped: a contact named `<Bad> & "Name"` renders `Hi &lt;Bad&gt;`, not raw markup (the F47 contract).
+- [ ] No company name appears anywhere in the output for a multi-company recipient (JC-BC-G).
+- [ ] `from` is the module `FROM` constant; `replyTo` is `TEAM_EMAIL`.
+- [ ] `sendCompanyBroadcastEmails` with 150 messages issues exactly **two** `batch.send` calls, of 100 and 50.
+- [ ] A permissive `errors: [{ index: 1, message: "invalid" }]` response marks exactly that message `ok: false` and the rest `ok: true`, in input order.
+- [ ] A thrown or `error`-bearing chunk marks every message in that chunk failed and **still returns results for the other chunks** (no throw escapes).
+- [ ] A missing contact name falls back to "Hello,".
+
+**UX impact:** none directly (new template, no caller until WS73). **Cost impact:** none — Resend is already in the stack, and batching *reduces* request count versus a serial loop. **Effort:** ~0.5–0.75 day.
+
+---
+
+## WS73 — Broadcast API: CRUD, recipient preview, test send, publish fan-out, retry, duplicate — ~1.25–1.5 day
+
+**Goal.** The server half, mirroring `src/app/api/admin/reports/**` route-for-route. Every handler opens with `export const dynamic = "force-dynamic"`, `requireAdmin()`, and the file-level try/catch → `console.error` + 500.
+
+**`src/app/api/admin/broadcasts/route.ts`** (new)
+- `GET` — list newest-first with `_count: { select: { targets: true, recipients: true } }`; map to `{ id, subject, status, publishedAt, createdAt, targetCount, recipientCount }`. A `DRAFT` has no recipient rows by construction — report its `targetCount` ("N companies") and let the preview endpoint be the honest source for reach.
+- `POST` — create. Validate `subject` non-empty, ≤200 chars (the `FundReport.title` convention); accept optional `portfolioCompanyIds: string[]`; `body: ""`, `status: "DRAFT"`, `createdById: user!.id`; create target rows in the same `db.$transaction`. Audit `BROADCAST_CREATED` with `{ subject, companyCount }`.
+
+**`src/app/api/admin/broadcasts/[id]/route.ts`** (new)
+- `GET` — the broadcast plus `targets: { include: { portfolioCompany: { select: { id: true, name: true } } } }` and, when `PUBLISHED`, its recipient rows (email, name, status, error, sentAt).
+- `PATCH` — 400 `"Published broadcasts can't be edited. Duplicate it as a draft instead."` when `status === "PUBLISHED"` (JC-BC-D). Accept `subject`, `body`, and `portfolioCompanyIds` (full replacement: `deleteMany` then `createMany` in one transaction; verify every id exists — reject unknown ids with 400 rather than silently dropping them. **No eligibility filter is applied: per F62 there is no lifecycle field on `PortfolioCompany` to filter on.**). Audit `BROADCAST_UPDATED`.
+- `DELETE` — 409 on a published broadcast (mirrors the report route); otherwise delete (targets cascade). Audit `BROADCAST_DELETED`.
+
+**`src/app/api/admin/broadcasts/[id]/recipients/route.ts`** (new)
+- `GET` — the live preview. For a `DRAFT`: load target ids, query contacts once, return `resolveBroadcastRecipients(rows)` plus `{ companyCount, recipientCount, companiesWithNoContacts }` — that last count is what makes D4's consequence visible before sending. For a `PUBLISHED` broadcast, return the **stored** `CompanyBroadcastRecipient` rows instead — the frozen truth, never a recomputation.
+
+```ts
+const contacts = await db.portfolioCompanyContact.findMany({
+  where: { portfolioCompanyId: { in: portfolioCompanyIds } },
+  include: { portfolioCompany: { select: { id: true, name: true } } },
+});
+const recipients = resolveBroadcastRecipients(
+  contacts.map((c) => ({
+    portfolioCompanyId: c.portfolioCompany.id,
+    portfolioCompanyName: c.portfolioCompany.name,
+    contact: { id: c.id, email: c.email, name: c.name },
+  }))
+);
+```
+
+**`src/app/api/admin/broadcasts/[id]/test/route.ts`** (new, JC-BC-F)
+- `POST` — sends the current draft to `user!.email` only, via `sendCompanyBroadcastEmail`. Returns `{ ok: true, sentTo }`; audit `BROADCAST_TEST_SENT`. Never touches status or recipient rows.
+
+**`src/app/api/admin/broadcasts/[id]/publish/route.ts`** (new — the heart of this WS)
+
+```ts
+export const dynamic = "force-dynamic";
+export const maxDuration = 60; // F59 — the fan-out is the one long request in this app
+```
+
+Order of operations, mirroring the report publish route (freeze → publish → best-effort send → audit → respond):
+1. `requireAdmin()`; load the broadcast with targets; 404 if missing; 400 unless `status === "DRAFT"` (`"Only a draft broadcast can be published."`).
+2. Validate non-empty `subject`, non-empty `body`, and at least one target — 400 with a specific message each.
+3. Resolve recipients through WS71. **If zero → 400 `"None of the selected companies has a contact — nothing would be sent. Add contacts on the company's page first."` and do NOT publish.** (Publishing a broadcast that reached nobody is worse than an error, and under D4 this is the realistic failure mode.)
+4. `db.$transaction`: `createMany` the `CompanyBroadcastRecipient` rows as `PENDING` (carrying `contactId`, `email`, `name`, `portfolioCompanyIds`), then update the broadcast to `{ status: "PUBLISHED", publishedAt: new Date() }`. **Publish before send**, exactly like the report route — a delivery failure must never leave the record unpublished.
+5. Fan out with `sendCompanyBroadcastEmails(...)`, then write results back as `SENT` + `sentAt` or `FAILED` + `error`, grouped into two `updateMany` calls by outcome so the write-back is O(1) round-trips, not O(N).
+6. `logAdminAction(user!, "BROADCAST_PUBLISHED", { targetType: "CompanyBroadcast", targetId: id, metadata: { companyCount, recipientCount, sent, failed } })`.
+7. Respond `{ ...published, sendResult: { recipientCount, sent, failed } }` — the shape the report route's `notifyResult` established.
+
+**`src/app/api/admin/broadcasts/[id]/retry/route.ts`** (new, D8)
+- `POST` — 400 unless `PUBLISHED`; re-sends only recipient rows whose `status` is `PENDING` or `FAILED`, with the same helper and the same write-back; audit `BROADCAST_RETRIED` with `{ attempted, sent, failed }`. Idempotent: an already-`SENT` row is never re-sent, so a double-click cannot double-mail anyone.
+
+**`src/app/api/admin/broadcasts/[id]/duplicate/route.ts`** (new, D8)
+- `POST` — creates a new `DRAFT` copying `subject` (prefixed `"Copy of "`), `body`, and target rows; returns the new id for the client to route to. Audit `BROADCAST_CREATED` with `{ duplicatedFrom: id }`.
+
+**Tests — `src/lib/__tests__/broadcast-publish.test.ts`** (mirrors `report-publish-notify.test.ts`: mock `@/lib/auth-guard`, `@/lib/audit`, `@/lib/email`, and `@/lib/db` including a `$transaction` that invokes the callback with a tx stub, then import the real `POST`):
+- [ ] An address that is a contact at **two** targeted companies produces exactly one recipient row and exactly one message (D7, end-to-end through the real route).
+- [ ] A per-recipient failure marks only that row `FAILED` and still returns 200 with the broadcast `PUBLISHED` (the F12 lesson at broadcast scale).
+- [ ] Zero contacts across all targets → 400, no status change, no send call, and the error names the fix ("Add contacts on the company's page first").
+- [ ] Publishing an already-`PUBLISHED` broadcast → 400 and no send call.
+- [ ] Empty body or zero targets → 400 with the specific message, no send call.
+- [ ] `BROADCAST_PUBLISHED` audit metadata carries `companyCount`, `recipientCount`, `sent`, `failed`.
+- [ ] Retry re-sends only `PENDING`/`FAILED` rows and never an already-`SENT` one.
+- [ ] **No test mocks or asserts on `userCompanyMembership` anywhere** — a standing guard that D4's single path stays single.
+
+**UX impact:** none yet (no UI until WS74); no existing endpoint's behavior changes. **Cost impact:** none beyond Resend sends an admin explicitly triggers. **Effort:** ~1.25–1.5 day.
+
+---
+
+## WS74 — Admin UI: `/admin/broadcasts` list + composer with audience picker + sidebar entry — ~1.5–2 days
+
+**Goal.** The admin half, structurally cloned from `/admin/reports` (list) and `/admin/reports/[id]` (composer), with the fund selector replaced by a portfolio-company multi-select and the notify checkbox replaced by an explicit recipient summary.
+
+**File-by-file steps:**
+
+`src/components/layout/sidebar.tsx` — in `adminNavGroups[1]` ("Funds & LPs"), after "Fund Reports" (JC-BC-I):
+```ts
+{ label: "Broadcasts", href: "/admin/broadcasts", icon: Megaphone },
+```
+(plus the `Megaphone` import alongside the existing lucide imports).
+
+`src/app/admin/broadcasts/page.tsx` (new) — clone of `src/app/admin/reports/page.tsx`: `AppShell` + `PageHeader` (title "Broadcasts", description "Email your portfolio companies — write a draft, choose who gets it, then send.") + a "New Broadcast" `Button` opening the same local `Modal` component that page defines (subject + an optional first pass at the picker), the same `EmptyState`, and the same row list — `Badge variant={status === "PUBLISHED" ? "success" : "warning"}`, a meta line with `N companies`, `Sent to N contacts` (published only) and `formatDate(publishedAt)`, plus the `Trash2` delete affordance on drafts only.
+
+`src/app/admin/broadcasts/[id]/page.tsx` (new) — clone of the report composer:
+- Back button → `/admin/broadcasts`; `<ComposerTopBar draftLabel={isDraft ? "Draft" : `Sent ${formatDate(publishedAt)}`} …>` with `secondaryActions` = Save + "Send test to me" (JC-BC-F), `publishLabel="Send"`, `onPublishClick={() => setConfirmSend(true)}`, `publishDisabled` while subject/body/targets are incomplete, and `overflowItems` carrying "Delete draft" and "Duplicate as draft".
+- Borderless subject input in the report title's `font-display text-3xl` style.
+- `<RichEditor variant="chromeless" value={body} onChange={setBody} placeholder="Write to your portfolio…" />` — **no `companyId`, so no image button**, identical to the report composer (documented, not a defect).
+- **Audience picker `Card`** (JC-BC-H — pattern from `src/app/admin/links/page.tsx:338-380`, copied not imported): a `max-h-72 overflow-y-auto rounded-md border divide-y` container of `<label>` rows fed by `GET /api/admin/portfolio-companies`, each with `<input type="checkbox" className="h-4 w-4 rounded border-border accent-primary">`, the company name, and its `contactCount` rendered as muted meta — with **`0 contacts` shown in `text-ochre`** so a company that would reach nobody is visible at selection time. A search `Input` filters client-side (or passes `?q=`), a "Hide companies with no contacts" checkbox filters the list (F62 — the only honest filters available), and "Select all" / "Clear" `Button`s mirror the bulk-link builder. A running summary in that builder's voice: **"N companies selected · M contacts will receive this"**, where M comes from `GET …/recipients` (debounced) — never a client-side guess.
+- A collapsible "Who will receive this" list under the summary showing each recipient's name/email and the companies they were reached through — the surface that makes D7 dedup visible before anything sends — plus, when `companiesWithNoContacts > 0`, an ochre line: **"N selected companies have no contacts and will receive nothing."**
+- **Send-confirm panel** — the ochre `border-ochre/30 bg-ochre/10` inline panel from the report composer, with copy honest about irreversibility: *"This sends the email immediately to N contacts across M companies. It can't be unsent."* Cancel + "Send now".
+- On success, the existing success/error banner: `Sent to N contacts${failed ? ` (${failed} failed)` : ""}` — the report composer's `notifyText` pattern.
+- Published state renders read-only (`dangerouslySetInnerHTML` prose block, same as the report page) plus a **delivery table** (`src/components/ui/table.tsx` primitives) of recipients with status badges, and a "Retry unsent" `Button` shown only when any row is `PENDING`/`FAILED`.
+
+**Acceptance checklist:**
+- [ ] "Broadcasts" appears in the admin sidebar under "Funds & LPs" after "Fund Reports"; the active-state highlight works through the existing `isActive` logic.
+- [ ] A draft can be created, saved, reopened, duplicated and deleted; a published broadcast cannot be edited or deleted (buttons absent, and the API refuses a direct call).
+- [ ] The picker lists portfolio companies with contact counts; search, hide-empty, select-all and clear all behave; the summary line comes from the server preview, not a local guess.
+- [ ] An address that is a contact at two selected companies appears **once** in "Who will receive this", showing both company names.
+- [ ] Selecting a company with zero contacts shows the ochre warning and, if it is the only selection, "Send" surfaces the API's 400 message rather than appearing to succeed.
+- [ ] "Send test to me" delivers to the acting admin only and changes no status.
+- [ ] Sending shows the confirm panel first; on success the banner reports sent/failed counts and the page flips to the read-only + delivery-table state.
+- [ ] "Retry unsent" appears only when unsent/failed rows exist and never re-sends a `SENT` row.
+- [ ] Renders at 375px per the Part 6 house patterns: delivery table = Pattern A (scrollable), picker rows and composer top bar = Pattern C/D (wrapping/stacking), any grid carries a base `grid-cols-1` (the WS14.7 gotcha).
+- [ ] Nothing on any founder, investor-link, or LP surface changed (grep-verify no file under `src/app/(dashboard|updates|company|lp|share)/**` was touched).
+
+**UX impact:** additive for admins only — one new sidebar item, its two pages, and (from WS70) one new section on an existing admin page. **Founders and LPs see no in-app change** (D8); the only external effect is an email an admin explicitly chose to send. **Cost impact:** none — existing Postgres and Resend account; volume is bounded by portfolio size and admin intent, and batching makes a whole-portfolio send 1–2 API requests. **Effort:** ~1.5–2 days.
+
+---
+
+## Sequencing & handoff (Part 30)
+
+- **WS69 (schema) → WS70 (contacts CRUD + UI) ∥ WS71 (resolver) ∥ WS72 (email) → WS73 (broadcast API) → WS74 (broadcast UI).** WS70, WS71 and WS72 are mutually independent once WS69 lands; WS73 needs all three; WS74 needs WS73.
+- **Nothing is blocked on a decision** — D1–D9 are confirmed and F62 removes the only remaining "which companies are eligible" question by establishing that no such field exists.
+- **WS70 is worth shipping first even in isolation:** an accurate contact list is useful on its own (it is the portfolio's people directory), and under D4 the broadcast feature is inert without it. Its CSV import (WS70.3) is what makes populating ~50 companies' contacts a single upload instead of an afternoon of typing.
+- **Total effort:** ~6–7 days (WS69 0.6 + WS70 2.0 + WS71 0.4 + WS72 0.6 + WS73 1.4 + WS74 1.8).
+
+## Part 30 — confirmed decisions summary
+
+- **D2/D3/D4 (corrected 2026-09-01, supersedes the first draft):** broadcasts target `PortfolioCompany` and mail a new admin-maintained `PortfolioCompanyContact` list — uniformly, even where an active `Company` with real founder logins is linked. `UserCompanyMembership` is never read by this feature. Joseph chose this single-path rule over auto-pulling founder accounts when available.
+- **D7:** dedup by normalized email only; no `User`, role, or `UserStatus` filtering exists anywhere in the path.
+- **D8:** full body in the email; no in-app founder archive; no unpublish; retry-unsent and duplicate-as-draft both built; no opt-out in v1. **Note:** the first draft's `User.receivesBroadcasts` escape hatch is void — recipients are not `User` rows. If an opt-out is ever wanted it belongs on `PortfolioCompanyContact` (e.g. a nullable `unsubscribedAt`), honored in WS71's resolver. Not built now.
+- **The retired question about VIEWER memberships is moot** and has been removed: membership roles play no part in this design.
+- **Contact list population (added 2026-09-01 at Joseph's request):** manual entry **plus CSV upload**. One spreadsheet covering many portfolio companies is the canonical form (`company, name, email, role`), uploaded from `/admin/portfolio`; a scoped two-column upload also works from a single company's page. Rows **upsert** on `(portfolioCompanyId, email)` so re-uploading a corrected file updates rather than duplicates or errors; rows naming an unknown company are **skipped and reported, never auto-created**; every row is isolated, so the response is always a 200 carrying `{ created, updated, skipped, errors, unmatchedCompanies }`. Parsing stays client-side with no new dependency, exactly like the existing companies importer — plus a new tested `splitCsvLine` helper so a quoted `"Doe, Jane"` cell doesn't shift the row (a bug the existing splitter has; it is left untouched here).
+- **Confirmed judgment calls:** four additive models (JC-BC-A), per-company (not global) contact-email uniqueness (JC-BC-B), no `isPrimary` (JC-BC-C), no unpublish (JC-BC-D), batched fan-out + `maxDuration` (JC-BC-E), self-test send (JC-BC-F), person-scoped email (JC-BC-G), picker copied not extracted (JC-BC-H), sidebar under "Funds & LPs" (JC-BC-I), synthetic data only (JC-BC-J), CSV upsert (JC-BC-K), unmatched companies skipped-and-reported never created (JC-BC-L), one import endpoint with portfolio-wide and per-company entry points (JC-BC-M).
+- **Constraints honored:** additive-only schema (four new tables, four back-relation fields, one additive `include` and one additive `_count` on existing routes); no new cost line (`resend.batch.send` ships in the installed SDK; CSV parsing is hand-rolled client-side, no library added); no UX regression (admin-only surfaces; the sole edits to existing files are one sidebar line, one section on `/admin/portfolio/[id]`, and two additive API response fields); synthetic data throughout committed files.
+
+---
