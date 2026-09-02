@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider   = "postgresql"
-  url        = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ─── Enums ────────────────────────────────────────────────
@@ -45,35 +45,36 @@ enum ProviderStatus {
 // ─── User ─────────────────────────────────────────────────
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique
-  name          String?
-  passwordHash  String?
-  roles         UserRole[] @default([FOUNDER])
-  status        UserStatus @default(PENDING)
-  approvalToken String?    @unique
-  tokenExpiresAt DateTime?
+  id                    String     @id @default(cuid())
+  email                 String     @unique
+  name                  String?
+  passwordHash          String?
+  roles                 UserRole[] @default([FOUNDER])
+  status                UserStatus @default(PENDING)
+  approvalToken         String?    @unique
+  tokenExpiresAt        DateTime?
   setupQueueDismissedAt DateTime? // WS48 — admin-hygiene only; never affects login/token/resend eligibility
-  googleId      String?    @unique
-  image         String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  googleId              String?    @unique
+  image                 String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 
   memberships          UserCompanyMembership[]
   updates              Update[]
   documents            Document[]
   comments             Comment[]
-  companies            Company[]                @relation("CreatedCompanies")
-  shareableLinks       ShareableLink[]          @relation("CreatedLinks")
-  receivesDigest       Boolean                  @default(true)
-  createdNotes         CompanyNote[]            @relation("CreatedNotes")
-  noteRevisions        CompanyNoteRevision[]    @relation("NoteRevisions")
+  companies            Company[]               @relation("CreatedCompanies")
+  shareableLinks       ShareableLink[]         @relation("CreatedLinks")
+  receivesDigest       Boolean                 @default(true)
+  createdNotes         CompanyNote[]           @relation("CreatedNotes")
+  noteRevisions        CompanyNoteRevision[]   @relation("NoteRevisions")
   digestTodos          DigestTodo[]
-  submittedProviders   ServiceProvider[]        @relation("SubmittedProviders")
+  submittedProviders   ServiceProvider[]       @relation("SubmittedProviders")
   providerEndorsements ProviderEndorsement[]
-  createdTemplates     UpdateTemplate[]         @relation("CreatedTemplates")
-  createdFundReports   FundReport[]             @relation("CreatedFundReports")
+  createdTemplates     UpdateTemplate[]        @relation("CreatedTemplates")
+  createdFundReports   FundReport[]            @relation("CreatedFundReports")
   capTableScenarios    CapTableScenario[]
+  createdBroadcasts    CompanyBroadcast[]      @relation("CreatedBroadcasts")
 
   @@map("users")
 }
@@ -91,7 +92,7 @@ model Company {
   fundingStage String?
 
   aliases               String[]  @default([])
-  reminderFrequencyDays Int?      // null = disabled; 7, 14, 30, or 90
+  reminderFrequencyDays Int? // null = disabled; 7, 14, 30, or 90
   lastReminderSentAt    DateTime? // tracks cooldown between reminders
 
   stage String @default("ACTIVE") // "DILIGENCE" | "ACTIVE" — Part 16, Q53. Existing rows default to ACTIVE, zero backfill needed.
@@ -121,7 +122,7 @@ model Company {
 model CompanyDiligence {
   id                  String    @id @default(cuid())
   companyId           String    @unique
-  isUsIncorporated    Boolean?  // required question, but nullable until answered
+  isUsIncorporated    Boolean? // required question, but nullable until answered
   isStellarEcosystem  Boolean   @default(false) // admin-ticked at invite time (Q58) — no Fund linkage
   stellarWhyText      String?   @db.Text // required only when isStellarEcosystem
   stellarTimelineText String?   @db.Text // required only when isStellarEcosystem
@@ -143,9 +144,9 @@ model CompanyDiligence {
 model CapTableScenario {
   id            String   @id @default(cuid())
   companyId     String
-  name          String   @default("Base case")   // Q71-B: multiple named scenarios per company
-  inputs        Json                              // ScenarioInput
-  schemaVersion Int      @default(1)              // JC-CT-A forward-compat
+  name          String   @default("Base case") // Q71-B: multiple named scenarios per company
+  inputs        Json // ScenarioInput
+  schemaVersion Int      @default(1) // JC-CT-A forward-compat
   createdById   String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -176,23 +177,23 @@ model UserCompanyMembership {
 // ─── Update ───────────────────────────────────────────────
 
 model Update {
-  id        String       @id @default(cuid())
-  companyId String
-  createdById String
-  period    String       // e.g. "2025-Q1", "2025-01"
-  title     String
-  body      String       @db.Text // rich text / markdown
-  status    UpdateStatus @default(DRAFT)
-  sentAt    DateTime?
+  id           String       @id @default(cuid())
+  companyId    String
+  createdById  String
+  period       String // e.g. "2025-Q1", "2025-01"
+  title        String
+  body         String       @db.Text // rich text / markdown
+  status       UpdateStatus @default(DRAFT)
+  sentAt       DateTime?
   scheduledFor DateTime? // null = not scheduled; date-only semantics (publishes at the next daily cron >= this instant)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdBy User     @relation(fields: [createdById], references: [id])
-  comments  Comment[]
-  documents Document[]
-  metricValues MetricValue[]
+  company                 Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy               User                  @relation(fields: [createdById], references: [id])
+  comments                Comment[]
+  documents               Document[]
+  metricValues            MetricValue[]
   shareableLinkSelections ShareableLinkUpdate[]
 
   @@map("updates")
@@ -203,8 +204,8 @@ model Update {
 model MetricDefinition {
   id        String   @id @default(cuid())
   companyId String
-  name      String   // e.g. "MRR", "Active Users"
-  unit      String?  // e.g. "USD", "count", "%"
+  name      String // e.g. "MRR", "Active Users"
+  unit      String? // e.g. "USD", "count", "%"
   createdAt DateTime @default(now())
 
   company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -220,7 +221,7 @@ model MetricValue {
   metricDefinitionId String
   value              Decimal
   date               DateTime // the date this metric is for
-  updateId           String?  // optionally linked to an update
+  updateId           String? // optionally linked to an update
   createdAt          DateTime @default(now())
 
   metricDefinition MetricDefinition @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
@@ -232,22 +233,23 @@ model MetricValue {
 // ─── Documents ────────────────────────────────────────────
 
 model Document {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   companyId    String
-  updateId     String?  // optionally linked to an update
+  updateId     String? // optionally linked to an update
   uploadedById String
   name         String
   s3Key        String
   mimeType     String?
-  size         Int?     // bytes
+  size         Int? // bytes
   isInternal   Boolean   @default(false) // admin-only docs
-  docType      String?   // "pitch_deck" | "financials" | "legal" | "product" | "other"
+  docType      String? // "pitch_deck" | "financials" | "legal" | "product" | "other"
   archivedAt   DateTime? // null = active, set = archived
   createdAt    DateTime  @default(now())
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   update     Update? @relation(fields: [updateId], references: [id], onDelete: SetNull)
   uploadedBy User    @relation(fields: [uploadedById], references: [id])
+
   @@map("documents")
 }
 
@@ -349,6 +351,7 @@ model CompanyNote {
   company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy User                  @relation("CreatedNotes", fields: [createdById], references: [id])
   revisions CompanyNoteRevision[]
+
   @@map("company_notes")
 }
 
@@ -374,7 +377,7 @@ model WeeklyDigest {
   id        String       @id
   weekOf    DateTime
   title     String
-  sections  Json         // DigestSection[]
+  sections  Json // DigestSection[]
   sentAt    DateTime?
   createdAt DateTime     @default(now())
   todos     DigestTodo[]
@@ -383,14 +386,14 @@ model WeeklyDigest {
 }
 
 model DigestTodo {
-  id         String        @id
+  id         String       @id
   digestId   String
-  digest     WeeklyDigest  @relation(fields: [digestId], references: [id], onDelete: Cascade)
+  digest     WeeklyDigest @relation(fields: [digestId], references: [id], onDelete: Cascade)
   text       String
   assigneeId String?
-  assignee   User?         @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
-  completed  Boolean       @default(false)
-  createdAt  DateTime      @default(now())
+  assignee   User?        @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  completed  Boolean      @default(false)
+  createdAt  DateTime     @default(now())
 
   @@map("digest_todos")
 }
@@ -423,8 +426,8 @@ model ServiceProvider {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  category     ServiceCategory      @relation(fields: [categoryId], references: [id])
-  submittedBy  User?                @relation("SubmittedProviders", fields: [submittedById], references: [id])
+  category     ServiceCategory       @relation(fields: [categoryId], references: [id])
+  submittedBy  User?                 @relation("SubmittedProviders", fields: [submittedById], references: [id])
   endorsements ProviderEndorsement[]
 
   @@unique([name, categoryId])
@@ -458,7 +461,7 @@ model DigestExtraRecipient {
 
 model RateLimitCounter {
   id          String   @id @default(cuid())
-  key         String   // e.g. "signup:203.0.113.7"
+  key         String // e.g. "signup:203.0.113.7"
   windowStart DateTime
   count       Int      @default(1)
 
@@ -472,8 +475,8 @@ model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
   actorEmail String
-  action     String   // e.g. "USER_APPROVED"
-  targetType String?  // e.g. "User", "Company"
+  action     String // e.g. "USER_APPROVED"
+  targetType String? // e.g. "User", "Company"
   targetId   String?
   metadata   Json?
   createdAt  DateTime @default(now())
@@ -487,7 +490,7 @@ model AuditLog {
 model UpdateTemplate {
   id          String    @id @default(cuid())
   name        String
-  description String?   // one-line hint shown to founders
+  description String? // one-line hint shown to founders
   body        String    @db.Text // rich text HTML, same format as Update.body
   createdById String
   archivedAt  DateTime? // soft delete — founders only see active templates
@@ -504,11 +507,11 @@ model UpdateTemplate {
 model MetricAlert {
   id                 String    @id @default(cuid())
   companyId          String
-  rule               String    // "METRIC_CHANGE" | "NO_METRICS_IN_UPDATES"
-  metricDefinitionId String?   // set for METRIC_CHANGE
-  message            String    // e.g. "MRR changed −34% (12,000 → 7,900)"
+  rule               String // "METRIC_CHANGE" | "NO_METRICS_IN_UPDATES"
+  metricDefinitionId String? // set for METRIC_CHANGE
+  message            String // e.g. "MRR changed −34% (12,000 → 7,900)"
   dedupeKey          String    @unique // see evaluator — prevents refiring on unchanged data
-  metadata           Json?     // { previousValue, latestValue, changePct, previousDate, latestDate }
+  metadata           Json? // { previousValue, latestValue, changePct, previousDate, latestDate }
   firedAt            DateTime  @default(now())
   resolvedAt         DateTime? // set when an admin dismisses
   resolvedById       String?
@@ -525,8 +528,8 @@ model MetricAlert {
 model Fund {
   id            String    @id @default(cuid())
   slug          String    @unique // import key, e.g. "FUND1" — never shown to LPs
-  name          String    // display name, editable, e.g. "FUND1" or "DFS Lab Fund I"
-  groupLabel    String?   // e.g. "Multi-Asset Cohort Funds" (Deals sheet row 3)
+  name          String // display name, editable, e.g. "FUND1" or "DFS Lab Fund I"
+  groupLabel    String? // e.g. "Multi-Asset Cohort Funds" (Deals sheet row 3)
   firstDealDate DateTime?
   aumUsd        Decimal?
   sortOrder     Int       @default(0)
@@ -541,13 +544,13 @@ model Fund {
   netTvpiOverride   Decimal?
   netDpiOverride    Decimal?
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  deals     Deal[]
-  lps       LpFundMembership[]
-  reports   FundReport[]
-  cashflows FundCashflow[]
+  deals           Deal[]
+  lps             LpFundMembership[]
+  reports         FundReport[]
+  cashflows       FundCashflow[]
   reportSnapshots FundReportFundSnapshot[]
 
   @@map("funds")
@@ -561,27 +564,117 @@ model PortfolioCompany {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company  Company?            @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  deals    Deal[]
-  mentions FundReportMention[]
-  rounds    FinancingRound[]
-  marks     ValuationMark[]
-  cashflows FundCashflow[]
+  company          Company?                  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  deals            Deal[]
+  mentions         FundReportMention[]
+  rounds           FinancingRound[]
+  marks            ValuationMark[]
+  cashflows        FundCashflow[]
+  contacts         PortfolioCompanyContact[]
+  broadcastTargets CompanyBroadcastTarget[]
 
   @@map("portfolio_companies")
+}
+
+// ─── Portfolio-company contacts (Part 30, WS69) ───────────
+// The audience directory for admin broadcasts. Structurally the
+// LimitedPartner/LpEmail pattern, with two deliberate divergences:
+//  - email is unique PER COMPANY, not globally (JC-BC-B) — a contact is
+//    not a login identity, and one person can be a contact at two
+//    portfolio companies. Send-time dedup (WS71) handles the overlap.
+//  - no isPrimary (JC-BC-C) — broadcasts mail every contact, and there is
+//    no denormalized mirror column to keep in sync.
+// D4: this list is the ONLY source of broadcast recipients, even for a
+// PortfolioCompany linked to an active Company with real founder logins.
+model PortfolioCompanyContact {
+  id                 String   @id @default(cuid())
+  portfolioCompanyId String
+  name               String?
+  email              String // stored trimmed + lowercased
+  role               String? // free-text label, admin legibility only ("CEO", "Finance")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  portfolioCompany    PortfolioCompany            @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+  broadcastRecipients CompanyBroadcastRecipient[]
+
+  @@unique([portfolioCompanyId, email])
+  @@index([portfolioCompanyId])
+  @@map("portfolio_company_contacts")
+}
+
+// ─── Company broadcasts (Part 30, WS69) ───────────────────
+// The portfolio-side analogue of FundReport: an admin-composed message
+// whose publish step emails the contacts of the targeted portfolio
+// companies.
+model CompanyBroadcast {
+  id          String    @id @default(cuid())
+  subject     String // also the email subject line
+  body        String    @db.Text // TipTap HTML, same as FundReport.body
+  status      String    @default("DRAFT") // "DRAFT" | "PUBLISHED"
+  publishedAt DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy  User                        @relation("CreatedBroadcasts", fields: [createdById], references: [id])
+  targets    CompanyBroadcastTarget[]
+  recipients CompanyBroadcastRecipient[]
+
+  @@index([status, createdAt])
+  @@map("company_broadcasts")
+}
+
+// The chosen audience — one row per targeted PortfolioCompany (D2).
+model CompanyBroadcastTarget {
+  id                 String @id @default(cuid())
+  broadcastId        String
+  portfolioCompanyId String
+
+  broadcast        CompanyBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  portfolioCompany PortfolioCompany @relation(fields: [portfolioCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, portfolioCompanyId])
+  @@index([portfolioCompanyId])
+  @@map("company_broadcast_targets")
+}
+
+// Frozen-at-publish delivery record — the FundReportMention freeze
+// precedent (JC-BC-A). Rows are created PENDING immediately before the
+// fan-out, then flipped to SENT/FAILED, so a request killed mid-send
+// still leaves an accurate record and "Retry unsent" is exact.
+// email/name are denormalized on purpose: they answer "what address did
+// we actually use in January" after the contact row has since changed.
+model CompanyBroadcastRecipient {
+  id                  String    @id @default(cuid())
+  broadcastId         String
+  contactId           String? // nullable: keep the record if the contact row is later deleted
+  email               String
+  name                String?
+  portfolioCompanyIds String[]  @default([]) // every targeted company this address was reached through (dedup provenance)
+  status              String    @default("PENDING") // "PENDING" | "SENT" | "FAILED"
+  error               String? // provider message when FAILED
+  sentAt              DateTime?
+
+  broadcast CompanyBroadcast         @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   PortfolioCompanyContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([broadcastId, email])
+  @@index([broadcastId, status])
+  @@map("company_broadcast_recipients")
 }
 
 model Deal {
   id                 String    @id @default(cuid())
   fundId             String
   portfolioCompanyId String
-  investmentType     String    // "INITIAL" | "FOLLOW_ON"
+  investmentType     String // "INITIAL" | "FOLLOW_ON"
   dealDate           DateTime
   country            String?
   amountUsd          Decimal
-  instrument         String?   // free text — source data has typos/variants (F17)
-  entryValuation     Decimal?  // valuation/cap (post) at investment
-  currentValuation   Decimal?  // admin-maintained after import; 0 = written off
+  instrument         String? // free text — source data has typos/variants (F17)
+  entryValuation     Decimal? // valuation/cap (post) at investment
+  currentValuation   Decimal? // admin-maintained after import; 0 = written off
   valuationAsOf      DateTime? // when currentValuation was last set (import date initially, F17.4)
   notes              String?
   createdAt          DateTime  @default(now())
@@ -623,7 +716,7 @@ model Deal {
 model FinancingRound {
   id                 String   @id @default(cuid())
   portfolioCompanyId String
-  label              String?  // free text: "Seed", "Series A", "SAFE (2024)" — mirrors Deal.instrument's free-text convention (F17)
+  label              String? // free text: "Seed", "Series A", "SAFE (2024)" — mirrors Deal.instrument's free-text convention (F17)
   kind               String   @default("UNKNOWN") // "PRICED" | "SAFE" | "CONVERSION" | "OTHER" | "UNKNOWN"
   roundDate          DateTime
   raisedUsd          Decimal? // FULL round size, all investors — optional-when-known (Q24)
@@ -645,7 +738,7 @@ model FinancingRound {
 model ValuationMark {
   id                 String   @id @default(cuid())
   portfolioCompanyId String
-  valuationUsd       Decimal  // company valuation; 0 = written off (house convention)
+  valuationUsd       Decimal // company valuation; 0 = written off (house convention)
   asOf               DateTime
   source             String   @default("MANUAL") // "MANUAL" | "BACKFILL" | "SHEET"
   notes              String?
@@ -660,10 +753,10 @@ model ValuationMark {
 model FundCashflow {
   id                 String   @id @default(cuid())
   fundId             String
-  portfolioCompanyId String?  // set for company-attributed distributions/exits
-  kind               String   // "CAPITAL_CALL" | "DISTRIBUTION" | "FEE" | "OTHER"
+  portfolioCompanyId String? // set for company-attributed distributions/exits
+  kind               String // "CAPITAL_CALL" | "DISTRIBUTION" | "FEE" | "OTHER"
   date               DateTime
-  amountUsd          Decimal  // always positive; direction is implied by kind
+  amountUsd          Decimal // always positive; direction is implied by kind
   notes              String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -681,8 +774,8 @@ model FundCashflow {
 // only, never logged to the console where avoidable (ground rule 1).
 model SheetSyncRun {
   id         String    @id @default(cuid())
-  trigger    String    // "CRON" | "MANUAL" | "DRY_RUN"
-  status     String    // "SUCCESS" | "FAILED"
+  trigger    String // "CRON" | "MANUAL" | "DRY_RUN"
+  status     String // "SUCCESS" | "FAILED"
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
   summary    Json?
@@ -740,8 +833,8 @@ model LpFundMembership {
 model LpOtpCode {
   id         String    @id @default(cuid())
   lpId       String
-  codeHash   String    // sha256 hex of the 6-digit code — never store the code
-  expiresAt  DateTime  // request time + 10 minutes
+  codeHash   String // sha256 hex of the 6-digit code — never store the code
+  expiresAt  DateTime // request time + 10 minutes
   attempts   Int       @default(0) // fail-closed cap of 5 (rate limiter fails open — this doesn't)
   consumedAt DateTime?
   createdAt  DateTime  @default(now())
@@ -769,8 +862,8 @@ model LpSession {
 model FundReport {
   id          String    @id @default(cuid())
   fundId      String
-  title       String    // e.g. "FUND1 — H1 2026 Report"
-  periodLabel String?   // e.g. "H1 2026"
+  title       String // e.g. "FUND1 — H1 2026 Report"
+  periodLabel String? // e.g. "H1 2026"
   body        String    @db.Text // TipTap HTML incl. mention spans (data-portco)
   status      String    @default("DRAFT") // "DRAFT" | "PUBLISHED"
   publishedAt DateTime?
@@ -778,9 +871,9 @@ model FundReport {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  fund      Fund                @relation(fields: [fundId], references: [id])
-  createdBy User                @relation("CreatedFundReports", fields: [createdById], references: [id])
-  mentions  FundReportMention[]
+  fund         Fund                    @relation(fields: [fundId], references: [id])
+  createdBy    User                    @relation("CreatedFundReports", fields: [createdById], references: [id])
+  mentions     FundReportMention[]
   fundSnapshot FundReportFundSnapshot?
 
   @@index([fundId, status])
@@ -791,8 +884,8 @@ model FundReportMention {
   id                 String   @id @default(cuid())
   reportId           String
   portfolioCompanyId String
-  companyName        String   // display name frozen at publish
-  snapshot           Json     // frozen at publish — shape in WS17.2
+  companyName        String // display name frozen at publish
+  snapshot           Json // frozen at publish — shape in WS17.2
   createdAt          DateTime @default(now())
 
   report           FundReport       @relation(fields: [reportId], references: [id], onDelete: Cascade)
@@ -810,8 +903,8 @@ model FundReportFundSnapshot {
   id        String   @id @default(cuid())
   reportId  String   @unique // one snapshot per report — reports are single-fund scoped (Q43/finding #4)
   fundId    String
-  fundName  String   // display name frozen at publish — never fund.slug (finding #3 / ground rule 2)
-  snapshot  Json     // shape: FundSnapshotPayload, WS33.3
+  fundName  String // display name frozen at publish — never fund.slug (finding #3 / ground rule 2)
+  snapshot  Json // shape: FundSnapshotPayload, WS33.3
   createdAt DateTime @default(now())
 
   report FundReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
