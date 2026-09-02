@@ -307,16 +307,16 @@ export default function AdminDashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={d.updatesByMonth} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
                   <XAxis
                     dataKey="month"
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
                     tickLine={false}
                     axisLine={false}
                   />
                   <YAxis
                     allowDecimals={false}
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
                     tickLine={false}
                     axisLine={false}
                   />
@@ -324,13 +324,13 @@ export default function AdminDashboardPage() {
                     formatter={(v) => [v, "Updates"]}
                     contentStyle={{
                       fontSize: 12,
-                      borderRadius: "6px",
-                      border: "1px solid hsl(var(--border))",
-                      background: "hsl(var(--background))",
-                      color: "hsl(var(--foreground))",
+                      borderRadius: "2px",
+                      border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)",
+                      color: "var(--color-text-primary)",
                     }}
                   />
-                  <Bar dataKey="count" fill="hsl(var(--primary))" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="count" fill="var(--color-accent)" radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}

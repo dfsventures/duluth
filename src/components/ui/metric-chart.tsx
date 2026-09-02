@@ -42,17 +42,17 @@ export function MetricChart({ name, unit, values }: MetricChartProps) {
   return (
     <ResponsiveContainer width="100%" height={220}>
       <LineChart data={sorted} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
         <XAxis
           dataKey="date"
           tickFormatter={formatAxisDate}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+          tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
           tickLine={false}
           axisLine={false}
         />
         <YAxis
           tickFormatter={(v) => (unit ? `${Number(v).toLocaleString()} ${unit}` : Number(v).toLocaleString())}
-          tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+          tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
           tickLine={false}
           axisLine={false}
           width={unit ? 80 : 60}
@@ -65,17 +65,17 @@ export function MetricChart({ name, unit, values }: MetricChartProps) {
           contentStyle={{
             fontSize: 12,
             borderRadius: "6px",
-            border: "1px solid hsl(var(--border))",
-            background: "hsl(var(--background))",
-            color: "hsl(var(--foreground))",
+            border: "1px solid var(--color-border)",
+            background: "var(--color-surface)",
+            color: "var(--color-text-primary)",
           }}
         />
         <Line
           type="monotone"
           dataKey="value"
-          stroke="hsl(var(--primary))"
+          stroke="var(--color-accent)"
           strokeWidth={2}
-          dot={{ r: 3, fill: "hsl(var(--primary))" }}
+          dot={{ r: 3, fill: "var(--color-accent)" }}
           activeDot={{ r: 5 }}
         />
       </LineChart>
