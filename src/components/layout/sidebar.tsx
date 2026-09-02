@@ -26,6 +26,7 @@ import {
   ClipboardCheck,
   FolderOpen,
   Calculator,
+  Megaphone,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 import { useCompany } from "@/context/company-context";
@@ -83,6 +84,9 @@ const adminNavGroups = [
       { label: "Deal Ledger", href: "/admin/portfolio", icon: Rows3 },
       { label: "LPs", href: "/admin/lps", icon: Handshake },
       { label: "Fund Reports", href: "/admin/reports", icon: NotebookPen },
+      // Part 30, WS74 (JC-BC-I) — a PortfolioCompany-side tool (same
+      // entity as Deal Ledger and report mentions), not Company Operations.
+      { label: "Broadcasts", href: "/admin/broadcasts", icon: Megaphone },
     ],
   },
   {
