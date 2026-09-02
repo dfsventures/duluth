@@ -8966,3 +8966,167 @@ These were called out as working well and are **not** to be "tidied" by a future
 **Constraints honored:** **no schema change** (JC-UI-H — nothing in this Part touches `prisma/`); **no new cost line** (CSS, copy, one env var, two Vitest guards, client-side filtering — no service, no dependency, no cron, no new API call pattern); **no UX regression** — every change is corrective (WS80, WS84), additive (WS83, WS86), invisible by default (WS88), or a strictly better string (WS81). The three surfaces with external or founder audiences are handled explicitly: the **investor share link** gets a colour-only pass with its structure protected by N-F45; the **founder metric chart** and **founder documents table** are named as regression-check targets in WS84 and WS83; the **LP portal** default is byte-identical. **Zero LP-visible change.**
 
 ---
+
+# Part 33 — Portfolio Contacts gets its own home (WS89–WS90, F77–F79, 2026-09-02)
+
+> **Status: PLANNED, not built. All four product decisions CONFIRMED (Joseph, 2026-09-02 — D1–D4; D4 was posed as Q82 and landed on the recommended option, and the tab-label choice was answered "keep Links"). Nothing open. WS89 and WS90 are both fully unblocked and ready for Alvin.** This is an information-architecture correction, not a feature: Parts 30 and 31 bolted two portfolio-wide contact/linking surfaces onto `/admin/portfolio`, a page whose whole job is the cross-fund deal ledger. Joseph's words: the "Import contacts (CSV)" button and the "Links" tab are unrelated to deals and confusing to find there. Everything below was verified against the working tree at `dfb3e2c`, not against Parts 30/31's own plan text.
+
+## Method — what was verified against the working tree
+
+- **The clutter is exactly two things, both portfolio-wide, both on the list page.** `src/app/admin/portfolio/page.tsx:315-328` (the `Import contacts (CSV)` button, inside `PageHeader`'s `action` slot) with its result/error banners at `:465-493` and its "CSV format" `ComposerDisclosure` at `:494-503`; and the Links tab at `:335-358` with its two sections at `:360-462`. Nothing else on that page is non-deal.
+- **The Links tab renders exactly two tables, and both are read-mostly reconciliation lists.** Verified at `:362-421` ("Unlinked portfolio companies" — name, contact count, top suggestion, and a `Link`/`Find match` button opening the shared `PortcoLinkDialog`) and `:423-461` ("Operational companies with no portfolio company" — name, created date, owner email, a read-only link to `/admin/companies/[id]`). It matches WS78.2's plan; Alvin did not deviate. It is lazily loaded on first visit (`:215-217`).
+- **The per-company detail page's contacts + link widget are a genuinely different thing and stay put.** `src/app/admin/portfolio/[id]/page.tsx:475-598` is per-record contact CRUD (add/edit/delete, plus a **scoped** CSV import that posts `defaultPortfolioCompanyId`, `:342`), and `:435-470` is the per-record link/unlink widget. Both are per-record management on the record's own page — the same shape as the Rounds and Valuation-mark sections directly below them. **The reading in the brief is confirmed: neither moves.**
+- **Only one component is shared between the two surfaces**, `src/components/admin/portco-link-dialog.tsx` (its own header comment, `:33-38`, names both call sites). It is route-agnostic — it takes ids and callbacks, and fetches `/api/admin/portfolio-companies/link-suggestions` + `/api/admin/companies?linkable=1` itself. **It needs no change at all**, only a two-word comment update.
+- **No API route needs to move or change shape.** The endpoints behind both surfaces (`GET /api/admin/portfolio-companies`, `GET …/link-suggestions`, `POST …/contacts/import`, `PATCH …/[id]`) are all namespace-neutral. **One server-side *string* is wrong after the move** — see F78.
+- **Nothing outside `src/app/admin/portfolio/**` deep-links to either surface.** `grep -rn "tab=links|/admin/portfolio" src ROADMAP.md README.md` → the only page-level inbound link is `src/app/admin/companies/[id]/page.tsx:911` → `/admin/portfolio/[id]` (Part 31, WS79), which points at the detail page and is unaffected. `?tab=links` appears in exactly one place: `portfolio/page.tsx:151`, the tab's own `router.replace`.
+- **`GET /api/admin/portfolio-companies` already returns everything a coverage view needs** — `:28-39` returns `id, name, country, companyId, company, dealCount, mentionCount, contactCount` for every portfolio company, ordered by name. **D4's confirmed coverage table needs zero new endpoints and zero new queries.**
+- **A nested route would break the sidebar's active state.** `src/components/layout/sidebar.tsx:126-130`: `isActive(href)` is `pathname === href || pathname.startsWith(href + "/")`. So `/admin/portfolio/contacts` would light up **Deal Ledger** at the same time as the new item — the exact "this is part of the ledger" implication being undone here. A sibling route (`/admin/portfolio-contacts`) does not match either predicate. Verified, and it is the reason for JC-PC-A.
+- **House patterns to reuse, all already in the tree:** the `?tab=` + `useState(requestedTab)` + `router.replace` idiom is used identically at `admin/updates/page.tsx:40-41`, `admin/funds/page.tsx:41,58` and `admin/portfolio/page.tsx:146-152`; the Part 32/WS86 search standard (`<Input placeholder="Search by …" />` above the list, client-side `filter()`, a distinct `EmptyState title="No matches"`) is at `admin/broadcasts/page.tsx:95,137,143`; the "0 contacts is a problem" ochre treatment already exists at `admin/broadcasts/[id]/page.tsx:451-452`.
+
+---
+
+## F77 — importing a CSV from the Links tab gives no result feedback at all (LOW severity, real bug, shipped 2026-09-01; **fixed by construction** in WS89/WS90)
+
+`src/app/admin/portfolio/page.tsx` renders the import button inside `PageHeader`'s `action` prop (`:315`), which is **outside** the tab conditional, so it is present on both tabs. The success banner (`:465`), the error banner (`:485`) and the CSV-format disclosure (`:494`) are all inside the `deals` branch of that conditional (the `) : (` at `:463`). On `?tab=links`, an admin can therefore run a full import and see nothing but the button's transient `Importing...` label — no created/updated/skipped counters, no unmatched-company list, no row-level errors. The import itself succeeds; only the report is invisible.
+
+This is worth recording rather than patching in place: after WS89/WS90 the button and its banners live in the same tab of the same page, so the bug cannot recur. **No separate fix is required — but the acceptance checklist below tests for it explicitly.**
+
+## F78 — the import API hardcodes the old location in a user-facing error string (LOW, but it becomes *false* the moment WS90 lands)
+
+`src/app/api/admin/portfolio-companies/contacts/import/route.ts:88-90` returns, for a row that names a different company during a per-company scoped import:
+
+```
+`Row ${row.row}: names "${companyCell}" — use the portfolio-wide import on the Deal Ledger page`
+```
+
+After WS90 there is no import on the Deal Ledger page. This string must change in the same commit as the move. **It is covered by a test**, `src/lib/__tests__/portfolio-contacts-import.test.ts:183`, which asserts `/portfolio-wide import/` — so any replacement that keeps the phrase "portfolio-wide import" keeps the suite green with no test edit. Recommended replacement: `— use the portfolio-wide import on the Portfolio Contacts page`.
+
+## F79 — ROADMAP describes both surfaces as living on `/admin/portfolio` (LOW, docs-only; annotated in this pass)
+
+`ROADMAP.md:11` (Part 30) says the canonical contacts CSV is "uploaded from `/admin/portfolio`", and `ROADMAP.md:9` (Part 31) describes "a 'Links' tab on `/admin/portfolio`". Both are true today and false after WS90. Annotated inline in this pass with a forward pointer to Part 33 rather than rewritten, matching the F63/F70 annotation convention.
+
+---
+
+## Confirmed decisions (locked by Joseph 2026-09-02 — do NOT re-litigate)
+
+| | Decision | What it means for the implementer |
+|---|---|---|
+| **D1** | A **new dedicated sidebar section**, separate from Deal Ledger entirely, labelled **"Portfolio Contacts"**, in the **Funds & LPs** group | One new `adminNavGroups` entry. Not a tab on an existing page, not a sub-item |
+| **D2** | Contacts and Links stay **two separate tabs** inside that section — not merged into one view | Two tabs, same `?tab=` idiom as `/admin/updates` and `/admin/funds`. Default tab is **Contacts** |
+| **D3** | `/admin/portfolio` goes back to being **purely about deals** — the import button and the Links tab/query-param handling are removed **entirely** | No redirect shim, no leftover `?tab=` parsing. A stale `?tab=links` bookmark simply lands on the deal ledger with the param ignored |
+| **D4** (Q82) | The Contacts tab is the **import control plus a contact-coverage table** — per-company contact count with **ochre zeroes**, account-link status, deal count, search row, and a "no contacts only" filter | WS89.2 as written below. Option **(B)**, as recommended. **(A) is rejected** — do not ship a one-control page. **(C) is deferred, not rejected** — build **no** new `GET …/contacts` directory endpoint in this Part |
+| **Tab label** | The second tab stays **"Links"** — the default, no change | JC-PC-C is now settled: **do not** rename it to "Account Links". The disambiguation from the "Investor Links" sidebar item lives in the section header, not the tab |
+
+**Nothing is open. Every workstream and sub-step below is unblocked and ready for Alvin.**
+
+## D4 (posed as Q82) — what the Contacts tab shows, besides the import button — **CONFIRMED (B), 2026-09-02**
+
+Relocating a button and nothing else would leave a one-control page. The three options as posed, kept on the record because the two rejections carry instructions:
+
+- **(A) Import control only** — the button, the CSV-format disclosure, the result banners, and a sentence explaining what the contact list is for. Cheapest (~0 extra); also the thinnest possible justification for a sidebar entry. **REJECTED.**
+- **(B) Import control + a contact-coverage table — CONFIRMED, this is what gets built** — every portfolio company as a row: name (linking to `/admin/portfolio/[id]`, where editing already lives), contact count with **0 rendered in ochre** exactly as the broadcast audience picker already does, whether it is linked to a Molly account, and deal count. Plus the WS86 search row and a "companies with no contacts" filter toggle. **This is the "who would a broadcast silently miss?" view, and it is the natural landing place after a bulk import** — you upload, then immediately see what the upload did not cover. Costs nothing extra: `GET /api/admin/portfolio-companies` already returns `contactCount`, `dealCount` and `company` (`route.ts:28-39`), and the page already has to call it for nothing else.
+- **(C) B plus a flat directory of every contact** (name · email · role · company, searchable across all of them). Needs one new ~25-line `GET /api/admin/portfolio-companies/contacts` (that folder exists today with only `import/` in it). Answers "is this address already in there, and where?" without opening N detail pages. **DEFERRED, not rejected — and explicitly out of scope for this Part: do not build that endpoint here.**
+
+**Why (B) and not (C), recorded so the deferral is not re-argued:** the two questions (C) answers are already answered by other means — "who do we have at Acme" is one click from (B)'s table, and "are these twelve addresses already in there" is answered by simply re-uploading the CSV, since the importer upserts on `(portfolioCompanyId, email)` and never blanks good data (`import/route.ts:106-125`), so a re-upload is safe and idempotent. **(C) stays cheap forever** — one endpoint, one table, no schema change — so deferring it costs nothing and it can be added later without touching anything WS89 builds.
+
+**Tab label — settled, "Links" stays.** The sidebar already has an unrelated **"Investor Links"** item (`/admin/links`, tokenized share links), so two different things called "Links" will coexist in admin nav. They are one nav group apart and this one sits under a "Portfolio Contacts" header, which is where the disambiguation lives. **"Account Links" was offered and not taken — do not rename it.**
+
+## Judgment calls (Felix's; each with its reversal path)
+
+- **JC-PC-A — route is `/admin/portfolio-contacts`.** Every existing admin page route is one lowercase word (`portfolio`, `reports`, `links`, `lps`, `broadcasts`, `providers`, `digest`, `audit`, `templates`, `diligence`), so the tempting choice is `/admin/contacts`. Rejected: "contacts" is ambiguous across at least three other populations in this app (LP emails, digest recipients, operational company members), and the hyphenated form mirrors the sidebar label Joseph chose. `/admin/portfolio/contacts` is rejected outright — it would double-highlight Deal Ledger in the sidebar (verified above) and re-imply the nesting we are removing. Hyphens are already house style one level down (`/api/admin/portfolio-companies`, `/api/admin/digest-recipients`). **Reversal:** rename one directory and one `href`; nothing else references the path.
+- **JC-PC-B — the moved Links tab is a byte-for-byte move, not a rewrite.** All of `:154-222` (state, `openLinkDialog`, `loadLinks`, `handleLinked`) and `:360-462` (the two tables) transplant unchanged, including the `openLinkDialog` fetch against `/api/admin/portfolio/companies/[id]` — the *other* portfolio namespace (**F61**, Part 30). That inconsistency is deliberately **not** cleaned up here; a nav reorg is the wrong commit to also change which endpoint a dialog calls. **Reversal:** n/a — this is the conservative choice.
+- **JC-PC-C — tab label stays "Links". SETTLED by Joseph 2026-09-02** (the offered "Account Links" was declined), so this is no longer a judgment call; it is recorded here only so a later reader does not "fix" the collision with the Investor Links sidebar item. **Reversal:** one string, but do not take it unasked.
+- **JC-PC-D — no redirect from `/admin/portfolio?tab=links`.** D3 says remove the query-param handling entirely, and the tab is one day old (shipped `2396d8c`, 2026-09-01), so no bookmark can meaningfully exist. **Reversal:** if a stale link ever matters, three lines in the new page's `useEffect`.
+
+---
+
+## WS89 — new `/admin/portfolio-contacts` section with both tabs + sidebar entry — ~0.75 day
+
+**Goal.** One destination that owns everything portfolio-*wide* about contacts and account links, reachable from the sidebar. **Build this first — nothing is removed from the Deal Ledger until this is live, so there is no window where the import or the Links view is unreachable.**
+
+**Implements:** D1, D2, D4. **Unblocked — all four decisions are confirmed.**
+
+### WS89.1 — the page shell + sidebar entry
+
+1. **`src/components/layout/sidebar.tsx`** — import `Contact` from `lucide-react` (verified exported by the installed version; not currently used anywhere in this file) and add to the `Funds & LPs` group, directly after `Deal Ledger` so the ledger and its former passengers read as adjacent:
+   ```ts
+   // Part 33, WS89 (D1) — portfolio-WIDE contact + account-link management,
+   // moved off /admin/portfolio, whose job is the cross-fund deal ledger.
+   // Per-company contact CRUD and the link/unlink widget deliberately stay
+   // on /admin/portfolio/[id] — that is per-record management, not this.
+   { label: "Portfolio Contacts", href: "/admin/portfolio-contacts", icon: Contact },
+   ```
+2. **`src/app/admin/portfolio-contacts/page.tsx`** (new) — a `"use client"` page following `src/app/admin/portfolio/page.tsx`'s exact shape: default export wrapping an inner component in `<Suspense fallback={null}>` (required by `useSearchParams`), `AppShell`, `PageHeader`, then the tab strip.
+   ```tsx
+   type ContactsTab = "contacts" | "links";
+   const requestedTab = searchParams.get("tab") === "links" ? "links" : "contacts";
+   const [activeTab, setActiveTab] = useState<ContactsTab>(requestedTab);
+
+   function selectTab(tab: ContactsTab) {
+     setActiveTab(tab);
+     router.replace(tab === "links" ? "/admin/portfolio-contacts?tab=links" : "/admin/portfolio-contacts");
+   }
+   ```
+   `PageHeader` copy: title `Portfolio Contacts`, description `Who we email at each portfolio company, and which cap-table entries are linked to a Molly account.` The tab strip is the same markup as `portfolio/page.tsx:335-358` (icons: `Users` for Contacts, `LinkIcon` for Links).
+3. The **`Import contacts (CSV)`** button moves into this page's `PageHeader` `action` slot — same `Button variant="secondary"` + hidden `<input type="file" accept=".csv">` + `Upload` icon, same `handleContactsCSVFile` (`portfolio/page.tsx:278-306`, portfolio-wide: **no** `defaultPortfolioCompanyId` in the body). Its success/error banners and the "CSV format" `ComposerDisclosure` move with it and **must render inside the Contacts tab branch** — this is F77's fix. On a successful import, also re-run the coverage fetch so the counts in WS89.2's table update in place.
+
+### WS89.2 — the Contacts tab body (D4, confirmed — build exactly this; no all-contacts directory endpoint)
+
+1. Fetch `GET /api/admin/portfolio-companies` once on mount (no params — the route's `fundId`/`q` filters are optional and unused here) into `{ id, name, companyId, company, contactCount, dealCount }[]`. It is already ordered by name.
+2. Render a `Table` (`src/components/ui/table.tsx`, `tableClassName="min-w-[720px]"` so WS83's scroll affordance engages on mobile) with columns: **Company** (a `Link` to `/admin/portfolio/[id]` — that is where contacts are actually edited), **Contacts** (the count; `text-ochre` when `0`, mirroring `admin/broadcasts/[id]/page.tsx:451-452`), **Molly account** (`company?.name` as a link to `/admin/companies/[id]`, else a muted `Not linked` — the same fact the Links tab acts on, shown here as read-only context), **Deals**.
+3. Search + filter row above the table, per the Part 32/WS86 standard: `<Input placeholder="Search by company..." />` filtering client-side over the loaded rows, plus a checkbox `Only companies with no contacts` (the broadcast composer's `hideEmpty` toggle inverted — same idea, `admin/broadcasts/[id]/page.tsx:155`). A filtered-to-nothing list shows `EmptyState title="No matches" description="Try a different search term."`; a genuinely empty table shows `EmptyState title="No portfolio companies yet"`.
+4. A one-line summary above the table — `N of M portfolio companies have at least one contact.` — computed from the same array. No new endpoint, no `useMemo` gymnastics; ~50 rows.
+
+### WS89.3 — the Links tab body
+
+1. Move `portfolio/page.tsx:154-222` (the `linksLoaded`/`linksLoading`/`unlinkedPortcos`/`suggestionsByPortco`/`orphanCompanies`/`linkDialogFor` state, `openLinkDialog`, `loadLinks`, the lazy-load `useEffect`, `handleLinked`) and `:360-462` (both sections) into this page **verbatim**, including the `PortcoLinkDialog` render block at `:651-659` and the `UnlinkedPortfolioCompany` / `LinkSuggestionRow` / `OrphanCompany` interfaces at `:22-40`. The lazy-load guard stays: the Links data is fetched on first visit to that tab only (JC-LK-B), which now also means it is not fetched when an admin lands on the default Contacts tab.
+2. **`src/components/admin/portco-link-dialog.tsx:34-36`** — comment-only edit: `the standing "Links" tab on /admin/portfolio (WS78.2)` → `the standing "Links" tab on /admin/portfolio-contacts (WS78.2, moved in Part 33/WS89)`. No code change; the component is route-agnostic.
+
+**Acceptance checklist (WS89):** `/admin/portfolio-contacts` renders with Contacts active by default and no `?tab` in the URL; clicking Links sets `?tab=links` and a hard reload of that URL opens on Links; the sidebar item highlights on both tabs **and Deal Ledger does not highlight at the same time** (the JC-PC-A regression); a portfolio-wide CSV import run **from the Links tab is impossible** (the button lives in the Contacts tab's page header) and one run from the Contacts tab shows its full counters + row errors inline (**F77**); import counts refresh the coverage table without a manual reload; a company with zero contacts shows an ochre `0` and is the only kind of row surviving the "no contacts" filter; every Links-tab behavior is identical to today — same two tables, same lazy load, same `Link`/`Find match` buttons, same dialog, same `PORTCO_LINKED`/`PORTCO_UNLINKED` audit rows; 375px clean (Part 6 patterns A + D — the tab strip is already `overflow-x-auto`).
+
+**UX impact:** admin-only and **purely additive at this step** — one new sidebar item and one new page; `/admin/portfolio` is untouched until WS90, so nothing an admin can do today stops working mid-batch. No founder, LP or investor-link surface is touched. **Cost impact:** none — no new dependency, no new table, no new endpoint (D4 is served entirely by the existing list route), and one extra `GET /api/admin/portfolio-companies` per visit to a page that did not exist.
+
+---
+
+## WS90 — return `/admin/portfolio` to being the deal ledger — ~0.25 day
+
+**Goal.** The Deal Ledger page contains deals and nothing else. **Sequence strictly after WS89 is deployed and clicked through.**
+
+**Implements:** D3. **Covers:** F78, F79.
+
+**File-by-file steps:**
+
+1. **`src/app/admin/portfolio/page.tsx`** — delete: the `PortfolioTab` type (`:20`); the `UnlinkedPortfolioCompany`/`LinkSuggestionRow`/`OrphanCompany`/`ContactsImportResult` interfaces (`:22-48`); the tab state and `selectTab` (`:145-152`); the whole Links block (`:154-222`); the import state and `handleContactsCSVFile` (`:235-239`, `:278-306`); the `PageHeader` `action` prop and its wrapper `div` (`:314-330`); the tab strip (`:333-358`); the `activeTab === "links" ? … : (` conditional and its closing `)` (`:360-364`, `:463-464`, `:648-649`) — unwrapping the deals branch back to the top level; the import banners (`:465-493`); the CSV-format disclosure (`:494-503`); and the `PortcoLinkDialog` render (`:651-659`).
+2. Same file, imports and hooks now unused — remove `Upload`, `CheckCircle2`, `AlertCircle`, `X`, `LinkIcon`, `Unlink` from the `lucide-react` import (`:6`), `PortcoLinkDialog` (`:15`), `ComposerDisclosure` (`:16`), `parseContactsCSV` (`:18`), and `Suspense`/`useRef` (`:3`) plus `useRouter`/`useSearchParams` (`:5`) once the Suspense wrapper and `router.replace` are gone. **Keep** `Layers` (still used at `:507` and `:596`), `EmptyState` (`:596`), `formatDate` (`:629`), `Link`, `Card*`, `Badge`, `Select`, `Table*`, `Search`, `Building2`, `Landmark`, `DollarSign`, `useCallback`, `useMemo`. Note `X` is used **only** by the import banners (`:480`, `:489`), so it goes with them. With `Suspense` gone the default export collapses back to one component — mirror how `admin/companies/page.tsx` is structured. Run `npx eslint src/app/admin/portfolio/page.tsx` — the repaired ESLint config (Part 5) catches any straggler.
+3. **`src/app/api/admin/portfolio-companies/contacts/import/route.ts:89-90` (F78)** — `use the portfolio-wide import on the Deal Ledger page` → `use the portfolio-wide import on the Portfolio Contacts page`. Keep the phrase "portfolio-wide import" verbatim: `src/lib/__tests__/portfolio-contacts-import.test.ts:183` asserts `/portfolio-wide import/`, so no test edit is needed (and if the phrasing is changed further, that test must be updated in the same commit).
+4. **`src/app/admin/portfolio/[id]/page.tsx:594-595`** — the per-company import helper text says a `company` column is optional "here"; it is still correct, but add the pointer that now exists: `…rows without one are added to this company. To upload contacts for many companies at once, use Portfolio Contacts.` (plain text, no link needed — it is one sidebar item away). **Nothing else on this page changes: the Contacts section (`:475-598`) and the link/unlink widget (`:435-470`) stay exactly as they are.**
+5. **Docs (F79)** — annotate `ROADMAP.md:11` (Part 30 bullet, "uploaded from `/admin/portfolio`") and `ROADMAP.md:9` (Part 31 bullet, "'Links' tab on `/admin/portfolio`") with a bracketed forward pointer to Part 33 rather than rewriting the historical text, matching the F63/F70 annotation convention already used in those bullets.
+
+**Acceptance checklist (WS90):** `/admin/portfolio` shows the five stat cards, the fund/type/search filter row and the sortable deal table, and **nothing else** — no tab strip, no import button, no banners, no CSV disclosure; `grep -n "parseContactsCSV\|PortcoLinkDialog\|tab=links" src/app/admin/portfolio/page.tsx` returns nothing; visiting the stale `/admin/portfolio?tab=links` renders the deal ledger with no error and no blank tab strip (JC-PC-D); sorting, filtering, search, the ochre no-dilution dots and the `min-w-[960px]` scroll affordance are all unchanged (this page's behavior is a Part 13 + Part 32 regression surface — check a sort click and a fund filter); `npx eslint src/app/admin/portfolio/page.tsx` clean, `npx tsc --noEmit` clean, `npx vitest run` green (77+ tests, including `portfolio-contacts-import.test.ts:183`); a scoped per-company import of a row naming a different company now says "Portfolio Contacts page".
+
+**UX impact:** admin-only. Two controls change location and **none disappear** — the portfolio-wide import and the Links view are both live at `/admin/portfolio-contacts` before this workstream starts. The only genuinely lost affordance is the one-day-old `?tab=links` URL (JC-PC-D). Zero founder, LP or investor-link change: neither surface has ever been visible outside `/admin`. **Cost impact:** none (deletions plus one string).
+
+---
+
+## Sequencing & handoff (Part 33)
+
+- **WS89 before WS90, strictly** — additive first, so there is no deploy in which the import or the Links view is unreachable.
+- **Nothing is blocked.** D1–D4 are all confirmed (2026-09-02), so WS89 can start immediately and WS90 follows it.
+- **Total effort: ~1 day** (WS89 0.75 + WS90 0.25). **No schema change, no new endpoint** (D4 reuses the existing list route), **no new dependency.**
+- **Do not touch** `src/app/admin/portfolio/[id]/page.tsx`'s Contacts section or link widget beyond the one helper-text line in WS90.4, and do not "fix" the two portfolio API namespaces (**F61**) in this Part — JC-PC-B.
+
+## Part 33 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **D1** | New "Portfolio Contacts" sidebar item in the Funds & LPs group | **LOCKED** (Joseph, 2026-09-02) |
+| **D2** | Two tabs — Contacts and Links — not one merged view | **LOCKED** |
+| **D3** | `/admin/portfolio` reverts to deals only; the import button and Links tab/query-param go entirely | **LOCKED** |
+| **D4** (Q82) | The Contacts tab = import control **+ contact-coverage table** (search, ochre zero-counts, account-link status, deal count, no-contacts filter), reusing `GET /api/admin/portfolio-companies` with **no new endpoint** | **LOCKED** — option (B) as recommended. (A) rejected; **(C), the flat all-contacts directory, is deferred and must not be built in this Part** |
+| **Tab label** | "Links" vs "Account Links" (disambiguating from the "Investor Links" sidebar item) | **LOCKED — "Links" stays.** "Account Links" was offered and declined |
+| **Per-company page** | Inline Contacts section + link/unlink widget on `/admin/portfolio/[id]` | **STAYS** — per-record management, verified as a different concern from the two portfolio-wide surfaces being moved |
+| **F61** | Two portfolio API namespaces | **NOT addressed here** (JC-PC-B) — flagged again, not refactored in a nav commit |
+
+**Constraints honored:** **no schema change** (nothing in this Part touches `prisma/`); **no new cost line** (one new page, one moved page, one string, zero new services/dependencies/tables/crons; D4 adds no endpoint and one already-cheap admin `GET`); **no UX regression** — WS89 is purely additive and ships first, WS90 only removes controls that by then exist elsewhere, and every surface touched is admin-only. **Zero founder, LP and investor-link change.**
+
+---
