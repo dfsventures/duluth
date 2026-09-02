@@ -8410,3 +8410,557 @@ if (body.companyId !== undefined && existing.companyId !== data.companyId) {
 **Constraints honored:** **no schema change at all** (every column exists; trivially satisfies additive-only); **no new cost line** (pure in-memory matching over ~50 portfolio companies on admin-only pages — no service, no dependency, no cron); **no UX regression** (admin-only surfaces; the sole edits to shipped behavior are an opt-in query param, two error codes that are currently 500s, and F64's fix which makes a field that was supposed to render actually render). **Zero founder, LP, and investor-link impact.**
 
 ---
+
+# Part 32 — UI/UX Review Triage: Brand Fidelity, Copy Discipline & the Behind-on-Updates Question (WS80–WS88, F68–F76, 2026-09-02)
+
+> **Status: PLANNED, not built. All four product decisions CONFIRMED (Joseph, 2026-09-02) — nothing open. Every workstream WS80–WS88 is unblocked and ready for Alvin.** The four were posed as Q78–Q81 and are recorded below as **D1–D4**; every one landed on the recommended option, none reversed. This Part triages a 51-finding UI/UX review (Nisat, 2026-09-01, compiled from live production screenshots of the admin app plus a source read of the founder app, LP portal and investor share-link page) together with three copy findings (Nosa, same date, folded in below **verbatim as already-decided**, no further copy work needed on them). Every finding acted on below was **re-verified against the working tree** before being written down; where the review and the code disagree, the disagreement is recorded as a finding (F72, F73) rather than routed around.
+
+## Numbering — read this before citing any finding in this Part
+
+**Nisat's review uses its own `F01`–`F45` sequence, which collides head-on with this document's project-wide F-sequence.** The project already has an `F09`, `F14`, `F22`, `F41` and `F44` that mean entirely different things (Part 20's founder document upload, Part 21's awaiting-setup queue, Parts 23/24's storage and email work). To keep this unambiguous:
+
+- **`N-Fxx` / `N-Cxx` / `N-FKx`** = a finding from **N**isat's review document. Used everywhere below.
+- **`F68`+** = this project's own findings, continuing the sequence Part 31 ended at F67.
+- Nosa's three copy fixes were handed over labelled with Nisat's numbers (`F22`, `F44`, `F09`); they appear below as **N-F22**, **N-F44**, **N-F09**.
+
+The review artifact itself is **not committed to this repo** — see **F74**.
+
+## Method — what was verified against the working tree
+
+Every claim below was checked in source before being planned. Highlights of what that changed:
+
+- **The raw-Tailwind-gray leak is real and is exactly one file.** `grep -rn "bg-gray-\|bg-slate-\|bg-zinc-\|bg-neutral-\|bg-red-[0-9]\|bg-blue-[0-9]\|bg-green-[0-9]\|text-gray-[0-9]" src --include="*.tsx" --include="*.ts"` returns hits in **`src/app/share/[token]/page.tsx` only** (`:164`, `:172`, `:181`). N-F41 confirmed.
+- **…but N-F43's "default borders" half is wrong.** `src/app/globals.css:47-52` has `@layer base { * { border-color: theme("colors.border"); } }`, and `tailwind.config.ts:44` maps `border` to `var(--color-border)` (Bone). So the bare `border` / `border-t` at `share/[token]/page.tsx:263, 288, 321, 356` **already render Bone**, not Tailwind's default. Only `bg-white` at `:185` bypasses a token — and `--color-surface` is `#FFFFFF` (`globals.css:20`), so it is **visually identical today**. N-F43 shrinks from "cards are off-brand" to a one-line fork-hygiene fix. Recorded as **F72**.
+- **`bg-white` is *not* unique to the share page** (a second N-F43 overstatement): six other files use it — `src/app/admin/links/page.tsx:393`, `src/app/admin/reports/[id]/page.tsx:354`, `src/app/admin/companies/[id]/page.tsx:1691`, `src/app/links/page.tsx:304`, `src/components/ui/sector-combobox.tsx:173`, `src/components/lp/lp-login-form.tsx:87,122`. Same "identical today, wrong for a fork" status. **F72.**
+- **The Sky stripe is exactly what N-F02 says.** `src/app/login/page.tsx:56` and `src/app/signup/page.tsx:57` are both `<div className="h-1 w-full bg-primary" />`, and login's is preceded by a stale `{/* Card with teal top accent */}` comment (teal is from a pre-DFS palette).
+- **N-F03's scope is bigger than the review saw.** `bg-muted` (Bone) is the page canvas on `login/page.tsx:45,130`, `signup/page.tsx:47` **and `set-password/page.tsx:18, 26, 103, 299`** — four more instances in the same auth family, on the page a founder lands on from their activation email. **F72.**
+- **N-F04 is contradicted by source.** The review says the card is "pinned near the top-left" at 1440px, but `login/page.tsx:45` and `signup/page.tsx:47` are both `flex min-h-screen flex-col items-center justify-center` — centred on both axes. What is actually true is that a `max-w-md` card sits alone on a large empty canvas, which is a composition judgment, not a bug. Q81.
+- **N-F06 is a real rendering bug, and a worse one than the review suspected — this is the most valuable thing the review surfaced indirectly.** See **F69**. The fallback the review was told to look for *is* correct and present (`src/app/admin/page.tsx:305-306`), so the blank chart is not a copy gap.
+- **N-F14 is one of three disagreeing definitions of the same fact**, not a badge-colour problem. See **F68**.
+- **`"Molly team"` is two hits, not three.** `grep -rn "Molly team" src/` → `src/app/company/profile/page.tsx:173` and `src/app/company/documents/page.tsx:151`. The third spot (N-F22) is `<Badge variant="info">Molly</Badge>` at `src/app/updates/[id]/page.tsx:762`, which the literal-string grep does not catch. This matters for how WS81's guard is scoped. Also verified: `ORG_NAME` is **already imported** in `updates/[id]/page.tsx:35` (used correctly at `:286` and `:497`) and is **not** imported in either `company/` file. There are 44 `"Molly"` literals in `src/` and the overwhelming majority are correct product-name uses (`layout.tsx:30`, `email.ts` subject lines, `login/page.tsx:60`), so a blanket `"Molly"` lint would be unusable.
+- **N-F40/N-FK3 already has an in-repo fix pattern.** `src/lib/email.ts:11` does `const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/dfs-logo-primary.png";` with a documented `.env.example:35` entry. `src/app/lp/layout.tsx` is a **Server Component** (no `"use client"`; it exports `metadata`), so it can read a plain non-`NEXT_PUBLIC_` env var directly. This drops N-FK3 from "initiative" to a quarter-day.
+- **N-F27's fix belongs in the shared primitive, not the audit page.** `overflow-x-auto` appears in **ten** files, one of which is `src/components/ui/table.tsx:18` — the shared `Table` wrapper. `src/app/admin/audit/page.tsx` does **not** import it (`:1-7`); it hand-rolls its own wrapper at `:50`. And no scroll affordance of any kind exists anywhere in the codebase (`grep -rn "scroll for more\|scrollLeft\|scroll-shadow"` → nothing but the `ScrollText` *icon*). So this is one shared fix plus one adopter, not a point patch.
+- **N-F20's reversal is exact.** `src/app/admin/portfolio/[id]/page.tsx`: Contacts = `EmptyState` at `:513`, form at `:536`. Valuation history = form at `:757`, `EmptyState` at `:786`. Financing Rounds is a **third** pattern (`EmptyState` at `:720`, form in a modal at `:811`) and is fine as-is — the convention fix applies to Valuation history only.
+- **N-C01 is exactly right.** `grep -c 'placeholder="Search'` per admin list page: Companies 1, Updates 1, Portfolio 1, Providers 1 · Funds 0, Fund Reports 0, LPs 0, Investor Links 0, Broadcasts 0.
+- **N-C04 is right in substance, wrong on one line number, and understates the file.** See **F73**.
+- **House patterns available for reuse:** `ComposerDisclosure` (`src/components/composer/composer-disclosure.tsx`) is already used **outside** the composer at `src/components/admin/sync-panel.tsx:265`, so N-F15/N-F17b have a precedent; `EmptyState` (`src/components/ui/empty-state.tsx`) takes `icon/title/description/action`; `ComposerTopBar` (`src/components/composer/composer-top-bar.tsx`) already has an `overflowItems` menu, which is the cheap answer to N-F35.
+- **No schema change is required by any workstream in this Part.**
+
+---
+
+## F68 — three independent, disagreeing definitions of "behind on updates" (MEDIUM; this is the real N-F14/N-F07/N-C02 finding)
+
+The review framed this as a badge-colour inconsistency between two screens. It is worse than that: **the codebase computes "behind on updates" three different ways, and the good answer already exists and is simply not shared.**
+
+1. **`src/app/admin/companies/page.tsx:42-49`** — `getUpdateStatus(lastUpdateDate)`. Naive and calendar-only:
+   ```ts
+   if (!lastUpdateDate) return { label: "No updates", variant: "danger" as const };
+   const days = daysSince(lastUpdateDate);
+   if (days > 90) return { label: "Overdue", variant: "danger" as const };
+   if (days > 30) return { label: "Aging", variant: "warning" as const };
+   return { label: "Current", variant: "success" as const };
+   ```
+   No grace period, no cadence, no company age. A company created yesterday is `danger`.
+
+2. **`src/app/api/admin/dashboard/route.ts:11-39`** — `isCompanyOverdue()`. Considered, documented, and **already shipped**: a `GRACE_PERIOD_DAYS = 30` rule whose own comment reads *"Rule 1: grace period — never flag a new company"*; then `MIN_UPDATES_FOR_CADENCE = 3`; then a learned cadence from the last `CADENCE_LOOKBACK = 5` published updates, flagging only when `timeSinceLastMs > avgGapMs`.
+
+3. **`src/app/api/cron/reminders/route.ts:38-70`** — the reminder mailer, driven by the **per-company** `Company.reminderFrequencyDays` (`prisma/schema.prisma:95`), with a grace period of one full period and a `lastReminderSentAt` cooldown.
+
+The consequences are concrete and admin-visible today: a company can be badged **red** on `/admin/companies`, **not counted** in the dashboard's "Companies Overdue" tile, and **not sent a reminder** — all at the same moment, all correct by their own rule. Definition (2) also ignores `reminderFrequencyDays` even though the founder-facing cadence setting exists. N-F07's "why is the dashboard number black and the list badge red" is a symptom; the numbers can also simply *disagree*.
+
+**This is why Q78 is a product question and not a colour fix.** The engineering answer is obvious (one shared pure lib); what the badge should *say* is not.
+
+## F69 — 15 references to CSS custom properties that do not exist; both Recharts surfaces render off-token (MEDIUM, real bug, and it reaches the founder app)
+
+`grep -rn "hsl(var(" src` returns hits in exactly two files: `src/app/admin/page.tsx` (7) and `src/components/ui/metric-chart.tsx` (8). They reference `--primary`, `--border`, `--muted-foreground`, `--background`, `--foreground`.
+
+**None of those variables is defined anywhere in the repo.** `src/app/globals.css` is the only stylesheet, and its `:root` block (`:10-45`) defines `--color-accent`, `--color-accent-hover`, `--color-accent-rgb`, `--color-accent-foreground`, `--color-powder`, `--color-bg`, `--color-surface`, `--color-border`, `--color-border-hover`, `--color-text-primary`, `--color-text-secondary`, `--color-text-muted`, `--color-muted-rgb`, `--color-primary-*` and `--color-destructive-*`. The `--primary` / `--border` / `--foreground` names are **shadcn-style leftovers from before the DFS token system landed**; `tailwind.config.ts` maps the *Tailwind* names onto the real `--color-*` variables, but a raw `hsl(var(--primary))` string in a Recharts prop never goes through Tailwind at all.
+
+So every one of these resolves to an invalid colour:
+
+- `src/app/admin/page.tsx:333` — `<Bar dataKey="count" fill="hsl(var(--primary))" />` ← **this is N-F06's "no visible bars"**
+- `:310` `CartesianGrid stroke`, `:313` and `:319` axis tick `fill`, `:327-330` tooltip `border`/`background`/`color`
+- `src/components/ui/metric-chart.tsx:45, 49, 55, 68, 69, 70, 76, 78` — the **founder-facing** metric chart's line `stroke`, dot `fill`, grid, axes and tooltip
+
+The dashboard screenshot showing only y-axis numerals is consistent with this: SVG text falls back to the initial `fill` (black) when the specified value is invalid, so the tick labels survive while the styled elements do not. **The `updatesByMonth.every(count === 0)` fallback at `admin/page.tsx:305-306` is correct and is not the problem** — it was rightly ruled out.
+
+Fix is mechanical (WS84) and, notably, this is the only finding in the Part that touches a founder-facing pixel — and strictly as a repair.
+
+## F70 — ROADMAP drift: four Parts shipped while still described as "planned, NOT yet built" (LOW, docs-only; annotated in this pass)
+
+`ROADMAP.md:3` and its status bullets were verified against `git log` and the working tree:
+
+| Part | ROADMAP said | Reality |
+|---|---|---|
+| **23** (WS49–WS53) | "planned, not yet built" | **SHIPPED** — `cfabd9a`, `cb8ec30`, `2b79ece`, `b8ffc1b`, `ea579f1` |
+| **28** (WS62–WS65) | "planned, NOT yet built" | **SHIPPED** — `9d30c43`, `edfbfbf`, `bba2ca4`, `d987d58`; `scripts/hooks/pre-commit` and `.confidential-terms.example` both present |
+| **29** (WS66–WS68) | "PLANNED, NOT yet built" | **SHIPPED** — `c5793d1`, `fe2f4ae`, `731f09e`; `src/lib/cap-table.ts`, `src/app/planner/**`, `CapTableScenario` at `prisma/schema.prisma:144` |
+| **31** (WS75–WS79) | "PLANNED, NOT yet built … ready for Alvin" | **SHIPPED** — `5549864`..`2396d8c`; `src/components/admin/portco-link-dialog.tsx` and the `/admin/portfolio` Links tab both live |
+
+This is the same class as Part 30's F58 and Part 31's F63 — it recurs every time a plan ships without the ROADMAP bullet being flipped. All four bullets are annotated in `ROADMAP.md` in this same pass.
+
+## F71 — Part 25's F48 (HIGH) — **FIXED 2026-09-02, standalone and outside Part 32** (commit `39003e3`)
+
+Found live again during this Part's verification: `src/app/api/updates/[id]/pdf/route.ts` guards with `requireAuth()` only (`:3`, `:12`), then does `db.update.findUnique({ where: { id }, select: { companyId: true } })` at `:16-19`, uses `companyId` **for nothing**, and calls `generateUpdateHTML(id)` — so any approved user can read any company's full investor update. Part 25's WS55 planned the one-line fix (`requireCompanyAccess(update.companyId)`, mirroring the sibling update routes) on 2026-08-06 and it had not been built.
+
+**Status: CLOSED.** Fixed by a separate agent, standalone and sequenced ahead of Part 32 — commit `39003e3`, verified in the working tree: `src/app/api/updates/[id]/pdf/route.ts:3` now imports `requireCompanyAccess` and `:22` calls `requireCompanyAccess(update.companyId)` after the 404 lookup, mirroring the sibling update routes. Recorded here because this Part is where it was re-verified, **not** because anything in Part 32 addressed it.
+
+**Hard scope rule for Alvin: no workstream in this Part may touch `src/app/api/updates/[id]/pdf/route.ts` or `src/lib/pdf.ts`.** The security fix has landed there and must not be perturbed by a UI batch; `src/lib/pdf.ts` also carries its own deferred finding (F76). No workstream in WS80–WS88 needs either file — verified: the route renders a standalone HTML document (`src/lib/pdf.ts:52-58`) and imports none of the components, Tailwind classes, charts or tables this Part changes.
+
+**This rule is load-bearing, not a formality — see F76.** `src/lib/pdf.ts` happens to contain the single largest concentration of the exact off-brand colours WS80 exists to remove, which makes it the most tempting file in the repo for a brand-fidelity pass to wander into. It is deliberately out of scope, and `pdf/route.ts` now carries a fresh security fix plus a new regression test (`src/lib/__tests__/update-pdf-route.test.ts`) that a UI pass has no reason to go near.
+
+## F76 — the update-export HTML is a fourth off-brand surface the review never saw (LOW; deliberately NOT fixed in this Part)
+
+Found while verifying F71's scope rule. `src/lib/pdf.ts` generates the standalone HTML an update exports to, and its full colour inventory is:
+
+| Value | Count | What it is |
+|---|---|---|
+| `#64748B` | 8 | Tailwind slate-500 — body/meta/footer text |
+| `#3BBFA0` | 6 | **the same orphan teal as the rich editor's blockquote (N-C04)** — header rule, links, "Key Metrics" heading, metrics-table border, blockquote border |
+| `#E2E8F0` | 3 | Tailwind slate-200 — footer/divider borders |
+| `#F1F5F9` | 2 | Tailwind slate-100 |
+| `#E8F4F8` | 1 | a pale blue with no DFS relationship |
+| `#1A1A2E` | 1 | near-black, but **not** Obsidian (`#14140F`) |
+
+Not one DFS token. This is a genuinely new finding — Nisat's review could not have caught it, because it renders in an exported document rather than on any screen she could screenshot or any page component she read.
+
+**Explicitly deferred, for two reasons.** (1) That file sits beside a just-landed security fix (F71, commit `39003e3`) and its new regression test; a cosmetic pass there earns nothing and puts noise on a security-relevant area of the diff. (2) The fix is **not** the same fix as WS80: `pdf.ts` emits a detached `<!DOCTYPE html>` document (`:52-58`), so `globals.css`'s `:root` custom properties are **not in scope there** — `var(--color-accent)` would resolve to nothing. It needs literal DFS hex values (Obsidian `#14140F`, Tide `#56544B`, Bone `#D8D6CB`, Paper `#EBE8DE`, accent `#44688E`), which is a different mechanical exercise with a different acceptance test (render an export and look at it) from WS80's token swap. Scoping it into WS80 would blur a clean, checkable workstream.
+
+**Recommendation: a follow-up half-day, scheduled after Part 32 rather than inside it.** Worth doing — this document is emailed and forwarded, so it is a real brand touchpoint — but it is not urgent, and keeping it out of Part 32 leaves the just-landed F71 security fix and its regression test undisturbed.
+
+## F72 — brand-token scope corrections to N-F03 / N-F41 / N-F43 (LOW; folded into WS80)
+
+Three corrections, each verified above: (a) the auth-canvas `bg-muted` miss also covers `set-password/page.tsx:18, 26, 103, 299`; (b) bare `border`/`border-t` on the share page is **already Bone** via `globals.css:48-49`, so N-F43 is a one-line `bg-white` change, not a card restyle; (c) `bg-white` appears in six files besides the share page. Recorded so a future reader does not re-derive them, and so WS80's acceptance checklist is honest about what it does and does not change.
+
+## F73 — the rich editor has two more bare-hex colours than N-C04 found, and N-C04's third line number is wrong (LOW; folded into WS80)
+
+`grep -no "var(--color-[a-z-]*[^)]*)\|#[0-9A-Fa-f]\{6\}" src/components/ui/rich-editor.tsx`:
+
+| Line | Value | Verdict |
+|---|---|---|
+| 442 | `#94a3b8` | **off-brand** (Tailwind slate-400) — placeholder text |
+| 451 | `#3BBFA0` | **off-brand** (teal, no DFS relationship) — blockquote left border |
+| 451 | `#64748B` | **off-brand** (Tailwind slate-500) — blockquote text |
+| 459 | `#EBE8DE` | on-palette but **bare literal** (Paper) — not flagged by N-C04 |
+| 466, 477, 481 | `var(--color-text-muted)` | correct |
+| 469 | `#44688E` ×2 | on-palette but **bare literal** (accent) — `.portco-mention`; not flagged by N-C04 |
+| 484, 485 | `var(--color-accent, #44688E)` | correct — this is the pattern to copy |
+
+So N-C04 cites `442, 451, 469`, but `469` is a *correct-colour* hardcode, not an off-brand one, and it missed `459`. N-C04's claim that "every other color in this same file correctly falls back to `var(--color-accent, #44688E)`" is **inaccurate** — only `:484-485` do. Substance stands: `442`/`451` are the visible bugs (any blockquote in any update or fund report renders a teal border today); `459`/`469` are fork-hygiene.
+
+## F74 — the review artifact contains real portfolio identifiers and must stay out of the repo (process)
+
+Nisat's HTML review names a real portfolio company in a screenshot caption and states real portfolio/fund/deal counts. Under the **"Confidentiality & synthetic-data convention"** at the head of this file, those are exactly the class of identifier that may never enter a committed file (*"real portfolio-company or founder names … the exact portfolio shape (deal/company/fund counts)"*). **This Part deliberately paraphrases every such reference** — no company name, no counts, and the N-F14 example uses `Acme`. The artifact itself lives outside the repo and must not be copied into `docs/`.
+
+## F75 — the Part 28 confidentiality guardrail is installed nowhere and is currently inert (MEDIUM, process)
+
+`scripts/hooks/pre-commit` exists and is correct, but:
+- `.git/hooks/pre-commit` does **not exist** and `git config core.hooksPath` is unset — the hook is **not wired up on this machine**, so it never runs.
+- `.confidential-terms` does **not exist** locally. Even if wired, the hook's own first branch (`:10-14`) prints `note: .confidential-terms not found — confidentiality scan skipped.` and `exit 0`.
+
+So the standing guardrail WS65 shipped to stop F52–F57 recurring is, in practice, doing nothing — which is precisely how F74's material could have been pasted in unnoticed. **Not fixed here** (it is a one-command install plus a local file Joseph must populate himself with real terms, which Felix must not author). Flagged as a two-minute action for Joseph:
+```sh
+git config core.hooksPath scripts/hooks    # or: ln -s ../../scripts/hooks/pre-commit .git/hooks/pre-commit
+cp .confidential-terms.example .confidential-terms   # then fill in the real terms; it is gitignored
+```
+
+---
+
+## Confirmed decisions (D1–D4 — locked by Joseph 2026-09-02, do NOT re-litigate)
+
+> These were posed as open questions **Q78–Q81** in the first draft of this Part and are **all now decided — every one as recommended, none reversed.** The Q-numbers are kept in the headings because `ROADMAP.md` and the project memory reference them. **Disambiguation:** Parts 30 and 31 also number their decisions `D1`–`D9` / `D1`–`D6`; wherever this Part cites one of those it says **"Part 30 D4"** in full, and a bare `D1`–`D4` always means Part 32's. The options tables and declined alternatives are preserved deliberately: they are the record of what was considered and rejected, so a future reader does not reopen a settled question by accident.
+
+### D1 (was Q78) — Extract the already-shipped grace + cadence rule into a shared lib; a never-yet-updated company gets a neutral badge (N-F14, N-F07, N-C02; drives WS85)
+
+Today (`admin/companies/page.tsx:43`) a company that has **never** submitted an update gets the same `danger` badge as one 90+ days delinquent, so most of the current portfolio list renders red and the badge carries no information. F68 shows the app already contains a better rule that nothing shares.
+
+| | Option | Behaviour | Effort | Verdict |
+|---|---|---|---|---|
+| **A** | **Colour-only fix** | `!lastUpdateDate` → `variant="info"`, label "No updates yet". Everything else unchanged | ~10 min | **REJECTED** — leaves the three definitions disagreeing (F68) |
+| **B** | **Extract and share `isCompanyOverdue()`** | Move `dashboard/route.ts:11-39` verbatim into a pure, unit-tested `src/lib/update-cadence.ts`; both the dashboard and the companies list call it; badge becomes neutral (inside the 30-day grace) / `Current` / `Aging` / `Behind` (danger, only once the learned cadence is actually missed) | ~0.75–1 day | **CHOSEN (D1)** |
+| **C** | **B, plus fold in `reminderFrequencyDays`** | As B, but a company with an explicit cadence set is judged against *that* rather than a learned average, aligning the badge with the reminder cron too | ~1.25 day | **DEFERRED** — most correct eventually, but the field is nullable on most rows today |
+
+**Decision: B, and the brand-new-company badge is a neutral `info` "No updates yet" — never red.** B is the only option that makes the two admin screens agree, and it costs almost nothing beyond A because *the logic is already written, shipped and in production* — it just lives inside a route handler. It also matches the house convention of pure, unit-tested libs (`src/lib/share-metrics.ts`, `src/lib/broadcast-recipients.ts`, `src/lib/portco-match.ts`).
+
+**The label is settled: `info` variant, text "No updates yet".** Not "New", not "Awaiting first update", and not a blank cell — an empty cell reads as a data-loading failure, and the admin genuinely wants to see the state, just not in red. WS85 step 5 implements exactly this; the implementer does not need to ask.
+
+**C is deferred, not rejected.** B is a strict subset of C, so adopting B does not close the door: once `reminderFrequencyDays` is set on a real majority of companies, C is one branch inside `cadenceStatus()`.
+
+**D1 also settles N-C02 as a written, citable rule** — added to the protected-patterns register by WS85 step 7: *danger/laterite is for a state that requires intervention; a brand-new, never-happened-yet state is neutral or info, never danger.*
+
+### D2 (was Q79) — Every admin list page gets a search row, unconditionally (N-C01, N-F31, N-F31a, N-F31c; drives WS86)
+
+Verified split: **have** search — Companies, Updates, Deal Ledger/Portfolio, Providers. **Don't** — Funds, Fund Reports, LPs, Investor Links, Broadcasts. There is no principle behind the split; it is the order the pages were built in.
+
+| | Option | Rule | Effort |
+|---|---|---|---|
+| | Option | Rule | Effort | Verdict |
+|---|---|---|---|---|
+| **A** | **Universal** | Every admin list page gets the same client-side search row, unconditionally, even at 3 rows | ~1–1.25 day | **CHOSEN (D2)** |
+| **B** | **Threshold** | Render the search row only when `rows.length > 10` | ~1.25 day | **REJECTED** — a control that appears and disappears is more code *and* less predictable |
+| **C** | **Per-page** | Add it to LPs and Fund Reports only; leave the rest | ~0.5 day | **REJECTED** — recreates the arbitrary split this decision exists to remove |
+
+**Decision: A, universal — all five missing pages get it, with no row-count threshold.** The four pages that already have search use an identical `<Input placeholder="Search…" />` + `filter()` idiom with no server round-trip, so the marginal cost per page is small and the consistency payoff is exactly what N-F18 asks for (converge on the Updates-page pattern).
+
+**Because A is chosen, WS86 also standardises the placeholder wording and the row's position across all nine list pages** (directly above the list, below any page-level notice or stat block), so the five new ones land identically rather than five slightly different ways — and the existing four are brought into line if they diverge. That standardisation is part of the decision, not an optional extra.
+
+### D3 (was Q80) — Pretty-print the Audit Log `Details` column in place, full object behind a native `<details>` (N-F28; drives WS87)
+
+`src/app/admin/audit/page.tsx:72-74` renders `formatMetadata(log.metadata)` as raw JSON in a mono cell — correct, complete, and the least readable surface in the app. It is also the first column clipped on any narrow viewport, which is why it compounds N-F27.
+
+| | Option | Behaviour | Effort | Verdict |
+|---|---|---|---|---|
+| **A** | **Accept it; move it behind an expand** | Column drops to a "Details ▸" toggle; raw JSON on demand | ~0.35 day | **REJECTED** — hides the common case too |
+| **B** | **Pretty-print in place** | Same JSON, rendered as `key: value · key: value` pairs, truncated, with the full object on expand | ~0.5 day | **CHOSEN (D3)** |
+| **C** | **Summarise per action type** | A `Record<action, (meta) => string>` map producing "Report published — 5 mentions" | ~0.75 day + ongoing upkeep | **REJECTED** |
+
+**Decision: B — pretty-print in place, with the full object behind a native `<details>` disclosure.** It makes the common case readable without inventing a per-action vocabulary.
+
+**C is rejected for a specific structural reason worth restating so nobody proposes it again:** the audit action is deliberately a **free string** — `logAdminAction` accepts any value and `src/app/admin/audit/page.tsx:70` renders it raw, which is exactly why Parts 30 and 31 could introduce `PORTCO_LINKED` / `PORTCO_UNLINKED` / `PORTCO_CONTACT_ADDED` with **zero** UI work. A per-action summary map would convert that free property into a permanent maintenance obligation on every future Part that logs anything new, and would silently render unmapped actions worse than today.
+
+**Implementation constraint that comes with the decision:** the disclosure is a **native `<details>` element**, not a client component. `/admin/audit` is a Server Component (`page.tsx:1-7`, no `"use client"`) and must stay one — same reasoning as JC-UI-B.
+
+### D4 (was Q81) — Nothing beyond WS80's token fixes for login/signup (N-F04)
+
+**Verified first:** the review's premise is wrong. Both cards are `flex min-h-screen flex-col items-center justify-center` (`login/page.tsx:45`, `signup/page.tsx:47`) — they are centred, not pinned top-left. What is true is that a `max-w-md` card sits alone on a large empty canvas with no supporting content.
+
+| | Option | | Effort | Verdict |
+|---|---|---|---|---|
+| **A** | **Nothing beyond WS80** | Remove the stripe, fix the canvas to Paper, ship. A quiet centred card on Paper is a legitimate, on-brand auth page | 0 | **CHOSEN (D4)** |
+| **B** | **Add a Sky eyebrow** | The brand skill's sanctioned replacement for the stripe — a small mono uppercase label above the heading, matching `/investors` | ~0.15 day | **NOT taken** |
+| **C** | **Two-panel layout** | Form left, a brand panel right, collapsing to today's single card below `lg:` | ~0.75 day + a design decision about what the panel says | **REJECTED** |
+
+**Decision: A — no additional work. D4 produces no workstream of its own.** WS80 already removes the prohibited stripe and moves the canvas to Paper; that is the whole of the change to these pages. A quiet centred card on Paper is a legitimate, on-brand auth page.
+
+**Explicit instruction to the implementer: do NOT add a Sky eyebrow, a right-hand panel, a quote, a stat, or any other composition element to `/login`, `/signup` or `/set-password` in this Part.** Option B was offered and not taken; adding it "while in there" during WS80 would be exactly the scope creep JC-UI-C exists to prevent. WS80's acceptance checklist covers these pages and asserts colour-only changes.
+
+C is rejected: it is real design work with no user problem behind it (nobody is failing to log in), and it would also have had to cover `/set-password`, which shares the canvas (F72) and which N-F04 never considered.
+
+---
+
+## Deferred, with reasons
+
+- **N-F33 — "0 contacts" rendered in ochre for every company in the broadcast audience list** (`src/app/admin/broadcasts/[id]/page.tsx:451`, verified: `c.contactCount === 0 ? "text-ochre" : "text-muted-foreground"`). **Deferred, deliberately.** The review's own judgment is that the rule is defensible and the problem is only that *every* row is currently zero. Parts 30 and 31 just shipped the contact-management and link-and-add-contact machinery that will populate this data; the amber wall is a transient symptom of an empty table, and re-tuning the threshold before the data exists would be guessing. **Revisit once contacts are populated on a real majority of portfolio companies** — at that point the question ("does partial amber read better than a wall of it?") can be answered by looking rather than by argument.
+
+## Protected patterns register (the review's 20 "keep this" findings — no code change; recorded so they are not undone later)
+
+These were called out as working well and are **not** to be "tidied" by a future pass. Cited here because a register nobody wrote down is a register nobody honours.
+
+| Ref | Pattern | Where |
+|---|---|---|
+| N-F01 | The reference for "on brand, well composed": mono uppercase eyebrow, centred cover headline, single CTA | `src/app/investors/page.tsx` |
+| N-F05 | KPI cards + chart on Paper, one accent, generous spacing | `src/app/admin/page.tsx` |
+| N-F08 | Two-tier empty state: "No pending approvals" plus a separate awaiting-setup list with per-row actions | `src/app/admin/approvals/page.tsx` |
+| N-F16 | Tabbed company detail (Updates/Metrics/Documents/Members/Notes) that holds up empty | `src/app/admin/companies/[id]/page.tsx` |
+| N-F17 | Four-stat cross-fund header with a quiet "admin-only estimate" caption | `src/app/admin/portfolio/page.tsx` |
+| N-F18 | The most complete list-page pattern in the app: search + filters + sort + tabs | `src/app/admin/updates/page.tsx` |
+| N-F19 | **The best empty-state copy in the app** — ties the empty state to a real consequence: *"No contacts yet — broadcasts to this company would reach nobody."* Use as the model for every future empty state with a downstream cost | `src/app/admin/portfolio/[id]/page.tsx:513` |
+| N-F21 | "N mentions" as plain metadata text, no badge, no colour | `src/app/admin/reports/page.tsx` |
+| N-F23 | Quiet success badge for "Sent" | `src/app/admin/digest/**` |
+| N-F24 | All/Pending/Vetted/Rejected segmented control with a live count badge | `src/app/admin/providers/page.tsx` |
+| N-F29 | Card-per-subsystem admin ops page with inline diagnostic actions | `src/app/admin/settings/page.tsx` |
+| N-F30 | **The strongest pattern in the codebase** — chromeless composer with progressive disclosure | `src/components/composer/**`, `src/app/updates/new/page.tsx` |
+| N-F32 | Broadcast composer deliberately mirrors the founder update composer | `src/app/admin/broadcasts/[id]/page.tsx` |
+| N-F34 | Mobile reflow holds (Part 6 / WS14–WS15 still good) | app-wide |
+| N-F36 | Non-blocking banner: the diligence card never blocks or reflows the dashboard if its fetch fails | `src/app/dashboard/page.tsx` |
+| N-F37 | Founder app consistency — message-banner / EmptyState / Card throughout | `src/app/company/**`, `src/app/team`, `src/app/providers` |
+| N-F38 | Non-enumerating OTP copy: *"If this address receives fund reports from us, a code is on its way"* | `src/components/lp/lp-login-form.tsx` |
+| N-F39 | LP report list/detail: grouped by fund, frozen snapshots, 404 for both "missing" and "not yours" | `src/app/lp/reports/**` |
+| N-F45 | Share-page information hierarchy (snapshot strip → collapsible update cards → metric callouts) is right; **WS80 is a token pass only, not a redesign** | `src/app/share/[token]/page.tsx` |
+| N-FK1 | `ORG_NAME` and the corner-radius mapping are genuinely fork-friendly already | `src/lib/org.ts`, `tailwind.config.ts:70-77` |
+
+**One more worth adding to the register, found during verification rather than by the review:** `tailwind.config.ts:70-77` maps `rounded-sm/md/lg/xl/2xl` all to 1–2px, so a developer reaching for `rounded-xl` out of habit still renders flat. That is deliberate insurance against brand drift and must not be "corrected" by anyone who thinks the mapping looks like a mistake.
+
+---
+
+## Judgment calls (Felix's; each with its reversal path)
+
+- **JC-UI-A — the scroll affordance goes into `src/components/ui/table.tsx` first**, so all current and future adopters get it, and `/admin/audit` adopts the primitive rather than getting a bespoke patch. *Reversal:* revert one component.
+- **JC-UI-B — the scroll affordance is pure CSS, no JavaScript and no scroll listener.** A right-edge gradient overlay on the wrapper plus a mobile-only caption. This keeps `/admin/audit` (a Server Component, `page.tsx:1-7`) free of a client boundary it does not otherwise need. The cost is that the hint does not disappear when you reach the right edge. *Reversal:* if that static hint proves annoying, a `useRef` + `onScroll` client wrapper is a contained upgrade to the same component.
+- **JC-UI-C — WS80 changes colour values only.** No spacing, no type scale, no layout, no component swaps on the share page. N-F45 is explicit that the structure is right; the risk in this Part is scope creep on the one public-facing page.
+- **JC-UI-D — the `"Molly team"` guard is a Vitest test, not an ESLint rule.** The repo already runs Vitest in CI (`.github/workflows`), a test can assert over the whole `src/` tree in a few lines, and an ESLint rule for a string literal in JSX text is disproportionate. *Reversal:* delete one test file.
+- **JC-UI-E — the guard matches the literal `"Molly team"` only**, not bare `"Molly"`. 44 legitimate product-name uses exist; a broader rule would be permanently suppressed and therefore worthless. The N-F22 badge case is fixed by hand and cannot be caught by this guard — stated in the test's own comment so nobody assumes otherwise.
+- **JC-UI-F — the LP logo becomes a plain server-side env var (`ORG_LOGO_PATH`), mirroring `EMAIL_LOGO_PATH`** (`src/lib/email.ts:11`), **not** an admin-settings upload. An upload needs a settings row, an S3 write path, and a UI; the env var is three lines and matches a shipped precedent. *Reversal:* it is one constant in `src/lib/org.ts`; an upload path can replace it later without changing the call site.
+- **JC-UI-G — WS84 replaces the dead variables with the real `--color-*` tokens directly in the two Recharts files**, rather than back-filling `--primary`/`--border`/`--foreground` aliases into `globals.css`. Adding the aliases would resurrect the shadcn naming the project deliberately left behind and give future code two correct ways to say the same thing. *Reversal:* the alias block is five lines if that judgment is ever reversed.
+- **JC-UI-H — no schema change anywhere in this Part.**
+
+---
+
+## WS80 — Brand-token fidelity batch — ~0.5 day
+
+**Goal.** Every remaining off-token colour in the app, in one pass. Colour values only (JC-UI-C).
+
+**Covers:** N-F41, N-F43, N-F02, N-F03, N-C04 + the F72 and F73 scope corrections.
+
+**File-by-file steps:**
+
+1. **`src/app/share/[token]/page.tsx`** — the one public-facing surface, and the whole reason this workstream is first.
+   - `:164`, `:172`, `:181` — `bg-gray-50` → `bg-background`. (Verify against `src/app/investors/page.tsx:10`, which is the same idiom done right.)
+   - `:185` — `bg-white` → `bg-card`. Visually identical today (`--color-surface: #FFFFFF`); this is so a fork's palette propagates (F72).
+   - **Do not touch** `:263`, `:288`, `:321`, `:356`. Those bare `border` / `border-t` classes already resolve to Bone via `globals.css:48-49` — N-F43's claim about them is wrong, and "fixing" them adds churn with no visual change.
+   - **Do not restructure anything.** N-F45 stands: the layout is right.
+2. **`src/app/login/page.tsx`** — delete `:56` `<div className="h-1 w-full bg-primary" />` **and** the stale `{/* Card with teal top accent */}` comment above it. Change `bg-muted` → `bg-background` at `:45` and `:130` (the `Suspense` fallback — easy to miss, and it flashes on every cold load).
+3. **`src/app/signup/page.tsx`** — delete `:57`'s stripe; `bg-muted` → `bg-background` at `:47`.
+4. **`src/app/set-password/page.tsx`** (F72 — not in the review) — `bg-muted` → `bg-background` at `:18`, `:26`, `:103`, `:299`. This is the page a founder reaches from their activation email; leaving it on Bone while login and signup move to Paper would *create* the inconsistency this workstream exists to remove.
+5. **`src/components/ui/rich-editor.tsx`** — the only component where off-brand colour reaches published content:
+   ```css
+   /* :442 */  color: var(--color-text-muted);                      /* was #94a3b8 */
+   /* :451 */  .ProseMirror blockquote {
+                 border-left: 3px solid var(--color-accent, #44688E); /* was #3BBFA0 — teal, no DFS relationship */
+                 padding-left: 1rem;
+                 color: var(--color-text-secondary);                  /* was #64748B */
+                 margin: 0.75rem 0;
+               }
+   ```
+   Then the F73 riders: `:459` `#EBE8DE` → `var(--color-bg, #EBE8DE)`; `:469` both `#44688E` → `var(--color-accent, #44688E)`. Use the `var(--token, #hex)` form throughout — that is the file's own established pattern at `:484-485`, and the fallback matters because these rules live in an inline `<style>` block.
+
+**Acceptance checklist:** `grep -rn "bg-gray-\|bg-slate-\|bg-zinc-\|bg-neutral-\|text-gray-[0-9]" src` returns **zero** hits; no `h-1 w-full bg-primary` remains anywhere; `/login`, `/signup`, `/set-password` and `/share/[token]` all sit on the same Paper canvas as `/investors`; a blockquote typed into an update renders with a Sky-family left border and Tide text in **both** the editor and the published view; the share page's DOM structure is unchanged (diff shows colour classes only); `npm run lint` clean.
+
+**UX impact:** **visible and intentional, all of it corrective.** Four pages change background from Bone to Paper and two lose a 1px stripe the brand guide prohibits; the share page — the one surface external investors see — moves onto the house palette. No layout, copy, control or behaviour changes anywhere, so no user has to relearn anything. Founder/admin/LP flows are untouched. **Cost impact:** none.
+
+## WS81 — Copy & naming batch, plus the `"Molly team"` regression guard — ~0.25 day
+
+**Goal.** Stop the product's name standing in for the DFS staff, and make the mistake un-repeatable.
+
+**Covers:** N-F22, N-F44, N-F09 (all three **already decided** by Nosa — exact strings below, no further copy work), plus N-C03 / N-FK2.
+
+**File-by-file steps:**
+
+1. **`src/app/updates/[id]/page.tsx:762`** (N-F22) — one line. `ORG_NAME` is **already imported** at `:35`:
+   ```tsx
+   <Badge variant="info">{ORG_NAME}</Badge>   {/* was: <Badge variant="info">Molly</Badge> */}
+   ```
+   Renders "DFS". A founder reading a staff comment can no longer think the software is talking to them.
+2. **`src/app/company/profile/page.tsx:173`** (N-F44) — add `import { ORG_NAME } from "@/lib/org";` (**not currently imported in this file**), then:
+   ```tsx
+   description={`Manage your company information visible to the ${ORG_NAME} team.`}
+   ```
+3. **`src/app/company/documents/page.tsx:151`** (N-F44) — same import addition, then:
+   ```tsx
+   description={`Files shared with the ${ORG_NAME} team — cap tables, financials, legal documents, and more.`}
+   ```
+4. **`src/app/admin/diligence/page.tsx:265-266`** (N-F09) — title unchanged, description replaced verbatim:
+   ```tsx
+   <EmptyState
+     icon={<Inbox className="h-10 w-10" />}
+     title="No companies in due diligence"
+     description="Nothing is waiting on you right now. Turn on due diligence when you add a company to route it into this queue."
+   />
+   ```
+   This follows the N-F19 model in the register above: reassure first, instruct second.
+5. **`src/lib/__tests__/org-naming.test.ts`** (new — N-C03 / N-FK2, JC-UI-D/E):
+   ```ts
+   // Part 32, WS81 — the same mistake was made independently in three files:
+   // "the Molly team" where "the DFS team" was meant. ORG_NAME exists for
+   // exactly this and is used correctly in ~40 other places. This guard is
+   // deliberately narrow: it matches the literal "Molly team" only, NOT bare
+   // "Molly" — there are 44 legitimate product-name uses in src/ (page titles,
+   // email subjects, "Sign in to your Molly account") and a broader rule would
+   // be permanently suppressed and therefore useless.
+   //
+   // NOTE: this guard CANNOT catch the third case it was written for —
+   // <Badge variant="info">Molly</Badge> (updates/[id]/page.tsx:762) is a bare
+   // product name in a staff-attribution slot. That class needs a human reviewer.
+   ```
+   Walk `src/**/*.{ts,tsx}` with `fs.readdirSync` (no new dependency — follow whatever traversal the existing `src/lib/__tests__/` files use, or a small local recursive helper) and assert no file contains `"Molly team"` case-insensitively. Failure message points at `src/lib/org.ts`.
+
+**Acceptance checklist:** `grep -rni "molly team" src/` returns **zero** hits; the new test fails if any of the three strings is reintroduced (verify by temporarily reverting one); both `company/` files import `ORG_NAME` and compile; the diligence empty state renders the new description; `npx vitest run` fully green.
+
+**UX impact:** three founder-facing strings and one admin empty state read correctly instead of naming the software as a person. Strictly an improvement; no layout, control or flow change. **Cost impact:** none.
+
+## WS82 — Layout & affordance micro-batch — ~0.5 day
+
+**Goal.** Four small inconsistencies that individually don't justify a ticket and collectively make the app feel hand-built screen-by-screen.
+
+**Covers:** N-F42, N-F20 / N-C05, N-F15 / N-F17b, N-F35.
+
+**File-by-file steps:**
+
+1. **`src/app/updates/new/page.tsx:306`** (N-F42) — `<option value="">Start from a template ▾</option>` → `<option value="">Start from a template</option>`. The browser draws the select's own chevron; the typed one is a second, misaligned arrow inside the option text. (Verified: the only `▾` in `src/`.)
+2. **`src/app/admin/portfolio/[id]/page.tsx`** (N-F20 / N-C05) — move the "Record mark" form (`:757-784`) to sit **below** the `EmptyState` / marks list (`:786`), matching Contacts on the same page (`EmptyState` `:513`, form `:536`). **Convention, stated once for reuse: list-or-empty-state first, then the add-form below it.** **Leave Financing Rounds alone** — its form is in a modal (`:811`), which is a different, legitimate pattern.
+3. **`src/app/admin/companies/page.tsx:240-247` and `src/app/admin/portfolio/page.tsx:493-499`** (N-F15 / N-F17b) — the permanently-visible CSV column instructions move behind `ComposerDisclosure` (`src/components/composer/composer-disclosure.tsx`), which is already used outside the composer at `src/components/admin/sync-panel.tsx:265`:
+   ```tsx
+   <ComposerDisclosure label="CSV format">
+     <p className="text-sm text-muted-foreground">…existing copy, unchanged…</p>
+   </ComposerDisclosure>
+   ```
+   Copy is not rewritten — this is placement only. CSV import is a rare secondary action; its instructions should not sit above the search bar an admin uses daily.
+4. **`src/components/composer/composer-top-bar.tsx:65`** (N-F35) — the action group is `flex items-center gap-2` with **no** `flex-wrap`, inside a `flex-wrap` parent, so the buttons cannot wrap among themselves and get squeezed at 390px and below. Add `flex-wrap justify-end` to that group. **Verify at 360px, not just 390** — "Send test to me" (`src/app/admin/broadcasts/[id]/page.tsx:336`) is the longest label and the first to break. If wrapping alone still looks cramped, the component already has an `overflowItems` menu (`:23`, `:71-80`) and moving "Send test to me" into it below `sm:` is the sanctioned fallback — no new component needed.
+
+**Acceptance checklist:** no `▾` remains in `src/`; the valuation-history section reads empty-state-then-form, matching Contacts, with Financing Rounds untouched; both CSV hints are collapsed by default and still fully readable when opened; the composer action row wraps cleanly at 360px and 390px with no horizontal overflow (per Part 6, measure at true device width rather than reading the code — the WS14.7 lesson); ≥`sm:` renders identically to today.
+
+**UX impact:** additive/neutral. The one thing that *disappears* by default is the CSV instruction paragraph, which remains one click away on the same page — and both pages already carry a visible "Import CSV" button, so the affordance is not lost. Everything else is either invisible above `sm:` or a strict improvement. **Cost impact:** none.
+
+## WS83 — Horizontal-scroll affordance for wide tables — ~0.5 day
+
+**Goal.** Make a table that scrolls *look* like a table that scrolls. **N-F27 is a missing-affordance problem, not a missing-implementation one — `overflow-x-auto` is already there** (`src/app/admin/audit/page.tsx:50`), and this must not be re-triaged as "just add overflow-x-auto."
+
+**Covers:** N-F27, N-F27b.
+
+**File-by-file steps:**
+
+1. **`src/components/ui/table.tsx:17-22`** (JC-UI-A/B) — the shared wrapper gains a pure-CSS right-edge fade, applied only when content actually overflows. No JS, no scroll listener, no client boundary:
+   ```tsx
+   <div
+     className={cn(
+       "overflow-x-auto rounded-md border border-border",
+       // Right-edge fade signalling more content horizontally. Pure CSS via
+       // background-attachment: local/scroll — the gradient is painted against
+       // the scroll container, so it fades out on its own once you reach the
+       // right edge. No JS, so this stays usable inside Server Components
+       // (e.g. /admin/audit). Part 32, WS83 / JC-UI-B.
+       "[background:linear-gradient(to_left,var(--color-bg),transparent)_right/24px_100%_no-repeat_local]",
+       className
+     )}
+   >
+   ```
+   The implementer should confirm the exact `background-attachment: local` shorthand renders correctly in the arbitrary-value syntax; if it fights Tailwind's parser, move the three background declarations into a small named class in `globals.css` next to the existing `@layer base` block rather than fighting the escape syntax. Either is fine — the requirement is "no JavaScript", not "one Tailwind class".
+2. **`src/app/admin/audit/page.tsx:50`** — replace the hand-rolled `<div className="overflow-x-auto rounded-xl border border-border bg-card">` + bare `<table>` with the shared `Table` primitive, passing a `tableClassName="min-w-[880px]"` (the primitive's documented per-page min-width knob, `table.tsx:11-14`). This both picks up the affordance and removes one of the ten independent `overflow-x-auto` sites.
+3. **Mobile caption (N-F27b — the higher-priority viewport, since touch has no hover to hint with).** Below `sm:` only, render one line under the table:
+   ```tsx
+   <p className="mt-2 text-xs text-muted-foreground sm:hidden">Scroll horizontally to see all columns.</p>
+   ```
+   Put it in the `Table` primitive so every adopter gets it, guarded so it renders only when a `tableClassName` min-width was supplied (i.e. the page has declared itself wide).
+4. **Regression-check the other eight `overflow-x-auto` sites** — `src/app/admin/page.tsx`, `src/app/admin/settings/orphaned-documents-panel.tsx`, `src/app/admin/updates/page.tsx`, `src/app/admin/portfolio/page.tsx`, `src/app/admin/funds/page.tsx`, `src/app/admin/funds/[id]/page.tsx`, `src/app/admin/companies/[id]/page.tsx`, `src/app/company/documents/page.tsx`. Those that already use `Table` inherit the fade for free; confirm none of them looks wrong with it, particularly `company/documents` (the only **founder-facing** one).
+
+**Acceptance checklist:** `/admin/audit` at 1456px shows a visible right-edge fade while columns remain off-screen, and the fade is gone once scrolled fully right; same on mobile, plus the caption; the audit table uses the shared `Table` primitive; no client-component boundary was added to `/admin/audit` (it stays a Server Component); the founder documents table is checked at 375px and is not made worse; every other adopting table renders unchanged apart from the fade.
+
+**UX impact:** additive affordance only — no column, row, control or behaviour changes, and nothing is hidden. One founder-facing table (`/company/documents`) gains the same hint, which is why step 4 exists. **Cost impact:** none (CSS).
+
+## WS84 — Fix the dead chart tokens (F69; resolves N-F06) — ~0.4 day
+
+**Goal.** Make both Recharts surfaces actually render in DFS colours. This is the one workstream in the Part fixing a genuine bug rather than a fidelity gap.
+
+**File-by-file steps (JC-UI-G — replace with real tokens; do **not** back-fill shadcn aliases into `globals.css`):**
+
+1. **`src/app/admin/page.tsx`** — seven substitutions:
+   - `:310` `stroke="hsl(var(--border))"` → `stroke="var(--color-border)"`
+   - `:313`, `:319` tick `fill: "hsl(var(--muted-foreground))"` → `fill: "var(--color-text-muted)"`
+   - `:327-330` tooltip `border: "1px solid hsl(var(--border))"` → `var(--color-border)`; `background: "hsl(var(--background))"` → `var(--color-surface)` (a tooltip is a surface, not the page canvas — deliberate, not a transcription of the old name); `color: "hsl(var(--foreground))"` → `var(--color-text-primary)`
+   - `:333` `<Bar … fill="hsl(var(--primary))" />` → `fill="var(--color-accent)"` ← **the invisible bars**
+   - While here: the tooltip's `borderRadius: "6px"` (`:326`) contradicts the flat 0–2px corner system that `tailwind.config.ts:70-77` enforces everywhere else. Set it to `2px`.
+2. **`src/components/ui/metric-chart.tsx`** — the same eight substitutions at `:45, 49, 55, 68, 69, 70, 76, 78`, with `stroke`/`dot.fill` → `var(--color-accent)`. **This one is founder-facing** — the metric chart on the founder metrics page and on company detail views. Check it against a company with real metric history, not just an empty one.
+3. **Add a guard so this cannot silently recur.** A one-assertion Vitest test that greps `src/**/*.{ts,tsx}` for `hsl(var(--` and fails on any hit, with a comment naming the cause (shadcn-era variables that this project's token system never defined). Cheap, and it is the same shape as WS81's guard.
+
+**Acceptance checklist:** `grep -rn "hsl(var(" src` returns **zero** hits; the `/admin` dashboard bar chart renders Sky-accent bars, Bone grid lines and readable muted tick labels against real data; the founder metric chart renders an accent line with visible dots; the `updatesByMonth.every(count === 0)` empty-state fallback at `:305-306` is **left exactly as it is** — it was verified correct and is not the bug; the new test fails if a `hsl(var(--…))` string is reintroduced.
+
+**UX impact:** **two charts that currently render wrong start rendering right, one of them founder-facing.** Strictly corrective — no data, axis, scale, interaction or layout change; the same charts with visible colours. **Cost impact:** none.
+
+## WS85 — One definition of "behind on updates" (D1) — ~0.75–1 day
+
+**Goal.** Make the companies list and the dashboard agree, and make the badge mean something. **Unblocked — D1 is confirmed** (option B, neutral "No updates yet" badge); the steps below are written directly against it.
+
+**Covers:** N-F14, N-F07, N-C02. **Implements:** D1.
+
+**File-by-file steps:**
+
+1. **`src/lib/update-cadence.ts`** (new) — lift `isCompanyOverdue()` and its three constants **verbatim** out of `src/app/api/admin/dashboard/route.ts:7-39`. Pure, DB-free, no imports from `@/lib/db`; the caller passes company age and published-update dates. Export a richer status alongside the existing boolean so both call sites are served by one rule:
+   ```ts
+   // Part 32, WS85 — ONE definition of "behind on updates". Lifted verbatim
+   // from api/admin/dashboard/route.ts, which had the considered version
+   // (30-day grace, min-3-updates, learned cadence over the last 5) while
+   // admin/companies/page.tsx had a naive 90/30/null rule. F68: the two
+   // could disagree about the same company on the same day.
+   // Convention (Part 32, C02): danger/laterite = requires intervention.
+   // A never-happened-yet state is neutral or info, NEVER danger.
+   export type CadenceStatus = "NEW" | "CURRENT" | "AGING" | "BEHIND";
+   export function isCompanyOverdue(c: { createdAt: Date; publishedUpdates: { sentAt: Date | null }[] }): boolean;
+   export function cadenceStatus(c: { createdAt: Date; publishedUpdates: { sentAt: Date | null }[] }): CadenceStatus;
+   ```
+   `isCompanyOverdue` must stay **byte-identically behavioural** — the dashboard tile's number must not move as a side effect of this refactor. `cadenceStatus` maps: inside the grace period → `NEW`; overdue by the shared rule → `BEHIND`; else past ~⅔ of the learned cadence → `AGING`; else `CURRENT`.
+2. **`src/lib/__tests__/update-cadence.test.ts`** (new) — synthetic fixtures only (`Acme`, `Northwind`; Part 27/28 discipline, and a cadence-test file is a tempting place to paste real portfolio data — it must not happen). Cases: a company inside the grace period with zero updates → `NEW` and `isCompanyOverdue === false`; past grace with fewer than three updates → `BEHIND`; a steady monthly cadence just met → `CURRENT`; the same cadence missed → `BEHIND`; a company with exactly three updates (the boundary); and an explicit regression test asserting `isCompanyOverdue` agrees with the pre-refactor implementation on a table of inputs.
+3. **`src/app/api/admin/dashboard/route.ts`** — delete the local copy, import from the lib. `companiesOverdue` and `overdueCompanies` must be unchanged.
+4. **`src/app/api/admin/companies/route.ts`** — the list endpoint must return what the badge now needs. Verify what it selects today; if it returns only `lastUpdateDate`, extend it to carry the company's `createdAt` and enough published-update dates for the cadence window (a `take: 5` on published updates ordered by `sentAt desc`), **as an additive field**. Do not change or remove any existing field.
+5. **`src/app/admin/companies/page.tsx:42-49`** — `getUpdateStatus()` is deleted and replaced by `cadenceStatus()`, mapped to badges: `NEW` → `variant="info"`, **"No updates yet"** (**settled by D1 — this exact label, this exact variant; do not substitute "New" or drop the badge**); `CURRENT` → `success`, "Current"; `AGING` → `warning`, "Aging"; `BEHIND` → `danger`, "Behind".
+6. **`src/app/admin/page.tsx:234-238`** (N-F07) — the "Companies Overdue" tile stops rendering in plain black. Give it the same semantic treatment the list badge uses for `BEHIND` (`text-destructive` when the count is greater than zero, muted when zero), so one fact has one colour on both screens.
+7. **Write the C02 rule down** — D1 confirmed it, so add it to the "Protected patterns register" section above as part of this workstream, giving future call sites something to cite: *"danger/laterite is for a state requiring intervention; a brand-new, never-happened-yet state is neutral or info, never danger."*
+
+**Acceptance checklist:** the dashboard's "Companies Overdue" number is **identical** before and after the refactor on real data (this is the regression that matters — check it first); a company created within the grace period with no updates shows a neutral badge, not red; a genuinely delinquent company still shows red on both screens; the two screens never disagree about the same company; `src/lib/update-cadence.ts` imports nothing from `@/lib/db`; `npx vitest run src/lib/__tests__/update-cadence.test.ts` green; all fixtures synthetic; no founder-facing surface changed.
+
+**UX impact:** admin-only, and the visible change is that a red badge stops being applied to companies that have done nothing wrong. Every existing label an admin already recognises ("Current", "Aging") is preserved; only "No updates"→"No updates yet"/neutral and "Overdue"→"Behind" change. **Cost impact:** none (one `take: 5` include on an admin-only endpoint).
+
+## WS86 — List-page search standard (D2) — ~1–1.25 day
+
+**Goal.** Five admin list pages converge on the pattern the other four already use, and all nine end up identical. **Unblocked — D2 is confirmed** (universal, no row-count threshold, and the standardisation pass across all nine pages is part of the decision).
+
+**Covers:** N-C01, N-F31, N-F31a, N-F31c. **Implements:** D2.
+
+**File-by-file steps:**
+
+1. Read the reference implementation first: `src/app/admin/updates/page.tsx` (N-F18, the most complete list pattern in the app) and `src/app/admin/companies/page.tsx:249-256` (the minimal one). Adopt the minimal one unless a page already has filters.
+2. Add the same client-side search row — `<Input placeholder="Search …" value={search} onChange={…} />` plus a `filter()` over the loaded rows, no server round-trip — to: **`src/app/admin/funds/page.tsx`** (name), **`src/app/admin/reports/page.tsx`** (title + fund name), **`src/app/admin/lps/page.tsx`** (name + any email address — note Part 26: an LP has **many** `LpEmail` rows, so search all of them, not just the primary mirror), **`src/app/admin/links/page.tsx`** (label/recipient/company), **`src/app/admin/broadcasts/page.tsx`** (subject).
+3. Standardise placement and wording across all nine list pages: the search row sits directly above the list and below any page-level notice or stat block; placeholder is `Search by <the thing>…`. Fix the existing four if they diverge.
+4. Each page keeps its existing empty state for "no rows at all", and gains a distinct one for "no rows matched your search" — otherwise a filtered-to-nothing list reads as data loss. Reuse `EmptyState` with `title="No matches"`.
+
+**Acceptance checklist:** all nine admin list pages have a search input in the same position with the same wording; searching is client-side and does not refetch; LP search matches on a **non-primary** email address (regression against Part 26's `LpEmail` model); a search matching nothing shows "No matches", not the page's empty-list state; clearing the box restores the full list; 375px clean (Part 6 pattern D — the search row must not push controls off-screen).
+
+**UX impact:** additive on five pages, cosmetic-only on the four that already have search. Nothing is removed, no default filter is applied, and every list still renders complete on load. **Cost impact:** none (client-side filtering over already-loaded rows).
+
+## WS87 — Audit Log `Details` column (D3) — ~0.5 day
+
+**Goal.** Make the audit log's most useful column readable. **Unblocked — D3 is confirmed** (pretty-print in place, full object behind a native `<details>`; the per-action summary map is rejected and must not be built).
+
+**Covers:** N-F28. **Implements:** D3. **Sequence after WS83**, which narrows the table and is the reason this column stops being the first casualty of a narrow viewport.
+
+**File-by-file steps:**
+
+1. **`src/app/admin/audit/page.tsx`** — replace `formatMetadata()`'s raw `JSON.stringify` with a small renderer producing `key: value · key: value` pairs, values truncated to a sane length, keys in mono and values in normal weight. Skip null/undefined entries.
+2. Full detail moves behind a native `<details>` element (**no client component** — this page is a Server Component and should stay one, same reasoning as JC-UI-B), rendering the pretty-printed JSON on expand.
+3. Nothing about `logAdminAction` or the stored metadata shape changes. The action string continues to render raw (`:70`) so future Parts can add new audit actions with no UI work — that property is deliberate and must be preserved.
+
+**Acceptance checklist:** a `{"subject":"Test","companyCount":0}` row renders as readable pairs; the full object is one click away; the page remains a Server Component; rows with `null` metadata render "—" as today; no change to what is written to the `AuditLog` table; 375px clean.
+
+**UX impact:** admin-only; strictly more readable, nothing removed (the raw object stays reachable). **Cost impact:** none.
+
+## WS88 — Fork theming: give the LP-portal logo a config layer — ~0.25 day
+
+**Goal.** Close the last brand touchpoint that a fork cannot change without editing a committed binary at a fixed path.
+
+**Covers:** N-F40, N-FK3.
+
+**File-by-file steps (JC-UI-F):**
+
+1. **`src/lib/org.ts`** — add, in the file's existing documented style:
+   ```ts
+   /** Logo image shown in the LP portal header. Server-side only (the LP
+    *  layout is a Server Component), so no NEXT_PUBLIC_ prefix and no rebuild
+    *  needed to change it. Mirrors EMAIL_LOGO_PATH in src/lib/email.ts. */
+   export const ORG_LOGO_PATH = process.env.ORG_LOGO_PATH || "/brand/dfs-logo-primary.png";
+   ```
+2. **`src/app/lp/layout.tsx:26`** — `src="/brand/dfs-logo-primary.png"` → `src={ORG_LOGO_PATH}`, importing it beside the existing `ORG_NAME` import at `:5`. `alt={ORG_NAME}` is already correct and stays. The `width={72} height={30}` attributes stay as-is; a fork supplying a different aspect ratio is a fork's problem to solve, and hard-coding a max-height instead would change DFS's own rendering (a UX regression on a live LP surface for a hypothetical benefit).
+3. **`.env.example`** — add a commented `# ORG_LOGO_PATH="/brand/dfs-logo-primary.png"` line directly beside the existing `EMAIL_LOGO_PATH` entry at `:35`, so the two brand-asset knobs sit together.
+4. **`README.md`** — in the fork-configuration section (wherever `NEXT_PUBLIC_ORG_NAME` and `EMAIL_LOGO_PATH` are documented), add `ORG_LOGO_PATH` with one sentence: a fork drops its own file in `public/brand/` and points this at it. **This is the deliverable that actually closes N-FK3** — the code change alone just moves the hardcode; the docs line is what means a fork does not have to discover the path by reading `lp/layout.tsx`.
+
+**Acceptance checklist:** `/lp` renders the identical logo with `ORG_LOGO_PATH` unset (byte-identical DOM apart from the attribute source); setting the env var to another path in `public/brand/` swaps it with no rebuild; `grep -rn "dfs-logo-primary" src/` returns only the two **defaults** in `org.ts` and `email.ts`, no direct uses; README documents it beside the other fork knobs.
+
+**UX impact:** **none** — the default is the current path, so every existing LP sees exactly what they see today. **Cost impact:** none (one env var, no service).
+
+---
+
+## Sequencing & handoff (Part 32)
+
+- **Nothing is blocked. D1–D4 are confirmed and this Part requires no schema change, so WS80 can start immediately.**
+- **Recommended order — by value, not by dependency** (all nine workstreams are mutually independent except the one constraint below): **WS80** (the public-facing share page, highest value) → **WS84** (the only real bug, and it reaches the founder app) → **WS81** → **WS82** → **WS83** → **WS87** → **WS85** → **WS86** → **WS88**.
+- **The one ordering constraint: WS87 after WS83.** The scroll affordance is what stops the `Details` column being the first thing clipped; reformatting the column first would hide the symptom that motivates it.
+- **D4 produces no workstream** — WS80 is the entirety of the login/signup change.
+- **Hard file-level exclusion (F71): do not touch `src/app/api/updates/[id]/pdf/route.ts` or `src/lib/pdf.ts`.** The HIGH-severity IDOR on that route was fixed standalone and ahead of this Part (commit `39003e3`) and carries a new regression test. **F76** notes that `pdf.ts` is stuffed with exactly the off-brand colours WS80 removes — that is a deliberate deferral, not an oversight, and it is the one place a brand-fidelity pass is most likely to wander by accident.
+- **Also for Joseph, two minutes, not an Alvin task (F75):** wire up the confidentiality pre-commit hook and create `.confidential-terms` locally — the Part 28 guardrail is currently installed nowhere and skipping every scan.
+- **Total effort: ~4.25–4.9 days** (WS80 0.5 + WS81 0.25 + WS82 0.5 + WS83 0.5 + WS84 0.4 + WS85 0.75–1 + WS86 1–1.25 + WS87 0.5 + WS88 0.25). **No schema change** (JC-UI-H).
+- **Splittable if the work spans sessions:** WS80 + WS84 + WS81 alone (~1.15 days) deliver the public-facing brand fix, the only real bug, and all three copy fixes — the highest-value third of the Part.
+
+## Part 32 — decisions summary
+
+| | Decision (locked 2026-09-02) | What it means for the implementer |
+|---|---|---|
+| **D1** (Q78) | Extract the already-shipped grace + learned-cadence rule out of `dashboard/route.ts:11-39` into a shared pure lib both admin screens call; a never-yet-updated company gets a **neutral `info` "No updates yet"**, never red | WS85. The label and variant are settled — do not substitute "New" or drop the badge. The dashboard's overdue count must be **identical** before and after the refactor; that is the regression to check first. Folding in `reminderFrequencyDays` (option C) is deferred, not rejected |
+| **D2** (Q79) | **Every** admin list page gets a search row, unconditionally — no row-count threshold | WS86. Five pages to add, and the standardisation of placeholder wording and row position across **all nine** is part of the decision, not an extra. LP search must match non-primary `LpEmail` addresses (Part 26) |
+| **D3** (Q80) | Pretty-print `Details` in place; full object behind a **native `<details>`** | WS87. The per-action summary map is **rejected** — the audit action is deliberately a free string, and a map would put a maintenance obligation on every future Part that logs anything. `/admin/audit` stays a Server Component |
+| **D4** (Q81) | **Nothing** beyond WS80's token fixes on login/signup | **No workstream.** Do not add a Sky eyebrow, right-hand panel, quote or stat to `/login`, `/signup` or `/set-password`. Option B was offered and not taken |
+| **Nosa N-F22 / N-F44 / N-F09** | Three copy fixes, exact replacement strings supplied | **DECIDED — folded into WS81 verbatim, no further copy work** |
+| **N-F33** | Ochre "0 contacts" in the broadcast audience list | **DEFERRED** — transient symptom of an empty contacts table that Parts 30/31 just built the tools to fill; revisit with real data |
+| **F71** | PDF-route IDOR | **FIXED outside this Part** (commit `39003e3`, verified in the tree). **No workstream here may touch `src/app/api/updates/[id]/pdf/route.ts` or `src/lib/pdf.ts`** |
+| **F76** | The update-export HTML is a fourth off-brand surface | **DEFERRED to a follow-up after Part 32** — it needs literal hex (a detached document; `globals.css` variables do not reach it), which is a different fix from WS80's |
+
+**Constraints honored:** **no schema change** (JC-UI-H — nothing in this Part touches `prisma/`); **no new cost line** (CSS, copy, one env var, two Vitest guards, client-side filtering — no service, no dependency, no cron, no new API call pattern); **no UX regression** — every change is corrective (WS80, WS84), additive (WS83, WS86), invisible by default (WS88), or a strictly better string (WS81). The three surfaces with external or founder audiences are handled explicitly: the **investor share link** gets a colour-only pass with its structure protected by N-F45; the **founder metric chart** and **founder documents table** are named as regression-check targets in WS84 and WS83; the **LP portal** default is byte-identical. **Zero LP-visible change.**
+
+---
