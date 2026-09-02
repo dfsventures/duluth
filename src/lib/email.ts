@@ -599,6 +599,91 @@ export async function sendLpReportPublishedEmail(opts: {
   assertSent(result, "lp-report-published");
 }
 
+// Part 30, WS72 — admin broadcast to portfolio-company contacts.
+// Person-scoped, never company-scoped (JC-BC-G): one address can be a
+// contact at several targeted companies and gets ONE email (D7), so no
+// company name may appear in the subject or greeting. `bodyHtml` is
+// admin-authored TipTap HTML and is intentionally NOT escaped — the same
+// trust boundary sendUpdatePublishedEmail already accepts; every
+// plain-text field around it IS escaped (the F47 lesson).
+export interface BroadcastMessage {
+  email: string;
+  recipientName?: string | null;
+  subject: string;
+  bodyHtml: string;
+}
+
+function broadcastHtml(msg: BroadcastMessage): string {
+  const firstName = msg.recipientName?.trim() ? msg.recipientName.trim().split(" ")[0] : null;
+  return emailWrapper(`
+    ${eyebrow("From " + ORG_NAME)}
+    ${heading(firstName ? `Hi ${escapeHtml(firstName)},` : "Hello,")}
+    <div style="font-size: 15px; line-height: 1.7; color: ${C.tide};">
+      ${msg.bodyHtml}
+    </div>
+    <p style="margin: 32px 0 0; font-size: 13px; color: ${C.muted};">
+      You're receiving this because ${ORG_NAME} works with your company. Just hit reply if you'd like to talk.
+    </p>
+  `);
+}
+
+/** One message, one recipient — the "send me a test copy" path (JC-BC-F). */
+export async function sendCompanyBroadcastEmail(msg: BroadcastMessage) {
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: TEAM_EMAIL,
+    to: msg.email,
+    subject: msg.subject,
+    html: broadcastHtml(msg),
+  });
+  assertSent(result, "company-broadcast");
+}
+
+/**
+ * Chunked fan-out (JC-BC-E / F59). Batches of 100 via resend.batch.send
+ * with permissive validation, so one bad address fails alone instead of
+ * rejecting the whole batch — the F12 lesson, preserved at batch scale.
+ * NEVER throws: returns one result per input message, in input order.
+ */
+export async function sendCompanyBroadcastEmails(
+  messages: BroadcastMessage[]
+): Promise<{ email: string; ok: boolean; error?: string }[]> {
+  const out: { email: string; ok: boolean; error?: string }[] = [];
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100);
+    try {
+      const res = await resend.batch.send(
+        chunk.map((m) => ({
+          from: FROM,
+          replyTo: TEAM_EMAIL,
+          to: m.email,
+          subject: m.subject,
+          html: broadcastHtml(m),
+        })),
+        { batchValidation: "permissive" }
+      );
+      if (res.error) {
+        // whole-chunk failure (auth, network, quota) — every message in it failed
+        for (const m of chunk) out.push({ email: m.email, ok: false, error: String(res.error) });
+        continue;
+      }
+      // Permissive mode reports per-message failures by their index in the
+      // submitted chunk; every other index went out.
+      const failed = new Map<number, string>(
+        ((res.data as { errors?: { index: number; message: string }[] } | null)?.errors ?? []).map((e) => [e.index, e.message])
+      );
+      chunk.forEach((m, idx) =>
+        failed.has(idx)
+          ? out.push({ email: m.email, ok: false, error: failed.get(idx) })
+          : out.push({ email: m.email, ok: true })
+      );
+    } catch (err) {
+      for (const m of chunk) out.push({ email: m.email, ok: false, error: String(err) });
+    }
+  }
+  return out;
+}
+
 export async function sendTestEmail(toEmail: string) {
   const result = await resend.emails.send({
     from: FROM,
