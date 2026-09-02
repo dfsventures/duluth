@@ -3,41 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { approvedCompanyFilter } from "@/lib/company-filters";
-
-const GRACE_PERIOD_DAYS = 30;
-const MIN_UPDATES_FOR_CADENCE = 3;
-const CADENCE_LOOKBACK = 5;
-
-function isCompanyOverdue(company: {
-  createdAt: Date;
-  publishedUpdates: { sentAt: Date | null }[];
-}): boolean {
-  const now = Date.now();
-  const ageMs = now - company.createdAt.getTime();
-  const ageInDays = ageMs / (1000 * 60 * 60 * 24);
-
-  // Rule 1: grace period — never flag a new company
-  if (ageInDays < GRACE_PERIOD_DAYS) return false;
-
-  const dates = company.publishedUpdates
-    .map((u) => u.sentAt)
-    .filter((d): d is Date => d !== null)
-    .sort((a, b) => b.getTime() - a.getTime()); // most recent first
-
-  // Rule 2: past grace period but fewer than 3 published updates → flag
-  if (dates.length < MIN_UPDATES_FOR_CADENCE) return true;
-
-  // Rule 3: calculate cadence from last 5 published updates
-  const recent = dates.slice(0, CADENCE_LOOKBACK);
-  let totalGapMs = 0;
-  for (let i = 0; i < recent.length - 1; i++) {
-    totalGapMs += recent[i].getTime() - recent[i + 1].getTime();
-  }
-  const avgGapMs = totalGapMs / (recent.length - 1);
-  const timeSinceLastMs = now - recent[0].getTime();
-
-  return timeSinceLastMs > avgGapMs;
-}
+import { isCompanyOverdue, CADENCE_LOOKBACK } from "@/lib/update-cadence";
 
 export async function GET() {
   try {

@@ -8671,6 +8671,8 @@ These were called out as working well and are **not** to be "tidied" by a future
 
 **One more worth adding to the register, found during verification rather than by the review:** `tailwind.config.ts:70-77` maps `rounded-sm/md/lg/xl/2xl` all to 1–2px, so a developer reaching for `rounded-xl` out of habit still renders flat. That is deliberate insurance against brand drift and must not be "corrected" by anyone who thinks the mapping looks like a mistake.
 
+**Added by WS85 (D1/C02):** danger/laterite is for a state that requires intervention; a brand-new, never-happened-yet state is neutral or info, never danger. Implemented in `src/lib/update-cadence.ts`'s `cadenceStatus()`, shared by `src/app/admin/companies/page.tsx` and `src/app/api/admin/dashboard/route.ts`.
+
 ---
 
 ## Judgment calls (Felix's; each with its reversal path)

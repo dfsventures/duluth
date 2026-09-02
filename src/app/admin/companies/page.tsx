@@ -23,7 +23,8 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
-import { formatDate, daysSince } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { cadenceStatus } from "@/lib/update-cadence";
 
 interface Company {
   id: string;
@@ -33,6 +34,8 @@ interface Company {
   fundingStage: string | null;
   memberCount: number;
   lastUpdateDate: string | null;
+  createdAt: string;
+  recentPublishedUpdates: { sentAt: string | null }[];
 }
 
 interface ImportResult {
@@ -41,12 +44,28 @@ interface ImportResult {
   errors: string[];
 }
 
-function getUpdateStatus(lastUpdateDate: string | null) {
-  if (!lastUpdateDate) return { label: "No updates", variant: "danger" as const };
-  const days = daysSince(lastUpdateDate);
-  if (days > 90) return { label: "Overdue", variant: "danger" as const };
-  if (days > 30) return { label: "Aging", variant: "warning" as const };
-  return { label: "Current", variant: "success" as const };
+// Part 32, WS85 (D1) — replaces the old naive 90/30/null rule with the
+// shared, already-shipped grace+cadence logic (F68). A brand-new company
+// with zero updates now gets a neutral "No updates yet" badge instead of
+// the same red "Overdue" a 90-day-delinquent company got — danger/laterite
+// is reserved for a state that actually requires intervention (C02).
+function getUpdateStatus(company: Pick<Company, "createdAt" | "recentPublishedUpdates">) {
+  const status = cadenceStatus({
+    createdAt: new Date(company.createdAt),
+    publishedUpdates: company.recentPublishedUpdates.map((u) => ({
+      sentAt: u.sentAt ? new Date(u.sentAt) : null,
+    })),
+  });
+  switch (status) {
+    case "NEW":
+      return { label: "No updates yet", variant: "info" as const };
+    case "CURRENT":
+      return { label: "Current", variant: "success" as const };
+    case "AGING":
+      return { label: "Aging", variant: "warning" as const };
+    case "BEHIND":
+      return { label: "Behind", variant: "danger" as const };
+  }
 }
 
 export default function AdminCompaniesPage() {
@@ -286,7 +305,7 @@ export default function AdminCompaniesPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredCompanies.map((company) => {
-            const status = getUpdateStatus(company.lastUpdateDate);
+            const status = getUpdateStatus(company);
             return (
               <Link key={company.id} href={`/admin/companies/${company.id}`} className="block">
                 <Card className="h-full transition-colors hover:bg-muted/50">

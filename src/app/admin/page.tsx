@@ -235,7 +235,9 @@ export default function AdminDashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-2xl font-semibold">{d.companiesOverdue}</p>
+            <p className={`text-2xl font-semibold ${d.companiesOverdue > 0 ? "text-destructive" : ""}`}>
+              {d.companiesOverdue}
+            </p>
             <p className="text-xs text-muted-foreground">Behind on updates</p>
           </CardContent>
         </Card>

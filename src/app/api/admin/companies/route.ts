@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { approvedCompanyFilter } from "@/lib/company-filters";
+import { CADENCE_LOOKBACK } from "@/lib/update-cadence";
 
 export async function GET(request: Request) {
   try {
@@ -61,6 +62,27 @@ export async function GET(request: Request) {
       },
     });
 
+    // Part 32, WS85 (D1) — additive: the shared cadenceStatus() lib needs a
+    // company's createdAt (already returned below) plus its recent
+    // *published* update dates, which is a differently-filtered slice of
+    // the same "updates" relation than the lastUpdateDate query above
+    // (any status, most recent 1). Prisma can't include the same relation
+    // twice with different filters in one query, so this is a second query
+    // rather than a second `include` key. lastUpdateDate's existing
+    // semantics (most recent update of any status) are untouched.
+    const companyIds = companies.map((c) => c.id);
+    const recentPublished = await db.update.findMany({
+      where: { companyId: { in: companyIds }, status: "SENT" },
+      orderBy: { sentAt: "desc" },
+      select: { companyId: true, sentAt: true },
+    });
+    const publishedByCompany = new Map<string, { sentAt: Date | null }[]>();
+    for (const u of recentPublished) {
+      const arr = publishedByCompany.get(u.companyId) ?? [];
+      if (arr.length < CADENCE_LOOKBACK) arr.push({ sentAt: u.sentAt });
+      publishedByCompany.set(u.companyId, arr);
+    }
+
     const result = companies.map((c) => ({
       id: c.id,
       name: c.name,
@@ -76,6 +98,9 @@ export async function GET(request: Request) {
       memberCount: c._count.memberships,
       updateCount: c._count.updates,
       lastUpdateDate: c.updates[0]?.createdAt || null,
+      // Additive (Part 32, D1) — feeds cadenceStatus() on the companies list
+      // page; not used anywhere else, and no existing field changed shape.
+      recentPublishedUpdates: publishedByCompany.get(c.id) ?? [],
     }));
 
     return NextResponse.json(result);
