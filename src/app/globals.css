@@ -84,6 +84,20 @@
 /* ── Component classes ────────────────────────────────────── */
 @layer components {
 
+  /* Part 32, WS83 (N-F27) — right-edge fade on the shared Table wrapper,
+     signalling more content is scrollable horizontally. Pure CSS, no JS:
+     background-attachment: local paints the gradient against the *content*
+     of the scroll container (not the viewport), so it scrolls out of view
+     on its own once you reach the right edge — no scroll listener needed,
+     which keeps this usable from a Server Component (e.g. /admin/audit). */
+  .table-scroll-fade {
+    background-image: linear-gradient(to left, var(--color-bg), transparent);
+    background-position: right;
+    background-size: 24px 100%;
+    background-repeat: no-repeat;
+    background-attachment: local;
+  }
+
   /* Buttons */
   .btn-base {
     @apply inline-flex items-center justify-center gap-2 rounded-sm font-mono text-xs font-semibold uppercase tracking-widest transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50;
