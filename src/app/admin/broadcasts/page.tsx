@@ -190,7 +190,19 @@ export default function AdminBroadcastsPage() {
               placeholder="e.g. A quick update from the DFS team"
             />
             <div className="space-y-2">
-              <label className="label">Companies (you can change this later)</label>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="label">Companies (you can change this later)</label>
+                {companies.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="secondary" size="sm" onClick={() => setNewCompanyIds(companies.map((c) => c.id))}>
+                      Select all
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setNewCompanyIds([])}>
+                      Clear
+                    </Button>
+                  </div>
+                )}
+              </div>
               {companies.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No portfolio companies yet.</p>
               ) : (
