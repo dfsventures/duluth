@@ -53,20 +53,32 @@ export async function getDownloadUrl(key: string) {
 }
 
 /**
+ * Head an object and return its metadata, or null if it genuinely doesn't
+ * exist (a 404). Part 35, WS93.3 — the document-confirm route needs the
+ * object's ContentLength (to populate Document.size, F88) in addition to
+ * the plain existence check objectExists() already provides. Any non-404
+ * failure (credentials, permissions, network) is rethrown, not read as
+ * "missing" — same contract objectExists() has always had.
+ */
+export async function headObject(key: string): Promise<{ contentLength: number | null } | null> {
+  try {
+    const res = await getClient().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    return { contentLength: res.ContentLength ?? null };
+  } catch (err: unknown) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (status === 404) return null;
+    throw err; // a real credentials/permission/network error should surface, not be swallowed as "missing"
+  }
+}
+
+/**
  * Check whether an object actually exists in the bucket. Used by the
  * storage test-upload diagnostic (Part 23, WS49) and the orphaned-document
  * scan (Part 23, WS50) — both need to answer "is this key really there?"
- * rather than trust anything client-reported.
+ * rather than trust anything client-reported. Signature unchanged (Part 35).
  */
 export async function objectExists(key: string): Promise<boolean> {
-  try {
-    await getClient().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
-    return true;
-  } catch (err: unknown) {
-    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
-    if (status === 404) return false;
-    throw err; // a real credentials/permission/network error should surface, not be swallowed as "missing"
-  }
+  return (await headObject(key)) !== null;
 }
 
 export async function deleteObject(key: string): Promise<void> {
