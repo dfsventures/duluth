@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   CheckCircle2,
@@ -18,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DD_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
+import DiligenceAnswers from "@/components/admin/diligence-answers";
 
 // Part 16, WS41 (Q54, JC-DD-G) — admin DD review queue. Its own page,
 // not a third section on /admin/approvals: this reviews Company/
@@ -158,7 +160,16 @@ export default function AdminDiligencePage() {
             <p className="mt-1 text-sm text-muted-foreground">
               {item.founder ? (item.founder.name ? `${item.founder.name} · ${item.founder.email}` : item.founder.email) : "No founder assigned"}
             </p>
-            <p className="text-xs text-muted-foreground">Created {formatDate(item.createdAt)}</p>
+            <p className="text-xs text-muted-foreground">
+              Created {formatDate(item.createdAt)} ·{" "}
+              {/* Part 34, WS92 (F82) — the only navigation path to a
+                  DILIGENCE-stage company's page (and its Documents tab)
+                  while it's still in the queue; approvedCompanyFilter hides
+                  it from /admin/companies until it's promoted. */}
+              <Link href={`/admin/companies/${item.id}?tab=diligence`} className="text-primary hover:underline">
+                Open company →
+              </Link>
+            </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
               <Badge variant={item.diligence?.isUsIncorporated == null ? "neutral" : "info"}>
@@ -177,6 +188,20 @@ export default function AdminDiligencePage() {
                 {item.progress.done} of {item.progress.total} required items done
               </span>
             </div>
+
+            {/* Part 34, WS92 (D2, F80) — the answers themselves, one click away.
+                Same idiom as the Audit Log's Details column (Part 32, D3/WS87):
+                summary visible, full content behind a native <details>, no state. */}
+            {item.diligence?.isStellarEcosystem && (
+              <details className="mt-3">
+                <summary className="cursor-pointer list-none text-xs text-primary hover:underline [&::-webkit-details-marker]:hidden">
+                  Read the Stellar answers
+                </summary>
+                <div className="mt-2 space-y-3 border-l-2 border-bone pl-3">
+                  <DiligenceAnswers diligence={item.diligence} variant="compact" />
+                </div>
+              </details>
+            )}
 
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
               {DD_DOC_TYPES.map((docType) => (
