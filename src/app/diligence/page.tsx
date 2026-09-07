@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { DD_DOC_TYPES, AUTO_INTERNAL_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
+import { uploadDocument } from "@/lib/upload-document";
+import { RefreshCw } from "lucide-react";
 
 // Part 16, WS40 — founder-facing DD checklist. Purpose-built (not a
 // /setup-wizard extension, per F31 — that step's file input has no
@@ -59,6 +61,10 @@ export default function DiligencePage() {
 
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Part 35, WS94.3 (D3=B) — a failed upload's own file handle + message,
+  // kept per doc-type slot so it survives beyond the transient `message`
+  // banner (F86) and offers a one-click Retry with the same File.
+  const [failedUploads, setFailedUploads] = useState<Record<string, { file: File; message: string }>>({});
 
   const loadDiligence = useCallback(async (id: string) => {
     const res = await fetch(`/api/companies/${id}/diligence`);
@@ -135,34 +141,23 @@ export default function DiligencePage() {
     setUploadingType(docType);
     setMessage(null);
     try {
-      const initRes = await fetch("/api/documents/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          name: file.name,
-          mimeType: file.type || "application/octet-stream",
-          docType,
-          isInternal: AUTO_INTERNAL_DOC_TYPES.has(docType),
-        }),
+      await uploadDocument({
+        companyId,
+        file,
+        docType,
+        isInternal: AUTO_INTERNAL_DOC_TYPES.has(docType),
       });
-      if (!initRes.ok) {
-        const errData = await initRes.json().catch(() => null);
-        throw new Error(errData?.error ?? "Failed to initiate upload");
-      }
-      const { uploadUrl } = await initRes.json();
 
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
+      setFailedUploads((prev) => {
+        const { [docType]: _removed, ...rest } = prev;
+        return rest;
       });
-      if (!putRes.ok) throw new Error("Upload to storage failed");
-
       await loadDiligence(companyId);
       setMessage({ type: "success", text: `"${file.name}" uploaded successfully.` });
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed." });
+      const text = err instanceof Error ? err.message : "Upload failed.";
+      setMessage({ type: "error", text });
+      setFailedUploads((prev) => ({ ...prev, [docType]: { file, message: text } }));
     } finally {
       setUploadingType(null);
       const input = fileInputRefs.current[docType];
@@ -312,51 +307,75 @@ export default function DiligencePage() {
           {DD_DOC_TYPES.map((docType) => {
             const existing = diligence.documents[docType.value] ?? null;
             const uploading = uploadingType === docType.value;
+            const failed = failedUploads[docType.value] ?? null;
             return (
               <div
                 key={docType.value}
-                className="flex flex-wrap items-center justify-between gap-3 border-b border-bone pb-4 last:border-0 last:pb-0"
+                className="border-b border-bone pb-4 last:border-0 last:pb-0"
               >
-                <div className="min-w-48 flex-1">
-                  <p className="text-sm font-medium">
-                    {docType.label}
-                    {docType.value === "passport" && (
-                      <span className="ml-1 text-xs font-normal text-muted-foreground">(required)</span>
-                    )}
-                  </p>
-                  {existing ? (
-                    <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <FileText className="h-3.5 w-3.5" />
-                      {existing.name}
-                      <span className="text-xs">&middot; {formatDate(existing.createdAt)}</span>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-48 flex-1">
+                    <p className="text-sm font-medium">
+                      {docType.label}
+                      {docType.value === "passport" && (
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">(required)</span>
+                      )}
                     </p>
-                  ) : (
-                    <p className="mt-1 text-sm text-muted-foreground">No file uploaded yet.</p>
-                  )}
+                    {existing ? (
+                      <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+                        <FileText className="h-3.5 w-3.5" />
+                        {existing.name}
+                        <span className="text-xs">&middot; {formatDate(existing.createdAt)}</span>
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm text-muted-foreground">No file uploaded yet.</p>
+                    )}
+                  </div>
+                  <div className="shrink-0">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={uploading}
+                      onClick={() => fileInputRefs.current[docType.value]?.click()}
+                    >
+                      <Upload className="mr-2 h-3.5 w-3.5" />
+                      {uploading ? "Uploading..." : existing ? "Replace" : "Upload"}
+                    </Button>
+                    <input
+                      ref={(el) => {
+                        fileInputRefs.current[docType.value] = el;
+                      }}
+                      type="file"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUpload(docType.value, file);
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="shrink-0">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={uploading}
-                    onClick={() => fileInputRefs.current[docType.value]?.click()}
-                  >
-                    <Upload className="mr-2 h-3.5 w-3.5" />
-                    {uploading ? "Uploading..." : existing ? "Replace" : "Upload"}
-                  </Button>
-                  <input
-                    ref={(el) => {
-                      fileInputRefs.current[docType.value] = el;
-                    }}
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUpload(docType.value, file);
-                    }}
-                  />
-                </div>
+
+                {/* Part 35, WS94.3 (D3=B) — persists across reloads-within-session,
+                    unlike the transient `message` banner above (F86). */}
+                {failed && (
+                  <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-laterite/30 bg-laterite/10 px-3 py-2 text-sm text-laterite">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span className="flex-1">
+                      <span className="font-medium">{failed.file.name}</span> — {failed.message}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={uploading}
+                      onClick={() => handleUpload(docType.value, failed.file)}
+                    >
+                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                      Retry
+                    </Button>
+                  </div>
+                )}
               </div>
             );
           })}

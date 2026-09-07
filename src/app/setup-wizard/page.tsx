@@ -16,6 +16,7 @@ import {
   Upload,
 } from "lucide-react";
 import { normalizeUrl } from "@/lib/utils";
+import { uploadDocument } from "@/lib/upload-document";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -64,7 +65,12 @@ export default function SetupWizardPage() {
   // the file straight to storage.)
   const [uploadedFileNames, setUploadedFileNames] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  // Part 35, WS94.2 — one entry per failed file, not a single string that
+  // the next failure overwrites. Previously a single failure threw out of
+  // the loop and silently skipped every file after it (pre-existing wart,
+  // fixed here): now each file is tried independently and every failure is
+  // reported by name.
+  const [uploadErrors, setUploadErrors] = useState<{ name: string; message: string }[]>([]);
 
   function addMetricRow() {
     setMetricDrafts((prev) => [...prev, { name: "", unit: "" }]);
@@ -180,38 +186,20 @@ export default function SetupWizardPage() {
   async function handleDocumentUpload(files: FileList | null) {
     if (!files || files.length === 0 || !companyId) return;
     setUploading(true);
-    setUploadError(null);
-    try {
-      for (const file of Array.from(files)) {
-        const initRes = await fetch("/api/documents/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            companyId,
-            name: file.name,
-            mimeType: file.type || "application/octet-stream",
-          }),
-        });
-        if (!initRes.ok) {
-          const errData = await initRes.json().catch(() => null);
-          throw new Error(errData?.error ?? `Failed to upload "${file.name}"`);
-        }
-        const { uploadUrl } = await initRes.json();
-
-        const putRes = await fetch(uploadUrl, {
-          method: "PUT",
-          headers: { "Content-Type": file.type || "application/octet-stream" },
-          body: file,
-        });
-        if (!putRes.ok) throw new Error(`Upload of "${file.name}" to storage failed`);
-
+    setUploadErrors([]);
+    // Part 35, WS94.2 — try/catch per file so one failure doesn't abort the
+    // remaining files in the batch (a single failure used to throw out of
+    // the loop, silently skipping everything after it).
+    for (const file of Array.from(files)) {
+      try {
+        await uploadDocument({ companyId, file });
         setUploadedFileNames((prev) => [...prev, file.name]);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed.";
+        setUploadErrors((prev) => [...prev, { name: file.name, message }]);
       }
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed.");
-    } finally {
-      setUploading(false);
     }
+    setUploading(false);
   }
 
   function handleBack() {
@@ -431,8 +419,17 @@ export default function SetupWizardPage() {
               />
             </div>
 
-            {uploadError && (
-              <p className="mt-3 text-sm text-laterite">{uploadError}</p>
+            {uploadErrors.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {uploadErrors.map((e, i) => (
+                  <li key={`${e.name}-${i}`} className="flex items-start gap-1.5 text-sm text-laterite">
+                    <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      <span className="font-medium">{e.name}</span> — {e.message}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
 
             {uploadedFileNames.length > 0 && (

@@ -11,6 +11,7 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { Indent } from "@/lib/tiptap-indent";
 import { FundSnapshotNode } from "@/components/ui/fund-snapshot-node";
 import { cn } from "@/lib/utils";
+import { uploadDocument, UploadError } from "@/lib/upload-document";
 import {
   Bold,
   Italic,
@@ -138,39 +139,22 @@ export function RichEditor({
     async (file: File) => {
       if (!editor || !companyId) return;
 
-      // Get presigned upload URL
-      const res = await fetch("/api/documents/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          name: file.name,
-          mimeType: file.type,
-          isInternal: false,
-        }),
-      });
-
-      if (!res.ok) return;
-      const { uploadUrl, document } = await res.json();
-
-      // Upload to S3/R2
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
-      // Part 23, WS50 (F42) — previously unchecked: the image was inserted
-      // into the editor unconditionally, even when the PUT never reached
-      // storage, leaving a silently-broken image reference in the update
-      // body with no indication to the founder that anything failed.
-      if (!putRes.ok) {
-        window.alert("Image upload failed. Please try again.");
-        return;
+      // Part 23, WS50 (F42) / Part 35, WS94.2 (F87) — the image is only ever
+      // inserted after uploadDocument() resolves, i.e. after the confirm
+      // step has verified the bytes actually landed in storage (WS93). This
+      // call site previously bypassed its own `!putRes.ok` guard entirely —
+      // a blocked CORS preflight rejects fetch with a TypeError rather than
+      // producing a non-ok Response, and that rejection escaped this
+      // (unawaited) callback with no catch at all, so the founder saw
+      // nothing: no alert, no image, no error.
+      try {
+        const document = await uploadDocument({ companyId, file, isInternal: false });
+        const imageUrl = `/api/documents/${document.id}/view`;
+        editor.chain().focus().setImage({ src: imageUrl, alt: file.name }).run();
+      } catch (err) {
+        const message = err instanceof UploadError ? err.message : "Image upload failed. Please try again.";
+        window.alert(message);
       }
-
-      // Insert image into editor using the download endpoint
-      const imageUrl = `/api/documents/${document.id}/view`;
-      editor.chain().focus().setImage({ src: imageUrl, alt: file.name }).run();
     },
     [editor, companyId]
   );

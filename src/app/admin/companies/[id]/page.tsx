@@ -52,6 +52,7 @@ import { DOC_TYPES } from "@/lib/constants";
 import { isInlineViewable } from "@/lib/documents";
 import { RichEditor } from "@/components/ui/rich-editor";
 import DiligenceAnswers from "@/components/admin/diligence-answers";
+import { uploadDocument } from "@/lib/upload-document";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -535,31 +536,12 @@ function AdminCompanyDetailPageInner() {
   async function handleFileUpload(file: File) {
     setUploading(true);
     try {
-      // Step 1: Get presigned upload URL and create document record
-      const initRes = await fetch(`/api/documents/upload`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          name: file.name,
-          mimeType: file.type || "application/octet-stream",
-          isInternal: uploadInternal,
-          docType: uploadDocType || null,
-        }),
+      await uploadDocument({
+        companyId,
+        file,
+        isInternal: uploadInternal,
+        docType: uploadDocType || null,
       });
-      if (!initRes.ok) {
-        const errData = await initRes.json().catch(() => null);
-        throw new Error(errData?.error ?? "Failed to initiate upload");
-      }
-      const { uploadUrl } = await initRes.json();
-
-      // Step 2: PUT file directly to R2/S3
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      if (!putRes.ok) throw new Error("Upload to storage failed");
 
       await loadDocuments({ search: docSearch, docType: docTypeFilter, archived: showArchived });
       setMessage({ type: "success", text: `"${file.name}" uploaded successfully.` });

@@ -11,7 +11,7 @@
 // even if a control existed here.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Upload, FileText, Search, Eye, Download, FolderOpen, X, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Upload, FileText, Search, Eye, Download, FolderOpen, X, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import { DOC_TYPES, AUTO_INTERNAL_DOC_TYPES } from "@/lib/constants";
 import { isInlineViewable } from "@/lib/documents";
 import { formatDate, formatFileSize } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
+import { uploadDocument } from "@/lib/upload-document";
 
 interface Document {
   id: string;
@@ -34,6 +35,19 @@ interface Document {
   createdAt: string;
   uploadedBy: string | null;
   isInternal: boolean;
+}
+
+// Part 35, WS94.3 (D3=B) — a failed upload's file handle plus the docType it
+// was attempted with, kept in state so a page reload isn't required to see
+// (or retry) it. This is the persistent replacement for the toast-only
+// behaviour that made a failed upload's steady state look like success
+// (F86): the file simply never appears in `documents` — D1=B — so this is
+// the only place the founder can see it failed at all.
+interface FailedUpload {
+  key: string;
+  file: File;
+  docType: string;
+  message: string;
 }
 
 export default function CompanyDocumentsPage() {
@@ -47,6 +61,7 @@ export default function CompanyDocumentsPage() {
   const [docSearch, setDocSearch] = useState("");
   const [docTypeFilter, setDocTypeFilter] = useState("");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [failedUploads, setFailedUploads] = useState<FailedUpload[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadDocuments = useCallback(
@@ -74,39 +89,32 @@ export default function CompanyDocumentsPage() {
       .finally(() => setLoading(false));
   }, [companyId, companyLoading, loadDocuments]);
 
-  async function handleUpload(file: File) {
+  async function handleUpload(file: File, retryKey?: string) {
     if (!companyId) return;
+    const docType = retryKey
+      ? failedUploads.find((f) => f.key === retryKey)?.docType ?? ""
+      : uploadDocType;
     setUploading(true);
     setMessage(null);
     try {
-      const initRes = await fetch("/api/documents/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          companyId,
-          name: file.name,
-          mimeType: file.type || "application/octet-stream",
-          docType: uploadDocType || null,
-          isInternal: AUTO_INTERNAL_DOC_TYPES.has(uploadDocType),
-        }),
+      await uploadDocument({
+        companyId,
+        file,
+        docType: docType || null,
+        isInternal: AUTO_INTERNAL_DOC_TYPES.has(docType),
       });
-      if (!initRes.ok) {
-        const errData = await initRes.json().catch(() => null);
-        throw new Error(errData?.error ?? "Failed to initiate upload");
-      }
-      const { uploadUrl } = await initRes.json();
 
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      if (!putRes.ok) throw new Error("Upload to storage failed");
-
+      setFailedUploads((prev) => prev.filter((f) => f.key !== retryKey));
       await loadDocuments(companyId, { search: docSearch, docType: docTypeFilter });
       setMessage({ type: "success", text: `"${file.name}" uploaded successfully.` });
     } catch (err) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed." });
+      const text = err instanceof Error ? err.message : "Upload failed.";
+      setMessage({ type: "error", text });
+      setFailedUploads((prev) => {
+        const key = retryKey ?? `${file.name}-${Date.now()}`;
+        const next = prev.filter((f) => f.key !== key);
+        return [...next, { key, file, docType, message: text }];
+      });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -198,6 +206,34 @@ export default function CompanyDocumentsPage() {
           </div>
         </div>
       </div>
+
+      {failedUploads.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {failedUploads.map((f) => (
+            <div
+              key={f.key}
+              className="flex flex-wrap items-center gap-3 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite"
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              <span className="flex-1">
+                <span className="font-medium">{f.file.name}</span> — {f.message}
+              </span>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={uploading}
+                onClick={() => handleUpload(f.file, f.key)}
+              >
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                Retry
+              </Button>
+              <button onClick={() => setFailedUploads((prev) => prev.filter((x) => x.key !== f.key))}>
+                <X className="h-4 w-4 opacity-50 hover:opacity-100" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[160px]">
