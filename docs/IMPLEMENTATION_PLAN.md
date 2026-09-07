@@ -9130,3 +9130,263 @@ Relocating a button and nothing else would leave a one-control page. The three o
 **Constraints honored:** **no schema change** (nothing in this Part touches `prisma/`); **no new cost line** (one new page, one moved page, one string, zero new services/dependencies/tables/crons; D4 adds no endpoint and one already-cheap admin `GET`); **no UX regression** — WS89 is purely additive and ships first, WS90 only removes controls that by then exist elsewhere, and every surface touched is admin-only. **Zero founder, LP and investor-link change.**
 
 ---
+
+# Part 34 — Admins can't read the due-diligence answers founders write (WS91–WS92, F80–F83, 2026-09-07)
+
+> **Status: PLANNED, not built. Both product decisions CONFIRMED (Joseph, 2026-09-07 — D1 and D2, posed as Q83 and Q84; both landed on the recommended option). Nothing open. WS91 and WS92 are both fully unblocked and ready for Alvin.** Reported by Joseph: he cannot see a founder's due-diligence questionnaire answers as an admin. Verified against the working tree at `f239cc3`. **The answers are not lost — they are in Postgres, complete, and have simply never been rendered anywhere in the product.** No data recovery is needed; this is a read surface that was never built.
+
+## Method — what was verified against the working tree
+
+- **The model holds real prose and it is retained forever.** `prisma/schema.prisma:122-137` — `CompanyDiligence`, one row per `Company` (`companyId @unique`), with `isUsIncorporated Boolean?`, `isStellarEcosystem Boolean`, and the two founder-written essays `stellarWhyText` / `stellarTimelineText`, both `String? @db.Text`, plus `completedAt` / `closedAt`. `onDelete: Cascade` from `Company` only — **nothing anywhere clears or truncates these fields**, and the promote action does not touch them (see F81).
+- **The founder writes them at `/diligence`.** `src/app/diligence/page.tsx:276-298` — two `<Textarea rows={4}>` fields, saved by `PATCH /api/companies/[id]/diligence` (`src/app/api/companies/[id]/diligence/route.ts:118-123`). **No length cap exists at any layer** — not in the schema (`@db.Text`), not in the PATCH handler (a bare `typeof body.x === "string"` check), not on the textarea (`maxLength` absent). Whatever the plan renders must survive a founder pasting several pages.
+- **They are plain text, not HTML.** The source is a `<textarea>`, not the TipTap `RichEditor` used for updates and notes. **Consequence for the implementer: render with `whitespace-pre-wrap` and normal JSX interpolation, never `dangerouslySetInnerHTML`** (which is what `admin/companies/[id]/page.tsx:1678-1680` correctly does for TipTap-authored note bodies — that precedent does **not** transfer here).
+- **`GET /api/admin/diligence` is the only route in the app that reads `CompanyDiligence` for an admin.** Confirmed by `grep -rn "companyDiligence\|diligence:" src/` — the readers are: this route, the founder-scoped `GET/PATCH /api/companies/[id]/diligence`, and `src/lib/diligence.ts`'s `recomputeDiligenceCompletion` write. **No admin surface other than `/admin/diligence` has ever read this table.**
+- **`src/app/admin/companies/[id]/page.tsx` has no Diligence tab and never reads `Company.stage`.** The `Tab` union is `"updates" | "metrics" | "documents" | "members" | "notes"` (`:145`), the tab array is at `:630-636`, the strip at `:923-939`. The only `stage` occurrence in the whole 1826-line file is the unrelated `fundingStage` `<option>` at `:801`. An admin looking at a promoted company sees **no trace** that it ever went through DD.
+- **There is already an admin-only detail endpoint to extend.** `src/app/api/admin/companies/[id]/route.ts` (Part 31, WS79) is `requireAdmin()`-gated and currently returns only `{ portfolioCompany }`. Its header comment records exactly why it exists: `GET /api/companies/[id]` is founder-reachable and Part 31's **D5** forbids changing that shared response shape. **That constraint still holds and this Part honors it** — every new field goes on the admin-only route.
+- **The queue already fetches the essay text and throws it away.** `src/app/api/admin/diligence/route.ts:82` returns `diligence: { ...diligence, completedAt }` — the **whole row**, both essays included. The client interface declares them (`src/app/admin/diligence/page.tsx:36-37`). They are then never referenced again below `:37`. **So the queue-side fix is render-only: zero API change, zero new query, zero new field over the wire.**
+- **House patterns to reuse, all already in the tree:** the native `<details>`/`<summary>` disclosure (`src/app/admin/audit/page.tsx:46-58` — summary visible, full content one click away, no client state), which is **the pattern Joseph already chose** for exactly this shape of problem (Part 32, D3/WS87); `whitespace-pre-wrap` for plain text (`admin/companies/[id]/page.tsx:1811`, `updates/[id]/page.tsx:768`); the `?tab=` + `useState(requestedTab)` + `router.replace` idiom inside a `<Suspense fallback={null}>` wrapper (`admin/updates/page.tsx:40-41`, `admin/funds/page.tsx:41,58`, `admin/portfolio-contacts/page.tsx`); `ClipboardCheck` as the established Diligence icon (`sidebar.tsx:75,221`).
+
+---
+
+## F80 — the essay answers have never been readable by anyone but their author (MEDIUM, the reported bug)
+
+`src/app/admin/diligence/page.tsx:171-175` renders, for a Stellar-flagged deal, exactly one badge:
+
+```tsx
+<Badge variant={item.diligence.stellarWhyText && item.diligence.stellarTimelineText ? "info" : "warning"}>
+  Stellar essays {item.diligence.stellarWhyText && item.diligence.stellarTimelineText ? "present" : "missing"}
+</Badge>
+```
+
+A truthiness test on both strings, and nothing else. The `isUsIncorporated` answer **is** shown, correctly, as a three-state badge (`:164-170`) — that half of the checklist is fine. But the prose a founder writes in answer to "Why does this deal involve the Stellar ecosystem?" and "What's the timeline for Stellar involvement?" is **displayed nowhere in the product, at any stage, to any role** — not to the admin who invited them, not back to the founder outside the editable textarea, not in any email. The strings are in the queue's own JSON payload (`api/admin/diligence/route.ts:82`) and the client's own TypeScript interface (`page.tsx:36-37`); they are simply never rendered.
+
+**Origin, recorded so this is not read as implementation drift:** Part 16's own WS41 spec asked for "a compact 'what's done' readout (incorporation answer, doc counts by type, **Stellar fields present/absent**)". Alvin built precisely that. **This is a gap in the original plan, not a deviation from it** — no Part between 16 and 33 revisited it, and the DD flow has since run against real founders. There is no ROADMAP claim to correct: `ROADMAP.md:108` describes the queue as splitting companies into "Awaiting founder"/"Ready for review" with Promote/Decline, which is accurate. **Nothing in the docs was ever false here; the feature was just half-built.**
+
+## F81 — after Promote, the answers become unreachable from every UI in the app (MEDIUM; data intact, surface absent)
+
+Two facts compose into a dead end:
+
+1. `src/app/api/admin/diligence/route.ts:21` — `where: { stage: "DILIGENCE" }`. The only admin reader of `CompanyDiligence` is scoped to one stage.
+2. `src/app/api/admin/diligence/[id]/promote/route.ts:38-41` — the transaction sets `Company.stage = "ACTIVE"` and `CompanyDiligence.closedAt = new Date()`. **It writes `closedAt` and nothing else on that row** — `isUsIncorporated` and both essays are untouched.
+
+So the instant an admin promotes, the row falls out of the only query that would return it. The founder side closes at the same moment: `src/app/diligence/page.tsx:202-204` `return null`s whenever `stage !== "DILIGENCE"` (deliberate, Part 20). **Net effect: every company DFS Lab has actually closed a deal with has its diligence answers sitting in Postgres, permanently unreadable through the product.** `closedAt` is doing no work today — nothing reads it — but it is exactly the right marker for the historical view this Part adds, so it needs no schema change to become useful.
+
+## F82 — `/admin/diligence` links nowhere, and a DILIGENCE-stage company is reachable only by hand-typed URL (MEDIUM; corrects the framing that the DD documents "show up fine")
+
+`src/app/admin/diligence/page.tsx` contains **no `next/link` import and no `href` anywhere** (verified by grep). Its only actions are Promote and Decline. Meanwhile `src/lib/company-filters.ts:10-15` (`approvedCompanyFilter`) excludes `stage: "DILIGENCE"` from `GET /api/admin/companies` (`route.ts:48`) and from the admin dashboard (`api/admin/dashboard/route.ts:28,32`) — by design, Part 16/Q53.
+
+The consequence: while a company is in diligence, **`/admin/companies/[id]` is not linked from anywhere in the admin UI.** The page itself works fine when reached (it fetches `GET /api/companies/[id]`, and `requireCompanyAccess` short-circuits to allow on `ADMIN` — `src/lib/auth-guard.ts:41-42`), and its Documents tab does list the DD uploads including `isInternal` ones. **But the only way to get there is to type `/admin/companies/<cuid>` by hand.** So the practical answer to "can an admin review the passport and certificate of incorporation a founder just uploaded?" is: only if they can produce a cuid from memory. And `src/lib/email.ts:397` — the completion notification that fires the moment a founder finishes — points the admin at `${BASE_URL}/admin/diligence`, i.e. straight at the badge-only dead end. **This is why WS92's link is not garnish: it is what makes the Q83-(A) answer complete.**
+
+## F83 — no length bound on a founder-writable `@db.Text` field (LOW, informational; no fix proposed here)
+
+`stellarWhyText`/`stellarTimelineText` accept an unbounded string from an authenticated founder (`api/companies/[id]/diligence/route.ts:118-123`, no cap; `@db.Text`, no cap; `<Textarea>` with no `maxLength`). Low risk — these founders are individually invited by an admin, and Postgres `text` handles it — but it is why the UI treatment in Q84 must degrade gracefully rather than assume two tidy paragraphs. **Recorded, not fixed:** adding a server-side sanity cap is a one-line change to a route this Part otherwise does not touch, and it would be a behavior change to a founder-facing write path. Raise it separately if wanted.
+
+---
+
+## Confirmed decisions (locked by Joseph 2026-09-07 — do NOT re-litigate)
+
+| | Decision | What it means for the implementer |
+|---|---|---|
+| **D1** (Q83) | **A read-only "Diligence" tab on `/admin/companies/[id]`**, visible whenever a `CompanyDiligence` row exists — **at any stage**, in diligence or long since promoted — fed by widening the **existing admin-only** `GET /api/admin/companies/[id]`. `/admin/diligence` stays a pure action queue | WS91 exactly as written below. Option **(A)**, as recommended. **(B) is rejected — do not add a "Closed" section to the queue**, and do not widen `api/admin/diligence/route.ts:21`; that route keeps its `where: { stage: "DILIGENCE" }` |
+| **D2** (Q84) | **Badges stay as the scannable summary; the full essay text sits behind a native `<details>` disclosure in the queue card, collapsed by default — and renders expanded, in full, on the D1 tab** | WS92 exactly as written below. Option **(B)**, as recommended. **(A) always-inline and (C) link-out-only are both rejected** |
+
+**Nothing is open. Both workstreams are unblocked and ready for Alvin.** The reasoning behind each is kept on the record below, because the two rejections carry instructions.
+
+### D1 (posed as Q83) — where an admin reads the diligence answers for a promoted (or any) company — **CONFIRMED (A), 2026-09-07**
+
+| | Option | Cost | Verdict |
+|---|---|---|---|
+| **(A)** | **A read-only "Diligence" tab on `/admin/companies/[id]`**, shown for every company that has a `CompanyDiligence` row — in diligence or long since promoted — alongside Updates/Metrics/Documents/Members/Notes; `/admin/diligence` stays a pure action queue | ~0.4 day | **CONFIRMED — this is what gets built** |
+| **(B)** | Keep `/admin/diligence` as the single home and widen it with a third **"Closed"** section beside "Ready for review"/"Awaiting founder" | ~0.3 day | **REJECTED** |
+
+**Why (A).** The queue's entire grammar is *act on this*: every card carries Promote and Decline, and the page's own header comment (`admin/diligence/page.tsx:22-27`) frames it as a review queue distinct from `/admin/approvals`. A promoted company has no action left — it would be a permanently growing list of rows whose buttons must all be suppressed, competing for attention with the handful that genuinely need a decision. Meanwhile the answers are *company facts*, exactly like Notes and Documents, and the company detail page already exists, already has the tab pattern, already has an admin-only endpoint to extend, and is already where an admin goes to look at a company. **(A) also solves the promoted case for free** — an `ACTIVE` company is on `/admin/companies`, so the tab is reachable with no new navigation at all.
+
+**The one weakness of (A), and its fix — this is now a hard dependency, not a caveat.** A DILIGENCE-stage company is *not* on `/admin/companies` (F82), so for in-flight deals the tab would be unreachable without a link. **WS92 adds that link** ("Open company →" on each queue card). **D1 was confirmed on that basis: WS92 is not optional and WS91 must not ship alone.**
+
+**Why (B) was rejected, recorded so it is not re-argued:** it leaves `/admin/companies/[id]` still showing no sign a company was ever diligenced — the thing Joseph will hit again the next time he is looking at a portfolio company rather than at the queue — and it turns an action queue into an unbounded archive. **Instruction that follows from the rejection: `src/app/api/admin/diligence/route.ts:21` keeps `where: { stage: "DILIGENCE" }`. Do not widen it in this Part.** (B) stays cheap forever if a chronological "everything we ever diligenced" list is ever wanted; nothing WS91 builds blocks it.
+
+### D2 (posed as Q84) — how the essay text renders in the review queue — **CONFIRMED (B), 2026-09-07**
+
+| | Option | Verdict |
+|---|---|---|
+| **(A)** | Always fully inline in the queue card | **REJECTED** — unbounded text (F83) on a scanning surface; one long answer buries every other card's Promote button |
+| **(B)** | **Badges stay as the scannable summary; the full text sits behind a native `<details>` disclosure in the card, collapsed by default — and renders expanded, in full, on the WS91 tab** | **CONFIRMED — this is what gets built** |
+| **(C)** | Queue links out only; text lives solely on the tab | **REJECTED** — an admin deciding Promote/Decline is *in the queue*; sending them away and back to read two paragraphs is the wrong friction, and the data is already in the payload |
+
+**Why (B), and why it is barely any more work than (C).** This is the same shape as the Audit Log's Details column, and Joseph has already ruled on that shape once: Part 32, **D3** — "pretty-print in place with the full object behind a native `<details>`" (`admin/audit/page.tsx:46-58`). Same idiom here: `<summary>` shows the first line or two, the disclosure holds the whole thing. Native `<details>` needs no client state, no new component library, and no measurement, and it works identically in the queue (a client component) and on the tab. One small shared presentational component serves both call sites, so (B) costs roughly one extra prop over (C).
+
+**Treatment details (now binding):** `whitespace-pre-wrap` (founders type newlines into a textarea and they must survive), plain JSX interpolation (**never** `dangerouslySetInnerHTML` — this is not TipTap HTML), and a `max-h-96 overflow-y-auto` on the expanded block so F83's pathological case scrolls inside the card rather than pushing the page.
+
+---
+
+## Judgment calls (Felix's; each with its reversal path)
+
+- **JC-DR-A — the new fields go on the admin-only `GET /api/admin/companies/[id]`, not on `GET /api/companies/[id]`.** The latter is founder-reachable (`requireCompanyAccess`, called by `/company/profile`), and Part 31's D5 protects its shape. The admin-only route already exists for precisely this reason and returns a two-field object today. **Reversal:** n/a — this is the conservative choice, and it also means a founder's own answers never gain a new path back to them.
+- **JC-DR-B — one shared read-only component, `src/components/admin/diligence-answers.tsx`, used by both surfaces.** Two independent renderings of the same four fields would drift within one Part. It takes a plain object and a variant; it does no fetching. **Reversal:** inline it into whichever surface survives; ~40 lines.
+- **JC-DR-C — deep-linking to the tab (`?tab=diligence`) requires wrapping `admin/companies/[id]/page.tsx` in `<Suspense>`, because `useSearchParams` in a client page needs a boundary.** That is the proven house pattern (`admin/portfolio-contacts/page.tsx`, `admin/portfolio/page.tsx`), and the wrap is mechanical: rename the component, add a two-line default export. **Reversal, if the wrap on an 1826-line file proves annoying: drop the query param entirely** — the queue link points at `/admin/companies/[id]` and the admin clicks the Diligence tab. One extra click, zero refactor. Alvin may take the fallback unilaterally if the Suspense wrap causes any build noise; it changes nothing else in the plan.
+- **JC-DR-D — the `Company.stage` value is shown on the Diligence tab, but no stage badge is added to the page header.** Showing "In diligence / Promoted <date>" inside the tab is the information an admin needs in context; adding a stage chip to the header of every company page is a separate, page-wide design decision that belongs to a UI pass, not here. **Reversal:** one `<Badge>` in `PageHeader`'s `action` slot.
+- **JC-DR-E — `closedAt` is displayed as "Promoted", not "Closed".** It is written only by the promote action (`promote/route.ts:40`); a declined company is deleted outright, so `closedAt` can never mean "declined". "Closed" would read ambiguously. **Reversal:** one string.
+
+---
+
+## WS91 — read-only Diligence view on the admin company detail page — ~0.4 day
+
+**Goal.** Any company that has ever been through due diligence shows its actual answers to an admin, at any stage, forever.
+
+**Implements:** D1. **Unblocked — confirmed 2026-09-07.** **Covers:** F80 (for promoted and in-flight companies alike), F81.
+
+### WS91.1 — extend the admin-only company endpoint
+
+**`src/app/api/admin/companies/[id]/route.ts`** — widen the existing `select` (currently `:24-27`). Keep the file's existing header comment and add to it:
+
+```ts
+// Part 34, WS91 (F80/F81) — the founder's DD questionnaire answers, for a
+// company at ANY stage. There is deliberately NO stage filter here: the
+// CompanyDiligence row outlives promotion (promote/route.ts:38-41 sets
+// closedAt and nothing else), and GET /api/admin/diligence's
+// `where: { stage: "DILIGENCE" }` is exactly what made these answers
+// unreadable after a deal closed. Stays on this admin-only route, never on
+// the founder-reachable GET /api/companies/[id] (Part 31, D5).
+const company = await db.company.findUnique({
+  where: { id },
+  select: {
+    stage: true,
+    portfolioCompany: { select: { id: true, name: true } },
+    diligence: {
+      select: {
+        isUsIncorporated: true,
+        isStellarEcosystem: true,
+        stellarWhyText: true,
+        stellarTimelineText: true,
+        completedAt: true,
+        closedAt: true,
+        updatedAt: true,
+      },
+    },
+  },
+});
+...
+return NextResponse.json({
+  portfolioCompany: company.portfolioCompany ?? null,
+  stage: company.stage,
+  diligence: company.diligence ?? null,
+});
+```
+
+Additive only — the existing `portfolioCompany` key keeps its exact shape, so the Part 31 line at `admin/companies/[id]/page.tsx:907-916` is unaffected.
+
+### WS91.2 — the shared read-only component (JC-DR-B)
+
+**`src/components/admin/diligence-answers.tsx`** (new, ~60 lines, presentational, no fetching):
+
+```tsx
+// Part 34, WS91/WS92 — read-only render of CompanyDiligence's founder-written
+// answers. Plain text from a <textarea>, NOT TipTap HTML: whitespace-pre-wrap
+// + normal interpolation, never dangerouslySetInnerHTML. `variant="compact"`
+// is the queue-card form (D2: behind a native <details>).
+export interface DiligenceAnswers {
+  isUsIncorporated: boolean | null;
+  isStellarEcosystem: boolean;
+  stellarWhyText: string | null;
+  stellarTimelineText: string | null;
+}
+
+function EssayBlock({ label, text }: { label: string; text: string | null }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+      {text && text.trim().length > 0 ? (
+        <p className="mt-1 max-h-96 overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed">{text}</p>
+      ) : (
+        <p className="mt-1 text-sm text-muted-foreground">Not answered yet.</p>
+      )}
+    </div>
+  );
+}
+```
+
+Exported default renders: the incorporation answer as `Yes` / `No` / muted `Not answered yet`, then — only when `isStellarEcosystem` — the two `EssayBlock`s with the founder's own question wording copied verbatim from `src/app/diligence/page.tsx:284,291` ("Why does this deal involve the Stellar ecosystem?", "What's the timeline for Stellar involvement?"). When `isStellarEcosystem` is false, render a muted line saying the Stellar questions were not asked for this deal — **do not** render two empty blocks.
+
+### WS91.3 — the tab
+
+**`src/app/admin/companies/[id]/page.tsx`:**
+
+1. `:145` — `type Tab = "updates" | "metrics" | "documents" | "members" | "notes" | "diligence";`
+2. `:151-155` — add `const [diligence, setDiligence] = useState<CompanyDiligenceView | null>(null);` beside `portfolioCompany`, with the matching interface next to `Note` (`:132-143`).
+3. `:229-239` — `loadPortfolioLink` now loads two things; rename it `loadAdminCompanyMeta` (update both the `useCallback` name and its two references in the `useEffect` at `:305-312`) and set `setDiligence(data.diligence ?? null)` alongside the existing `setPortfolioCompany`. Keep the existing non-fatal `catch` — a failed meta fetch must not break the page, it just hides the tab.
+4. `:630-636` — append conditionally, after Notes:
+   ```tsx
+   ...(diligence
+     ? [{ key: "diligence" as const, label: "Diligence", icon: <ClipboardCheck className="h-4 w-4" /> }]
+     : []),
+   ```
+   Import `ClipboardCheck` from `lucide-react` (`:5-35`) — the same icon the sidebar already uses for both Diligence entries (`sidebar.tsx:75,221`).
+5. After the Notes block (`:1463`+, before the history modal), add the panel: a status line — `In diligence · {progress-free wording}` / `Completed {formatDate(completedAt)}` / `Promoted {formatDate(closedAt)}` (JC-DR-E) — then `<Card>` → `<CardHeader><CardTitle>Questionnaire</CardTitle></CardHeader>` → `<CardContent>` holding `<DiligenceAnswers … />` in full (not collapsed — this tab exists to show the text). Below it, a muted pointer: `Diligence documents (cap table, bank statements, certificate of incorporation, business license, founder passport) are on the Documents tab — filter by type.` Close with `Last updated {formatDate(updatedAt)}`. **Word it "Last updated", not "last edited by the founder"** — `updatedAt` also moves when `recomputeDiligenceCompletion` writes `completedAt` (`src/lib/diligence.ts:129-134`), so it is not purely a founder edit.
+6. (JC-DR-C) `?tab=diligence` support — wrap the default export in `<Suspense fallback={null}>`, read `searchParams.get("tab")` into the initial `activeTab`, and `router.replace` on tab change, exactly as `admin/portfolio-contacts/page.tsx` does. **Take the JC-DR-C fallback (no query param) if this creates any build friction.**
+
+**Acceptance checklist (WS91):** a promoted (`ACTIVE`) company that went through DD shows a Diligence tab with both essays rendered in full, newlines preserved, and `Promoted <date>`; a company that never went through DD shows **no** Diligence tab and no layout shift; an in-flight DILIGENCE company shows the tab with `Completed <date>` or the in-progress line; a Stellar answer containing `<script>alert(1)</script>` renders as literal text (proves no `dangerouslySetInnerHTML`); a non-Stellar DD company shows the incorporation answer plus the "not asked" line, not two empty blocks; the Part 31 `Portfolio: Acme →` line still renders (the endpoint's shape stayed additive); `GET /api/companies/[id]` response is byte-identical to before (D5); a founder session hitting `/api/admin/companies/[id]` still 403s; `npx tsc --noEmit` and `npx eslint` clean; `npx vitest run` green (existing `admin-diligence-route.test.ts` and `company-diligence-route.test.ts` are untouched by this workstream); 375px clean (Part 6 pattern C — the tab strip is already `overflow-x-auto` at `:923`).
+
+**UX impact:** admin-only and purely additive — one conditional tab that appears only for companies with a `CompanyDiligence` row; no existing tab, control or default changes (the page still opens on Updates). **Zero founder, LP and investor-link change** — no founder-reachable endpoint is touched, and the founder's own `/diligence` page is not modified. **Cost impact:** none — no schema change, no new endpoint, no new dependency; one existing admin `GET` returns two more keys.
+
+---
+
+## WS92 — make the review queue actually reviewable — ~0.2 day
+
+**Goal.** An admin can read what a founder wrote without leaving the queue, and can get from the queue to the company's documents in one click.
+
+**Implements:** D2, and the navigation half of D1. **Unblocked — confirmed 2026-09-07. Not optional:** D1 was taken on the basis that this workstream ships with it (F82 — without the link, the WS91 tab is unreachable for a company still in diligence). **Covers:** F80 (in-queue), F82.
+
+**File-by-file steps — `src/app/admin/diligence/page.tsx` only. No API change: the essays are already in the payload (`api/admin/diligence/route.ts:82`) and already declared on the client interface (`:36-37`); they are simply unreferenced.**
+
+1. In `ItemCard`, directly below the badge/progress row (`:163-179`) and above the document-count chips (`:181-187`), add the disclosure — rendered only when `item.diligence?.isStellarEcosystem`:
+   ```tsx
+   {/* Part 34, WS92 (D2, F80) — the answers themselves, one click away.
+       Same idiom as the Audit Log's Details column (Part 32, D3/WS87):
+       summary visible, full content behind a native <details>, no state. */}
+   <details className="mt-3">
+     <summary className="cursor-pointer list-none text-xs text-primary hover:underline [&::-webkit-details-marker]:hidden">
+       Read the Stellar answers
+     </summary>
+     <div className="mt-2 space-y-3 border-l-2 border-bone pl-3">
+       <DiligenceAnswers diligence={item.diligence} variant="compact" />
+     </div>
+   </details>
+   ```
+   Keep both existing badges exactly as they are — they are the scannable summary and the reason the disclosure can stay closed by default.
+2. Add the outbound link (F82). `import Link from "next/link"` (the file has none today) and, in the card's identity block beside the founder line (`:158-161`):
+   ```tsx
+   <Link href={`/admin/companies/${item.id}?tab=diligence`} className="text-xs text-primary hover:underline">
+     Open company →
+   </Link>
+   ```
+   This is the **only** navigation path to a DILIGENCE-stage company's documents, so it must ship with WS91 rather than after it. Drop the `?tab=diligence` if JC-DR-C's fallback is taken.
+3. Leave Promote and Decline, their confirm copy, the `founderAccountsRetained` notice (F35), the two section groupings and the empty state **completely untouched.**
+
+**Acceptance checklist (WS92):** a Stellar-flagged card shows a closed "Read the Stellar answers" disclosure that expands to the founder's full text with newlines intact; a non-Stellar card shows no disclosure and is visually unchanged from today; a 6,000-character answer scrolls inside its block and does not push the Promote button off-screen (F83); "Open company →" lands on the company page with the Diligence tab active; Promote still moves the company out of the list and still writes `COMPANY_DILIGENCE_PROMOTED` to the audit log; Decline still shows the F35 retained-account notice; `npx vitest run` green — **`src/lib/__tests__/admin-diligence-route.test.ts` must need no edit**, since the route is not modified; 375px clean (Part 6 pattern B — the card is already `flex-wrap`).
+
+**UX impact:** admin-only. Purely additive to the queue — nothing moves, nothing is removed, and the disclosure is closed by default, so an admin who does not open it sees the page exactly as it is today. **Zero founder, LP and investor-link change.** **Cost impact:** none — render-only, no new endpoint, no new query, no new bytes over the wire.
+
+---
+
+## Sequencing & handoff (Part 34)
+
+- **Nothing is blocked.** D1 and D2 were both confirmed 2026-09-07 (as recommended), so WS91 can start immediately and WS92 follows it.
+- **WS91 then WS92, and both must ship** — WS92's link points at the tab WS91 creates (shipping WS92 first would produce a link to a company page with no Diligence tab), and WS91 alone leaves that tab unreachable for a company still in diligence (F82). Two commits, one batch.
+- **Total effort: ~0.6 day** (WS91 ~0.4 + WS92 ~0.2). **No schema change, no new endpoint, no new dependency, no new test file required** (both existing diligence test files remain valid and untouched; add one only if Alvin wants a render test for the shared component).
+- **Do not touch** in this Part: `src/app/diligence/page.tsx` and `api/companies/[id]/diligence/route.ts` (the founder write path — F83 is recorded, not fixed), the promote/decline routes, `src/lib/diligence.ts`, or `GET /api/companies/[id]` (D5).
+
+## Part 34 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **D1** (Q83) | Historical/promoted DD answers live on a read-only **Diligence tab on `/admin/companies/[id]`**, shown whenever a `CompanyDiligence` row exists at any stage, fed by widening the admin-only `GET /api/admin/companies/[id]` | **LOCKED** (Joseph, 2026-09-07) — option (A) as recommended, paired with WS92's queue link (without which in-flight DD companies have no path to the tab, F82). **(B), a "Closed" section on `/admin/diligence`, is rejected — `api/admin/diligence/route.ts:21` keeps its stage filter** |
+| **D2** (Q84) | Essay text renders behind a native **`<details>` disclosure in the queue card** (closed by default, badges kept as the summary) and **in full on the D1 tab** | **LOCKED** (Joseph, 2026-09-07) — option (B) as recommended, the same disclosure pattern chosen for the Audit Log (Part 32, D3). (A) always-inline and (C) link-out-only both rejected |
+| **F80** | Essay answers rendered nowhere, ever | Root cause of the report; fixed by WS91 + WS92 |
+| **F81** | Promotion makes the answers unreachable (`stage` filter vs. a row that outlives promotion) | Fixed by WS91 |
+| **F82** | `/admin/diligence` has no outbound link, and DILIGENCE companies are hidden from `/admin/companies` — the DD documents are reachable only by hand-typed URL | Fixed by WS92 step 2 |
+| **F83** | No length cap on the founder-writable `@db.Text` essay fields | **Recorded, deliberately not fixed** — a founder-facing write-path change; raise separately |
+| **Founder `/diligence`** | Still `return null`s once `stage !== "DILIGENCE"` | **UNCHANGED** — Part 20 settled that; `/company/documents` is the founder's post-promotion surface |
+
+**Constraints honored:** **no schema change** (nothing touches `prisma/`); **no new cost line** (one component, two edited files, one widened admin `select`; zero services, dependencies, tables, crons or endpoints); **no UX regression** — every change is admin-only and additive, the queue's default appearance is unchanged with the disclosure closed, and no founder, LP or investor-link surface is touched at all.
+
+---
