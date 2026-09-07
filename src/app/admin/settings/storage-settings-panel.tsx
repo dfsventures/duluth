@@ -1,12 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, XCircle, Send } from "lucide-react";
+import { CheckCircle2, XCircle, Send, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Status = "idle" | "uploading" | "verifying" | "success" | "error";
 
-export function StorageSettingsPanel() {
+interface StorageSettingsPanelProps {
+  /**
+   * Part 35, WS95.2 (D2=A) — count of DOCUMENT_UPLOAD_FAILED audit rows in
+   * the last 7 days, computed server-side in page.tsx. Renders nothing when
+   * zero, so the page looks identical to today in the healthy case.
+   */
+  uploadFailureCount?: number;
+}
+
+export function StorageSettingsPanel({ uploadFailureCount = 0 }: StorageSettingsPanelProps) {
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState<string | null>(null);
 
@@ -48,6 +57,16 @@ export function StorageSettingsPanel() {
 
   return (
     <>
+      {uploadFailureCount > 0 && (
+        <a
+          href="/admin/audit"
+          className="mb-3 flex items-center gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-ochre hover:bg-ochre/20"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {uploadFailureCount} upload failure{uploadFailureCount === 1 ? "" : "s"} reported in the last 7 days —
+          run the test upload below, and check your bucket&apos;s CORS policy.
+        </a>
+      )}
       <div className="mt-3 flex items-center gap-3">
         <Button variant="secondary" size="sm" onClick={handleTestUpload} disabled={busy}>
           <Send className="mr-2 h-3.5 w-3.5" />

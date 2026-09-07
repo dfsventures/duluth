@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Mail, Bell, BookOpen, HardDrive } from "lucide-react";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmailSettingsPanel } from "./email-settings-panel";
@@ -17,6 +18,15 @@ export default async function SettingsPage() {
 
   const hasApiKey = !!process.env.RESEND_API_KEY;
   const teamEmail = process.env.TEAM_EMAIL || "joseph@dfs.vc";
+
+  // Part 35, WS95.2 (D2=A) — under D1=B a failed upload leaves no Document
+  // row anywhere, so this DOCUMENT_UPLOAD_FAILED audit-log count is the
+  // only durable trace an admin has that uploads are failing, short of a
+  // founder reporting it. Renders nothing when zero (see StorageSettingsPanel).
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const uploadFailureCount = await db.auditLog.count({
+    where: { action: "DOCUMENT_UPLOAD_FAILED", createdAt: { gte: sevenDaysAgo } },
+  });
 
   return (
     <AppShell>
@@ -70,7 +80,7 @@ export default async function SettingsPage() {
             <p className="text-xs text-muted-foreground">Document uploads via S3-compatible storage</p>
           </div>
         </div>
-        <StorageSettingsPanel />
+        <StorageSettingsPanel uploadFailureCount={uploadFailureCount} />
         <hr className="my-6 border-border" />
         <OrphanedDocumentsPanel />
       </section>
