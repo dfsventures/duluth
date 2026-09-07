@@ -10,6 +10,14 @@ import { requireAdmin } from "@/lib/auth-guard";
 // API response anywhere in this Part. This route exists solely to feed
 // the read-only "Portfolio: Acme →" line on /admin/companies/[id]
 // without touching that shared endpoint at all.
+//
+// Part 34, WS91 (F80/F81) — the founder's DD questionnaire answers, for a
+// company at ANY stage. There is deliberately NO stage filter here: the
+// CompanyDiligence row outlives promotion (promote/route.ts:38-41 sets
+// closedAt and nothing else), and GET /api/admin/diligence's
+// `where: { stage: "DILIGENCE" }` is exactly what made these answers
+// unreadable after a deal closed. Stays on this admin-only route, never on
+// the founder-reachable GET /api/companies/[id] (Part 31, D5).
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -22,14 +30,32 @@ export async function GET(
 
     const company = await db.company.findUnique({
       where: { id },
-      select: { portfolioCompany: { select: { id: true, name: true } } },
+      select: {
+        stage: true,
+        portfolioCompany: { select: { id: true, name: true } },
+        diligence: {
+          select: {
+            isUsIncorporated: true,
+            isStellarEcosystem: true,
+            stellarWhyText: true,
+            stellarTimelineText: true,
+            completedAt: true,
+            closedAt: true,
+            updatedAt: true,
+          },
+        },
+      },
     });
 
     if (!company) {
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ portfolioCompany: company.portfolioCompany ?? null });
+    return NextResponse.json({
+      portfolioCompany: company.portfolioCompany ?? null,
+      stage: company.stage,
+      diligence: company.diligence ?? null,
+    });
   } catch (err) {
     console.error("GET /api/admin/companies/[id] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

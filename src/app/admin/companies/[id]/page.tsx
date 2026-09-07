@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Building2,
@@ -34,6 +34,7 @@ import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
   Eye,
+  ClipboardCheck,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -50,6 +51,7 @@ import { MetricChart } from "@/components/ui/metric-chart";
 import { DOC_TYPES } from "@/lib/constants";
 import { isInlineViewable } from "@/lib/documents";
 import { RichEditor } from "@/components/ui/rich-editor";
+import DiligenceAnswers from "@/components/admin/diligence-answers";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -142,25 +144,51 @@ interface Note {
   _count: { revisions: number };
 }
 
-type Tab = "updates" | "metrics" | "documents" | "members" | "notes";
+// Part 34, WS91 — the founder's DD questionnaire answers, read-only, from
+// the widened admin-only GET /api/admin/companies/[id] (never the shared,
+// founder-reachable GET /api/companies/[id] — D5). Present at any Company
+// stage; the tab is hidden entirely when this is null.
+interface CompanyDiligenceView {
+  isUsIncorporated: boolean | null;
+  isStellarEcosystem: boolean;
+  stellarWhyText: string | null;
+  stellarTimelineText: string | null;
+  completedAt: string | null;
+  closedAt: string | null;
+  updatedAt: string;
+}
 
-export default function AdminCompanyDetailPage() {
+type Tab = "updates" | "metrics" | "documents" | "members" | "notes" | "diligence";
+
+function AdminCompanyDetailPageInner() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const companyId = params.id as string;
+
+  // Part 34, WS91 (JC-DR-C) — deep-link support for the "Open company →"
+  // link on /admin/diligence's queue cards (?tab=diligence).
+  const requestedTab: Tab = searchParams.get("tab") === "diligence" ? "diligence" : "updates";
 
   const [company, setCompany] = useState<Company | null>(null);
   // Part 31, WS79 — read-only, from the new admin-only
   // GET /api/admin/companies/[id] (never the shared, founder-reachable
   // GET /api/companies/[id] — D5).
   const [portfolioCompany, setPortfolioCompany] = useState<{ id: string; name: string } | null>(null);
+  // Part 34, WS91 (F80/F81) — see CompanyDiligenceView above.
+  const [diligence, setDiligence] = useState<CompanyDiligenceView | null>(null);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("updates");
+  const [activeTab, setActiveTab] = useState<Tab>(requestedTab);
+
+  function selectTab(tab: Tab) {
+    setActiveTab(tab);
+    router.replace(tab === "diligence" ? `/admin/companies/${companyId}?tab=diligence` : `/admin/companies/${companyId}`);
+  }
 
   // Company edit mode
   const [editing, setEditing] = useState(false);
@@ -227,12 +255,16 @@ export default function AdminCompanyDetailPage() {
     }
   }, [companyId]);
 
-  const loadPortfolioLink = useCallback(async () => {
+  // Part 34, WS91 — renamed from loadPortfolioLink: this endpoint now also
+  // feeds the Diligence tab (data.diligence), so the name should reflect
+  // that it's the admin-only company-meta fetch, not just the portfolio link.
+  const loadAdminCompanyMeta = useCallback(async () => {
     try {
       const res = await fetch(`/api/admin/companies/${companyId}`);
-      if (!res.ok) return; // non-fatal — the read-only line just stays hidden
+      if (!res.ok) return; // non-fatal — the read-only line/tab just stay hidden
       const data = await res.json();
       setPortfolioCompany(data.portfolioCompany ?? null);
+      setDiligence(data.diligence ?? null);
     } catch {
       // Non-fatal — secondary display-only data.
     }
@@ -305,12 +337,12 @@ export default function AdminCompanyDetailPage() {
   useEffect(() => {
     async function fetchAll() {
       await loadCompany();
-      await Promise.all([loadUpdates(), loadMetrics(), loadDocuments(), loadMembers(), loadNotes(), loadPortfolioLink()]);
+      await Promise.all([loadUpdates(), loadMetrics(), loadDocuments(), loadMembers(), loadNotes(), loadAdminCompanyMeta()]);
       setLoading(false);
     }
 
     fetchAll();
-  }, [loadCompany, loadUpdates, loadMetrics, loadDocuments, loadMembers, loadNotes, loadPortfolioLink]);
+  }, [loadCompany, loadUpdates, loadMetrics, loadDocuments, loadMembers, loadNotes, loadAdminCompanyMeta]);
 
   function updateEditField(field: keyof Company, value: string | number | null) {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -633,6 +665,11 @@ export default function AdminCompanyDetailPage() {
     { key: "documents", label: "Documents", icon: <FolderOpen className="h-4 w-4" /> },
     { key: "members", label: "Members", icon: <Users className="h-4 w-4" /> },
     { key: "notes", label: "Notes", icon: <NotebookPen className="h-4 w-4" /> },
+    // Part 34, WS91 (D1) — only shown when a CompanyDiligence row exists,
+    // at any stage (in diligence or long since promoted).
+    ...(diligence
+      ? [{ key: "diligence" as const, label: "Diligence", icon: <ClipboardCheck className="h-4 w-4" /> }]
+      : []),
   ];
 
   return (
@@ -925,7 +962,7 @@ export default function AdminCompanyDetailPage() {
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => selectTab(tab.key)}
             className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === tab.key
                 ? "border-primary text-primary"
@@ -1765,7 +1802,48 @@ export default function AdminCompanyDetailPage() {
           )}
         </div>
       )}
+
+      {/* Part 34, WS91 (D1) — read-only Diligence tab. Shown only when a
+          CompanyDiligence row exists (see the `diligence` conditional on
+          `tabs` above), at any Company.stage — in diligence or long since
+          promoted. Fed by the widened admin-only GET /api/admin/companies/[id]
+          (never GET /api/companies/[id] — D5). Rendered in full, not
+          collapsed: this tab exists specifically to show the text. */}
+      {activeTab === "diligence" && diligence && (
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {diligence.closedAt
+              ? `Promoted ${formatDate(diligence.closedAt)}`
+              : diligence.completedAt
+                ? `Completed ${formatDate(diligence.completedAt)}`
+                : "In diligence"}
+          </p>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Questionnaire</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DiligenceAnswers diligence={diligence} />
+            </CardContent>
+          </Card>
+
+          <p className="text-sm text-muted-foreground">
+            Diligence documents (cap table, bank statements, certificate of incorporation, business license, founder passport) are on the Documents tab — filter by type.
+          </p>
+
+          <p className="text-xs text-muted-foreground">Last updated {formatDate(diligence.updatedAt)}</p>
+        </div>
+      )}
     </AppShell>
+  );
+}
+
+export default function AdminCompanyDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <AdminCompanyDetailPageInner />
+    </Suspense>
   );
 }
 
