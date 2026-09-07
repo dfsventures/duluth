@@ -9390,3 +9390,464 @@ Exported default renders: the incorporation answer as `Yes` / `No` / muted `Not 
 **Constraints honored:** **no schema change** (nothing touches `prisma/`); **no new cost line** (one component, two edited files, one widened admin `select`; zero services, dependencies, tables, crons or endpoints); **no UX regression** — every change is admin-only and additive, the queue's default appearance is unchanged with the disclosure closed, and no founder, LP or investor-link surface is touched at all.
 
 ---
+
+# Part 35 — Uploads that never reach storage still look successful (WS93–WS96, F84–F91, 2026-09-07)
+
+> **Status: PLANNED, not built. All three product decisions CONFIRMED (Joseph, 2026-09-07 — D1, D2 and D3, every one landing on the recommended option, none reversed). Nothing open. No schema change. WS93–WS96 are fully unblocked and ready for Alvin.** One judgment call made and flagged (JC-UP-A). Verified against the working tree at `a55b9c5`. **Because D1 = B is confirmed, every conditional in this Part is resolved: there is no `confirmedAt` column, no backfill, and no eleven-read-site filter pass anywhere below — those alternates are retained only in the D1 table as the rejected option, and no workstream branches on them.** Prompted by a second production incident of the identical shape. **This Part is a fix, not another diagnostic.** Parts 22/23 already produced the two diagnostics (`Send Test Upload`, orphan scan-and-delete); both are reactive and both require an admin to *suspect* a problem and go looking. Neither prevents the failure, and in the 2026-09-04 incident neither fired until a coordinating session stumbled onto it three days later while investigating something else.
+
+## The incident that motivates this Part (2026-09-04, discovered 2026-09-07)
+
+Not a hypothetical, and not the one F42 was written about:
+
+- **2026-09-03** — the production domain moved from `molly.dfslab.net` to `molly.dfs.vc` (`f239cc3`, "Redirect molly.dfslab.net to molly.dfs.vc"; `scripts/migrate-domain-dfslab-to-dfsvc.sql` migrated admin emails in the same change). The R2 bucket's CORS policy was **not** updated to allow the new origin. Nothing in the repo, the deploy, or the setup docs prompts anyone to do so.
+- **2026-09-04** — a founder at a DILIGENCE-stage portfolio company (Tacit / AutoComply Technologies Inc) uploaded **four** due-diligence documents: passport ×2, cap table, certificate of incorporation. Every browser→R2 `PUT` was blocked by CORS preflight. **All four failed. All four produced a `Document` row.**
+- **2026-09-04 → 2026-09-07** — nobody knew. The founder had no persistent signal that anything was wrong (F86). The admin had no signal at all (F84). The DD checklist read as satisfied on a passport that does not exist (F85).
+- **2026-09-07** — found *by accident*, while a coordinating session was tracing an unrelated admin-visibility gap (Part 34). Confirmed with the existing tooling afterwards: the orphan scan reported "Found 4 orphaned documents", and "Send Test Upload" reproduced the failure. CORS has since been fixed at the infrastructure level.
+
+**Two incidents, two unrelated root causes, one identical symptom.** Part 22's incident was credential rot (R2 credentials invalid for 167 days) plus a missing CORS policy on a replacement bucket. This one is a CORS regression introduced by a routine domain migration eight months later. Both manifested as *"the founder uploads, the UI accepts it, a row appears, the bytes are nowhere."* A third cause — an expired presigned URL (1 h TTL, `src/lib/s3.ts:39`), a dropped mobile connection, a tab closed mid-`PUT` — is still entirely unguarded, and unlike the first two it will not be a single global outage an admin can notice: it will be one founder, one file, at random.
+
+## Method — what was verified against the working tree (not against Part 22/23's write-ups)
+
+- **F42's core claim holds, unchanged.** `src/app/api/documents/upload/route.ts:69–85` still calls `getUploadUrl()` and then, unconditionally and immediately, `db.document.create({...})`, returning `{ uploadUrl, document }` at `:85` — before a single byte has left the browser. Nothing in Parts 23–34 touched this route.
+- **Five client call sites, all still the same init→`PUT` shape, none of them sharing code.** `src/app/company/documents/page.tsx:82–104`; `src/app/diligence/page.tsx:138–160`; `src/app/admin/companies/[id]/page.tsx:539–562`; `src/app/setup-wizard/page.tsx:186–206` (a `for` loop over a `FileList`); `src/components/ui/rich-editor.tsx:142–173`. Confirmed exhaustive: `grep -rn "documents/upload" src/` returns exactly these five plus the route's own error string and two test files; `grep -rn 'method: "PUT"' src/` returns these five plus `src/app/admin/settings/storage-settings-panel.tsx:24` (the WS49 diagnostic, deliberately separate).
+- **There is no shared upload helper anywhere.** `src/hooks/` does not exist; `src/lib/` has one hook (`use-draft-autosave.ts`) and no upload utility. The init→`PUT` sequence is copy-pasted five times. **This is why the same bug has to be fixed five times, and why a sixth upload surface added tomorrow will reintroduce it.**
+- **WS50's `rich-editor` fix did land.** `rich-editor.tsx:162–169` now carries the Part 23 comment and an `if (!putRes.ok) { window.alert(...); return; }` guard. Part 23's claim is true and is not re-litigated here — but see F87: that guard does not catch the failure mode that actually occurred.
+- **The Part 23 tooling is all present and functional.** `src/lib/s3.ts:61–74` exports `objectExists()` (HeadObject, `404 → false`, everything else rethrown — correct) and `deleteObject()`. `POST /api/admin/documents/orphan-scan/route.ts` (concurrency-capped at 10) and the guarded, re-verifying, audit-logged `DELETE /api/admin/documents/[id]/orphan/route.ts:25–38` both exist, wired into `/admin/settings` at `page.tsx:69–75`. `POST /api/admin/storage/test-upload/confirm/route.ts` is the **precedent this Part builds on**: presign → client `PUT` → server-side `objectExists()` → act only on the server's own answer, never the client's. That contract is exactly what document upload lacks.
+- **`Document` has no incoming foreign keys.** `prisma/schema.prisma:235–254` — three outgoing relations (`company`, `update`, `uploadedBy`), zero incoming, re-confirmed by grepping every other model. Part 22's safety analysis for deleting orphan rows still holds.
+- **`F46 is already closed.`** `SETUP.md:86–102` now carries the full "Configure CORS (required — browser uploads will silently fail without this)" section, R2 and AWS variants, ending with a pointer at the "Send Test Upload" button — WS53's text, applied verbatim by a human. **F46 needs no further action.** See F90 for the different, still-open docs gap this incident actually fell through.
+
+---
+
+## F84 — the gap is unchanged, and this is now the second production incident it has produced (HIGH — the reported bug)
+
+`POST /api/documents/upload` creates the durable record of an upload *before* the upload happens, and there is no step anywhere afterwards that reconciles the two. `src/app/api/documents/upload/route.ts:72–85`:
+
+```ts
+const uploadUrl = await getUploadUrl(s3Key, normalizedMimeType);
+
+// Create the document record
+const document = await db.document.create({ data: { companyId, updateId: updateId || null,
+  uploadedById: user!.id, name, s3Key, mimeType: normalizedMimeType,
+  isInternal: isInternal ?? false, docType: docType ?? null } });
+
+return NextResponse.json({ uploadUrl, document }, { status: 201 });
+```
+
+Everything downstream — every list, every badge, every count, every completion rule — reads that row and has no way to know the bytes never arrived. Part 22 recorded this as a latent risk after one incident. It is no longer latent: it is a recurring production failure with two distinct upstream causes and a third (transient, per-file, unnoticeable) still unguarded. **The severity upgrade from Part 22's "not blocking, all cheap" is the substantive change here.**
+
+## F85 — a phantom passport silently completes due diligence and emails admins that it is complete (HIGH; new, not in Part 22)
+
+Part 22 traced F42 as far as "phantom rows look like real uploads to anything that queries it" and stopped. It does not stop at cosmetics. `src/lib/diligence.ts:52–58`:
+
+```ts
+export async function hasActivePassportDocument(companyId: string): Promise<boolean> {
+  const doc = await db.document.findFirst({
+    where: { companyId, docType: "passport", archivedAt: null }, select: { id: true },
+  });
+  return !!doc;
+}
+```
+
+A pure existence test on the row. That boolean is one of the two always-required items in `diligenceProgress()` (`src/lib/diligence.ts:32–35`), feeds `recomputeDiligenceCompletion()` (`:106–137`), and flipping `completedAt` from null triggers **two emails** — `sendDiligenceCompletedFounderEmail` and `sendDiligenceCompletedAdminNotification` (`src/app/api/companies/[id]/diligence/route.ts:35, 41`; templates at `src/lib/email.ts:362, 392`).
+
+So a founder whose passport `PUT` was blocked by CORS gets their checklist marked complete, gets a congratulatory email, and an admin gets "diligence complete — come review it." The admin follows `${BASE_URL}/admin/diligence` (`email.ts:397`) into a queue that shows a green completion state derived from a file that does not exist. **The Tacit incident is exactly this population: a DILIGENCE-stage company, and two of the four failed files were passports.** The same false-positive applies to `getDdDocumentSummary()` (`diligence.ts:82–86`), which shows the founder their own filename and upload date back as proof of receipt — the most direct possible confirmation that the upload worked, printed from a row whose file is missing.
+
+## F86 — the failure is transient, the false success is durable (MEDIUM; this is *why* it reads as "silent")
+
+The founder is not shown nothing. They are shown an error, once, and then shown success forever. `src/app/diligence/page.tsx:160–170`: on a failed `PUT` the handler throws, the catch sets a `message` in component state, and `loadDiligence()` is skipped — so at that instant the UI is honest. But `message` is ordinary React state. Navigate, reload, or come back tomorrow and it is gone, while `getDdDocumentSummary()` now returns the phantom row and renders the filename and date as an accepted upload. Same shape at `src/app/company/documents/page.tsx:106–113` and `src/app/admin/companies/[id]/page.tsx:564–574`.
+
+**The steady state of a failed upload is a success state.** That is the behaviour that produced "retried four times, believing it wasn't working" in the Part 20 incident and four undetected failures in this one. Any fix that only improves the toast leaves this untouched.
+
+## F87 — a CORS failure never reaches the `!putRes.ok` guard, and the founder is shown a raw browser string (MEDIUM; new)
+
+All five call sites guard with `if (!putRes.ok) throw new Error("Upload to storage failed")`. **A blocked CORS preflight does not produce a non-`ok` response — `fetch` rejects with a `TypeError`.** Control jumps straight to the catch, which does:
+
+```ts
+setMessage({ type: "error", text: err instanceof Error ? err.message : "Upload failed." });
+```
+
+`company/documents/page.tsx:108–109`, `diligence/page.tsx:164–165`, `admin/companies/[id]/page.tsx:566–570`, `setup-wizard/page.tsx:210–211`. So the message the founder actually saw on 2026-09-04 was the browser's own `"Failed to fetch"` (Chrome) or `"Load failed"` (Safari) — not the carefully written "Upload to storage failed" string, and not anything a founder could act on or report usefully. `rich-editor.tsx:166` has the same hole in a worse form: its `if (!putRes.ok)` guard is bypassed and the rejection propagates out of an unawaited `useCallback` with no catch at all, so the founder sees **nothing whatsoever** — no alert, no image, no error. **Part 23's WS50 fix for the rich editor was correct for the failure mode it was written against and does not cover the one that occurred.**
+
+## F88 — `Document.size` is declared, displayed, and never written (LOW; free to fix here)
+
+`prisma/schema.prisma:243` declares `size Int? // bytes`. **No code path anywhere writes it** — `POST /api/documents/upload` omits it from its `create`, and nothing else creates `Document` rows. Both consumers call `formatFileSize(doc.size)` (`src/app/company/documents/page.tsx:277`, `src/app/admin/companies/[id]/page.tsx:1326`), which returns `""` for a null (`src/lib/utils.ts:47–48`) — so this is invisible, not broken. Recorded because the fix in this Part gets it for free: a `HeadObject` response carries `ContentLength`, so the confirm step can populate `size` from **storage's own answer** rather than from a client-reported number.
+
+## F89 — the fix introduces a new, strictly-better orphan class; recorded and accepted, not fixed (LOW, informational)
+
+Under the recommended D1 (defer row creation to the confirm step), a `PUT` that succeeds but whose confirm call never arrives leaves **an object in the bucket with no `Document` row** — the inverse of today's orphan. This is strictly better than what it replaces: it lies to nobody, appears in no list, satisfies no completion rule, and costs a few bytes of R2 storage. It is named here so a future reader does not discover it and mistake it for a regression. The existing orphan scan checks DB→storage only and will not see it; a reverse scan (`ListObjectsV2` over the `companies/` prefix, diffed against `Document.s3Key`) is a possible future addition, **deliberately not proposed here** — it has real cost on a large bucket and solves a problem worth pennies.
+
+## F90 — `SETUP.md` covers first-time CORS setup but nothing covers changing your domain, which is the actual 2026-09-04 root cause (MEDIUM, docs)
+
+F46 is closed: `SETUP.md:86–102` now instructs a fork operator to add a CORS policy allowing `GET`/`PUT`/`HEAD` from "your app's origin(s) — both your local dev URL … and your production domain." Correct, and it would have prevented Part 22's incident.
+
+**It would not have prevented this one.** DFS Lab's own bucket had a valid CORS policy on 2026-09-03. What broke it was moving the app to a new origin. There is no step, checklist, comment, or note anywhere in the repo — `SETUP.md`, `README.md`, `.env.example`, or beside `NEXTAUTH_URL` — that says *"if you change the domain the app is served from, update the bucket's CORS policy to match, or every browser upload will fail silently."* The domain change shipped as a code commit plus a SQL migration script and touched neither.
+
+**`SETUP.md` remains outside this agent's edit scope** (`ROADMAP.md` / `README.md` / `docs/**` only), so this is again exact text handed off rather than applied — see **WS96**. This is the second consecutive Part where a real incident's most preventive fix is a `SETUP.md` line an agent may not write; flagged as a standing friction point for Joseph, not as a request to widen scope.
+
+## F91 — two stale ROADMAP status claims (LOW, corrected in this pass)
+
+Per house convention, false feature claims get annotated the moment they are found:
+
+1. **`ROADMAP.md:151`** still opens *"Planned — Part 23 … scoped 2026-08-04, not yet built."* Part 32/F70 annotated the header line at `:3` to record Parts 23/28/29/31 as shipped, but missed this blockquote. WS49–WS53 are all shipped (`cfabd9a`, `cb8ec30`, `2b79ece`, `b8ffc1b`, `ea579f1`) and verified present in the tree above. The same blockquote also states Q67's sub-decision as *"scan-only for v1, no write-path 'confirm' signal"* — **this Part proposes reversing exactly that**, so the annotation must say so rather than silently contradicting it.
+2. **`ROADMAP.md:7`** describes Part 34 as *"PLANNED, NOT yet built … ready for Alvin."* WS91 and WS92 are both committed (`b3dff9f`, `a55b9c5`).
+
+---
+
+## Decisions
+
+**All three CONFIRMED by Joseph, 2026-09-07, every one on the recommended option, none reversed.** Recorded below in the house format: the option tables are kept intact so a future reader can see what was weighed and rejected, but the decision line under each now reads as **LOCKED**, not as a recommendation awaiting an answer. No workstream in this Part branches on any of them.
+
+### D1 (**LOCKED** — Joseph, 2026-09-07 — **B**, as recommended) — where does the `Document` row get created?
+
+| | Option | Consequence |
+|---|---|---|
+| **A** | **Row created PENDING at presign; a confirm step verifies and flips it.** Add `confirmedAt DateTime?` (nullable timestamp, matching the house convention of `archivedAt`/`completedAt`/`closedAt`/`lastReminderSentAt` — not an enum). `POST /api/documents/[id]/confirm` runs `objectExists()` and only then sets `confirmedAt`. **Every read surface must then filter `confirmedAt: { not: null }`.** | Additive schema change, plus a backfill (existing rows must be set `confirmedAt = createdAt` or every legitimate document in production vanishes), plus edits to **11 query sites**: `api/companies/[id]/documents/route.ts:34`, `lib/diligence.ts:53` and `:82`, `api/admin/diligence/route.ts:37`, `api/companies/[id]/route.ts:49`, `api/companies/[id]/updates/route.ts:30` and `:148`, `api/updates/[id]/route.ts:85`, `lib/pdf.ts:18`, `api/documents/[id]/route.ts:18,61`, `api/documents/[id]/view/route.ts:15`, `api/share/[token]/doc/[docId]/route.ts:36`. **Miss one and the bug survives there.** Keeps a durable DB record that an upload was attempted and failed. |
+| **B** ✅ | **No row exists until storage confirms.** Presign returns `{ uploadUrl, s3Key, … }` and creates nothing. `POST /api/documents/confirm` re-runs the same validation and guards, calls `objectExists(s3Key)`, and **only then** `db.document.create(...)`. | **Zero schema change. Zero read-surface edits. A phantom row becomes structurally impossible** rather than merely filtered out — including F85, which is fixed by construction with no edit to `src/lib/diligence.ts` at all. Backfill is unnecessary; pre-existing orphans stay the existing orphan tool's job. Trade-off: a failed upload leaves no DB trace, which is what **D2** exists to cover. |
+| **C** | **Proxy the bytes through the server** (browser → Next.js route → S3), creating the row in the same handler. | Genuinely atomic, and **rejected**. Vercel serverless functions cap the request body at 4.5 MB — this would break real pitch decks and video on day one, and it doubles bandwidth for every upload. Recorded so the "obvious" answer is visibly considered rather than ignored. |
+
+**LOCKED: B** (Joseph, 2026-09-07, as recommended). It fixes more, changes less, and cannot be half-applied. A's chief advantage (a durable failure record) is obtainable more cheaply under D2 without a schema change, and A's chief risk — eleven filter sites where one omission silently preserves the bug for that surface — is exactly the class of mistake this project has already been bitten by three times (`/api/cron`, `/brand`, `/api/share` all missing from `PUBLIC_PREFIXES`).
+
+**The rejection carries instructions, and they are binding on Alvin:**
+
+- **Do not add any column to `Document`.** `prisma/schema.prisma` is not touched by this Part at all. No `confirmedAt`, no `uploadStatus`, no enum.
+- **Do not run a backfill.** There is nothing to backfill. Pre-existing phantom rows (including the four from 2026-09-04) remain the existing Part 23 orphan tool's job.
+- **Do not add a `confirmedAt: { not: null }` filter — or any new filter — to any of the eleven read sites enumerated in option A above.** Every one of them stays byte-identical. If a diff in this Part touches `api/companies/[id]/documents/route.ts`, `lib/diligence.ts`, `api/admin/diligence/route.ts`, `api/companies/[id]/route.ts`, `api/companies/[id]/updates/route.ts`, `api/updates/[id]/route.ts`, `lib/pdf.ts`, `api/documents/[id]/route.ts`, `api/documents/[id]/view/route.ts` or `api/share/[token]/doc/[docId]/route.ts`, something has gone wrong.
+- **F85 needs no code change.** It is fixed by construction: no row means `hasActivePassportDocument()` returns false and the diligence checklist stays honest. `src/lib/diligence.ts` is on the do-not-touch list precisely because the temptation to "also fix" it there is the wrong instinct under this decision.
+
+### D2 (**LOCKED** — Joseph, 2026-09-07 — **A**, as recommended) — how does an admin find out uploads are failing, without waiting for a founder to report it?
+
+| | Option | Consequence |
+|---|---|---|
+| **A** ✅ | **Failure beacon → `AuditLog` row, plus a count on the existing `/admin/settings` Storage panel.** On any upload failure the client posts to a tiny endpoint that writes `DOCUMENT_UPLOAD_FAILED` via the existing `logAdminAction()`, and the Storage section renders "N upload failures in the last 7 days — [Run test upload]" when N > 0. | Free: existing table, existing `/admin/audit` UI (whose Details column Part 32/WS87 just made readable), existing settings page. Under D1 = B this is the **only** durable trace of a failed upload, which is what makes it necessary rather than nice-to-have. |
+| **B** | Count only, no audit rows (query PENDING rows). | **Unavailable — D1 = B means there are no PENDING rows to query.** Moot. |
+| **C** | **Email admins** on failure. | **Rejected as v1.** One founder on a flaky train connection would page an admin; the noise floor makes the signal worthless within a month. Trivially addable later on top of A's rows if the count line proves too passive. |
+
+**LOCKED: A** (Joseph, 2026-09-07, as recommended). Under D1 = B this is not a nice-to-have — the `DOCUMENT_UPLOAD_FAILED` audit row is now the **only** durable trace anywhere that an upload was attempted and failed. WS95 is therefore load-bearing, not optional polish, and must ship with the batch.
+
+**Settled with it:** the `logAdminAction()` semantic stretch is **accepted**. The helper is named for admins but its actor parameter is a plain `{ id?, email? }` (`src/lib/audit.ts:7–11`), so a founder-actor row is mechanically correct and renders correctly at `/admin/audit`. **Do not add a new table** for this — that would be a schema change for something the audit log already models exactly, and this Part has no schema change.
+
+**Still a placement sub-question, deliberately deferred (not open, not blocking):** WS95.2 puts the count on `/admin/settings` only. Promoting it to the admin dashboard is the honest answer to "nobody knew for three days," but it is a one-line addition on top of the same query and is better decided after seeing whether the settings placement is ever looked at. **Build `/admin/settings` only. Do not touch the dashboard in this Part.**
+
+### D3 (**LOCKED** — Joseph, 2026-09-07 — **B**, as recommended) — what does the founder see when the upload fails?
+
+| | Option | Consequence |
+|---|---|---|
+| **A** | Status quo: a transient toast carrying whatever string the browser threw. | Leaves F86 and F87 exactly as they are. |
+| **B** ✅ | **A persistent, plain-language failure state on the upload surface itself** — not a toast that a reload erases: *"This file was not saved. It didn't reach our storage — please try uploading it again."* plus a **Retry** control, and a network/CORS `TypeError` mapped to that copy instead of surfacing `"Load failed"`. Under D1 = B, **nothing appears in the document list**, so the durable state and the message finally agree. | Fixes the actual founder experience of both incidents. Additive: no existing success path changes, no copy a founder sees today is removed. |
+
+**LOCKED: B** (Joseph, 2026-09-07, as recommended). This is the half of the fix a founder ever perceives, and it is **not severable from D1**: D1 = B alone converts "silently wrong" into "silently missing" — arguably worse, since today at least a phantom row is *visible* evidence something was attempted. **WS94.3 is therefore mandatory, not a polish item to drop if the batch runs long.** The copy is settled as written above; the `TypeError` mapping (F87) is settled as part of the same decision.
+
+### JC-UP-A (judgment call, made — not escalated) — centralize the upload sequence
+
+**All five call sites are replaced by one shared `src/lib/upload-document.ts`, not patched individually.** The init→`PUT` sequence exists five times with five slightly different error handlers; adding a confirm round-trip to each is five chances to get it wrong and guarantees a sixth surface will be written without it. One exported `uploadDocument()` makes the confirm step unskippable by construction. This is a technical call, but it changes the effort estimate materially, so it is stated plainly. **Reversal path:** the helper is a pure client-side function with no state and no dependencies beyond `fetch`; inlining it back into any one call site is a copy-paste.
+
+Two call-site shapes must be preserved by the helper's signature: `rich-editor.tsx` needs the created `document.id` back (for the `/api/documents/{id}/view` `src`), and `setup-wizard.tsx` loops over a `FileList` and must keep failing per-file rather than aborting the batch.
+
+---
+
+## WS93 — Split presigning from row creation; the row is created only after storage confirms (D1 = B, F84, F85, F88) — ~0.5 day
+
+**Goal:** make a phantom `Document` row structurally impossible. No schema change, no read-surface change.
+
+### WS93.1 `src/app/api/documents/upload/route.ts` — extract validation, stop creating the row
+
+Keep every existing check (`companyId`/`name`/`mimeType` presence, the 255-char name cap, the `ALLOWED_UPLOAD_TYPES` MIME allowlist and extension match at `:42–60`, `requireCompanyAccess` at `:62`) and lift them into a shared helper so the confirm route re-runs them identically:
+
+```ts
+// src/app/api/documents/upload/validate.ts (new)
+export type UploadFields = { companyId: string; name: string; mimeType: string;
+  updateId?: string | null; isInternal?: boolean; docType?: string | null };
+
+/** Returns the normalized fields + resolved extension, or a NextResponse to return. */
+export function validateUploadFields(body: unknown):
+  | { ok: true; fields: Required<Pick<UploadFields,"companyId"|"name">> & { mimeType: string; fileExtension: string; updateId: string | null; isInternal: boolean; docType: string | null } }
+  | { ok: false; error: NextResponse } { /* byte-identical checks and error strings to :14–60 */ }
+```
+
+Then the presign route becomes:
+
+```ts
+const v = validateUploadFields(body);
+if (!v.ok) return v.error;
+const { user, error } = await requireCompanyAccess(v.fields.companyId);
+if (error) return error;
+
+const s3Key = `companies/${v.fields.companyId}/documents/${randomUUID()}.${v.fields.fileExtension}`;
+const uploadUrl = await getUploadUrl(s3Key, v.fields.mimeType);
+
+// Part 35, WS93 (F84) — NO db.document.create here. The row is created by
+// POST /api/documents/confirm, and only after objectExists() proves the
+// bytes actually landed. Two production incidents (2026-08 credential/CORS,
+// 2026-09-04 domain-change CORS) both produced rows for files that never
+// existed; this makes that state unrepresentable rather than detectable.
+return NextResponse.json({ uploadUrl, s3Key }, { status: 200 });
+```
+
+**Note the status change 201 → 200:** nothing is created any more. No caller reads the status (all five check `initRes.ok`), verified.
+
+### WS93.2 `src/app/api/documents/confirm/route.ts` (new) — verify, then create
+
+Mirrors `POST /api/admin/storage/test-upload/confirm/route.ts` exactly in structure — client asserts nothing, the server asks storage:
+
+```ts
+export const dynamic = "force-dynamic";
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const v = validateUploadFields(body);          // same checks as presign — the client re-sends them
+    if (!v.ok) return v.error;
+    const { user, error } = await requireCompanyAccess(v.fields.companyId);
+    if (error) return error;
+
+    const { s3Key } = body;
+    // The key must be one we could have issued for THIS company. Prevents a
+    // caller confirming against a key belonging to another company's prefix.
+    if (typeof s3Key !== "string" ||
+        !s3Key.startsWith(`companies/${v.fields.companyId}/documents/`)) {
+      return NextResponse.json({ error: "Invalid upload key" }, { status: 400 });
+    }
+
+    const head = await headObject(s3Key);          // see WS93.3
+    if (!head) {
+      return NextResponse.json(
+        { error: "The file did not reach storage. Please try uploading it again." },
+        { status: 502 }
+      );
+    }
+
+    const document = await db.document.create({
+      data: { companyId: v.fields.companyId, updateId: v.fields.updateId,
+              uploadedById: user!.id, name: v.fields.name, s3Key,
+              mimeType: v.fields.mimeType, isInternal: v.fields.isInternal,
+              docType: v.fields.docType,
+              size: head.contentLength ?? null },   // F88 — storage's number, not the client's
+    });
+    return NextResponse.json({ document }, { status: 201 });
+  } catch (err) {
+    console.error("POST /api/documents/confirm error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+```
+
+**No new attack surface:** the confirm route accepts exactly the same client-supplied fields the presign route already accepts today (including `isInternal` and `docType`, both client-supplied at `upload/route.ts:80–81`), behind the same `requireCompanyAccess` guard, plus one additional constraint the current route does not have (the key-prefix check). A caller cannot confirm a key outside a company they have access to.
+
+### WS93.3 `src/lib/s3.ts` — a `headObject()` beside the existing `objectExists()`
+
+`objectExists()` (`:61–70`) returns a boolean and is used by two shipped callers; **do not change its signature.** Add a sibling that returns the metadata, and re-express the boolean in terms of it:
+
+```ts
+export async function headObject(key: string): Promise<{ contentLength: number | null } | null> {
+  try {
+    const res = await getClient().send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    return { contentLength: res.ContentLength ?? null };
+  } catch (err: unknown) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    if (status === 404) return null;
+    throw err;  // credentials/permission/network errors must surface, not read as "missing"
+  }
+}
+export async function objectExists(key: string): Promise<boolean> {
+  return (await headObject(key)) !== null;
+}
+```
+
+`src/lib/__tests__/s3-object-exists.test.ts` must keep passing unmodified — the rethrow-on-non-404 behaviour is preserved deliberately. Consistency is not a concern: both S3 (since Dec 2020) and R2 are strongly read-after-write consistent for new objects, so a `HeadObject` immediately after a successful `PUT` is reliable.
+
+**WS93 acceptance checklist**
+- [ ] `POST /api/documents/upload` creates no `Document` row under any input; `grep -n "document.create" src/app/api/documents/upload/route.ts` returns nothing
+- [ ] A presign followed by no confirm leaves the `documents` table byte-identical (row count unchanged)
+- [ ] Confirm with a key that was never `PUT` returns **502** and creates no row
+- [ ] Confirm with a key under another company's prefix returns **400**, even for a user with access to that other company
+- [ ] A real upload end-to-end produces exactly one row, with `size` populated and matching the file's byte length (F88)
+- [ ] `src/lib/__tests__/s3-object-exists.test.ts` and `document-orphan-route.test.ts` pass **unmodified**
+- [ ] New test file asserting: 502-on-missing-object, 400-on-foreign-prefix, and 201-with-`size`-from-HeadObject
+
+**UX impact:** none visible on the success path — the same file, the same list entry, one extra sub-second round trip. **Cost impact:** none — one extra `HeadObject` per upload (S3/R2 Class B/A operations, fractions of a cent per thousand) and one extra Vercel function invocation per upload; no new service, table, dependency or cron.
+
+## WS94 — One shared upload helper, five call sites, honest failure UX (JC-UP-A, D3, F86, F87) — ~0.75 day
+
+**Goal:** the confirm round-trip cannot be forgotten, and a founder is never again shown a raw browser error or a durable success for a file that does not exist.
+
+### WS94.1 `src/lib/upload-document.ts` (new) — the only way to upload from the client
+
+```ts
+export class UploadError extends Error {
+  constructor(message: string, readonly stage: "init" | "transfer" | "confirm") { super(message); }
+}
+
+const TRANSFER_FAILED_MESSAGE =
+  "This file was not saved — it didn't reach our storage. Please check your connection and try again.";
+
+export async function uploadDocument(opts: {
+  companyId: string; file: File; docType?: string | null;
+  isInternal?: boolean; updateId?: string | null;
+}): Promise<{ id: string; name: string; /* … the created Document */ }> {
+  const mimeType = opts.file.type || "application/octet-stream";
+  const fields = { companyId: opts.companyId, name: opts.file.name, mimeType,
+                   docType: opts.docType ?? null, isInternal: opts.isInternal ?? false,
+                   updateId: opts.updateId ?? null };
+
+  const initRes = await fetch("/api/documents/upload", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(fields) });
+  if (!initRes.ok) {
+    const errData = await initRes.json().catch(() => null);
+    throw new UploadError(errData?.error ?? "Failed to start the upload.", "init");
+  }
+  const { uploadUrl, s3Key } = await initRes.json();
+
+  // Part 35, F87 — a blocked CORS preflight REJECTS fetch with a TypeError; it
+  // never produces a non-ok Response, so an `if (!res.ok)` guard alone misses
+  // the exact failure mode of both production incidents, and the raw
+  // "Failed to fetch" / "Load failed" string is meaningless to a founder.
+  let putRes: Response;
+  try {
+    putRes = await fetch(uploadUrl, { method: "PUT", headers: { "Content-Type": mimeType }, body: opts.file });
+  } catch {
+    throw new UploadError(TRANSFER_FAILED_MESSAGE, "transfer");
+  }
+  if (!putRes.ok) throw new UploadError(TRANSFER_FAILED_MESSAGE, "transfer");
+
+  const confirmRes = await fetch("/api/documents/confirm", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...fields, s3Key }) });
+  if (!confirmRes.ok) {
+    const errData = await confirmRes.json().catch(() => null);
+    throw new UploadError(errData?.error ?? TRANSFER_FAILED_MESSAGE, "confirm");
+  }
+  const { document } = await confirmRes.json();
+  return document;
+}
+```
+
+**Every `UploadError` path should also fire the D2 beacon** (WS95.1) before throwing — one line, non-blocking, never awaited in a way that can fail the caller.
+
+### WS94.2 Migrate all five call sites
+
+Each collapses to a single call; **no other logic on any of these pages changes.**
+
+1. `src/app/company/documents/page.tsx:82–104` → `await uploadDocument({ companyId, file, docType: uploadDocType || null, isInternal: AUTO_INTERNAL_DOC_TYPES.has(uploadDocType) })`, then the existing `loadDocuments(...)` + success message. Catch renders `err.message` — which is now always a written sentence, never a browser string.
+2. `src/app/diligence/page.tsx:138–160` → same, with `docType` from the slot.
+3. `src/app/admin/companies/[id]/page.tsx:539–562` → same, with `isInternal: uploadInternal`.
+4. `src/app/setup-wizard/page.tsx:186–206` → inside the existing `for` loop. **Change the loop to `try`/`catch` per file** so one failure records that filename as failed and continues, instead of aborting the remaining files (today a single failure throws out of the loop, silently skipping every file after it — a small pre-existing wart worth fixing while here).
+5. `src/components/ui/rich-editor.tsx:142–173` → `const document = await uploadDocument({ companyId, file, isInternal: false })` inside a `try`/`catch`; on error replace the `window.alert` with the same message string, and keep the "insert only after success" ordering WS50 established. **This is the call site F87 hits hardest today** (the rejection escapes an unawaited callback with no catch at all, so the founder sees nothing).
+
+### WS94.3 Persistent failure state (D3 = B)
+
+On `/diligence` and `/company/documents` — the two founder surfaces — the error must not be a state variable that a reload erases (F86). Keep the existing `message` banner for the immediate signal, and additionally render a **per-slot / per-attempt failed row** that persists for the page session with a **Retry** button re-invoking `uploadDocument()` with the same `File` handle. **Do not** persist failures server-side (that is D2's audit row, admin-side); the founder-facing durability that matters is "the document list does not lie", which D1 = B already delivers — the failed file simply is not there.
+
+**WS94 acceptance checklist**
+- [ ] `grep -rn '"/api/documents/upload"' src/app src/components` returns **only** `src/lib/upload-document.ts` — no call site talks to the endpoint directly
+- [ ] `grep -rn 'method: "PUT"' src/` returns only `upload-document.ts` and `storage-settings-panel.tsx`
+- [ ] With the bucket's CORS policy removed (or an origin deliberately not allowlisted), every one of the five surfaces shows the written sentence — **never** "Failed to fetch" or "Load failed" — and the rich editor shows a message rather than nothing
+- [ ] After a failed upload, reload the page: **the file does not appear** in `/company/documents`, `/diligence`'s per-type summary, the admin Documents tab, or the update composer
+- [ ] `/diligence` with a failed passport upload shows the DD checklist as **incomplete**, and no completion email is sent (F85, verified end-to-end)
+- [ ] Setup wizard: with three files where the second fails, files one and three still upload and the second is reported by name
+- [ ] Retry after a failure succeeds and produces exactly one row
+- [ ] 375px clean on both founder surfaces (Part 6 pattern B/C)
+- [ ] `npx vitest run` green; `src/lib/__tests__/documents.test.ts` and `document-internal-access.test.ts` unmodified
+
+**UX impact:** additive and corrective on every surface. No successful path changes. Founders gain an honest failure state and a Retry; nothing is removed. Admins and LPs see no change at all. Investor share links are untouched. **Cost impact:** none.
+
+## WS95 — Failure visibility for admins (D2 = A) — ~0.3 day
+
+**Goal:** the next time uploads break globally, an admin can find out from Molly rather than from a founder, or from a coordinating session investigating something unrelated.
+
+### WS95.1 `POST /api/documents/upload-failed` (new) — one audit row, never blocks
+
+```ts
+export async function POST(request: Request) {
+  try {
+    const { companyId, name, stage, detail } = await request.json();
+    const { user, error } = await requireCompanyAccess(companyId);
+    if (error) return error;
+    await logAdminAction(user!, "DOCUMENT_UPLOAD_FAILED", {
+      targetType: "Company", targetId: companyId,
+      metadata: { name, stage, detail: typeof detail === "string" ? detail.slice(0, 300) : null },
+    });
+    return NextResponse.json({ ok: true });
+  } catch { return NextResponse.json({ ok: false }); }   // never surfaces to the founder
+}
+```
+
+Called from `uploadDocument()`'s failure paths, fire-and-forget. `logAdminAction` already swallows its own errors (`src/lib/audit.ts:23–25`), so this cannot break an upload. **`detail` carries the raw browser string** — meaningless to the founder (F87), genuinely useful to whoever debugs it.
+
+### WS95.2 `/admin/settings` Storage section — a count that appears only when something is wrong
+
+Extend `src/app/admin/settings/storage-settings-panel.tsx` (or add a small sibling, matching how `OrphanedDocumentsPanel` sits beside it at `page.tsx:73–75`) to fetch a 7-day `DOCUMENT_UPLOAD_FAILED` count and render, **only when non-zero**, an ochre line: *"6 upload failures reported in the last 7 days — run the test upload below, and check your bucket's CORS policy."* Zero failures renders nothing, so the page is visually identical to today in the normal case. Link the count to `/admin/audit` (the Details column is readable since Part 32/WS87).
+
+**Consider (cheap, and the honest answer to "nobody knew for three days"): the same line on the admin dashboard.** Admins visit `/admin/settings` when they already suspect a problem; the dashboard is what they actually see. **This is a placement question rather than a product fork** — recommend starting at `/admin/settings` only, and promoting it to the dashboard if a third incident ever occurs. Flagged so the choice is visible.
+
+**WS95 acceptance checklist**
+- [ ] A forced upload failure writes exactly one `DOCUMENT_UPLOAD_FAILED` row, visible at `/admin/audit` with the browser's raw error in Details
+- [ ] The beacon endpoint returns 200 and is unreachable without a session / company access
+- [ ] Beacon failure (endpoint 500, offline) does not change what the founder sees
+- [ ] `/admin/settings` renders **nothing new** when the 7-day count is zero
+- [ ] With a non-zero count, the line renders in ochre and links to `/admin/audit`
+
+**UX impact:** admin-only, and invisible in the healthy state. Founders see nothing. **Cost impact:** none — existing `AuditLog` table, existing page, no cron, no email, no service.
+
+## WS96 — Docs: the domain-change CORS step, and two ROADMAP corrections (F90, F91) — ~0.15 day
+
+### WS96.1 `SETUP.md` — **outside this agent's edit scope; exact text for a human or a differently-scoped agent**
+
+Append to the existing CORS section (currently ending `SETUP.md:102`), and add the same warning beside `NEXTAUTH_URL` wherever the production-deploy section sets it:
+
+```markdown
+> **If you ever change the domain your app is served from, update this CORS policy in the same
+> change.** Document uploads go directly from the browser to your bucket, so the bucket allowlists
+> your app's origin by name. A new domain that is not in the policy means every upload is blocked
+> at the browser — with no server-side error, no log line, and nothing in the app to indicate a
+> problem. This has happened in production: a domain migration on one day, four silently failed
+> founder document uploads the next, discovered three days later by accident. After any domain
+> change, add the new origin here and confirm with **"Send Test Upload"** on `/admin/settings`.
+```
+
+### WS96.2 `ROADMAP.md` — annotate, do not rewrite (F91)
+
+1. On the Part 23 blockquote (`:151`): mark it **SHIPPED** with the commits already recorded at `:3`, and add that its Q67 sub-decision *"scan-only for v1, no write-path 'confirm' signal"* is **superseded by Part 35 D1** after a second incident proved detection alone insufficient. Do not delete the original wording — the reasoning at the time was sound on the evidence available then.
+2. On the Part 34 blockquote (`:7`): mark **SHIPPED** (`b3dff9f`, `a55b9c5`).
+3. Add the Part 35 forward-pointer blockquote at the top of the newest-first stack, and annotate the **Document Management** section (`:122–132`) with the upload-confirmation change once it ships.
+
+**WS96 acceptance checklist**
+- [ ] A reader following `SETUP.md` through a domain migration is told to update CORS, and told what the failure looks like if they don't
+- [ ] No ROADMAP blockquote claims "not yet built" for shipped work
+- [ ] The superseded Q67 sub-decision is annotated in place, not deleted
+
+**UX impact:** none — documentation. **Cost impact:** none.
+
+---
+
+## Sequencing & handoff (Part 35)
+
+- **Nothing is blocked.** D1, D2 and D3 were all confirmed 2026-09-07, each on the recommended option. **WS93–WS96 are fully unblocked and ready for Alvin.** There are no conditional branches left anywhere in this Part.
+- **⚠️ Build order: WS93 → WS94 → WS95 → WS96. WS93 and WS94 MUST ship together in one deploy — this is the single most important constraint in this Part and it has not changed under the confirmed decisions.** WS93 stops `POST /api/documents/upload` from creating the row; the five existing call sites do not yet know to call `POST /api/documents/confirm`. **A deploy containing WS93 without WS94 means every upload on every surface silently creates nothing — a total, app-wide upload outage, and precisely the failure this Part exists to end.** Two commits are fine (and preferred, for reviewability); **two deploys are not.** Do not push WS93 to the branch on its own — on this project a branch push *is* a production deploy.
+- **WS95 must ship with the batch, not after it.** Under the confirmed D1 = B a failed upload leaves no row anywhere, so WS95's `DOCUMENT_UPLOAD_FAILED` audit row is the only durable trace that a failure occurred. Deploying WS93+WS94 without it would leave the app with better founder UX and *less* admin visibility than today. It depends on WS94's helper existing (it is called from its failure paths), so the order within the batch is WS93 → WS94 → WS95.
+- **WS94.3 (D3) is mandatory, not polish.** Dropping it would leave founders with "silently missing" in place of "silently wrong."
+- **WS96 is independent** of all three and can go any time, before or after; only its `SETUP.md` half needs a human.
+- **Total effort: ~1.7 days** (WS93 ~0.5 + WS94 ~0.75 + WS95 ~0.3 + WS96 ~0.15). The ~2.2-day figure quoted earlier applied only to the rejected D1 = A and no longer applies.
+- **Before or alongside the deploy:** run the existing orphan scan once against production. The 2026-09-04 phantom rows (and any others) predate this fix and are not cleaned up by it — that remains the Part 23 tool's job, and it is now guarded, re-verifying and audit-logged, so it is the right instrument.
+- **Do not touch** in this Part: **`prisma/schema.prisma` (no schema change at all — D1 = B)**; `src/app/api/admin/documents/orphan-scan/route.ts` and `.../[id]/orphan/route.ts` (Part 23 tooling, still correct and still needed for pre-existing rows); `src/app/api/admin/storage/test-upload/**` (the diagnostic this Part's confirm route is modelled on); `src/lib/diligence.ts` (**F85 needs no edit — it is fixed by construction**); `objectExists()`'s signature; the admin dashboard (D2's placement sub-question is deferred to `/admin/settings` only); and **every one of the eleven read sites listed under D1 option A** — all of them stay byte-identical.
+
+## Part 35 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **D1** | Where the `Document` row is created: **(B) not until `POST /api/documents/confirm` has verified the object exists in storage** — no schema change, no read-surface filters, phantom rows unrepresentable | **LOCKED** (Joseph, 2026-09-07) — option (B) as recommended. **(A) PENDING-row + `confirmedAt` + 11 filter sites is rejected, and the rejection carries instructions: no schema column, no backfill, and all eleven read sites stay byte-identical.** (C) server-proxied upload rejected on Vercel's 4.5 MB body limit |
+| **D2** | Admin detection: **(A) a `DOCUMENT_UPLOAD_FAILED` audit row per failure + a 7-day count on `/admin/settings` that renders only when non-zero** | **LOCKED** (Joseph, 2026-09-07) — option (A) as recommended. **Load-bearing, not polish**: under D1 = B this row is the only durable trace a failure ever happened. (B) moot (no PENDING rows exist); (C) email alerts rejected as v1 (noise). The `logAdminAction()` founder-actor semantic stretch is accepted — **no new table.** Dashboard placement deferred; `/admin/settings` only |
+| **D3** | Founder failure UX: **(B) a persistent failure row with Retry, and network/CORS `TypeError`s mapped to written copy instead of the raw browser string** | **LOCKED** (Joseph, 2026-09-07) — option (B) as recommended. **Not severable from D1** — without it, D1 alone turns "silently wrong" into "silently missing." (A) status quo rejected |
+| **JC-UP-A** | One shared `src/lib/upload-document.ts` replacing five duplicated call sites, rather than patching each | **Decided (technical).** Reversal: inline it back — the helper is pure and stateless |
+| **F84** | Non-atomic upload, unchanged since Part 22; second production incident | Root cause; fixed by WS93 + WS94 |
+| **F85** | A phantom passport completes due diligence and emails admins that it is complete | **Fixed by construction** under the confirmed D1 = B — **no edit to `src/lib/diligence.ts`, which is on the do-not-touch list** |
+| **F86** | The error is transient state, the false success is durable | Fixed by WS93 (no row) + WS94.3 (persistent failure row) |
+| **F87** | CORS failures reject `fetch` and bypass every `!putRes.ok` guard; founder sees "Failed to fetch" / nothing | Fixed by WS94.1's `try`/`catch` around the `PUT` |
+| **F88** | `Document.size` declared, displayed, never written | Fixed free in WS93.2 from `HeadObject`'s `ContentLength` |
+| **F89** | The fix introduces object-without-row storage litter | **Recorded and accepted** — strictly better than what it replaces; reverse scan deliberately not proposed |
+| **F90** | `SETUP.md` covers first-time CORS but not domain changes — the actual 2026-09-04 cause. **F46 itself is confirmed CLOSED** (`SETUP.md:86–102`) | WS96.1 — exact text, **`SETUP.md` still outside this agent's edit scope** |
+| **F91** | `ROADMAP.md:151` still calls Part 23 unbuilt; `:7` still calls Part 34 unbuilt | WS96.2 — annotated in this pass |
+
+**Constraints honored:** **no new cost line** (no new service, table, dependency or cron; one extra `HeadObject` and one extra function invocation per upload, on the existing S3/R2 and Vercel accounts); **no schema change at all** — with D1 = B confirmed, `prisma/` is untouched by this Part, so the additive-only rule is not merely satisfied but unexercised; **no UX regression** — every founder-facing change is additive or corrective, no success path is altered, no copy is removed, and admins, LPs and investor-link recipients see nothing different in the healthy state.
+
+**Handoff status: ready for Alvin.** All three decisions locked, no schema change, no conditional branches, four workstreams, ~1.7 days. **The one thing that must be carried into the handoff verbatim: WS93 and WS94 ship in a single deploy, with WS95 in the same batch.**
+
+---

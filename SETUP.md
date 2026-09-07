@@ -101,6 +101,14 @@ Once your app is deployed, use the **"Send Test Upload"** button on `/admin/sett
 credentials and CORS are both actually working — it exercises the exact same browser→bucket path a real document
 upload takes.
 
+> **If you ever change the domain your app is served from, update this CORS policy in the same
+> change.** Document uploads go directly from the browser to your bucket, so the bucket allowlists
+> your app's origin by name. A new domain that is not in the policy means every upload is blocked
+> at the browser — with no server-side error, no log line, and nothing in the app to indicate a
+> problem. This has happened in production: a domain migration on one day, four silently failed
+> founder document uploads the next, discovered three days later by accident. After any domain
+> change, add the new origin here and confirm with **"Send Test Upload"** on `/admin/settings`.
+
 ### Email — Resend (required for approval emails)
 
 1. Go to [resend.com](https://resend.com) and create a free account.
@@ -191,6 +199,10 @@ See the "Confidentiality & synthetic-data convention" at the top of `docs/IMPLEM
 4. Set `NEXTAUTH_URL` to your production URL (e.g. `https://portfolio.dfslab.net`).
 5. Update your Google OAuth redirect URI to include the production callback URL.
 6. Deploy.
+
+> **Changing this domain later?** Also update your storage bucket's CORS policy to allow the new
+> origin — see the CORS warning under [S3-compatible storage](#s3-compatible-storage-required-for-file-uploads)
+> above. Missing this step blocks every document upload with no visible error.
 
 ### Estimated costs for ~100 portfolio companies
 
