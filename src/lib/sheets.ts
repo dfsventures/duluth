@@ -80,29 +80,52 @@ export interface SheetTable {
   rows: string[][];
 }
 
-/**
- * Fetches the raw "All Deals" tab as strings — header row (row 1) plus
- * every data row. Callers look up columns by header text (header-text
- * lookup, not hardcoded letters), so a go-forward round-size/ownership
- * column that gets added later is picked up automatically without a code
- * change, and an absent one is skipped cleanly (Q24 gate #3).
- */
-export async function getSheetRows(): Promise<SheetTable> {
-  if (!sheetsSyncEnabled()) {
-    throw new Error("sheets.ts: getSheetRows called while sheetsSyncEnabled() is false");
-  }
-  const spreadsheetId = process.env.SHEETS_SPREADSHEET_ID;
+// Part 36, WS102.1 (F99) — the raw primitive. Extracted from getSheetRows()
+// so a second spreadsheet (the fund-metrics sheet) can reuse the same
+// service-account auth without a second copy of the JWT signer. Returns
+// values EXACTLY as the API gives them — no header row is stripped, because
+// the fund-metrics sheet's "header" is a vehicle-code row located by
+// content, not by position.
+export async function getSheetValues(spreadsheetId: string, range: string): Promise<string[][]> {
   const token = await getAccessToken();
-  const url = `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(SHEET_RANGE)}`;
+  const url = `${SHEETS_API_BASE}/${spreadsheetId}/values/${encodeURIComponent(range)}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`sheets.ts: values.get failed (${res.status}): ${text.slice(0, 200)}`);
   }
   const data = (await res.json()) as { values?: string[][] };
-  const values = data.values ?? [];
+  return data.values ?? [];
+}
+
+/**
+ * Fetches the raw "All Deals" tab as strings — header row (row 1) plus
+ * every data row. Callers look up columns by header text (header-text
+ * lookup, not hardcoded letters), so a go-forward round-size/ownership
+ * column that gets added later is picked up automatically without a code
+ * change, and an absent one is skipped cleanly (Q24 gate #3).
+ *
+ * Part 36, WS102.1 — now a two-line wrapper over getSheetValues(). Same env
+ * vars, same range, same header-stripping, byte-identical output — do not
+ * change its signature or its callers (sheet-sync-runner.ts,
+ * api/admin/sheets-sync/link/route.ts).
+ */
+export async function getSheetRows(): Promise<SheetTable> {
+  if (!sheetsSyncEnabled()) {
+    throw new Error("sheets.ts: getSheetRows called while sheetsSyncEnabled() is false");
+  }
+  const values = await getSheetValues(process.env.SHEETS_SPREADSHEET_ID!, SHEET_RANGE);
   const [header = [], ...rows] = values;
   return { header, rows };
+}
+
+// Part 36, WS102.1 (Q87-A) — the fund-metrics sheet. A DIFFERENT spreadsheet
+// id from SHEETS_SPREADSHEET_ID (confirmed), sharing the same service
+// account and the same read-only scope. NOTE: the two files have nearly
+// identical titles in Drive — always identify them by ID, never by name.
+export const FUND_METRICS_RANGE = "A1:AZ500"; // whole first tab; block positions are found by content, not offset
+export function fundMetricsSyncEnabled(): boolean {
+  return Boolean(process.env.GOOGLE_SA_EMAIL && process.env.GOOGLE_SA_PRIVATE_KEY && process.env.FUND_METRICS_SPREADSHEET_ID);
 }
 
 /** Case-insensitive, whitespace-trimmed header lookup — returns -1 if absent (caller must handle cleanly, Q24 gate #3). */
