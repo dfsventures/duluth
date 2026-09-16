@@ -19,7 +19,11 @@ export async function GET() {
   const enabled = sheetsSyncEnabled();
   if (!enabled) return NextResponse.json({ enabled: false, runs: [] });
 
-  const runs = await db.sheetSyncRun.findMany({ orderBy: { startedAt: "desc" }, take: 20 });
+  // Part 36, WS103.2 — filter to this sync's own history. Without this,
+  // once fund-metrics runs exist (kind: "FUND_METRICS"), they'd start
+  // interleaving into the deals sync's Sync tab history — a confusing,
+  // not broken, UI, which is worse (easy to forget, so flagged explicitly).
+  const runs = await db.sheetSyncRun.findMany({ where: { kind: "DEALS" }, orderBy: { startedAt: "desc" }, take: 20 });
   return NextResponse.json({
     enabled: true,
     runs: runs.map((r) => ({

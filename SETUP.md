@@ -109,6 +109,30 @@ upload takes.
 > founder document uploads the next, discovered three days later by accident. After any domain
 > change, add the new origin here and confirm with **"Send Test Upload"** on `/admin/settings`.
 
+### Google Sheets sync (optional)
+
+Molly can sync from Google Sheets in two independent, one-way directions — both optional, and both no-op
+cleanly (cron skips, admin panel shows "not configured") when their env vars are absent:
+
+- **Deals sync** (`SHEETS_SPREADSHEET_ID`) — imports/updates deal rows from a "All Deals"-style tracker sheet.
+- **Fund-metrics sync** (`FUND_METRICS_SPREADSHEET_ID`) — reads a fund-level summary block (Gross MOIC, Net TVPI,
+  Net IRR, Net NAV) from a **second, separate spreadsheet** and writes it onto the matching `Fund` rows.
+
+Both share the same read-only service account (`GOOGLE_SA_EMAIL` / `GOOGLE_SA_PRIVATE_KEY`) — share each
+spreadsheet with that service account's email address individually. See `.env.example` for the full list of
+variables and what each one does.
+
+> **The two spreadsheets can have nearly identical file names in Drive.** Always identify and configure them
+> by their ID (the long token in the URL between `/d/` and `/edit`), never by title — pasting the wrong ID into
+> the wrong variable silently points one sync at the other sheet's data.
+
+> **`FUND_METRICS_SYNC_APPLY_ENABLED` is a deliberate, permanent safety gate — leave it unset when you first
+> configure `FUND_METRICS_SPREADSHEET_ID`.** With it unset, dry-run previews work immediately in the admin
+> panel (`/admin/funds?tab=sync`) but real writes are refused with a clear error. Read at least one dry run —
+> check that the matched funds, the ignored roll-up columns, and the Net IRR magnitudes all look right — before
+> setting this to `"true"`. Its first real apply overwrites any existing manually-entered Gross MOIC / Net TVPI
+> values with whatever the sheet says, so this is not a formality.
+
 ### Email — Resend (required for approval emails)
 
 1. Go to [resend.com](https://resend.com) and create a free account.

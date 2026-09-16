@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SyncPanel } from "@/components/admin/sync-panel";
+import { FundMetricsSyncPanel } from "@/components/admin/fund-metrics-sync-panel";
 import { formatDate } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
 
@@ -168,7 +169,14 @@ function AdminFundsPageInner() {
       )}
 
       {activeTab === "sync" ? (
-        <SyncPanel />
+        <div className="space-y-8">
+          <SyncPanel />
+          {/* Part 36, WS103.3 — a sibling sub-section, not a new tab/sidebar
+              item (Part 11/WS28 consolidated sync onto this one tab). */}
+          <div className="border-t border-border pt-8">
+            <FundMetricsSyncPanel />
+          </div>
+        </div>
       ) : loading ? (
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
