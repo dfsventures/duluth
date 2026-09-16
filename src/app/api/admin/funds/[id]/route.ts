@@ -62,6 +62,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       grossMoicOverride: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
       netTvpiOverride: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
       netDpiOverride: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+      // Part 36, WS100.5 — same Decimal -> number|null pattern as above.
+      netIrrOverride: fund.netIrrOverride !== null ? Number(fund.netIrrOverride) : null,
+      netNavOverride: fund.netNavOverride !== null ? Number(fund.netNavOverride) : null,
+      showGrossMoic: fund.showGrossMoic,
+      showNetTvpi: fund.showNetTvpi,
+      showNetIrr: fund.showNetIrr,
+      showNetNav: fund.showNetNav,
       createdAt: fund.createdAt,
       updatedAt: fund.updatedAt,
       // Part 10, WS27.5: sheetsSyncEnabled surfaced alongside each deal's
@@ -130,6 +137,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       grossMoicOverride?: number | null;
       netTvpiOverride?: number | null;
       netDpiOverride?: number | null;
+      netIrrOverride?: number | null;
+      netNavOverride?: number | null;
+      showGrossMoic?: boolean;
+      showNetTvpi?: boolean;
+      showNetIrr?: boolean;
+      showNetNav?: boolean;
     } = {};
 
     if (body.name !== undefined) {
@@ -147,7 +160,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // Part 15, WS37.3 — manual performance override fields (Q46-Q52, JC-C: no
     // domain-specific bounds check, matching aumUsd's own lack of one above).
-    for (const field of ["grossMoicOverride", "netTvpiOverride", "netDpiOverride"] as const) {
+    // Part 36, WS100.4 — widened from three names to five (D5). Still no
+    // bounds check: netIrrOverride is a fraction (Q89), and this loop
+    // treats it exactly like the other four Decimal? override columns.
+    for (const field of ["grossMoicOverride", "netTvpiOverride", "netDpiOverride", "netIrrOverride", "netNavOverride"] as const) {
       if (body[field] === undefined) continue;
       if (body[field] === null || body[field] === "") {
         data[field] = null;
@@ -160,6 +176,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       data[field] = n;
     }
 
+    // Part 36, WS100.4 (D4) — visibility flags. A SEPARATE loop: the numeric
+    // loop above coerces with Number(), which turns `false` into 0 and any
+    // non-boolean into NaN -> 400. These are non-nullable booleans with a
+    // schema default, so an absent key means "leave it alone," never "unset."
+    for (const field of ["showGrossMoic", "showNetTvpi", "showNetIrr", "showNetNav"] as const) {
+      if (body[field] === undefined) continue;
+      if (typeof body[field] !== "boolean") {
+        return NextResponse.json({ error: `${field} must be a boolean.` }, { status: 400 });
+      }
+      data[field] = body[field];
+    }
+
     const fund = await db.fund.update({ where: { id }, data });
 
     await logAdminAction(user!, "FUND_UPDATED", { targetType: "Fund", targetId: id, metadata: data as Record<string, unknown> });
@@ -169,6 +197,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       grossMoicOverride: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
       netTvpiOverride: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
       netDpiOverride: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+      // Part 36, WS100.5 — same Decimal -> number|null pattern as above. A
+      // missing key here would make a correctly-saved value appear to
+      // revert on the admin page's post-save loadFund() (F95).
+      netIrrOverride: fund.netIrrOverride !== null ? Number(fund.netIrrOverride) : null,
+      netNavOverride: fund.netNavOverride !== null ? Number(fund.netNavOverride) : null,
+      showGrossMoic: fund.showGrossMoic,
+      showNetTvpi: fund.showNetTvpi,
+      showNetIrr: fund.showNetIrr,
+      showNetNav: fund.showNetNav,
     });
   } catch (err) {
     console.error("PATCH /api/admin/funds/[id] error:", err);

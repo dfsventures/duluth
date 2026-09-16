@@ -77,6 +77,15 @@ export default async function AdminReportPreviewPage({ params }: { params: Promi
           grossMoic: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
           netTvpi: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
           netDpi: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+          // Part 36, WS100 — same Decimal -> number|null pattern as above.
+          netIrr: fund.netIrrOverride !== null ? Number(fund.netIrrOverride) : null,
+          netNav: fund.netNavOverride !== null ? Number(fund.netNavOverride) : null,
+          // Part 36, WS100 (D4) — the preview stays honest: live values, live
+          // flags, exactly as it is today.
+          showGrossMoic: fund.showGrossMoic,
+          showNetTvpi: fund.showNetTvpi,
+          showNetIrr: fund.showNetIrr,
+          showNetNav: fund.showNetNav,
         }
       );
     }

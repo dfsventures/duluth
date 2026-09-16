@@ -113,6 +113,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
               grossMoic: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
               netTvpi: fund.netTvpiOverride !== null ? Number(fund.netTvpiOverride) : null,
               netDpi: fund.netDpiOverride !== null ? Number(fund.netDpiOverride) : null,
+              // Part 36, WS100 — same Decimal -> number|null pattern as above.
+              netIrr: fund.netIrrOverride !== null ? Number(fund.netIrrOverride) : null,
+              netNav: fund.netNavOverride !== null ? Number(fund.netNavOverride) : null,
+              // Part 36, WS100 (D4) — frozen with the values, so a report
+              // published today keeps today's visibility rules forever, even
+              // if an admin changes the flags later. Same freeze semantics
+              // as the values themselves.
+              showGrossMoic: fund.showGrossMoic,
+              showNetTvpi: fund.showNetTvpi,
+              showNetIrr: fund.showNetIrr,
+              showNetNav: fund.showNetNav,
             }
           );
           await tx.fundReportFundSnapshot.create({
