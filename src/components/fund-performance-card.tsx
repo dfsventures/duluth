@@ -1,6 +1,7 @@
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
-import type { FundPerformance, FundSnapshotDealRow } from "@/lib/portfolio-metrics";
+import type { FundPerformance, FundSnapshotDealRow, OverrideMetric, StoredFundPerformanceOverride } from "@/lib/portfolio-metrics";
+import { visibleOverrideMetrics, hasOverrideValue } from "@/lib/portfolio-metrics";
 
 // `asOf` is `Date` server-side (FundPerformance's own shape) but a
 // JSON-serialized `string` once it round-trips through the admin fund
@@ -29,18 +30,36 @@ interface FundPerformanceCardProps {
    * passes false.
    */
   showCaveat?: boolean;
-  /** Part 15, WS37.5 — a fund's manual override (Q46/Q47/Q49/Q50). `null`/absent
-   * for funds without a manual override; when at least one field is non-null
-   * (JC-B), the card switches into override mode: Gross MOIC / Net TVPI /
-   * Net DPI replace TVPI/DPI and Gross IRR is hidden. Invested and Implied
-   * Value are unaffected either way. */
-  overrides?: { grossMoic: number | null; netTvpi: number | null; netDpi: number | null } | null;
+  /** Part 15, WS37.5 — a fund's manual override (Q46/Q47/Q49/Q50), widened in
+   * Part 36 (WS98/WS99) to five metrics + four visibility flags. `null`/absent
+   * for funds without a manual override; when at least one VISIBLE metric is
+   * non-null (JC-B, extended by F94's key-presence rule), the card switches
+   * into override mode. Invested and Implied Value are unaffected either way.
+   * This is the STORED (partial) shape — a frozen pre-Part-36 snapshot has no
+   * netIrr/netNav/show* keys at all, which is exactly what
+   * visibleOverrideMetrics()/hasOverrideValue() are built to handle (F93/F94).
+   */
+  overrides?: StoredFundPerformanceOverride | null;
 }
 
 function multipleLabel(multiple: number | null): string {
   if (multiple === null) return "n/a";
   if (multiple === 0) return "Written off";
   return `${multiple.toFixed(1)}×`;
+}
+
+// Part 36, WS99.3 (F96) — the per-metric formatter that travels with the
+// metric's `format` discriminator, rather than being spelled out five times
+// in JSX.
+function formatOverrideMetric(m: OverrideMetric): string {
+  if (m.value == null) return "—"; // nullish, not !== null (F93)
+  if (m.format === "currency") return `$${Math.round(m.value).toLocaleString()}`;
+  // Q89 = A (LOCKED): netIrr is stored as a FRACTION, so the * 100 is
+  // REQUIRED here. Without it a 2.05% IRR renders as "0.0%". This is the
+  // ONLY * 100 in the feature, and it is the same expression the computed
+  // Gross IRR already uses below — deliberately identical.
+  if (m.format === "percent") return `${(m.value * 100).toFixed(1)}%`;
+  return `${m.value.toFixed(2)}x`;
 }
 
 /**
@@ -55,7 +74,10 @@ export function FundPerformanceCard({ performance, deals, fundName, showCaveat =
   // Part 15, WS37.5, JC-B — "override active" is "at least one field is
   // non-null," not "all three or none." A partial save already switches
   // the card into override mode, showing "—" for the missing field(s).
-  const overrideActive = !!overrides && (overrides.grossMoic !== null || overrides.netTvpi !== null || overrides.netDpi !== null);
+  // Part 36, WS99.2 — replaced the hand-rolled `!== null` disjunction with
+  // hasOverrideValue(), which uses a nullish check (F93). Do not write
+  // `overrides.netIrr !== null` here or anywhere else in this file.
+  const overrideActive = hasOverrideValue(overrides);
   return (
     <div className="mb-6 rounded-md border border-border bg-card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -73,18 +95,12 @@ export function FundPerformanceCard({ performance, deals, fundName, showCaveat =
         </div>
         {overrideActive ? (
           <>
-            <div>
-              <p className="text-xs text-muted-foreground">Gross MOIC</p>
-              <p className="font-mono text-lg font-semibold">{overrides!.grossMoic !== null ? `${overrides!.grossMoic.toFixed(2)}x` : "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Net TVPI</p>
-              <p className="font-mono text-lg font-semibold">{overrides!.netTvpi !== null ? `${overrides!.netTvpi.toFixed(2)}x` : "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Net DPI</p>
-              <p className="font-mono text-lg font-semibold">{overrides!.netDpi !== null ? `${overrides!.netDpi.toFixed(2)}x` : "—"}</p>
-            </div>
+            {visibleOverrideMetrics(overrides).map((m) => (
+              <div key={m.key}>
+                <p className="text-xs text-muted-foreground">{m.label}</p>
+                <p className="font-mono text-lg font-semibold">{formatOverrideMetric(m)}</p>
+              </div>
+            ))}
           </>
         ) : (
           <>
