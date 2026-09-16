@@ -9,6 +9,9 @@ import {
   positionValue,
   computeFundPerformance,
   buildFundReportSnapshot,
+  visibleOverrideMetrics,
+  hasOverrideValue,
+  type StoredFundPerformanceOverride,
 } from "@/lib/portfolio-metrics";
 
 // All numbers below are synthetic/hand-computed (ground rule 1) — never
@@ -280,12 +283,121 @@ describe("buildFundReportSnapshot", () => {
   });
 
   it("attaches a populated override as a sibling field, leaving `performance` untouched", () => {
-    const override = { grossMoic: 2.5, netTvpi: 2.1, netDpi: 0.8 };
+    const override = {
+      grossMoic: 2.5,
+      netTvpi: 2.1,
+      netDpi: 0.8,
+      netIrr: 0.15,
+      netNav: 500_000,
+      showGrossMoic: true,
+      showNetTvpi: true,
+      showNetIrr: true,
+      showNetNav: true,
+    };
     const snapshot = buildFundReportSnapshot("Test Fund I", [dealInput], [], override);
     expect(snapshot.performanceOverride).toEqual(override);
     // The computed performance block is identical to the no-override call —
     // the override never feeds into computeFundPerformance().
     const withoutOverride = buildFundReportSnapshot("Test Fund I", [dealInput], []);
     expect(snapshot.performance).toEqual(withoutOverride.performance);
+  });
+});
+
+// Part 36, WS98.4 — visibleOverrideMetrics()/hasOverrideValue(). Synthetic
+// numbers only (ground rule 1) — never a real MOIC/TVPI/IRR/NAV.
+describe("visibleOverrideMetrics", () => {
+  it("returns [] for null and undefined", () => {
+    expect(visibleOverrideMetrics(null)).toEqual([]);
+    expect(visibleOverrideMetrics(undefined)).toEqual([]);
+  });
+
+  it("a full five-key object returns all five metrics, in fixed MOIC/TVPI/DPI/IRR/NAV order", () => {
+    const override: StoredFundPerformanceOverride = {
+      grossMoic: 2.5,
+      netTvpi: 2.1,
+      netDpi: 0.8,
+      netIrr: 0.0205,
+      netNav: 500_000,
+      showGrossMoic: true,
+      showNetTvpi: true,
+      showNetIrr: true,
+      showNetNav: true,
+    };
+    const result = visibleOverrideMetrics(override);
+    expect(result.map((m) => m.key)).toEqual(["grossMoic", "netTvpi", "netDpi", "netIrr", "netNav"]);
+  });
+
+  it("order is fixed regardless of input key order", () => {
+    const override: StoredFundPerformanceOverride = {
+      netNav: 1,
+      netIrr: 0.01,
+      netDpi: 1,
+      netTvpi: 1,
+      grossMoic: 1,
+    };
+    const result = visibleOverrideMetrics(override);
+    expect(result.map((m) => m.key)).toEqual(["grossMoic", "netTvpi", "netDpi", "netIrr", "netNav"]);
+  });
+
+  // F94/F93 — the whole point of this workstream.
+  it("a legacy (pre-Part-36) three-key snapshot renders exactly 3 metrics and never sprouts netIrr/netNav", () => {
+    // Built as a raw object literal with exactly three keys, cast through
+    // the stored type — this is what a report published before Part 36
+    // actually looks like on disk.
+    const legacy = { grossMoic: 2.5, netTvpi: 2.1, netDpi: 0.8 } as StoredFundPerformanceOverride;
+    const result = visibleOverrideMetrics(legacy);
+    expect(result).toHaveLength(3);
+    expect(result.map((m) => m.key)).toEqual(["grossMoic", "netTvpi", "netDpi"]);
+    expect(result.map((m) => m.key)).not.toContain("netIrr");
+    expect(result.map((m) => m.key)).not.toContain("netNav");
+  });
+
+  // F93 regression test: this MUST stay false. If someone later "simplifies"
+  // the nullish check in hasOverrideValue()/visibleOverrideMetrics() to
+  // `!== null`, this test fails — `undefined !== null` is `true`, and that
+  // bug would flip every already-published legacy report into override mode.
+  it("F93 guard: a legacy object with all three values null has hasOverrideValue() === false", () => {
+    const legacy = { grossMoic: null, netTvpi: null, netDpi: null } as StoredFundPerformanceOverride;
+    expect(hasOverrideValue(legacy)).toBe(false);
+  });
+
+  it("showNetIrr: false with a non-null netIrr hides the Net IRR metric", () => {
+    const override: StoredFundPerformanceOverride = { netIrr: 0.05, showNetIrr: false };
+    const result = visibleOverrideMetrics(override);
+    expect(result.map((m) => m.key)).not.toContain("netIrr");
+  });
+
+  it("showNetIrr: true with netIrr: null still shows the metric, with value null (renders —)", () => {
+    const override: StoredFundPerformanceOverride = { netIrr: null, showNetIrr: true };
+    const result = visibleOverrideMetrics(override);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ key: "netIrr", value: null });
+  });
+
+  it("Net DPI is returned regardless of any flag (D2 — untouched by Part 36)", () => {
+    const override: StoredFundPerformanceOverride = { netDpi: 0.8 };
+    const result = visibleOverrideMetrics(override);
+    expect(result.map((m) => m.key)).toContain("netDpi");
+  });
+
+  it("a present-but-hidden metric does not by itself count as an override value", () => {
+    const override: StoredFundPerformanceOverride = { netIrr: 0.05, showNetIrr: false };
+    expect(hasOverrideValue(override)).toBe(false);
+  });
+
+  it("format discriminators: netNav is currency, netIrr is percent, the rest are multiple (F96)", () => {
+    const override: StoredFundPerformanceOverride = {
+      grossMoic: 1,
+      netTvpi: 1,
+      netDpi: 1,
+      netIrr: 0.01,
+      netNav: 1,
+    };
+    const byKey = Object.fromEntries(visibleOverrideMetrics(override).map((m) => [m.key, m.format]));
+    expect(byKey.grossMoic).toBe("multiple");
+    expect(byKey.netTvpi).toBe("multiple");
+    expect(byKey.netDpi).toBe("multiple");
+    expect(byKey.netIrr).toBe("percent");
+    expect(byKey.netNav).toBe("currency");
   });
 });

@@ -344,12 +344,97 @@ export interface FundPerformanceOverride {
   grossMoic: number | null;
   netTvpi: number | null;
   netDpi: number | null;
+  // Part 36, WS98 (D5). Required, not optional — every construction site
+  // must be updated, and the compiler is the only thing that will say so
+  // at three of them.
+  netIrr: number | null;
+  netNav: number | null;
+  // Part 36, WS98 (D4). Visibility is data, never a fund-name conditional.
+  showGrossMoic: boolean;
+  showNetTvpi: boolean;
+  showNetIrr: boolean;
+  showNetNav: boolean;
+}
+
+/**
+ * Part 36, WS98 — the shape a FROZEN snapshot may actually have.
+ *
+ * FundReportFundSnapshot.snapshot is JSON written at publish time and never
+ * migrated. Reports published before Part 36 carry an object with exactly
+ * three keys — grossMoic/netTvpi/netDpi — and NO netIrr, netNav or show*
+ * keys at all. Not null: ABSENT. Every reader of a frozen payload must use
+ * this type, never FundPerformanceOverride, so the compiler stops anyone
+ * assuming the new keys are there (F93, F94).
+ */
+export type StoredFundPerformanceOverride = Partial<FundPerformanceOverride>;
+
+export type OverrideMetricFormat = "multiple" | "percent" | "currency";
+
+export interface OverrideMetric {
+  key: "grossMoic" | "netTvpi" | "netDpi" | "netIrr" | "netNav";
+  label: string;
+  value: number | null;
+  format: OverrideMetricFormat;
+}
+
+// Display order is fixed here, not at the call site: MOIC, TVPI, DPI, IRR,
+// NAV. Net DPI keeps its existing third slot untouched (D2).
+const OVERRIDE_METRIC_SPECS = [
+  { key: "grossMoic", label: "Gross MOIC", format: "multiple", flag: "showGrossMoic" },
+  { key: "netTvpi",   label: "Net TVPI",   format: "multiple", flag: "showNetTvpi" },
+  // Net DPI has NO visibility flag (D2 — untouched by Part 36). It renders
+  // whenever its key is present, exactly as it always has.
+  { key: "netDpi",    label: "Net DPI",    format: "multiple", flag: null },
+  { key: "netIrr",    label: "Net IRR",    format: "percent",  flag: "showNetIrr" },
+  { key: "netNav",    label: "Net NAV",    format: "currency", flag: "showNetNav" },
+] as const;
+
+/**
+ * Part 36, WS98 — the single source of truth for which override metrics a
+ * Performance card renders.
+ *
+ * TWO RULES, and both exist because a frozen snapshot is never migrated:
+ *
+ *  1. KEY PRESENCE, not value nullity (F94). A metric appears only if its
+ *     key EXISTS on the object. A pre-Part-36 snapshot has no `netIrr` key,
+ *     so it renders no Net IRR box — rather than sprouting a "—" box in a
+ *     report an LP already received.
+ *  2. NULLISH comparison, never `!== null` (F93). `undefined !== null` is
+ *     true, and writing it that way would flip every historical report into
+ *     override mode.
+ *
+ * A missing show* flag means "not hidden" — legacy snapshots predate the
+ * flags and must render exactly as they did before.
+ */
+export function visibleOverrideMetrics(
+  override: StoredFundPerformanceOverride | null | undefined
+): OverrideMetric[] {
+  if (!override) return [];
+  return OVERRIDE_METRIC_SPECS.filter((spec) => {
+    if (!(spec.key in override)) return false;          // rule 1
+    if (spec.flag && override[spec.flag] === false) return false; // explicit hide only
+    return true;
+  }).map((spec) => ({
+    key: spec.key,
+    label: spec.label,
+    format: spec.format,
+    value: override[spec.key] ?? null,                   // rule 2
+  }));
+}
+
+/** True when the card should show override metrics instead of computed TVPI/DPI/Gross IRR. */
+export function hasOverrideValue(override: StoredFundPerformanceOverride | null | undefined): boolean {
+  return visibleOverrideMetrics(override).some((m) => m.value != null); // rule 2
 }
 
 export interface FundSnapshotPayload {
   fundName: string; // never fund.slug — finding #3
   performance: FundPerformance;
-  performanceOverride: FundPerformanceOverride | null; // Part 15 — null for every fund without an override today
+  // Part 36, WS98.2 — the STORED (partial) shape, not the full input type.
+  // buildFundReportSnapshot() below still accepts a full FundPerformanceOverride
+  // as its 4th parameter (so construction sites stay compiler-checked); this
+  // is what a reader of a frozen payload actually gets back (F93, F94).
+  performanceOverride: StoredFundPerformanceOverride | null; // Part 15 — null for every fund without an override today
   deals: FundSnapshotDealRow[];
 }
 
