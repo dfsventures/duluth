@@ -77,6 +77,14 @@ interface FundDetail {
   grossMoicOverride: number | null;
   netTvpiOverride: number | null;
   netDpiOverride: number | null;
+  // Part 36, WS101.1 — two more reported figures + four visibility flags
+  // (D4/D5). netIrrOverride is a FRACTION (0.0205 = 2.05%, Q89 = A).
+  netIrrOverride: number | null;
+  netNavOverride: number | null;
+  showGrossMoic: boolean;
+  showNetTvpi: boolean;
+  showNetIrr: boolean;
+  showNetNav: boolean;
   deals: Deal[];
   lps: { id: string; lp: { id: string; email: string; name: string | null } }[];
   reports: { id: string; title: string; periodLabel: string | null; status: string; publishedAt: string | null; createdAt: string }[];
@@ -130,11 +138,17 @@ export default function AdminFundDetailPage() {
   const [headerAum, setHeaderAum] = useState("");
   const [savingHeader, setSavingHeader] = useState(false);
 
-  // Performance override edit (Part 15, WS37.4)
+  // Performance override edit (Part 15, WS37.4; widened Part 36, WS101.2)
   const [editingOverrides, setEditingOverrides] = useState(false);
   const [overrideGrossMoic, setOverrideGrossMoic] = useState("");
   const [overrideNetTvpi, setOverrideNetTvpi] = useState("");
   const [overrideNetDpi, setOverrideNetDpi] = useState("");
+  const [overrideNetIrr, setOverrideNetIrr] = useState("");
+  const [overrideNetNav, setOverrideNetNav] = useState("");
+  const [showGrossMoic, setShowGrossMoic] = useState(true);
+  const [showNetTvpi, setShowNetTvpi] = useState(true);
+  const [showNetIrr, setShowNetIrr] = useState(true);
+  const [showNetNav, setShowNetNav] = useState(true);
   const [savingOverrides, setSavingOverrides] = useState(false);
 
   // Add deal modal
@@ -223,12 +237,19 @@ export default function AdminFundDetailPage() {
     }
   }
 
-  // Part 15, WS37.4 — performance override edit/save (Q46-Q52).
+  // Part 15, WS37.4 — performance override edit/save (Q46-Q52); widened
+  // Part 36, WS101.3/WS101.4 (D4/D5).
   function openEditOverrides() {
     if (!fund) return;
     setOverrideGrossMoic(fund.grossMoicOverride !== null ? String(fund.grossMoicOverride) : "");
     setOverrideNetTvpi(fund.netTvpiOverride !== null ? String(fund.netTvpiOverride) : "");
     setOverrideNetDpi(fund.netDpiOverride !== null ? String(fund.netDpiOverride) : "");
+    setOverrideNetIrr(fund.netIrrOverride !== null ? String(fund.netIrrOverride) : "");
+    setOverrideNetNav(fund.netNavOverride !== null ? String(fund.netNavOverride) : "");
+    setShowGrossMoic(fund.showGrossMoic);
+    setShowNetTvpi(fund.showNetTvpi);
+    setShowNetIrr(fund.showNetIrr);
+    setShowNetNav(fund.showNetNav);
     setEditingOverrides(true);
   }
 
@@ -242,6 +263,14 @@ export default function AdminFundDetailPage() {
           grossMoicOverride: overrideGrossMoic.trim() === "" ? null : Number(overrideGrossMoic),
           netTvpiOverride: overrideNetTvpi.trim() === "" ? null : Number(overrideNetTvpi),
           netDpiOverride: overrideNetDpi.trim() === "" ? null : Number(overrideNetDpi),
+          // Part 36, WS101.4 — no conversion at this boundary (Q89). The
+          // value typed is the value PATCHed is the value stored.
+          netIrrOverride: overrideNetIrr.trim() === "" ? null : Number(overrideNetIrr),
+          netNavOverride: overrideNetNav.trim() === "" ? null : Number(overrideNetNav),
+          showGrossMoic,
+          showNetTvpi,
+          showNetIrr,
+          showNetNav,
         }),
       });
       if (!res.ok) {
@@ -512,25 +541,79 @@ export default function AdminFundDetailPage() {
           sheet-sync column and sortable headers) is unaffected. */}
       <FundPerformanceCard
         performance={fund.performance}
-        overrides={{ grossMoic: fund.grossMoicOverride, netTvpi: fund.netTvpiOverride, netDpi: fund.netDpiOverride }}
+        overrides={{
+          grossMoic: fund.grossMoicOverride,
+          netTvpi: fund.netTvpiOverride,
+          netDpi: fund.netDpiOverride,
+          netIrr: fund.netIrrOverride,
+          netNav: fund.netNavOverride,
+          showGrossMoic: fund.showGrossMoic,
+          showNetTvpi: fund.showNetTvpi,
+          showNetIrr: fund.showNetIrr,
+          showNetNav: fund.showNetNav,
+        }}
       />
 
       {/* Part 15, WS37.4 — manual performance override edit affordance. Lives
           only here, in the admin-only fund detail page — never inside
           FundPerformanceCard/FundSnapshotBlock themselves, since that same
           component tree is portalled into the read-only LP page (ground
-          rule 3). */}
+          rule 3). Widened Part 36, WS101.5/101.6 — five numbers, four
+          visibility checkboxes. This ships even though D1 automates the
+          values: the flags are admin-owned and the sync never writes them
+          (JC-FM-D), and this form is the fallback when the sync is down. */}
       {editingOverrides ? (
         <div className="mb-6 rounded-md border border-border bg-card p-4">
           <p className="mb-3 text-sm text-muted-foreground">
-            Manual override — when any of these three are set, they replace the TVPI/DPI slots above and Gross IRR is
-            hidden for this fund everywhere its Performance card renders. Clear all three to go back to Molly&apos;s
-            own computed numbers.
+            Manual override — when any of these five are set, they replace the TVPI/DPI/Gross IRR slots above for
+            this fund. Clear a value to go back to Molly&apos;s own computed number for that slot. Unticking a
+            visibility box below hides that metric for this fund everywhere its Performance card renders —
+            including in LP reports published from now on. Reports already published keep whatever was frozen
+            into them at publish time.
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <Input label="Gross MOIC" type="number" step="0.01" value={overrideGrossMoic} onChange={(e) => setOverrideGrossMoic(e.target.value)} />
             <Input label="Net TVPI" type="number" step="0.01" value={overrideNetTvpi} onChange={(e) => setOverrideNetTvpi(e.target.value)} />
             <Input label="Net DPI" type="number" step="0.01" value={overrideNetDpi} onChange={(e) => setOverrideNetDpi(e.target.value)} />
+            {/* Part 36, WS101.5 (Q89 = A, LOCKED) — fraction storage, NOT a
+                "%" field. The label is the guardrail: an admin typing "2.05"
+                here stores 205%, and nothing checks bounds (matching aumUsd,
+                Part 15/JC-C). Do not shorten this label or convert at this
+                boundary — the only division by 100 lives in the sync parser. */}
+            <Input
+              label="Net IRR (decimal, e.g. 0.0205 = 2.05%)"
+              type="number"
+              step="0.0001"
+              value={overrideNetIrr}
+              onChange={(e) => setOverrideNetIrr(e.target.value)}
+            />
+            <Input label="Net NAV (USD)" type="number" step="1" value={overrideNetNav} onChange={(e) => setOverrideNetNav(e.target.value)} />
+          </div>
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="mb-2 text-xs text-muted-foreground">
+              Show on this fund&apos;s Performance card (admin, report preview, and published LP reports).
+              Net DPI is always shown when a value is set.
+            </p>
+            <div className="flex flex-wrap gap-x-5 gap-y-2">
+              {(
+                [
+                  ["Gross MOIC", showGrossMoic, setShowGrossMoic],
+                  ["Net TVPI", showNetTvpi, setShowNetTvpi],
+                  ["Net IRR", showNetIrr, setShowNetIrr],
+                  ["Net NAV", showNetNav, setShowNetNav],
+                ] as const
+              ).map(([label, checked, set]) => (
+                <label key={label} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => set(e.target.checked)}
+                    className="h-4 w-4 rounded border-border accent-primary"
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
           <div className="mt-3 flex gap-2">
             <Button size="sm" onClick={handleSaveOverrides} disabled={savingOverrides}>
@@ -543,7 +626,7 @@ export default function AdminFundDetailPage() {
         </div>
       ) : (
         <Button variant="secondary" size="sm" className="mb-6" onClick={openEditOverrides}>
-          Edit performance override
+          Edit performance metrics
         </Button>
       )}
 
