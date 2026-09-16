@@ -9851,3 +9851,889 @@ Append to the existing CORS section (currently ending `SETUP.md:102`), and add t
 **Handoff status: ready for Alvin.** All three decisions locked, no schema change, no conditional branches, four workstreams, ~1.7 days. **The one thing that must be carried into the handoff verbatim: WS93 and WS94 ship in a single deploy, with WS95 in the same batch.**
 
 ---
+
+# Part 36 — Four LP-facing fund metrics, per-fund visibility flags, and a second one-way sheet sync (WS97–WS103, F92–F101, 2026-09-16)
+
+> **Status: PLANNED, not built. ALL ELEVEN decisions are now settled — D1–D6 locked in the 2026-09-16 scoping session, and Q85–Q89 answered by Joseph on 2026-09-16 after this plan was first written. Nothing is open. All seven workstreams WS97–WS103 are unblocked and ready for Alvin.** Four of the five questions landed on the recommended option; **Q89 did not** — Joseph chose **fraction** storage for `netIrrOverride` over the weak recommendation of percent units, and every workstream detail that assumed percent has been corrected in place (WS97.1, WS99.3, WS101.5, WS102.2, WS102.3). **One narrow follow-up was surfaced by that correction and is recorded as Q90 — it is deliberately NON-blocking and is answered by looking at the first dry run, not before it.** Request originates with **Stephen** (DFS Lab team), the same person whose Part 15 request produced the existing three-field override. The ask: every LP-facing fund report should carry up to four headline metrics — **Gross MOIC, Net TVPI, Net IRR, Net NAV** — with per-fund rules about which of them appear. Scoped with Joseph in a full discussion session on 2026-09-16; six decisions were settled in that session and are recorded as **D1–D6 (LOCKED)**. Everything below was re-verified against the working tree at `3254039` before being written down, not taken from the briefing note or from Part 15's own plan text; where the briefing and the code disagreed, the disagreement is recorded as a finding.
+
+**Ground rules carried into this Part (unchanged):**
+
+1. **Confidentiality (Part 27, F53/F54).** The repo is public/MIT. **No real fund slug, vehicle code, MOIC, TVPI, IRR, NAV or deal figure may appear in `src/**`, `prisma/**`, a test fixture, a migration, a doc, or a commit message.** Every vehicle-code list in this Part is derived at runtime from `Fund.slug` rows in the database — never written down in code. This constraint is load-bearing on Q86 (see below), not decoration.
+2. **`computeFundPerformance()` stays pure and untouched.** Part 15's guarantee holds: the override is a *sibling* of the computed block, never mixed into it. No new field of this Part enters `FundPerformance`.
+3. **Additive-only schema.** Two nullable `Decimal?` columns and four `Boolean @default(true)` columns on `Fund`, plus one `String @default(...)` column on `SheetSyncRun`. Nothing is dropped, renamed, or made required.
+4. **No new cost line.** Reuses the existing Google service account, the existing Sheets read-only scope, the existing Vercel cron allowance (a 5th cron entry; the project has 4 today), and the existing Postgres tables. No new service, no new dependency.
+5. **Out of scope by Stephen's explicit instruction: the sheet's "Include in CUSTOM" row and its synthetic `CUSTOM` roll-up column.** Do not read it, do not model it, do not replicate it. It is sheet-internal machinery for Stephen's own what-if analysis. Under the column-matching rule specified in WS102 it is ignored *structurally* — `CUSTOM` is not a `Fund.slug`, so it never enters the column map — which is the correct way to honor this: by construction, not by a special case.
+
+---
+
+## Method — what was verified against the working tree (not against Parts 14/15's write-ups)
+
+Every claim in the briefing note was re-read in source. The results:
+
+**Confirmed exactly as briefed:**
+
+- `prisma/schema.prisma:543-545` — `Fund` carries `grossMoicOverride`, `netTvpiOverride`, `netDpiOverride`, all `Decimal?`.
+- `prisma/schema.prisma:697` — `Deal.sheetRowId String? @unique`, with the "Stable ID column" comment at `:693-696`.
+- `src/lib/portfolio-metrics.ts:343-347` — `FundPerformanceOverride { grossMoic, netTvpi, netDpi }`; `:349-354` `FundSnapshotPayload`; `:356-361` `buildFundReportSnapshot()` with the optional 4th parameter.
+- `src/components/fund-performance-card.tsx:58` — `overrideActive` reads only the three legacy fields; `:74-88` is the three-box override branch.
+- `src/app/admin/funds/[id]/page.tsx:77-79` (interface), `:134-137` (state), `:227-259` (handlers), `:515` (card usage), `:523-539` (form JSX).
+- `src/app/api/admin/funds/[id]/route.ts:150` — the hand-written allowlist `for (const field of ["grossMoicOverride", "netTvpiOverride", "netDpiOverride"] as const)`. Confirmed: **not** schema-validated, and the enclosing `data` object literal is hand-typed at `:126-133`.
+- `src/app/api/admin/reports/[id]/publish/route.ts:112-116` and `src/app/admin/reports/[id]/preview/page.tsx:76-80` — both hand-construct the override object field-by-field.
+- `src/lib/sheets.ts` — 112 lines, zero-dependency, hand-signed RS256 JWT (`:38-77`), `sheetsSyncEnabled()` at `:28-30` gating on the three env vars, `SHEET_TAB_NAME`/`SHEET_RANGE` hardcoded at `:19-20`.
+- `src/lib/sheet-sync.ts` (278 lines, pure, Prisma-free), `src/lib/sheet-sync-runner.ts` (248 lines, DB half), `SheetSyncRun` at `prisma/schema.prisma:775-786`, `/api/cron/sheets-sync`, `/api/admin/sheets-sync`, and `src/lib/__tests__/sheet-sync.test.ts` as the synthetic-row test pattern.
+- Column lookup is by **header text**, not letters (`findColumn`, `src/lib/sheets.ts:111-114`) — the discipline the briefing asks to carry forward is real and should be carried forward.
+
+**Corrected or added by this verification:**
+
+- **The sync admin surface is not at `/admin/sheets-sync`.** `src/app/admin/sync/page.tsx` is a 9-line `redirect("/admin/funds?tab=sync")` left over from Part 11/WS28; the real UI is the **"Sync" tab on `/admin/funds`**, rendering `src/components/admin/sync-panel.tsx` (420 lines). Any new admin surface belongs there, alongside it — see WS103.
+- **The existing sync matches a sheet's `Vehicle` cell against `Fund.name`, not `Fund.slug`** (`src/lib/sheet-sync.ts:199-201`: `knownFunds.find((f) => f.name.trim().toLowerCase() === vehicleName.toLowerCase())`, with `KnownFund` declared as `{ id, name }` at `:76-79`). This contradicts the schema's own comment that `slug` is "the import key" (`:530`). **F97.** The new sync must match on **`slug`**, and the divergence must be commented in place so a future reader does not "fix" one to match the other.
+- **`getSheetRows()` cannot be reused as-is.** It hardcodes one spreadsheet id, one range, and — critically — **strips row 1 as the header** (`src/lib/sheets.ts:101`: `const [header = [], ...rows] = values`). The new sheet's summary block does not begin at row 1 and its "header" is a *vehicle-code row* located by content, not by position. **F99** — the module must be generalized, not copied.
+- **`runSheetSync()` is currently hard-blocked from applying anything**: `src/lib/sheet-sync-runner.ts:220-224` throws unless `SHEETS_SYNC_APPLY_ENABLED === "true"`, an incident gate added 2026-07-20 after a live run produced 27 duplicate `Deal` rows. **F98** — whether that flag is set in production today is not knowable from the tree, and the incident it records is the strongest available argument for how the new sync's first run should be gated (Q87).
+- **The new sheet's summary block also carries "First Deal Date" and "AUM", which map onto existing `Fund.firstDealDate` / `Fund.aumUsd` columns** that are admin-typed today via the header edit form (`src/app/admin/funds/[id]/page.tsx:205-212`) and rendered admin-only (`:497-498` and `src/app/admin/funds/page.tsx:210-211` — **never LP-facing**, verified by grepping all of `src/app/lp/**`). **F100** → **Q88**.
+- **`src/app/api/admin/funds/route.ts:19-32` (`serializeFund`) does not return the override fields at all** — the funds *list* page never sees them. It therefore needs no change in this Part, which is worth saying explicitly so Alvin does not "helpfully" widen it.
+- **The LP portal has exactly two pages** (`src/app/lp/page.tsx`, `src/app/lp/reports/[id]/page.tsx`). The *only* LP-reachable path to any of these metrics is a **frozen** `FundReportFundSnapshot.snapshot` JSON blob read at `src/app/lp/reports/[id]/page.tsx:50-52` and handed to `<FundSnapshotBlock>` → `<FundPerformanceCard>`. There is no live-computed LP surface. This single fact is what makes F93/F94 the highest-risk part of this Part.
+
+---
+
+## F92 — the override is documented as "CAF1 only"/"a single fund" in two places; production has two funds populated (LOW, docs; annotated in this pass)
+
+`prisma/schema.prisma:539` says the override columns are "populated for a single fund today (deployment-specific)." `ROADMAP.md:114` says "populated for CAF1 only for now," and `ROADMAP.md:175` repeats "generic schema but CAF1-populated only (Q47)."
+
+Per the requester's live, read-only production query on 2026-09-16, **two** funds carry values today — each with `grossMoicOverride` and `netTvpiOverride` set, and `netDpiOverride` null. *(Which two is deployment-specific and deliberately not named here; ground rule 1 applies to this document as much as to `src/**`, and Part 27/F54 is specifically about vehicle labels in docs. The pre-existing ROADMAP quotes above are cited as-is because they are already in public history — nothing new is added by repeating them.)* **This figure is not independently re-verified here** — there is no `DATABASE_URL` in the working tree (`.env.local` does not exist; `.env.vercel`/`.env.local.vercel` are Development-scoped), and pulling production credentials is outside this agent's remit. Recorded as reported, attributed.
+
+Severity is LOW and the fix is documentation, but it matters to this Part for one concrete reason: **WS102's sync will write `grossMoicOverride` and `netTvpiOverride` from the sheet, overwriting both of those hand-entered values on its first non-dry-run pass.** A plan that believed only one fund was affected would have under-warned. See the ⚠️ under WS102.
+
+**Fixed in this pass:** the schema comment (WS97.1, one line) and both ROADMAP lines (WS103.4). The real vehicle codes are *not* written into the schema comment — it says "for more than one fund," not which.
+
+---
+
+## F93 — naively widening `overrideActive` retroactively switches every already-published LP report into override mode (HIGH; the single most dangerous line in this Part)
+
+`src/components/fund-performance-card.tsx:58`:
+
+```ts
+const overrideActive = !!overrides && (overrides.grossMoic !== null || overrides.netTvpi !== null || overrides.netDpi !== null);
+```
+
+The obvious edit — append `|| overrides.netIrr !== null || overrides.netNav !== null` — is **wrong, and wrong in the worst possible direction.**
+
+`FundReportFundSnapshot.snapshot` is frozen JSON written at publish time. Every report published before this Part ships contains a `performanceOverride` object with exactly three keys. On such an object, `overrides.netIrr` is **`undefined`**, and `undefined !== null` evaluates to **`true`**. So the naive widening makes `overrideActive` true for **every report ever published**, including the ones whose fund has no override at all (publish always writes an object, never `null` — `src/app/api/admin/reports/[id]/publish/route.ts:112-116` constructs `{grossMoic: null, netTvpi: null, netDpi: null}` for an unset fund).
+
+The visible consequence for an LP re-opening a report they were emailed months ago: the Performance card silently swaps **TVPI / DPI / Gross IRR** (real, computed, non-null numbers) for **Gross MOIC — / Net TVPI — / Net DPI —**, three em-dashes. That is a straight UX regression on a read-only, already-delivered surface, and it is invisible in local testing unless someone deliberately constructs a legacy fixture.
+
+**Required rule, binding on Alvin:** every nullity test against an override field in this Part uses a **nullish** check that treats `undefined` and `null` identically — `value == null` / `value != null`, or the explicit helper specified in WS98. **Do not use `!== null` against any override field anywhere in `fund-performance-card.tsx` after this Part.** WS98's test suite contains a legacy-shaped fixture specifically to fail if this rule is broken.
+
+---
+
+## F94 — a frozen snapshot has no opinion about metrics that did not exist when it was frozen (MEDIUM; the design constraint, not a bug)
+
+Related to F93 but distinct. Even with the nullish fix, "should this report show a Net NAV box?" has no answer stored in a legacy snapshot. Two candidate readings, and only one is safe:
+
+- *Absent key means null means "show a `—` box"* → every historical report sprouts two new empty boxes. **Rejected** (UX regression, ground rule 2).
+- *Absent key means "this metric did not exist for this report; render nothing"* → historical reports render byte-identically to today. **Correct.**
+
+So the render rule is **key presence, not value nullity**: a metric box appears only if its key is present on the override object **and** its visibility flag is not `false`. For a legacy snapshot: `grossMoic`/`netTvpi`/`netDpi` keys present → three boxes, exactly as today; `netIrr`/`netNav` keys absent → no boxes; `showNetIrr` etc. absent → irrelevant, because the value key gates first. **Legacy reports are byte-identical. That is the acceptance criterion.**
+
+This is why WS98 puts the decision in one tested pure function rather than in JSX: the "is this key present" logic must exist exactly once.
+
+---
+
+## F95 — the PATCH allowlist is the one place the TypeScript compiler will not catch a missed field (MEDIUM)
+
+`src/app/api/admin/funds/[id]/route.ts:150` iterates a **hand-written string-literal tuple**, and the `data` object it writes into is a **hand-written type literal** (`:126-133`). Neither is derived from Prisma's generated types. Adding `netIrrOverride` to the schema, the UI, and the fetch body — but forgetting this one line — produces a form that saves with a 200 and a success toast and **changes nothing**, with no error anywhere. The same is true of the four new boolean flags, which additionally do not fit the existing loop at all (it coerces with `Number()` and rejects non-finite values — a boolean would become `NaN` and 400).
+
+Two separate code paths are therefore needed in WS100: the numeric loop (extended from 3 names to 5) and a **new boolean loop** for the four flags. Both must also be reflected in the hand-typed `data` literal, and in **both** response serializers (`:60-64` on GET and `:167-172` on PATCH) — the admin page reloads via `loadFund()` after save, so a missing serializer key makes a saved value appear to revert.
+
+**Acceptance check for this finding specifically:** after WS100/WS101, set all six new values on a fund, save, hard-reload the page, and confirm all six survive. A missing allowlist entry fails this and nothing else will.
+
+---
+
+## F96 — the override render hardcodes `×`-multiple formatting for all three slots; two of the new metrics are not multiples (MEDIUM)
+
+`fund-performance-card.tsx:78/82/86` all do `${value.toFixed(2)}x`. That is right for MOIC/TVPI/DPI and wrong for both new metrics:
+
+- **Net NAV** is a dollar amount. House convention for money on this card is `$${Math.round(v).toLocaleString()}` (`:68`, `:72`).
+- **Net IRR** is a rate. House convention on this card is `${(v * 100).toFixed(1)}%` (`:102`) — note the `* 100`, which is where **Q89** comes from.
+
+So the per-metric formatter must travel with the metric, not be spelled out three (now five) times in JSX. WS98's selector returns a `format` discriminator per metric for exactly this reason.
+
+---
+
+## F97 — the existing deals sync keys "Vehicle" off `Fund.name`, contradicting the schema's own "slug is the import key" comment (LOW, informational; do not change it)
+
+`src/lib/sheet-sync.ts:199-201` matches on `f.name`; `KnownFund` (`:76-79`) does not even carry `slug`; `loadSyncInputs()` selects `{ id: true, name: true }` (`src/lib/sheet-sync-runner.ts:55`). Meanwhile `prisma/schema.prisma:530` calls `slug` the "import key" and `name` the "display name, editable."
+
+This is a latent fragility in the *existing* sync — renaming a fund in the admin UI breaks its sheet matching — but it works today and is **out of scope**. **Do not change it in this Part.** It is recorded because the new sync must key on **`slug`** (the sheet's summary columns are vehicle codes, and `slug` is the column that is documented as immutable — `src/app/api/admin/funds/[id]/route.ts:146` comments "slug is immutable"), and a future reader comparing the two files needs to know the difference is deliberate. WS102 puts a comment to that effect in `fund-metrics-sync.ts`.
+
+---
+
+## F98 — the existing sync's apply path is disabled behind an incident gate, and the incident is directly instructive here (informational; drives Q87)
+
+`src/lib/sheet-sync-runner.ts:209-224` refuses any non-dry-run apply unless `SHEETS_SYNC_APPLY_ENABLED === "true"`, with a comment recording that a live run against production before the one-time `sheetRowId` linking step created **27 duplicate `Deal` rows**. The gate's own comment says to remove it only after cleanup and verification; whether that happened, and whether the flag is set in Vercel today, cannot be determined from the working tree.
+
+**Two things follow.** (1) An operational check belongs in the handoff: Alvin/Joseph should confirm the current state of `SHEETS_SYNC_APPLY_ENABLED` before assuming the deals sync runs at all. (2) The new sync's blast radius is smaller than the deals sync's (it writes at most 4 columns on at most 7 `Fund` rows, all of them already-nullable display fields, all reversible by clearing) — but the precedent for a separate apply gate is strong and cheap. Folded into **Q87**.
+
+---
+
+## F99 — `getSheetRows()` is hardcoded to one spreadsheet, one range, and a row-1 header (structural; drives WS102.1)
+
+`src/lib/sheets.ts:90-107`: reads `process.env.SHEETS_SPREADSHEET_ID` directly, uses the module-level `SHEET_RANGE` constant, and destructures `const [header = [], ...rows] = values`. The new sheet needs a **different spreadsheet id**, a **wider range**, and **raw rows with no header assumption** (its vehicle-code row is found by content, and its deal table starts at an unknown row).
+
+**Generalize, do not copy.** Copying the 40 lines of JWT signing into a second module is the exact duplication shape Part 35/JC-UP-A was written to prevent. WS102.1 adds a raw `getSheetValues(spreadsheetId, range)` primitive and reimplements the existing `getSheetRows()` as a two-line wrapper over it, so the deals sync's behavior is byte-identical and the auth code exists once.
+
+---
+
+## F100 — the new sheet carries First Deal Date and AUM, which Molly already stores and an admin already types by hand (informational; drives Q88)
+
+Summary-block rows observed in the new sheet: *First Deal Date, Deployed, AUM, Undeployed, Implied Value, Implied Carry, Gross MOIC, Net TVPI, Net IRR, Net NAV, Include in CUSTOM.* Four of those have Molly counterparts — `Fund.firstDealDate`, `Fund.aumUsd`, and (computed, not stored) the Performance card's own Invested and Implied Value. Stephen's ask names only the four metrics; syncing the others would be scope Alvin should not take on his own initiative. **Q88.**
+
+For the record: `firstDealDate`/`aumUsd` are **admin-only** display (`src/app/admin/funds/page.tsx:210-211`, `src/app/admin/funds/[id]/page.tsx:497-498`) and appear on no LP or share surface — so syncing them later would be a low-risk additive follow-up, not a second LP-facing decision.
+
+---
+
+## F101 — ROADMAP still calls Part 35 "PLANNED, NOT yet built"; it shipped (LOW, docs; corrected in this pass)
+
+`ROADMAP.md:7` (the Part 35 blockquote) and the header line at `:3` both said **"PLANNED, NOT yet built."** Part 35 shipped: `git log` shows **WS93 `a26b436`, WS94 `69390a1`, WS95 `81af6ad`, WS96 `3254039`** as the four commits immediately preceding `HEAD`, and the artifacts are present in the tree — `src/lib/upload-document.ts` (WS94's shared helper) and `src/app/api/documents/confirm/route.ts` (WS93's confirm endpoint) both exist, as does `src/lib/__tests__/documents-confirm-route.test.ts`.
+
+Worth naming rather than silently fixing, because of what it is: **the third instance of the same stale-status shape**, and the second time the fix itself missed a spot. Part 32/F70 corrected Part 23's header but missed its blockquote; Part 35/F91 then corrected that blockquote *and* Part 34's — and Part 35's **own** entry went stale in the same commit series, despite **WS96 being explicitly the ROADMAP-sync workstream** (commit message: "SETUP.md domain-change CORS warning + ROADMAP sync"). The pattern is that a Part's status is written when the plan is authored and nobody owns flipping it at merge.
+
+**Not proposing a mechanism for it here** — a CI check that parses ROADMAP status prose is more fragile than the problem — but it is now a recorded, recurring class rather than three unrelated one-offs, and the cheap standing habit is: *the last workstream of every Part flips that Part's own ROADMAP status line, and the commit that does it is the last commit of the batch.*
+
+**Corrected in this pass:** `ROADMAP.md:3` and `:7`, both annotated with the commit SHAs and the verification date rather than silently rewritten (house convention).
+
+---
+
+## Confirmed decisions (settled with Joseph, 2026-09-16 — do NOT re-litigate)
+
+| | Decision | Consequence for the build |
+|---|---|---|
+| **D1** | **Data flow is an automated one-way sheet → Molly sync**, not manual admin entry. (Manual entry was picked first, then reopened and reversed once it emerged that Molly's Deal IDs had already been copied into the external sheet specifically to enable machine matching.) | WS102/WS103 exist. The manual admin form (WS101) **still ships anyway** — it is where the visibility flags live (which the sync never touches, D4) and the fallback when the sync is down |
+| **D2** | **`Net DPI` is untouched.** Not dropped, not renamed, not synced, not hidden. It keeps its existing column, its existing admin input, and its existing card slot | `netDpiOverride` appears in **no** write path added by this Part. The sheet has no Net DPI row; the sync must not infer one |
+| **D3** | **Values are evergreen per-fund**, not per-report-period — one current set of numbers per `Fund`, exactly like the three existing override columns, frozen into a report only by the existing publish-time snapshot | No new model, no period dimension, no `asOf` column. `FundReportFundSnapshot` continues to be the only historical record |
+| **D4** | **Visibility is four generic per-fund booleans**, never hardcoded fund-name conditionals: `showGrossMoic`, `showNetTvpi`, `showNetIrr`, `showNetNav`, each `@default(true)` | WS97. **This is not a style preference.** One fund's Net IRR is genuinely non-null in the source sheet (a real, low computed value) and Stephen wants it hidden as an editorial judgment; two other funds' IRR cells are genuinely blank because those vehicles are too young. Same display outcome, different reasons — so visibility **cannot** be inferred from nullity and needs its own flag. It also keeps real vehicle codes out of the codebase (ground rule 1) |
+| **D5** | Two new nullable override columns, `netIrrOverride` and `netNavOverride`, alongside the three existing ones | WS97. Naming discussed and settled — see **JC-FM-B** |
+| **D6** | **Cross-check the external sheet's deal-level Stable IDs against `Deal.sheetRowId`** as part of the sync | WS102.5. **Behaviour on mismatch is NOT settled — see Q85.** The requester counted 81 ID rows in the new sheet against 80 populated `Deal.sheetRowId` rows in Molly, so at least one real mismatch exists today and the crosscheck will fire on its first run |
+
+**Also settled, by Stephen, and repeated here because it is an instruction rather than a preference:** the sheet's **"Include in CUSTOM" row and `CUSTOM` column are out of scope entirely.** Do not read, model, replicate, or expose them.
+
+---
+
+## Confirmed decisions, round 2 (Q85–Q89, answered by Joseph 2026-09-16 — do NOT re-litigate)
+
+> **All five are LOCKED.** The option tables below are kept intact so a future reader can see what was weighed and rejected; the decision line under each now reads **LOCKED**, not "recommended." **Four landed on the recommendation. Q89 did not** — read its correction notes carefully, because the percent-unit assumption had reached four separate workstreams and all four have been rewritten.
+
+### Q85 — what happens when the deal-ID crosscheck (D6) finds a mismatch? — **LOCKED (A), 2026-09-16**
+
+| | Option | Consequence |
+|---|---|---|
+| **A** ✅ **CHOSEN** | **Non-blocking: record it, apply the fund metrics anyway.** IDs present in the sheet but not in Molly, and vice versa, are counted and listed in the run summary and surfaced in the admin panel as a warning line; the four metric columns are written regardless | Matches the existing sync's own convention exactly — `computeSheetDiff` collects `duplicateIds`/`missingIds`/`unknownVehicles`/`badCells` into `diff.errors` and **still returns creates/updates** (`src/lib/sheet-sync.ts:121-127`, `:189-197`). Also matches the actual relationship between the two things: a deal Stephen added to his sheet this week has no bearing on whether last quarter's Net TVPI is correct. Cost: a real divergence can persist unnoticed if nobody reads the warning |
+| **B** | **Blocking: a mismatch fails the run and writes nothing** | Strongest integrity guarantee, and the most likely outcome is that **the sync never applies at all** — there is a known mismatch *right now* (81 vs 80), the two sheets are maintained by different people at different cadences, and a permanently-red cron is a cron everyone learns to ignore |
+| **C** | **Blocking only on a "hard" class** (an ID in the sheet that Molly has never seen) and non-blocking on the soft class (an ID Molly has that the sheet has dropped) | Defensible middle ground, but it needs a taxonomy that does not exist yet and would have to be revised the first time reality disagrees with it. Available later as a tightening of A; A is the cheaper first move |
+
+**LOCKED: A** (Joseph, 2026-09-16, as recommended) — "log it, matches the existing *flag, don't fail* convention." The grounds stand: (i) it is the convention the codebase already established for this exact situation (`computeSheetDiff` collects every error class and still returns creates/updates), and (ii) the crosscheck's job here is *reconciliation reporting between two spreadsheets*, not gatekeeping a metrics write.
+
+**The lock carries two binding instructions:**
+
+- **`runFundMetricsSync` must never throw on a crosscheck result.** A non-empty `sheetOnlyIds`/`mollyOnlyIds` is recorded in `summary.crosscheck` and the apply proceeds. Option B's `throw`-before-apply branch in WS102.4 is **deleted, not left behind a flag.**
+- **Because nothing fails, the only thing standing between a real divergence and nobody noticing is the admin panel line — so WS103.3's crosscheck line is NOT optional and must render on the collapsed run row, not inside the disclosure.** This is the same reasoning that made Part 35/WS95 load-bearing rather than polish.
+
+### Q86 — seed `showNetIrr = false` for the three funds we already know about, or ship all-true and set them in the UI? — **LOCKED (B), 2026-09-16**
+
+| | Option | Consequence |
+|---|---|---|
+| **A** | **Seed the known answer in the migration** — set `showNetIrr = false` for the three affected funds as part of the schema change | Correct on day one with no human step. But it **writes three real DFS vehicle codes into a migration file in a public MIT repo, permanently, in git history** — precisely Part 27/**F54** ("DFS's real fund-vehicle labels in code/README/docs"), the finding class that already required a `git filter-repo` history rewrite once on 2026-08-06. It also hardcodes a deployment-specific product judgment into a file every fork inherits, contradicting **D4**'s whole purpose |
+| **B** ✅ **CHOSEN** | **Ship all four flags `true`; Joseph unticks Net IRR for the three funds on `/admin/funds/[id]` immediately after deploy** — a documented three-fund, three-click post-deploy step in the handoff | Zero confidentiality exposure, zero fork contamination, and it exercises the WS101 UI once as a smoke test. Cost: a real window between deploy and the admin pass during which those funds' `showNetIrr` is `true` |
+| **C** | Ship all-true and seed via a **local one-off script** run against production, never committed | Same outcome as B with fewer clicks, but adds an uncommitted-script step with no audit trail, for three checkbox toggles. Not worth it |
+
+**LOCKED: B** (Joseph, 2026-09-16, as recommended) — ship all four flags defaulted `true`; an admin sets `showNetIrr = false` for the three affected funds after deploy, before publishing any new report.
+
+**The rejection of A carries an instruction, and it is binding:** **no migration, seed script, or fixture in this Part may contain a fund slug.** Not `prisma/schema.prisma`, not a SQL migration, not `prisma/seed.ts`, not a test file. The three affected vehicle codes exist in this plan's *discussion* and in the production database, and nowhere else. This is Part 27/F54 territory — the finding class that already forced a `git filter-repo` history rewrite on 2026-08-06 — and it is the reason A was rejected, so re-introducing the codes anywhere in the tree would defeat the decision while nominally complying with it.
+
+**On the size of the "window" in B:** it is **not** an LP-visible window. `showNetIrr` reaches an LP only through a report an admin *publishes* after this deploy — nothing already published changes (F94), and no LP surface computes live. The exposure is that an admin viewing `/admin/funds/[id]` sees a Net IRR box that Stephen would rather not show. **The handoff instruction is therefore: do the three-fund admin pass before publishing any new fund report, not before the deploy.**
+
+### Q87 — env var naming for the second sheet, and how `sheetsSyncEnabled()` generalizes to two independently-configured sheets — **LOCKED (A + sub-question (i)), 2026-09-16**
+
+Confirmed facts: the two spreadsheets have **different ids**; the new file's *title* is confusingly near-identical to the existing tracker's, which is a trap for anyone eyeballing a Drive listing rather than an id. Whether the new sheet is shared with the service account is **unverified** — Joseph believes so. Treat the first real dry run as the test; a 403 from `values.get` is the expected symptom if not.
+
+| | Option | Consequence |
+|---|---|---|
+| **A** ✅ **CHOSEN** | **One new id var, shared credentials, a sibling gate.** Add `FUND_METRICS_SPREADSHEET_ID`; add `fundMetricsSyncEnabled()` = `GOOGLE_SA_EMAIL && GOOGLE_SA_PRIVATE_KEY && FUND_METRICS_SPREADSHEET_ID`. The two syncs then enable and fail independently while sharing one service account, one JWT signer, one scope | Smallest change; reads correctly ("the fund-metrics sheet"); a fork that uses neither sheet still no-ops both (ground rule 4). Tab/range stay module constants like `SHEET_TAB_NAME`/`SHEET_RANGE` do today — **not** env vars; the existing precedent is that a sheet's internal layout is code, not configuration |
+| **B** | Numbered generic vars (`SHEETS_SPREADSHEET_ID_2`, …) | Rejected. Nothing at the call site would say which sheet is which, and the two sheets' near-identical titles make that actively dangerous |
+| **C** | One var holding both ids (comma-separated or JSON) | Rejected. Turns a missing-config error into a parse error and breaks the existing var's meaning |
+
+**Sub-question, and this is the part that needs an actual answer, not just a naming nod: does the new sync get its own apply gate?**
+
+- **(i)** ✅ **CHOSEN** — **`FUND_METRICS_SYNC_APPLY_ENABLED`, mirroring `SHEETS_SYNC_APPLY_ENABLED` (F98).** Ship with it unset, so the cron and the admin "Sync now" button both refuse to apply while **dry-run preview still works**; Joseph reads one dry run in the admin panel, confirms the numbers and the crosscheck warnings look right, then sets the flag. Given that the first apply will **overwrite the two funds' hand-entered Gross MOIC / Net TVPI values (F92)**, a deliberate human "yes" before the first write is cheap insurance — and the 27-duplicate-rows incident is the precedent.
+- **(ii)** No separate gate; `fundMetricsSyncEnabled()` alone controls everything, and the first deploy can apply immediately. Faster, and defensible on blast radius (at most 4 nullable columns on at most 7 rows, all reversible by clearing) — but it removes the preview-before-first-write step exactly where the overwrite risk lives.
+
+**LOCKED: A, with sub-question (i)** (Joseph, 2026-09-16, both as recommended) — `FUND_METRICS_SPREADSHEET_ID` + a sibling `fundMetricsSyncEnabled()`, **and the new sync gets its own apply gate**: dry-run works from the moment the id is configured, the first real write needs a deliberate manual enable.
+
+**Binding details for Alvin:**
+
+- The gate env var is **`FUND_METRICS_SYNC_APPLY_ENABLED`**, checked with `!== "true"` exactly as `sheet-sync-runner.ts:220` does. **Ship it unset.** It must **not** be added to Vercel as part of the deploy — the whole point is that a human sets it after reading a dry run.
+- The refusal must be a **clear, actionable error**, not a silent no-op, and it must **not** be reachable from the `DRY_RUN` path. Mirror the existing message's shape: say what is disabled, say that dry runs still work, and name the env var to set.
+- **The gate is permanent, not an incident gate.** This is the one place it diverges from its model: `SHEETS_SYNC_APPLY_ENABLED`'s own comment says to remove it after cleanup, because it was added reactively. `FUND_METRICS_SYNC_APPLY_ENABLED` is a deliberate first-write safety and stays. **Say so in the comment**, so a future reader doing gate cleanup does not delete it thinking it is incident debris.
+
+### Q88 — does this sync also own `Fund.firstDealDate` and `Fund.aumUsd`? (F100) — **LOCKED (A), 2026-09-16**
+
+| | Option | Consequence |
+|---|---|---|
+| **A** ✅ **CHOSEN** | **No — metrics only.** The sync reads exactly four summary rows (Gross MOIC, Net TVPI, Net IRR, Net NAV) and ignores the rest of the block, including First Deal Date, Deployed, AUM, Undeployed, Implied Value, Implied Carry | Keeps the Part to Stephen's actual ask; avoids silently taking over two fields an admin types by hand today (a behavior change nobody requested); leaves the follow-up trivially available. Cost: two values stay manually maintained in two places |
+| **B** | Also sync `firstDealDate` and `aumUsd` | Removes duplicate data entry. But it is a new, unrequested behavior change to admin-owned fields, it needs its own date parser for the sheet's First Deal Date format, and it puts "the sheet wins" semantics on fields that currently have "the admin wins" semantics — a small decision that deserves its own conversation rather than a ride-along |
+
+**LOCKED: A** (Joseph, 2026-09-16, as recommended) — **metrics only.** The sync reads exactly four summary-row labels and ignores every other row in the block, including First Deal Date, Deployed, AUM, Undeployed, Implied Value, Implied Carry and (per ground rule 5) Include in CUSTOM.
+
+**The rejection carries an instruction:** `computeFundMetricsDiff` must have **no code path that can emit an update whose `field` is anything other than the four override columns.** The `FundMetricsUpdate.field` union type in WS102.2 already enforces this at compile time — **do not widen it "for later."** `Fund.firstDealDate` and `Fund.aumUsd` keep their current admin-wins semantics and are not named anywhere in the new sync. If Joseph wants B later, it is a clean additive follow-up (the column map and row-label lookup are already general enough), not a rework.
+
+### Q89 — what unit does `netIrrOverride` store: a fraction (`0.0205`) or percent units (`2.05`)? — **LOCKED (A), 2026-09-16 — Felix's recommendation NOT taken**
+
+Nobody sees this decision in the UI, and both render identically. It matters because it is unfixable-for-free later: changing it after the first sync run requires a one-off data migration on live values.
+
+| | Option | Consequence |
+|---|---|---|
+| **A** ✅ **CHOSEN** | **Fraction** — store `0.0205`, render `(v * 100).toFixed(1)}%` | Consistent with the existing `FundPerformance.grossIrr`, which is a solver output and a fraction by construction (`fund-performance-card.tsx:102`). But the sheet cell reads `2.05%`, and an admin typing into a field labelled "Net IRR" would have to enter `0.0205` — or the form has to divide by 100 at its boundary, which is a silent conversion in exactly the spot where a hand-entered correction happens during an outage |
+| **B** | **Percent units** — store `2.05`, render `${v.toFixed(1)}%`; the admin field is labelled "Net IRR (%)" and is WYSIWYG | Matches the sheet's own representation, matches what an admin would type, and `netIrrOverride` participates in **no** arithmetic anywhere (unlike `grossIrr`, which is computed), so there is no math to be inconsistent with. Cost: two IRR-ish numbers in the codebase carry different units, which needs a schema comment to stay honest |
+
+**LOCKED: A** (Joseph, 2026-09-16). **This is the one decision in Part 36 that went against the recommendation**, and deliberately so: Joseph weighted *one unit for every IRR in the codebase* above *matching the sheet's display form*, on the grounds that a second convention is a permanent tax while a conversion is a single, testable line. That is a reasonable call and the weak recommendation is withdrawn without reservation.
+
+**Where the conversion lives — Joseph's explicit instruction, and it is binding:**
+
+> **Divide by 100 at sync-parse time, never at render time.** Fraction in, fraction stored, fraction out. `netIrrOverride` holds a fraction at every layer above the sheet parser — DB, API, snapshot JSON, component prop — and the only `× 100` in the whole feature is the one already-existing display convention at `fund-performance-card.tsx:102`.
+
+**Four workstream details that assumed percent and have been rewritten in place. Alvin must read the corrected versions, not the originals:**
+
+1. **WS97.1** — the schema comment's `<PERCENT UNITS / FRACTION>` placeholder is resolved to **fraction**, with the `grossIrr` cross-reference spelled out.
+2. **WS99.3** — the formatter's percent branch is now `${(m.value * 100).toFixed(1)}%`. **The `* 100` is mandatory.** Without it, a 2.05% IRR renders as "0.0%".
+3. **WS101.5** — the admin input is **no longer** `label="Net IRR (%)" step="0.01"`. Under fraction storage that field would silently store 205× the intended value if someone typed `2.05`. It becomes a fraction field with a teaching label and a finer step — see the corrected WS101.5.
+4. **WS102.2** — `parseSheetPercent` now divides by 100, **conditionally**, and that condition is the subject of **Q90** below.
+
+**Reversal path, still cheap and now worth writing down precisely** (this decision is only expensive to reverse *after the first apply*, which the Q87 gate deliberately delays): one `UPDATE funds SET "netIrrOverride" = "netIrrOverride" * 100 WHERE "netIrrOverride" IS NOT NULL`, plus the `* 100` removed from WS99.3's formatter, plus the `/ 100` removed from WS102.2's parser, plus WS101.5's label and step. Four edits and one statement.
+
+### Q90 — how does the parser tell "2.05%" from "0.0205"? — **NON-BLOCKING; answer from the first dry run, not before it**
+
+Surfaced by locking Q89-A, and recorded rather than silently guessed because a wrong answer stores every IRR off by 100×.
+
+`getSheetValues` uses the Sheets API's **default `valueRenderOption`, which is `FORMATTED_VALUE`** — cells come back as the display strings a human sees (this is exactly why the existing `parseSheetCurrency` strips `$` and `,`, `sheet-sync.ts:65-73`). So a percent-formatted cell arrives as the string `"2.05%"`, and the correct conversion is "strip `%`, divide by 100." But a cell that is *not* percent-formatted — one that displays a bare `2.05` and means 2.05%, or a bare `0.0205` and means the fraction — arrives with no marker at all, and the two cases are indistinguishable from the string alone.
+
+**Build this, and it is deterministic and safe for both formats:**
+
+```ts
+// Part 36, WS102.2 (Q89-A) — returns a FRACTION. 0.0205 means 2.05%.
+//
+// Q90: the % sign is the signal. Sheets' default FORMATTED_VALUE render
+// gives a percent-formatted cell as "2.05%", so a trailing % means the
+// number is in percent units and must be divided by 100. A bare number is
+// taken AS ALREADY A FRACTION and passed through untouched. That is the
+// only reading that cannot silently corrupt a correctly-percent-formatted
+// sheet, and it is deterministic from the cell text.
+//
+// The one case it gets wrong: a cell displaying a bare "2.05" that MEANS
+// 2.05%. That is unfalsifiable from the text and MUST be checked by eye on
+// the first dry run (see the handoff). Symptom: an IRR two orders of
+// magnitude too small in the from -> to list.
+```
+
+**The two ways to resolve it, in order of preference — and both are cheap, which is why this does not block:**
+
+- **(a) ✅ Preferred: look at the first dry run.** The dry run exists precisely to be read before anything is written, and the Q87 gate guarantees it happens. If the `from → to` list shows plausible IRR fractions, the `%` signal was present and the rule is correct. If it shows values 100× too small, the sheet's cells are bare numbers and the fix is one line.
+- **(b) If (a) reveals bare numbers:** switch the fund-metrics fetch to **`valueRenderOption=UNFORMATTED_VALUE`**, which returns a percent-formatted cell as its true underlying fraction (`0.0205`) with no parsing at all, and makes the ambiguity structurally impossible. `getSheetValues` takes the spreadsheet id and range as arguments already, so this is one extra query parameter **on the fund-metrics call only** — the deals sync keeps `FORMATTED_VALUE` and stays byte-identical. *(Not adopted pre-emptively because it also changes what the multiple and currency parsers see, and those are known to work against formatted strings today.)*
+
+**Handoff instruction:** whoever reads the first dry run must explicitly sanity-check the **magnitude** of the Net IRR values, not just their presence. That check is listed in the Sequencing section.
+
+---
+
+## Judgment calls (Felix's, made — each with its reversal path)
+
+- **JC-FM-A — one pure selector, not five JSX branches.** The "which boxes render, in what order, formatted how" logic goes into a single exported pure function in `portfolio-metrics.ts` (`visibleOverrideMetrics()`), unit-tested including a legacy-snapshot fixture; `FundPerformanceCard` becomes a `.map()` over its result. The alternative — five conditional blocks in JSX, each with its own nullish check and its own formatter — is five chances to write `!== null` and reintroduce **F93**. *Reversal: inline it back into the component; it is pure, dependency-free, and about 30 lines.*
+- **JC-FM-B — keep the `…Override` suffix for the two new columns.** The name originally meant "an admin's manual correction of a computed number," and under **D1** these will mostly arrive from a sync, so the name is now slightly inaccurate. Keeping it anyway: five columns sharing one suffix and one code path beats two naming schemes on one model, and a rename of the three existing columns is a destructive schema change this Part has no mandate for. **Semantics to record in the schema comment: these are "the authoritative reported figure, from the sheet or from an admin," and they still override the computed block.** *Reversal: a rename is a `@map()` away if it ever matters more than consistency does.*
+- **JC-FM-C — discriminate the two sync histories with a `kind` column on `SheetSyncRun`, not a second table.** `SheetSyncRun` (`prisma/schema.prisma:775-786`) is already a generic run-log: trigger/status/timestamps/`summary Json`/`error`. Add `kind String @default("DEALS")` — additive, and existing rows get the correct value for free. A second near-identical model would duplicate the admin panel, the history query, and the cron-logging convention. *Reversal: a second model plus a data copy, if the summary shapes ever diverge enough to make the shared `Json` column dishonest.*
+- **JC-FM-D — the sync writes values only; visibility flags are admin-owned, forever.** The sheet has no visibility column and Stephen's rules are editorial judgment, not data. **The sync must never write `showGrossMoic`/`showNetTvpi`/`showNetIrr`/`showNetNav`, and must never write `netDpiOverride` (D2).** Stated as a judgment call rather than buried in a workstream because it is the one thing a well-meaning implementer might "improve." *Reversal: none needed — it is a restriction, not a mechanism.*
+- **JC-FM-E — the stat grid keeps `lg:grid-cols-5` and is allowed to wrap.** With Net DPI retained (D2), override mode can render up to **seven** boxes (Invested, Implied Value, Gross MOIC, Net TVPI, Net DPI, Net IRR, Net NAV) where it renders five today. Retuning the grid to fit seven on one row would change the **non**-override layout too — i.e. every fund and every already-published report — which is a UX regression under ground rule 2 for a purely cosmetic gain. Two rows of a `grid` with consistent gaps is an acceptable, already-used shape at these breakpoints. *Reversal: one class string, once Joseph has seen a real seven-box fund on a real screen — and he should look at it, because this is the one visual thing this Part changes for admins.*
+
+---
+
+## WS97 — Schema: two override columns, four visibility flags, one sync discriminator — ~0.2 day
+
+**Goal.** Make the new metrics and their per-fund visibility representable, additively, with no behavior change anywhere until later workstreams read them.
+
+**WS97.1 — `prisma/schema.prisma`, `Fund` model (after `:545`).**
+
+```prisma
+  grossMoicOverride Decimal?
+  netTvpiOverride   Decimal?
+  netDpiOverride    Decimal?
+
+  // Part 36, WS97 (D5) — two further reported figures, same semantics and
+  // same code path as the three above. Nullable and independently settable.
+  // JC-FM-B: the "Override" suffix is kept for consistency with the three
+  // Part 15 columns even though, under Part 36/D1, these normally arrive
+  // from the fund-metrics sheet sync rather than from an admin typing.
+  // Read them as "the authoritative reported figure" — sheet-sourced or
+  // hand-corrected — which still replaces the computed block.
+  // UNITS (Q89 = A, LOCKED 2026-09-16 — read this before writing any code
+  // that touches netIrrOverride):
+  //   netIrrOverride is a FRACTION. 0.0205 means 2.05%. This matches
+  //   FundPerformance.grossIrr, which is a solver output and a fraction by
+  //   construction, so every IRR in this codebase carries one unit. The
+  //   sheet publishes percent units ("2.05%"); the ONLY division by 100
+  //   happens in the sync parser (fund-metrics-sync.ts), never at render
+  //   time and never in the admin form.
+  //   netNavOverride is USD.
+  netIrrOverride Decimal?
+  netNavOverride Decimal?
+
+  // Part 36, WS97 (D4) — per-fund display flags, generic by design: NEVER
+  // a fund-name conditional anywhere in the codebase. Visibility cannot be
+  // inferred from nullity, because at least one fund has a real, non-null
+  // Net IRR that is deliberately not shown (an editorial judgment), while
+  // others are blank because the vehicle is too young. Same outcome, two
+  // different reasons — so the intent needs its own column. Default true
+  // so every existing fund's rendering is unchanged on deploy.
+  showGrossMoic Boolean @default(true)
+  showNetTvpi   Boolean @default(true)
+  showNetIrr    Boolean @default(true)
+  showNetNav    Boolean @default(true)
+```
+
+**WS97.2 — correct the stale comment at `:539` (F92).** Change "populated for a single fund today (deployment-specific)" to "populated for more than one fund in at least one deployment; both the count and the funds are deployment-specific and deliberately not named here." **Do not name the funds** (ground rule 1).
+
+**WS97.3 — `SheetSyncRun` (`:775-786`), add the discriminator (JC-FM-C):**
+
+```prisma
+model SheetSyncRun {
+  id         String    @id @default(cuid())
+  // Part 36, WS97 (JC-FM-C) — which sheet integration this run belongs to.
+  // "DEALS" is the Part 10 All-Deals sync; "FUND_METRICS" is the Part 36
+  // fund-metrics summary-block sync. Defaulted so every pre-Part-36 row is
+  // correctly labelled without a backfill. Both admin surfaces filter on it.
+  kind       String    @default("DEALS") // "DEALS" | "FUND_METRICS"
+  trigger    String // "CRON" | "MANUAL" | "DRY_RUN"
+  …
+  @@index([startedAt])
+  @@index([kind, startedAt])
+  @@map("sheet_sync_runs")
+}
+```
+
+**WS97.4 — apply.** `npx prisma db push` per the house convention for additive changes (project memory: confirmed safe against production via `vercel env pull --environment=production`), then `npx prisma generate`. **Additive only: no column dropped, renamed, or made required; no backfill needed** (the three `@default` values cover every existing row).
+
+**Acceptance.** `npx prisma validate` passes; `npx prisma generate` emits the six new `Fund` fields and `SheetSyncRun.kind`; `npm run build` still passes with **zero** application-code changes (nothing reads the new fields yet); existing `SheetSyncRun` rows read back with `kind === "DEALS"`.
+
+**UX impact:** none — nothing reads these yet. **Cost impact:** none (six columns on a 7-row table and one on a small log table).
+
+---
+
+## WS98 — `portfolio-metrics.ts`: widen the override type, add the one tested selector — ~0.4 day
+
+**Goal.** Put every "which metrics show, in which order, formatted how, and is this a legacy snapshot" decision in one pure, tested place (JC-FM-A), and make the widened type break the compiler at every construction site (F95 insurance).
+
+**WS98.1 — widen `FundPerformanceOverride` (`src/lib/portfolio-metrics.ts:343-347`).** Keep the existing three fields exactly as they are; add the two values and the four flags as **required** properties. Required is deliberate: it forces TypeScript to flag all three construction sites (publish, preview, admin fund page) in WS100. **The stored/frozen JSON is a different thing from this input type** — see WS98.2.
+
+```ts
+export interface FundPerformanceOverride {
+  grossMoic: number | null;
+  netTvpi: number | null;
+  netDpi: number | null;
+  // Part 36, WS98 (D5). Required, not optional — every construction site
+  // must be updated, and the compiler is the only thing that will say so
+  // at three of them.
+  netIrr: number | null;
+  netNav: number | null;
+  // Part 36, WS98 (D4). Visibility is data, never a fund-name conditional.
+  showGrossMoic: boolean;
+  showNetTvpi: boolean;
+  showNetIrr: boolean;
+  showNetNav: boolean;
+}
+
+/**
+ * Part 36, WS98 — the shape a FROZEN snapshot may actually have.
+ *
+ * FundReportFundSnapshot.snapshot is JSON written at publish time and never
+ * migrated. Reports published before Part 36 carry an object with exactly
+ * three keys — grossMoic/netTvpi/netDpi — and NO netIrr, netNav or show*
+ * keys at all. Not null: ABSENT. Every reader of a frozen payload must use
+ * this type, never FundPerformanceOverride, so the compiler stops anyone
+ * assuming the new keys are there (F93, F94).
+ */
+export type StoredFundPerformanceOverride = Partial<FundPerformanceOverride>;
+```
+
+**WS98.2 — `FundSnapshotPayload.performanceOverride` becomes the stored type.** `src/lib/portfolio-metrics.ts:352` currently reads `performanceOverride: FundPerformanceOverride | null`. Change it to `StoredFundPerformanceOverride | null`. `buildFundReportSnapshot()` keeps accepting a full `FundPerformanceOverride` as its 4th parameter (so construction sites are still compiler-checked) and stores it as-is; readers get the honest, partial type. **No other change to `buildFundReportSnapshot()`.**
+
+**WS98.3 — the selector (JC-FM-A, F94, F96).** New export in the same file, immediately after the interfaces:
+
+```ts
+export type OverrideMetricFormat = "multiple" | "percent" | "currency";
+
+export interface OverrideMetric {
+  key: "grossMoic" | "netTvpi" | "netDpi" | "netIrr" | "netNav";
+  label: string;
+  value: number | null;
+  format: OverrideMetricFormat;
+}
+
+// Display order is fixed here, not at the call site: MOIC, TVPI, DPI, IRR,
+// NAV. Net DPI keeps its existing third slot untouched (D2).
+const OVERRIDE_METRIC_SPECS = [
+  { key: "grossMoic", label: "Gross MOIC", format: "multiple", flag: "showGrossMoic" },
+  { key: "netTvpi",   label: "Net TVPI",   format: "multiple", flag: "showNetTvpi" },
+  // Net DPI has NO visibility flag (D2 — untouched by Part 36). It renders
+  // whenever its key is present, exactly as it always has.
+  { key: "netDpi",    label: "Net DPI",    format: "multiple", flag: null },
+  { key: "netIrr",    label: "Net IRR",    format: "percent",  flag: "showNetIrr" },
+  { key: "netNav",    label: "Net NAV",    format: "currency", flag: "showNetNav" },
+] as const;
+
+/**
+ * Part 36, WS98 — the single source of truth for which override metrics a
+ * Performance card renders.
+ *
+ * TWO RULES, and both exist because a frozen snapshot is never migrated:
+ *
+ *  1. KEY PRESENCE, not value nullity (F94). A metric appears only if its
+ *     key EXISTS on the object. A pre-Part-36 snapshot has no `netIrr` key,
+ *     so it renders no Net IRR box — rather than sprouting a "—" box in a
+ *     report an LP already received.
+ *  2. NULLISH comparison, never `!== null` (F93). `undefined !== null` is
+ *     true, and writing it that way would flip every historical report into
+ *     override mode.
+ *
+ * A missing show* flag means "not hidden" — legacy snapshots predate the
+ * flags and must render exactly as they did before.
+ */
+export function visibleOverrideMetrics(
+  override: StoredFundPerformanceOverride | null | undefined
+): OverrideMetric[] {
+  if (!override) return [];
+  return OVERRIDE_METRIC_SPECS.filter((spec) => {
+    if (!(spec.key in override)) return false;          // rule 1
+    if (spec.flag && override[spec.flag] === false) return false; // explicit hide only
+    return true;
+  }).map((spec) => ({
+    key: spec.key,
+    label: spec.label,
+    format: spec.format,
+    value: override[spec.key] ?? null,                   // rule 2
+  }));
+}
+
+/** True when the card should show override metrics instead of computed TVPI/DPI/Gross IRR. */
+export function hasOverrideValue(override: StoredFundPerformanceOverride | null | undefined): boolean {
+  return visibleOverrideMetrics(override).some((m) => m.value != null); // rule 2
+}
+```
+
+> **Note for Alvin on `hasOverrideValue`:** this preserves Part 15's JC-B semantics ("at least one non-null field switches the card into override mode; the rest show —") while adding the two new rules. It does **not** count a metric that is present-but-hidden by its flag, which is correct: a fund whose only populated metric is a hidden one should render its computed block, not an empty override block.
+
+**WS98.4 — tests (`src/lib/__tests__/portfolio-metrics.test.ts`).** Extend the existing Part 15 block at `:275-290`. **Synthetic numbers only — never a real MOIC/TVPI/IRR/NAV (ground rule 1).**
+
+- The existing two Part 15 tests must be updated for the widened 4th parameter and **keep passing**.
+- `visibleOverrideMetrics(null)` → `[]`; `undefined` → `[]`.
+- **The legacy-snapshot test, which is the point of the whole workstream.** Build the fixture as a raw object literal with exactly three keys, cast through `as StoredFundPerformanceOverride`, and assert: five-key-object → 5 metrics; three-key legacy object → **exactly 3** metrics, keys `["grossMoic","netTvpi","netDpi"]`, and `expect(result.map(m => m.key)).not.toContain("netIrr")`.
+- A legacy object with all three values `null` → `hasOverrideValue()` is **`false`**. *(This is the F93 regression test. Write a comment saying so — if someone later "simplifies" the nullish check to `!== null`, this is the test that must fail.)*
+- `showNetIrr: false` with a non-null `netIrr` → no Net IRR metric. `showNetIrr: true` with `netIrr: null` → the metric **is** present with `value: null` (renders `—`), because presence and nullity are different questions.
+- Net DPI is returned regardless of any flag (D2 guard).
+- Format discriminators: `netNav` → `"currency"`, `netIrr` → `"percent"`, the other three → `"multiple"` (F96 guard).
+- Order is always MOIC, TVPI, DPI, IRR, NAV regardless of input key order.
+
+**Acceptance.** All existing `portfolio-metrics.test.ts` tests pass unchanged in intent; the new tests pass; `npm run build` **fails** at exactly three sites (publish, preview, admin fund page) — that failure is the designed outcome of WS98 and is resolved by WS100/WS101.
+
+**UX impact:** none (pure module). **Cost impact:** none.
+
+---
+
+## WS99 — `FundPerformanceCard` renders from the selector; historical reports stay byte-identical — ~0.3 day
+
+**Goal.** Replace the three hardcoded override boxes with a map over `visibleOverrideMetrics()`, such that a pre-Part-36 frozen snapshot renders **exactly** what it renders today.
+
+**WS99.1 — prop type (`src/components/fund-performance-card.tsx:37`).** Replace the inline `{ grossMoic; netTvpi; netDpi } | null` literal with the imported `StoredFundPerformanceOverride | null`. The comment at `:32-36` needs rewriting to describe the new rules; keep its existing reference to Part 15/JC-B.
+
+**WS99.2 — `overrideActive` (`:58`).** Replace the hand-rolled disjunction with `const overrideActive = hasOverrideValue(overrides);`. **⚠️ Do not write `overrides.netIrr !== null` here or anywhere else in this file (F93).**
+
+**WS99.3 — the override branch (`:74-88`).** Replace the three literal `<div>`s with:
+
+```tsx
+{overrideActive ? (
+  <>
+    {visibleOverrideMetrics(overrides).map((m) => (
+      <div key={m.key}>
+        <p className="text-xs text-muted-foreground">{m.label}</p>
+        <p className="font-mono text-lg font-semibold">{formatOverrideMetric(m)}</p>
+      </div>
+    ))}
+  </>
+) : ( … unchanged computed branch … )}
+```
+
+with a module-private formatter (F96) next to the existing `multipleLabel` helper at `:40-44`, reusing this file's own conventions verbatim — `$${Math.round(v).toLocaleString()}` from `:72`, and the percent form from `:102`:
+
+```tsx
+function formatOverrideMetric(m: OverrideMetric): string {
+  if (m.value == null) return "—";                                  // nullish, not !== null
+  if (m.format === "currency") return `$${Math.round(m.value).toLocaleString()}`;
+  // Q89 = A (LOCKED): netIrr is stored as a FRACTION, so the * 100 is
+  // REQUIRED here. Without it a 2.05% IRR renders as "0.0%". This is the
+  // ONLY * 100 in the feature, and it is the same expression the computed
+  // Gross IRR already uses at :102 — deliberately identical.
+  if (m.format === "percent") return `${(m.value * 100).toFixed(1)}%`;
+  return `${m.value.toFixed(2)}x`;
+}
+```
+
+**WS99.4 — the caveat line (`:108-114`) is unchanged.** It already branches only on `!overrideActive`; no new copy, nothing removed.
+
+**WS99.5 — grid (JC-FM-E).** `:65` keeps `grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5` unchanged. Seven boxes wrap to a second row. **Do not retune the grid** — it is shared with the non-override path and with every published report.
+
+**WS99.6 — `src/components/fund-snapshot-block.tsx:40` and `src/app/lp/reports/[id]/page.tsx:50-52` need no logic change**, but the cast at `lp/reports/[id]/page.tsx:51` (`as unknown as FundSnapshotPayload`) now resolves `performanceOverride` to the honest partial type via WS98.2 — confirm it still compiles and **do not** "fix" it by widening the cast.
+
+**Acceptance.**
+
+- **The regression test that matters, run manually against production after deploy:** open a **report published before this deploy** as an LP (or via the admin preview of an already-published report) and confirm the Performance card is **pixel-identical** to before — same box count, same labels, same values, no new `—` boxes, and **not** flipped into override mode.
+- A fund with all five values set and all four flags true → 7 boxes, wrapping.
+- A fund with `showNetIrr = false` → 6 boxes, no Net IRR.
+- A fund with no override values at all → computed branch, unchanged.
+- `npm run lint && npm run build` clean.
+
+**UX impact:** **additive for admins and future LP reports; provably zero for every already-published report** (that is what WS98.3's two rules and WS98.4's legacy fixture exist to guarantee). Admins see up to two extra stat boxes on `/admin/funds/[id]` for funds that have the values, wrapping to a second grid row. **Cost impact:** none.
+
+---
+
+## WS100 — the three construction sites, the PATCH allowlist, and both serializers — ~0.4 day
+
+**Goal.** Feed the new fields into every place an override object is built or returned. **WS98 makes the compiler point at three of the five edits; F95 is about the two it will not.**
+
+**WS100.1 — publish (`src/app/api/admin/reports/[id]/publish/route.ts:112-116`).** Extend the object literal to all nine fields, following the existing `Number()`-coercion convention verbatim:
+
+```ts
+{
+  grossMoic: fund.grossMoicOverride !== null ? Number(fund.grossMoicOverride) : null,
+  netTvpi:   fund.netTvpiOverride   !== null ? Number(fund.netTvpiOverride)   : null,
+  netDpi:    fund.netDpiOverride    !== null ? Number(fund.netDpiOverride)    : null,
+  // Part 36, WS100 — same Decimal -> number|null pattern as above.
+  netIrr:    fund.netIrrOverride    !== null ? Number(fund.netIrrOverride)    : null,
+  netNav:    fund.netNavOverride    !== null ? Number(fund.netNavOverride)    : null,
+  // Part 36, WS100 (D4) — frozen with the values, so a report published
+  // today keeps today's visibility rules forever, even if an admin changes
+  // the flags later. That is the same freeze semantics the values have.
+  showGrossMoic: fund.showGrossMoic,
+  showNetTvpi:   fund.showNetTvpi,
+  showNetIrr:    fund.showNetIrr,
+  showNetNav:    fund.showNetNav,
+}
+```
+
+The `tx.fund.findUnique` at `:91-94` has no `select`, so all six new columns are already loaded — **no query change**.
+
+**WS100.2 — preview (`src/app/admin/reports/[id]/preview/page.tsx:76-80`).** The identical nine-field literal. Same reasoning: `db.fund.findUnique` at `:55-58` has no `select`. The preview stays honest (live values, live flags) exactly as it is today.
+
+**WS100.3 — admin fund page card usage (`src/app/admin/funds/[id]/page.tsx:515`).** The third compiler error. Pass all nine from the `fund` state object. *(The state interface itself is WS101.1.)*
+
+**WS100.4 — ⚠️ the PATCH allowlist (`src/app/api/admin/funds/[id]/route.ts`) — F95, the compiler will NOT catch this.** Three edits in one file:
+
+- `:126-133`, the hand-typed `data` literal — add `netIrrOverride?: number | null; netNavOverride?: number | null; showGrossMoic?: boolean; showNetTvpi?: boolean; showNetIrr?: boolean; showNetNav?: boolean;`.
+- `:150`, the numeric loop — extend the tuple from three names to **five**: `["grossMoicOverride", "netTvpiOverride", "netDpiOverride", "netIrrOverride", "netNavOverride"] as const`. The body is unchanged (JC-C from Part 15 still applies: no domain-specific bounds check, matching `aumUsd`).
+- **A new, separate boolean loop** immediately after it — the numeric loop would coerce a boolean through `Number()` and 400 on `NaN`:
+
+```ts
+// Part 36, WS100 (D4) — visibility flags. A SEPARATE loop: the numeric
+// loop above coerces with Number(), which turns `false` into 0 and any
+// non-boolean into NaN -> 400. These are non-nullable booleans with a
+// schema default, so an absent key means "leave it alone," never "unset."
+for (const field of ["showGrossMoic", "showNetTvpi", "showNetIrr", "showNetNav"] as const) {
+  if (body[field] === undefined) continue;
+  if (typeof body[field] !== "boolean") {
+    return NextResponse.json({ error: `${field} must be a boolean.` }, { status: 400 });
+  }
+  data[field] = body[field];
+}
+```
+
+**WS100.5 — both serializers in the same file.** GET at `:60-64` and PATCH's response at `:167-172` both need the two new `Decimal → number | null` conversions **and** the four booleans passed through. A miss here makes a correctly-saved value appear to revert on the admin page's post-save `loadFund()`.
+
+**WS100.6 — audit.** `logAdminAction(user!, "FUND_UPDATED", …)` at `:164` passes `data` as metadata and therefore picks the new fields up for free. **No change** — and worth noting, since Part 15/Q51 deliberately relies on `FUND_UPDATED` rows as the only provenance trail for these values. Under D1 the sync will also write them; see WS102.4 for its own audit actor.
+
+**WS100.7 — `src/app/api/admin/funds/route.ts` (the list route) is deliberately NOT changed.** `serializeFund` (`:19-32`) has never returned override fields and the funds list page never displays them.
+
+**Acceptance.** `npm run build` now compiles clean (the three WS98-induced errors are gone). Then **the F95 manual check, which nothing automated will do for you**: set all five numbers and untick one flag on a fund, save, **hard-reload**, confirm all six values survived; check `/admin/audit` shows a `FUND_UPDATED` row whose Details (readable since Part 32/WS87) contains the new keys. Publish a report for that fund and confirm the frozen `FundReportFundSnapshot.snapshot` JSON contains all nine keys.
+
+**UX impact:** none on its own (no visible surface changes until WS101 exposes the inputs; WS99 already handles rendering). **Cost impact:** none.
+
+---
+
+## WS101 — the admin fund page: five numbers, four checkboxes — ~0.4 day
+
+**Goal.** Give an admin somewhere to see and set all of it. **This ships even though D1 automates the values** — the four flags are admin-owned and the sync never writes them (JC-FM-D), and this is the fallback path if the sync is down.
+
+**WS101.1 — `FundDetail` interface (`src/app/admin/funds/[id]/page.tsx:77-79`).** Add `netIrrOverride: number | null; netNavOverride: number | null; showGrossMoic: boolean; showNetTvpi: boolean; showNetIrr: boolean; showNetNav: boolean;`.
+
+**WS101.2 — state (`:134-137`).** Add `overrideNetIrr`/`overrideNetNav` string states (the existing pattern — `Input` holds strings, converts on save) and four boolean states `showGrossMoic`/`showNetTvpi`/`showNetIrr`/`showNetNav`.
+
+**WS101.3 — `openEditOverrides()` (`:227-234`).** Seed all ten states from `fund`, following the existing `!== null ? String(x) : ""` convention for the numbers and direct assignment for the booleans.
+
+**WS101.4 — `handleSaveOverrides()` (`:236-259`).** Extend the PATCH body to all nine keys, numbers via the existing `.trim() === "" ? null : Number(...)` pattern, booleans passed straight. Everything else (the `loadFund()` refresh, the toast, the `savingOverrides` flag) is unchanged.
+
+**WS101.5 — form JSX (`:523-539`).** Widen the input grid from `sm:grid-cols-3` to `sm:grid-cols-3 lg:grid-cols-5` and add two fields:
+
+```tsx
+<Input label="Net IRR (decimal, e.g. 0.0205 = 2.05%)" type="number" step="0.0001"
+       value={overrideNetIrr} onChange={(e) => setOverrideNetIrr(e.target.value)} />
+<Input label="Net NAV (USD)" type="number" step="1"
+       value={overrideNetNav} onChange={(e) => setOverrideNetNav(e.target.value)} />
+```
+
+**⚠️ Corrected 2026-09-16 for Q89 = A (fraction). This field was originally specified as `label="Net IRR (%)" step="0.01"` and that is now WRONG in two ways, both silent:**
+
+- **The label must teach the unit, inline, with a worked example.** Under fraction storage an admin who types `2.05` into a field labelled "Net IRR" stores **205%**, and nothing anywhere will complain — Part 15/JC-C deliberately left these fields without domain bounds checks, matching `aumUsd`, and this Part does not change that. The label *is* the guardrail. **Do not shorten it to "Net IRR" or "Net IRR (decimal)".**
+- **`step="0.01"` is too coarse** — it makes `0.0205` unreachable with the browser's own spinner and triggers native validation in some browsers. `step="0.0001"` gives basis-point resolution, which is the right granularity for an IRR fraction.
+
+**No conversion happens in this form.** The value typed is the value PATCHed is the value stored (`handleSaveOverrides`'s existing `.trim() === "" ? null : Number(...)` pattern is unchanged). A `/ 100` at this boundary is exactly the silent conversion the Q89 discussion warned about, and Joseph's instruction places the only division in the sync parser.
+
+Then a new visibility row beneath the inputs, using this codebase's native-checkbox convention verbatim (`src/app/admin/broadcasts/[id]/page.tsx:423-431` — there is no `Checkbox` UI component and `react-select`-style abstractions are not the house pattern):
+
+```tsx
+<div className="mt-3 border-t border-border pt-3">
+  <p className="mb-2 text-xs text-muted-foreground">
+    Show on this fund&apos;s Performance card (admin, report preview, and published LP reports).
+    Net DPI is always shown when a value is set.
+  </p>
+  <div className="flex flex-wrap gap-x-5 gap-y-2">
+    {([
+      ["Gross MOIC", showGrossMoic, setShowGrossMoic],
+      ["Net TVPI", showNetTvpi, setShowNetTvpi],
+      ["Net IRR", showNetIrr, setShowNetIrr],
+      ["Net NAV", showNetNav, setShowNetNav],
+    ] as const).map(([label, checked, set]) => (
+      <label key={label} className="flex items-center gap-2 text-sm text-muted-foreground">
+        <input type="checkbox" checked={checked} onChange={(e) => set(e.target.checked)}
+               className="h-4 w-4 rounded border-border accent-primary" />
+        {label}
+      </label>
+    ))}
+  </div>
+</div>
+```
+
+**WS101.6 — update the explanatory copy at `:518-522`.** It currently says "when any of these **three** are set…". It must now say five, and must explain that unticking a box hides that metric for this fund everywhere its Performance card renders — **including in LP reports published from now on**, while already-published reports keep whatever was frozen into them. That last clause is the non-obvious part and an admin needs it before unticking anything.
+
+**WS101.7 — also update the button/affordance label?** `:544` says "Edit performance override." With flags in the same panel, "Edit performance metrics" is more accurate. **Minor copy change on an admin-only control — Alvin's call; mention it in the implementation report either way.**
+
+**Acceptance.** All ten controls populate from the server, save, and survive a hard reload (this is also the WS100/F95 check). Unticking Net IRR immediately removes that box from the Performance card above on reload. Ticking it back restores it. Clearing all five numbers returns the card to the computed TVPI/DPI/Gross IRR branch, exactly as today. Mobile: the panel stacks without horizontal overflow at 375px (house pattern from Part 6).
+
+**UX impact:** **admin-only, additive.** Two new inputs and four checkboxes inside a panel that is already behind an "Edit…" button. No founder, LP, or investor-link surface is touched. **Cost impact:** none.
+
+---
+
+## WS102 — the fund-metrics sheet sync: generalized client, pure diff engine, runner, deal-ID crosscheck — ~1.0 day
+
+**Goal.** A second one-way sheet → Molly sync, architecturally a sibling of the Part 10 deals sync, reading exactly four labelled rows from the new spreadsheet's summary block and writing exactly four `Fund` columns.
+
+> **⚠️ READ THIS BEFORE THE FIRST NON-DRY-RUN APPLY.** This sync writes `grossMoicOverride` and `netTvpiOverride` — the **same two columns two funds already carry hand-entered values in** (F92). Its first apply **overwrites them with whatever the sheet says.** That is the intended behavior under D1 (the sheet becomes authoritative), but it is not reversible without knowing the old values. **Record the current values of all five override columns for all funds before the first apply.** This is the single strongest argument for Q87's sub-question (i), a separate apply gate.
+
+**WS102.1 — generalize `src/lib/sheets.ts` (F99). Additive; the existing sync's behavior must not change by one byte.**
+
+```ts
+// Part 36, WS102 — the raw primitive. Extracted from getSheetRows() so a
+// second spreadsheet (the fund-metrics sheet) can reuse the same
+// service-account auth without a second copy of the JWT signer (F99).
+// Returns values EXACTLY as the API gives them — no header row is stripped,
+// because the fund-metrics sheet's "header" is a vehicle-code row located
+// by content, not by position.
+export async function getSheetValues(spreadsheetId: string, range: string): Promise<string[][]> { … }
+
+// getSheetRows() is now a wrapper. Same env vars, same range, same
+// header-stripping, byte-identical output — do not change its signature or
+// its callers (sheet-sync-runner.ts, api/admin/sheets-sync/link/route.ts).
+export async function getSheetRows(): Promise<SheetTable> {
+  if (!sheetsSyncEnabled()) throw new Error("sheets.ts: getSheetRows called while sheetsSyncEnabled() is false");
+  const values = await getSheetValues(process.env.SHEETS_SPREADSHEET_ID!, SHEET_RANGE);
+  const [header = [], ...rows] = values;
+  return { header, rows };
+}
+
+// Part 36, WS102 (Q87-A) — the fund-metrics sheet. A DIFFERENT spreadsheet
+// id from SHEETS_SPREADSHEET_ID (confirmed), sharing the same service
+// account and the same read-only scope. NOTE: the two files have nearly
+// identical titles in Drive — always identify them by ID, never by name.
+export const FUND_METRICS_RANGE = "A1:AZ500"; // whole first tab; block positions are found by content, not offset
+export function fundMetricsSyncEnabled(): boolean {
+  return Boolean(process.env.GOOGLE_SA_EMAIL && process.env.GOOGLE_SA_PRIVATE_KEY && process.env.FUND_METRICS_SPREADSHEET_ID);
+}
+```
+
+*(No tab name is pinned: the range omits a tab prefix, which the Sheets API resolves to the first visible tab. If the sheet later grows a second tab, pin it the way `SHEET_TAB_NAME` does — a one-line change.)*
+
+**WS102.2 — new pure module `src/lib/fund-metrics-sync.ts` (no `db`, no `fetch` — the `sheet-sync.ts` discipline).**
+
+Parsers first, mirroring `parseSheetDate`/`parseSheetCurrency` in shape (`{ value, ok }`, blank ≠ error):
+
+- `parseSheetMultiple(raw)` — strips a trailing `x`/`×`, then `Number()`. Blank → `{ value: null, ok: true }` (a blank metric cell is legitimate, not a bad cell).
+- `parseSheetPercent(raw)` — **returns a FRACTION (Q89 = A, LOCKED).** Trims, strips any `,`, and then: **if the cell text ended in `%`, strip it and divide by 100; if it did not, pass the number through unchanged** (it is already a fraction). Blank → `{ value: null, ok: true }`. Non-numeric → `{ value: null, ok: false }`. **This is the single point in the entire feature where a unit conversion occurs** — per Joseph's binding instruction, the division lives here and nowhere else. The `%`-conditional rule and its one known blind spot are **Q90**; copy that decision's comment block onto the function verbatim, including the "check the magnitude on the first dry run" note.
+- `parseSheetCurrency` — **import and reuse the existing one from `sheet-sync.ts`** (`:65-73`). Do not write a second one. *(If that means exporting it across modules, that is fine — it is already exported.)*
+
+Then the block locator, **all by text, never by cell reference**:
+
+```ts
+export interface KnownFundSlug { id: string; slug: string; }
+
+export interface FundMetricsUpdate {
+  fundId: string;
+  slug: string;
+  field: "grossMoicOverride" | "netTvpiOverride" | "netIrrOverride" | "netNavOverride";
+  from: number | null;
+  to: number | null;
+}
+
+export interface FundMetricsDiff {
+  updates: FundMetricsUpdate[];
+  crosscheck: {
+    sheetOnlyIds: string[];   // Stable IDs in the sheet with no matching Deal.sheetRowId
+    mollyOnlyIds: string[];   // Deal.sheetRowId values absent from the sheet
+    duplicateSheetIds: string[];
+  };
+  errors: {
+    unmatchedColumns: string[];  // vehicle-code headers with no Fund.slug — roll-ups land here and are EXPECTED
+    missingRows: string[];       // a metric row label that wasn't found at all
+    badCells: { fundSlug: string; metric: string; value: string }[];
+  };
+}
+
+export function computeFundMetricsDiff(
+  values: string[][],
+  knownFunds: KnownFundSlug[],
+  dbSheetRowIds: string[],
+  currentValues: Record<string, { grossMoicOverride: number | null; netTvpiOverride: number | null; netIrrOverride: number | null; netNavOverride: number | null }>
+): FundMetricsDiff
+```
+
+Algorithm, and every step is deliberate:
+
+1. **Find the vehicle-code row.** Scan rows top-down for the first row containing **two or more** cells that exactly match (trimmed, case-insensitive) a `knownFunds[].slug`. That row is the column header. Requiring two prevents a stray cell elsewhere in the sheet from being mistaken for it.
+2. **Build the column map** `slug → columnIndex` from **exact, trimmed, case-insensitive equality against `Fund.slug`** — never `includes`, never `startsWith`. **This is how the roll-up columns are excluded structurally rather than by an allowlist**: the sheet's synthetic roll-up headers — a grand total, an age-band column, a `CUSTOM` column, and one that names several vehicle codes joined by `+` — are not `Fund.slug` values, so they never enter the map. *(That `+`-joined header is exactly why substring matching is forbidden here: under `includes`, it would match every vehicle it names and write one column's roll-up figure onto three separate funds.)* Unmatched headers go to `errors.unmatchedColumns` as **information, not failure** — the roll-ups will always be listed there and the admin panel must present them as expected, not alarming. **Ground rule 1: no vehicle code is written in this file. The allowlist IS the `Fund` table.**
+3. **Find the four metric rows** by column-A label text, trimmed and case-insensitive: `"Gross MOIC"`, `"Net TVPI"`, `"Net IRR"`, `"Net NAV"`. A label not found → `errors.missingRows`, and that metric is skipped for every fund (never written as null — **a missing row must never blank a column**). **`"Include in CUSTOM"` is never looked up and never referenced anywhere in this file** (Stephen's instruction, ground rule 5).
+4. **Emit an update per (fund, metric)** only where the parsed value **differs** from `currentValues`, matching `computeSheetDiff`'s from/to convention (`sheet-sync.ts:242-252`). A blank cell parses to `null`; **writing null over an existing value is a legitimate update** (the sheet is authoritative under D1) — but it is exactly the case a human should eyeball in the dry run, so the admin panel must show `from → to` per WS103.3.
+5. **Crosscheck (D6).** Find the deal-table header row (scan for a row containing a cell matching `"Stable ID column"`), collect that column's non-blank values below it, and set-difference against `dbSheetRowIds`. **Values are never read from the deal table — only the ID column.** Duplicates within the sheet go to `crosscheck.duplicateSheetIds`.
+6. **Never touch `netDpiOverride` or any `show*` flag** (D2, JC-FM-D). No code path in this file may name them.
+
+Add the F97 comment at the top: *"Unlike `sheet-sync.ts`, which matches the deals sheet's `Vehicle` cell against `Fund.name`, this module matches the summary block's column headers against `Fund.slug`. The difference is deliberate — these headers are vehicle codes, and `slug` is the immutable import key (`schema.prisma:530`, `api/admin/funds/[id]/route.ts:146`). See Part 36/F97; do not 'harmonize' the two."*
+
+**WS102.3 — tests `src/lib/__tests__/fund-metrics-sync.test.ts`, modelled on `sheet-sync.test.ts`.** **Synthetic slugs and synthetic numbers only — no real vehicle code, no real MOIC/TVPI/IRR/NAV anywhere in this file (ground rule 1; Part 27/F53/F54).** Use fixture slugs like `VEH1`, `VEH2`, `EARLY`. Cover:
+
+- Vehicle-code row located below row 1 (it is not the first row).
+- A roll-up-shaped header (e.g. `"VEH1 + VEH2"`, `"TOTAL"`) is **excluded** and lands in `unmatchedColumns` — **the substring-matching regression test**; assert no update is emitted for it.
+- A blank metric cell → `to: null`, not an error.
+- Garbage in a metric cell → `errors.badCells`, and **no update emitted for that cell**, while the other funds in the same row still update.
+- A missing metric row label → `errors.missingRows` and **zero** updates for that metric across all funds (the "must never blank a column" guard).
+- Unchanged value → **no** update emitted.
+- Crosscheck: an ID in the sheet only, an ID in Molly only, a duplicate in the sheet.
+- **A structural guard: no code path emits an update whose `field` is `netDpiOverride`, and no `show*` key appears anywhere in the returned diff** (D2/JC-FM-D held by test, not just by intention — the `sheet-sync.test.ts` Q42 structural-guard test at `portfolio-metrics.test.ts:264` is the precedent for this style).
+- **Parsers, with the fraction conversion pinned by test (Q89 = A).** Multiple: `"1.4x"`, `"1.4×"`, `"1.4"` all → `1.4`. Currency: `"$1,234"` → `1234`. **Percent, and these three assertions are the regression guard for the whole Q89 decision:** `"2.05%"` → **`0.0205`** (stripped and divided); `"2.05"` → **`2.05`** (no `%`, passed through as an already-fraction, per Q90's rule); `"0.0205"` → **`0.0205`**. Add a comment on the `"2.05%"` case naming Q89-A, so that if anyone later "simplifies" the parser to return the number as written, this is the test that fails and the comment explains why it must not be deleted.
+- **A cross-layer unit guard:** assert that `computeFundMetricsDiff` emits `to: 0.0205` — not `2.05` — for a `netIrrOverride` update whose source cell reads `"2.05%"`. The parser test alone does not prove the diff layer left it alone.
+
+**WS102.4 — new runner `src/lib/fund-metrics-sync-runner.ts`**, structurally mirroring `sheet-sync-runner.ts`:
+
+- `loadInputs()` → `db.fund.findMany({ select: { id, slug, grossMoicOverride, netTvpiOverride, netIrrOverride, netNavOverride } })` (**note: `slug`, not `name` — F97**) and `db.deal.findMany({ where: { sheetRowId: { not: null } }, select: { sheetRowId: true } })`.
+- `runFundMetricsSync(trigger, actor)` → `getSheetValues(process.env.FUND_METRICS_SPREADSHEET_ID!, FUND_METRICS_RANGE)` → `computeFundMetricsDiff(...)` → apply (unless `DRY_RUN`) → write a `SheetSyncRun` row with **`kind: "FUND_METRICS"`**.
+- Apply: group updates by `fundId`, one `db.fund.update` per fund, then one `logAdminAction(actor, "FUND_UPDATED", { targetType: "Fund", targetId, metadata: { source: "SHEET_FUND_METRICS", fields } })` per fund — reusing the existing action name so `/admin/audit` and Part 15/Q51's provenance story keep working, with `source` distinguishing it, exactly as the deals sync does with `{ source: "SHEET" }` (`sheet-sync-runner.ts:132`).
+- **Apply gate (Q87-(i), LOCKED).** Before any write, and **only on the non-`DRY_RUN` path**, refuse unless `process.env.FUND_METRICS_SYNC_APPLY_ENABLED === "true"`, mirroring `sheet-sync-runner.ts:220-224`. Comment it as a **permanent** first-write safety, explicitly **not** an incident gate to be cleaned up later (unlike the one it is modelled on).
+- **Crosscheck behavior (Q85-A, LOCKED): non-blocking.** The crosscheck result is written into `summary.crosscheck` and **the apply proceeds regardless**. **There is no throw-on-mismatch branch — do not write one.** Its visibility is WS103.3's job, and is mandatory there for exactly this reason.
+- **`SheetSyncRun.summary` carries real MOIC/TVPI/IRR/NAV values.** It is `requireAdmin`-gated at every read. **Copy the confidentiality banner from `sheet-sync-runner.ts:8-10` verbatim and honor it: only aggregate counts to `console.log`, never the diff.**
+
+**Acceptance.** Unit tests pass. A **dry run** against the real sheet returns: the expected number of funds matched; the roll-up columns listed under `unmatchedColumns`; a non-empty crosscheck (we know 81 vs 80 today); and a `from → to` list whose values Joseph recognizes as Stephen's. `npm run lint && npm run build` clean. **The deals sync is provably unaffected:** `src/lib/__tests__/sheet-sync.test.ts` and `sheet-link.test.ts` pass **unchanged**, and `getSheetRows()`'s signature and output are byte-identical.
+
+**UX impact:** none (no UI in this workstream). **Cost impact:** none — same Google service account, same read-only scope, one extra `values.get` per run.
+
+---
+
+## WS103 — admin visibility, cron wiring, env + ROADMAP docs — ~0.5 day
+
+**WS103.1 — new `src/app/api/admin/fund-metrics-sync/route.ts`**, a near-copy of `src/app/api/admin/sheets-sync/route.ts` (which is 58 lines): `requireAdmin`-gated GET returning `{ enabled, runs }` filtered to **`kind: "FUND_METRICS"`**, and POST accepting `{ dryRun }` and calling `runFundMetricsSync`. Same `enabled: false` short-circuit, same 400 when not configured, same 500-on-FAILED shape.
+
+**WS103.2 — ⚠️ add the filter to the EXISTING route too.** `src/app/api/admin/sheets-sync/route.ts:23` currently does `db.sheetSyncRun.findMany({ orderBy: { startedAt: "desc" }, take: 20 })` with **no `where`**. Once fund-metrics runs exist, the deals Sync tab would start interleaving them into its history. Add `where: { kind: "DEALS" }`. **This is easy to forget and produces a confusing, not a broken, UI — which is worse.**
+
+**WS103.3 — admin UI.** Add a **"Fund Metrics" sub-section inside the existing Sync tab on `/admin/funds`** (`src/app/admin/funds/page.tsx:171` renders `<SyncPanel />`; add a sibling `<FundMetricsSyncPanel />` beneath it). **Not a new sidebar item** — Part 11/WS28 deliberately consolidated sync onto this one tab, and re-fragmenting it would undo that. New component `src/components/admin/fund-metrics-sync-panel.tsx`, structurally modelled on `sync-panel.tsx` (Sync now / Preview changes (dry run) buttons, run history, `ComposerDisclosure` for per-run detail).
+
+It must show, without a click:
+
+- The `from → to` list per fund per metric — **this is the whole value of the dry run** given the F92 overwrite risk.
+- **The crosscheck result as a first-class line**, not buried in a disclosure: *"Deal ID crosscheck: N in the sheet not in Molly, M in Molly not in the sheet."* Under Q85-A this is the only thing standing between a real divergence and nobody noticing, so it must be visible on the collapsed row.
+- `unmatchedColumns` presented as **expected**, with copy that says so: *"Columns ignored (not Molly funds): …"* — an admin seeing `TOTAL`, `CUSTOM` etc. under a heading that reads like an error will file a bug.
+- The disabled/unconfigured state, matching `SyncPanel`'s existing `enabled === false` empty state.
+
+**WS103.4 — cron.** Add a fifth entry to `vercel.json`: `{ "path": "/api/cron/fund-metrics-sync", "schedule": "30 8 * * 1" }` (30 minutes after the deals sync at `0 8 * * 1`, so the two never contend and the ordering in logs is deterministic). New `src/app/api/cron/fund-metrics-sync/route.ts`, a near-copy of `src/app/api/cron/sheets-sync/route.ts`: same `CRON_SECRET` bearer check on both GET and POST, same `skipped: true` 200 when not configured, **aggregate counts only in `console.log`**. `/api/cron` is already in `PUBLIC_PREFIXES` (`src/lib/route-access.ts`), so **no middleware change** — the bug family this project has hit three times is avoided by the path prefix already being covered. *(Verify, don't assume: the existing `/api/cron/sheets-sync` route works today, which is the proof.)*
+
+**WS103.5 — `.env.example`.** Extend the existing "Google Sheets ingestion" block (`:80-93`) with **both** `FUND_METRICS_SPREADSHEET_ID` **and** `FUND_METRICS_SYNC_APPLY_ENABLED` (Q87-(i) is locked — the gate ships, unset, documented as "leave this unset until you have read one dry run"), documenting: it is a **different** spreadsheet from `SHEETS_SPREADSHEET_ID` despite a nearly identical file name — **identify it by ID, never by title**; it must be shared read-only with the **same** service account; and it is optional, with the fund-metrics sync no-opping cleanly when absent.
+
+**WS103.6 — `SETUP.md`** needs a short paragraph in the same spirit. **`SETUP.md` is outside this agent's edit scope** (Part 35/F90/WS96 hit the same boundary) — WS103.6 supplies the exact text for a human or a differently-scoped agent to paste.
+
+**WS103.7 — `ROADMAP.md` (F92, F101).** Annotate `ROADMAP.md:114` and `:175` where they claim the override is "CAF1 only" / "CAF1-populated only," without naming which funds actually carry values (F92); and correct `:3` and `:7`, which still call Part 35 "PLANNED, NOT yet built" when its four commits are in the tree (F101). **Both done in this pass** (see the ROADMAP edits accompanying this Part) — listed here only so the workstream's record is complete; Alvin has nothing to do for WS103.7.
+
+**Acceptance.** `/admin/funds?tab=sync` shows both panels; the deals history shows **only** `DEALS` runs and the new panel **only** `FUND_METRICS` runs. A manual dry run produces a readable `from → to` list plus a visible crosscheck line. The cron route returns 401 without the secret, `{skipped:true}` when unconfigured, and a `runId` when configured. Mobile: both panels stack cleanly at 375px.
+
+**UX impact:** **admin-only, additive** — one new panel inside an existing tab, no navigation change, nothing removed or moved. Founders, LPs and investor-link recipients see nothing. **Cost impact:** none — a fifth Vercel cron on an allowance that comfortably covers it, one weekly Sheets read on the existing service account, rows in an existing Postgres table.
+
+---
+
+## Sequencing & handoff (Part 36)
+
+- **Nothing is blocked.** D1–D6 were locked 2026-09-16 in the scoping session; **Q85–Q89 were all answered by Joseph the same day**, four on the recommended option and **Q89 against it** (fraction, not percent). **WS97–WS103 are fully unblocked and ready for Alvin. There are no conditional branches left anywhere in this Part.** Q90 is open but is answered by *reading* the first dry run, which happens after the build and before any write — it blocks nothing.
+- **⚠️ Alvin: the Q89 reversal rewrote four workstream details after this Part was first drafted.** WS97.1's schema comment, WS99.3's formatter (`* 100` now **required**), WS101.5's admin input (label and `step` both changed), and WS102.2's `parseSheetPercent` (now divides by 100) all say the opposite of what the first draft said. **Build from the current text.** The one-sentence version: **`netIrrOverride` is a fraction everywhere above the sheet parser, and the parser is the only place a `/ 100` may appear.**
+- **⚠️ Build order: WS97 → WS98 → {WS99, WS100, WS101} → WS102 → WS103.** **WS98, WS99, WS100 and WS101 MUST ship in one deploy.** WS98 makes `FundPerformanceOverride`'s new fields **required**, which breaks the build at three construction sites *on purpose*; a branch pushed between WS98 and WS100 does not compile, and **on this project a branch push is a production deploy.** Four commits are fine and preferred for reviewability; four deploys are not.
+- **WS97 is safe to ship alone** (pure additive schema, nothing reads it) and **should** go first so `prisma generate` has run before the typed code lands.
+- **WS102/WS103 are a genuinely separate batch** and can land days later. Everything in WS97–WS101 is useful without them: an admin can type all five values by hand, which was the pre-D1 plan.
+- **Post-deploy, before publishing any new fund report (Q86-B):** open each of the three affected funds on `/admin/funds/[id]` and untick Net IRR. Three funds, three clicks. **Record the pre-existing values of all five override columns for all funds at the same time (F92)** — WS102's first apply overwrites two of them.
+- **First real sync run must be a DRY RUN**, read by a human, before any apply — and under Q87-(i) this is now **enforced**, not merely advised: `FUND_METRICS_SYNC_APPLY_ENABLED` ships unset, so the first apply is impossible until someone deliberately sets it. **Four things must be checked in that dry run, and only the first two were knowable before Q89 was locked:**
+  1. **Is the sheet actually shared with the service account?** A 403 from `values.get` means no. (Joseph believes it is; unverified.)
+  2. **Do the four summary-row labels match** the strings WS102.2 looks up, and did the vehicle-code row resolve to the expected number of funds (with the roll-ups listed as ignored)?
+  3. **⚠️ Are the Net IRR magnitudes plausible as fractions? (Q90.)** An IRR showing as `0.0205` is right; one showing as `0.000205` means the sheet's cells are bare numbers rather than `%`-formatted and the parser's conditional divide fired when it should not have. **The fix is Q90-(b), one query parameter.** This check is the whole reason Q90 is allowed to stay open.
+  4. **Does the `from → to` list overwrite the two funds' hand-entered Gross MOIC / Net TVPI values with something Joseph recognizes as Stephen's?** (F92.)
+- **Operational check that has nothing to do with this Part but should be done while someone is looking (F98):** confirm whether `SHEETS_SYNC_APPLY_ENABLED` is set in Vercel production. The existing deals sync has been unable to apply anything without it since 2026-07-20.
+- **Effort: ~3.2 days total** — WS97 ~0.2, WS98 ~0.4, WS99 ~0.3, WS100 ~0.4, WS101 ~0.4, WS102 ~1.0, WS103 ~0.5. Roughly 1.7 days for the metrics half (WS97–WS101) and 1.5 for the sync half.
+- **Do not touch** in this Part: `computeFundPerformance()` and everything above `portfolio-metrics.ts:340` (ground rule 2); `netDpiOverride` in any write path (D2); `Fund.firstDealDate`/`Fund.aumUsd` in any sync path (Q88-A); `src/lib/sheet-sync.ts`'s `Fund.name` matching (F97 — recorded, deliberately unfixed); `getSheetRows()`'s signature, output, or `valueRenderOption` (WS102.1 must keep it byte-identical — any Q90-(b) change applies to the fund-metrics call **only**); `src/app/api/admin/funds/route.ts`'s `serializeFund` (never returned overrides, still shouldn't); `src/app/admin/sync/page.tsx` (the Part 11 redirect stub, still correct); the grid classes on `fund-performance-card.tsx:65` (JC-FM-E); and **anything to do with the sheet's "Include in CUSTOM" row or `CUSTOM` column** (ground rule 5 — Stephen's explicit instruction).
+- **Do not write a fund slug anywhere in the tree** (Q86-A's rejection): not in a migration, not in `prisma/seed.ts`, not in a test fixture, not in a comment. WS102.3's fixtures use synthetic codes.
+
+## Part 36 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **D1** | Automated one-way sheet → Molly sync, not manual entry — but the manual admin form ships anyway (it owns the visibility flags and is the outage fallback) | **LOCKED** (Joseph, 2026-09-16). Reversed in-session from an initial "manual entry," once the pre-copied Deal IDs in the external sheet made the intent clear |
+| **D2** | **Net DPI untouched** — same column, same input, same card slot, and in **no** write path this Part adds | **LOCKED.** Held structurally: `netDpiOverride` is named in no sync code path, and WS102.3 has a test that fails if it ever is |
+| **D3** | Evergreen per-fund values; report history comes only from the existing publish-time snapshot | **LOCKED.** No new model, no period dimension, no `asOf` column |
+| **D4** | Four generic per-fund booleans (`showGrossMoic`/`showNetTvpi`/`showNetIrr`/`showNetNav`, `@default(true)`), never fund-name conditionals | **LOCKED.** Necessary, not stylistic: one fund's Net IRR is non-null and deliberately hidden while others are blank because they are young — nullity cannot express the difference. Also keeps real vehicle codes out of a public repo |
+| **D5** | Two new nullable columns `netIrrOverride`, `netNavOverride` | **LOCKED.** Naming settled at JC-FM-B |
+| **D6** | Cross-check the external sheet's Stable IDs against `Deal.sheetRowId` | **LOCKED** that it happens, and **Q85 now settles what a mismatch does**. At least one mismatch exists today (81 sheet IDs vs 80 populated `sheetRowId`s) |
+| **Q85** | Crosscheck mismatch is **non-blocking** — recorded in `summary.crosscheck`, apply proceeds | **LOCKED (A)** (Joseph, 2026-09-16, as recommended). **(B) blocking rejected**, and the rejection carries an instruction: **no throw-on-mismatch branch may exist.** Consequence: **WS103.3's crosscheck line on the collapsed run row is mandatory**, since it is the only signal left |
+| **Q86** | **Ship all four flags `@default(true)`**; an admin unticks Net IRR for three funds post-deploy, before publishing any new report | **LOCKED (B)** (Joseph, 2026-09-16, as recommended). **(A) seeding rejected — it would write real DFS vehicle codes into public git history (Part 27/F54, the class that already forced a history rewrite).** Binding: **no fund slug in any migration, seed, fixture or comment** |
+| **Q87** | `FUND_METRICS_SPREADSHEET_ID` + sibling `fundMetricsSyncEnabled()`, **plus its own `FUND_METRICS_SYNC_APPLY_ENABLED` apply gate shipped unset** | **LOCKED (A + (i))** (Joseph, 2026-09-16, both as recommended). Dry-run works immediately; the first real write needs a deliberate manual enable. **Comment it as a permanent safety, not an incident gate** — unlike `SHEETS_SYNC_APPLY_ENABLED`, which it is modelled on and whose comment says to remove it |
+| **Q88** | **Metrics only** — the sync never touches `Fund.firstDealDate`/`aumUsd` | **LOCKED (A)** (Joseph, 2026-09-16, as recommended). Held at compile time by `FundMetricsUpdate.field`'s four-member union — **do not widen it "for later"** |
+| **Q89** | **`netIrrOverride` stores a FRACTION** (`0.0205` = 2.05%), matching the computed `grossIrr`. The **only** `/ 100` is in the sync parser; the **only** `* 100` is the existing render convention | **LOCKED (A)** (Joseph, 2026-09-16) — **the one decision in this Part that went AGAINST the recommendation**, choosing one unit for every IRR in the codebase over matching the sheet's display form. Recommendation withdrawn. **Rewrote WS97.1, WS99.3, WS101.5 and WS102.2 — build from the current text, not the first draft** |
+| **Q90** | How the parser distinguishes `"2.05%"` from a bare `"0.0205"`: **the `%` sign is the signal** — strip-and-divide when present, pass through when absent | **OPEN but NON-BLOCKING, by design.** Answered by *reading* the first dry run (which the Q87 gate guarantees happens before any write), not before building. Symptom of a wrong guess: IRRs 100× too small. Fix: **Q90-(b)**, `valueRenderOption=UNFORMATTED_VALUE` on the fund-metrics call only — one query parameter |
+| **JC-FM-A** | One tested pure selector (`visibleOverrideMetrics`), not five JSX branches | **Decided (technical).** Reversal: inline it back |
+| **JC-FM-B** | Keep the `…Override` suffix on the two new columns | **Decided.** Reversal: `@map()` |
+| **JC-FM-C** | `SheetSyncRun.kind` discriminator, not a second model | **Decided.** Reversal: a second model + data copy |
+| **JC-FM-D** | The sync writes values only — never the visibility flags, never `netDpiOverride` | **Decided.** A restriction; nothing to reverse |
+| **JC-FM-E** | Keep `lg:grid-cols-5`; up to 7 boxes wrap to a second row | **Decided.** Reversal: one class string, after Joseph sees a real 7-box fund |
+| **F92** | "CAF1 only"/"a single fund" is stale in the schema comment and twice in ROADMAP; production has two | Schema comment WS97.2, ROADMAP WS103.7 (annotated in this pass). **Also the overwrite warning on WS102** |
+| **F93** | Naively widening `overrideActive` with `!== null` flips **every already-published LP report** into override mode | **The highest-risk line in this Part.** Fixed by WS98.3's nullish rule + WS99.2; guarded by a named regression test in WS98.4 |
+| **F94** | A frozen snapshot has no keys for metrics that postdate it; render on **key presence**, not nullity | WS98.3 rule 1 + WS98.2's `StoredFundPerformanceOverride` type |
+| **F95** | The PATCH allowlist is hand-written and type-blind; booleans additionally need their own loop | WS100.4 + WS100.5, with a manual save/reload acceptance check |
+| **F96** | The override renderer hardcodes `×` formatting; Net NAV is currency and Net IRR is a rate | WS98.3's `format` discriminator + WS99.3's formatter |
+| **F97** | The deals sync keys "Vehicle" off `Fund.name`, contradicting the schema's "slug is the import key" | **Recorded, deliberately NOT fixed.** The new sync keys off `slug`; the divergence is commented in place |
+| **F98** | The deals sync's apply path is disabled behind `SHEETS_SYNC_APPLY_ENABLED` after a 27-duplicate-row incident | Operational check in the handoff; precedent for Q87-(i) |
+| **F99** | `getSheetRows()` is hardcoded to one sheet, one range, and a row-1 header | WS102.1 generalizes it; the existing wrapper stays byte-identical |
+| **F100** | The new sheet also carries First Deal Date and AUM, which map to existing admin-typed `Fund` columns | **Q88** |
+| **F101** | `ROADMAP.md:3` and `:7` still called Part 35 "PLANNED, NOT yet built"; it shipped (`a26b436`/`69390a1`/`81af6ad`/`3254039`, artifacts verified in the tree) | **Corrected in this pass.** Third instance of the same stale-status shape (after Part 32/F70 and Part 35/F91), and the second time the correcting Part let its own entry go stale — recorded as a recurring class, with a habit rather than a mechanism proposed |
+
+**Constraints honored:** **no new cost line** (existing Google service account and read-only scope, one extra weekly `values.get`, a 5th Vercel cron against an allowance of 40, rows in existing Postgres tables — no new service, no new dependency, no new table); **additive-only schema** (six nullable-or-defaulted columns on `Fund`, one defaulted column on `SheetSyncRun`; nothing dropped, renamed, or made required, and no backfill); **no UX regression** — the only change any non-admin can ever perceive is in reports published *after* this deploy, every already-published report is provably byte-identical (F93/F94, guarded by test), founders and investor-link recipients are untouched entirely, and every admin-facing change is additive inside surfaces that already exist.
+
+**Handoff status: READY FOR ALVIN** (as of 2026-09-16). All eleven decisions are locked — D1–D6 from the scoping session, Q85–Q89 answered the same day. No conditional branches remain in any workstream. Seven workstreams, ~3.2 days, additive-only schema, no new dependency, no new cost line.
+
+**Three things that must survive the handoff verbatim:**
+
+1. **WS98, WS99, WS100 and WS101 ship in ONE deploy.** WS98 makes the new override fields required and deliberately breaks the build at three construction sites; a branch pushed mid-sequence does not compile, and on this project a branch push *is* a production deploy. (WS97 goes first, alone, safely.)
+2. **`netIrrOverride` is a FRACTION** (Q89 = A, against the recommendation). The only `/ 100` is in `parseSheetPercent`; the only `* 100` is the render formatter. WS101.5's admin field is a decimal input with a worked example in its label — **not** a `%` field. Four workstreams were rewritten for this after the first draft.
+3. **`FUND_METRICS_SYNC_APPLY_ENABLED` ships UNSET** (Q87-(i)) and must not be added to Vercel as part of the deploy. The first dry run is read by a human — checking, among other things, the **magnitude** of the Net IRR values (Q90) — and only then is the flag set.
+
+**The one thing still genuinely unknown** is Q90, and it is unknowable from the repo: whether the sheet's Net IRR cells are `%`-formatted. It is structured so that the answer arrives for free from a dry run that was already mandatory, with a one-parameter fix if it goes the other way. **It does not block the build.**
+
+---
