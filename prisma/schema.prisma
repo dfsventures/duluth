@@ -536,13 +536,46 @@ model Fund {
 
   // Part 15, WS37.1 — manual admin-entered performance overrides (Q46–Q52).
   // Generic per-fund (Q47), independently nullable so an admin can fill
-  // these in incrementally; populated for a single fund today (deployment-specific). No "as of"/
+  // these in incrementally; populated for more than one fund in at least one
+  // deployment; both the count and the funds are deployment-specific and
+  // deliberately not named here (Part 36/F92). No "as of"/
   // provenance column (Q51 — no separate staleness note; FUND_UPDATED
   // audit rows already timestamp every change if that history is ever
   // needed).
   grossMoicOverride Decimal?
   netTvpiOverride   Decimal?
   netDpiOverride    Decimal?
+
+  // Part 36, WS97 (D5) — two further reported figures, same semantics and
+  // same code path as the three above. Nullable and independently settable.
+  // JC-FM-B: the "Override" suffix is kept for consistency with the three
+  // Part 15 columns even though, under Part 36/D1, these normally arrive
+  // from the fund-metrics sheet sync rather than from an admin typing.
+  // Read them as "the authoritative reported figure" — sheet-sourced or
+  // hand-corrected — which still replaces the computed block.
+  // UNITS (Q89 = A, LOCKED 2026-09-16 — read this before writing any code
+  // that touches netIrrOverride):
+  //   netIrrOverride is a FRACTION. 0.0205 means 2.05%. This matches
+  //   FundPerformance.grossIrr, which is a solver output and a fraction by
+  //   construction, so every IRR in this codebase carries one unit. The
+  //   sheet publishes percent units ("2.05%"); the ONLY division by 100
+  //   happens in the sync parser (fund-metrics-sync.ts), never at render
+  //   time and never in the admin form.
+  //   netNavOverride is USD.
+  netIrrOverride Decimal?
+  netNavOverride Decimal?
+
+  // Part 36, WS97 (D4) — per-fund display flags, generic by design: NEVER
+  // a fund-name conditional anywhere in the codebase. Visibility cannot be
+  // inferred from nullity, because at least one fund has a real, non-null
+  // Net IRR that is deliberately not shown (an editorial judgment), while
+  // others are blank because the vehicle is too young. Same outcome, two
+  // different reasons — so the intent needs its own column. Default true
+  // so every existing fund's rendering is unchanged on deploy.
+  showGrossMoic Boolean @default(true)
+  showNetTvpi   Boolean @default(true)
+  showNetIrr    Boolean @default(true)
+  showNetNav    Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -774,6 +807,11 @@ model FundCashflow {
 // only, never logged to the console where avoidable (ground rule 1).
 model SheetSyncRun {
   id         String    @id @default(cuid())
+  // Part 36, WS97 (JC-FM-C) — which sheet integration this run belongs to.
+  // "DEALS" is the Part 10 All-Deals sync; "FUND_METRICS" is the Part 36
+  // fund-metrics summary-block sync. Defaulted so every pre-Part-36 row is
+  // correctly labelled without a backfill. Both admin surfaces filter on it.
+  kind       String    @default("DEALS") // "DEALS" | "FUND_METRICS"
   trigger    String // "CRON" | "MANUAL" | "DRY_RUN"
   status     String // "SUCCESS" | "FAILED"
   startedAt  DateTime  @default(now())
@@ -782,6 +820,7 @@ model SheetSyncRun {
   error      String?
 
   @@index([startedAt])
+  @@index([kind, startedAt])
   @@map("sheet_sync_runs")
 }
 
