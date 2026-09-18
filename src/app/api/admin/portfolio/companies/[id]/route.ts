@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
-import { computeMultiple } from "@/lib/report-snapshot";
 import { positionValue } from "@/lib/portfolio-metrics";
 
 // WS25.1 — per-company cross-fund view: deals across every fund, the
@@ -48,8 +47,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       const entryVal = d.entryValuation !== null ? Number(d.entryValuation) : null;
       const currentVal = d.currentValuation !== null ? Number(d.currentValuation) : null;
       const ownershipPct = d.ownershipPct !== null ? Number(d.ownershipPct) : null;
-      entry.latestMultiple = computeMultiple(entryVal, currentVal);
-      const pv = positionValue({ amountUsd: Number(d.amountUsd), entryValuation: entryVal, currentValuation: currentVal, ownershipPct }, currentVal);
+      const amount = Number(d.amountUsd);
+      const pv = positionValue({ amountUsd: amount, entryValuation: entryVal, currentValuation: currentVal, ownershipPct }, currentVal);
+      // F103 follow-up — derive from positionValue(), not a bare
+      // computeMultiple(entry, current) call, so this agrees with
+      // `impliedValue` below (and with every other multiple display in the
+      // app) once ownershipPct is known for this deal.
+      entry.latestMultiple = pv.value !== null && amount > 0 ? pv.value / amount : null;
       if (pv.value !== null) entry.impliedValue += pv.value;
       if (pv.dilutionAware) entry.dilutionAware = true;
       byFund.set(key, entry);

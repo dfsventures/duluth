@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { FundPerformanceCard } from "@/components/fund-performance-card";
+import { positionValue } from "@/lib/portfolio-metrics";
 import { formatDate } from "@/lib/utils";
 
 type Tab = "deals" | "lps" | "reports" | "cashflows";
@@ -39,6 +40,7 @@ interface Deal {
   instrument: string | null;
   entryValuation: number | null;
   currentValuation: number | null;
+  ownershipPct: number | null;
   valuationAsOf: string | null;
   notes: string | null;
   sheetRowId: string | null;
@@ -112,10 +114,17 @@ interface LpOption {
   name: string | null;
 }
 
-function multipleLabel(entry: number | null, current: number | null): string {
-  if (entry === null || entry <= 0 || current === null) return "n/a";
-  if (current === 0) return "Written off";
-  return `${(current / entry).toFixed(1)}×`;
+// F103 follow-up — this used to be a bare current/entry ratio, a third
+// independent implementation alongside computeMultiple()/positionValue() in
+// portfolio-metrics.ts. Routed through the same positionValue() the fund
+// total and the report snapshot use, so all three surfaces agree once a
+// deal's ownershipPct is known. Byte-identical to the old label for the
+// (still-common) case where ownershipPct is null.
+function multipleLabel(d: { amountUsd: number; entryValuation: number | null; currentValuation: number | null; ownershipPct: number | null }): string {
+  const pv = positionValue({ amountUsd: d.amountUsd, entryValuation: d.entryValuation, currentValuation: d.currentValuation, ownershipPct: d.ownershipPct }, d.currentValuation);
+  if (pv.value === null || d.amountUsd <= 0) return "n/a";
+  if (pv.value === 0) return "Written off";
+  return `${(pv.value / d.amountUsd).toFixed(1)}×`;
 }
 
 export default function AdminFundDetailPage() {
@@ -715,7 +724,7 @@ export default function AdminFundDetailPage() {
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-2.5">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
+                    <td className="px-4 py-2.5">{multipleLabel(d)}</td>
                     <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{d.valuationAsOf ? formatDate(d.valuationAsOf) : "—"}</td>
                     <td className="px-4 py-2.5">
                       {isSynced ? (

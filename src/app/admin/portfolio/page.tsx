@@ -38,15 +38,22 @@ interface Summary {
   anyDilutionAware: boolean;
 }
 
-function multipleLabel(entry: number | null, current: number | null): string {
-  if (entry === null || entry <= 0 || current === null) return "n/a";
-  if (current === 0) return "Written off";
-  return `${(current / entry).toFixed(1)}×`;
+// F103 follow-up — this used to be a bare current/entry ratio, ignoring the
+// `positionValue`/`dilutionAware` fields the API already computes (and that
+// the neighboring "Position Value" column already uses). Deriving the
+// multiple from positionValue/amountUsd instead means this column agrees
+// with "Position Value" once a deal's ownershipPct is known, rather than
+// showing an outsized raw ratio right next to the correct dollar figure.
+function multipleValue(d: Pick<PortfolioDeal, "amountUsd" | "positionValue">): number | null {
+  if (d.positionValue === null || d.amountUsd <= 0) return null;
+  return d.positionValue / d.amountUsd;
 }
 
-function multipleValue(entry: number | null, current: number | null): number | null {
-  if (entry === null || entry <= 0 || current === null) return null;
-  return current / entry;
+function multipleLabel(d: Pick<PortfolioDeal, "amountUsd" | "positionValue">): string {
+  const m = multipleValue(d);
+  if (m === null) return "n/a";
+  if (d.positionValue === 0) return "Written off";
+  return `${m.toFixed(1)}×`;
 }
 
 type SortKey = "company" | "fund" | "date" | "amount" | "currentVal" | "multiple" | "positionValue";
@@ -81,7 +88,7 @@ function sortValue(d: PortfolioDeal, key: SortKey): number | string | null {
     case "currentVal":
       return d.currentValuation;
     case "multiple":
-      return multipleValue(d.entryValuation, d.currentValuation);
+      return multipleValue(d);
     case "positionValue":
       return d.positionValue;
   }
@@ -281,7 +288,7 @@ export default function AdminPortfolioPage() {
                 <td className="px-4 py-2.5 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
                 <td className="px-4 py-2.5">{d.instrument ?? "—"}</td>
                 <td className="px-4 py-2.5 whitespace-nowrap">{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</td>
-                <td className="px-4 py-2.5">{multipleLabel(d.entryValuation, d.currentValuation)}</td>
+                <td className="px-4 py-2.5">{multipleLabel(d)}</td>
                 <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{d.ownershipPct !== null ? `${d.ownershipPct}%` : "—"}</td>
                 <td className="px-4 py-2.5 whitespace-nowrap">
                   <span className="inline-flex items-center gap-1.5">

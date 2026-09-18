@@ -88,6 +88,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
         instrument: d.instrument,
         entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
         currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
+        // F103 follow-up — the admin Deals tab has its own multiple display
+        // (a third, independent one, alongside the fund-report snapshot and
+        // the fund-level total) and needs ownershipPct to make it
+        // dilution-aware too.
+        ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
         valuationAsOf: d.valuationAsOf,
         notes: d.notes,
         sheetRowId: d.sheetRowId,
