@@ -14,6 +14,10 @@ export interface DealInput {
   amountUsd: number; // caller Number()s Prisma Decimals, house convention
   entryValuation: number | null;
   currentValuation: number | null;
+  // F103 follow-up — optional, so a caller that doesn't have it (or hasn't
+  // been updated) gets exactly today's raw-ratio behavior; positionValue()
+  // treats a missing/null ownershipPct as "not known" either way.
+  ownershipPct: number | null;
 }
 
 export interface DealSnapshot {
@@ -22,7 +26,10 @@ export interface DealSnapshot {
   amountUsd: number;
   entryValuationUsd: number | null;
   currentValuationUsd: number | null;
-  multiple: number | null; // currentValuation / entryValuation; 0 = written off; null = unknown
+  // F103 follow-up — derived via positionValue(), dilution-aware when the
+  // deal's ownershipPct is known; byte-identical to the old bare
+  // computeMultiple() result when it isn't (0 = written off; null = unknown).
+  multiple: number | null;
 }
 
 export interface MentionSnapshot {
@@ -45,6 +52,49 @@ export function computeMultiple(entryValuation: number | null, currentValuation:
   return null;
 }
 
+// Moved here from portfolio-metrics.ts (F103 follow-up) so buildMentionSnapshot
+// below can use it without an import cycle (portfolio-metrics.ts already
+// imports computeMultiple from this file). portfolio-metrics.ts re-exports
+// positionValue so every existing `import { positionValue } from
+// "@/lib/portfolio-metrics"` call site is unaffected by the move.
+
+export interface PositionValueDeal {
+  amountUsd: number;
+  entryValuation: number | null;
+  currentValuation: number | null;
+  ownershipPct: number | null; // 0-100
+}
+
+export interface PositionValueResult {
+  value: number | null;
+  dilutionAware: boolean;
+}
+
+/**
+ * Dilution-aware when ownershipPct is known (ownershipPct% of the latest
+ * company valuation mark). Otherwise falls back to the shipped
+ * zero-dilution assumption — amountUsd × multiple — with
+ * `dilutionAware: false` so the UI can badge it (expected: everywhere,
+ * until the sheet's round-size/ownership columns land, Q24).
+ */
+export function positionValue(deal: PositionValueDeal, latestMarkValuationUsd: number | null): PositionValueResult {
+  if (deal.ownershipPct !== null && latestMarkValuationUsd !== null) {
+    return { value: (deal.ownershipPct / 100) * latestMarkValuationUsd, dilutionAware: true };
+  }
+  const multiple = computeMultiple(deal.entryValuation, deal.currentValuation);
+  if (multiple === null) return { value: null, dilutionAware: false };
+  return { value: deal.amountUsd * multiple, dilutionAware: false };
+}
+
+// F103 follow-up — derives the dilution-aware effective multiple
+// (positionValue / amountUsd) for one deal, falling back to the old raw
+// entry/current ratio when ownershipPct isn't known (byte-identical for
+// every deal that doesn't have one set).
+function effectiveMultiple(d: DealInput): number | null {
+  const pv = positionValue({ amountUsd: d.amountUsd, entryValuation: d.entryValuation, currentValuation: d.currentValuation, ownershipPct: d.ownershipPct }, d.currentValuation);
+  return pv.value !== null && d.amountUsd > 0 ? pv.value / d.amountUsd : null;
+}
+
 export function buildMentionSnapshot(companyName: string, country: string | null, deals: DealInput[]): MentionSnapshot {
   const sorted = [...deals].sort((a, b) => a.dealDate.getTime() - b.dealDate.getTime());
   const firstDeal = sorted[0];
@@ -55,7 +105,7 @@ export function buildMentionSnapshot(companyName: string, country: string | null
     amountUsd: d.amountUsd,
     entryValuationUsd: d.entryValuation,
     currentValuationUsd: d.currentValuation,
-    multiple: computeMultiple(d.entryValuation, d.currentValuation),
+    multiple: effectiveMultiple(d),
   }));
 
   const totalInvestedUsd = deals.reduce((sum, d) => sum + d.amountUsd, 0);
@@ -64,7 +114,7 @@ export function buildMentionSnapshot(companyName: string, country: string | null
     companyName,
     country,
     firstDealDate: firstDeal ? firstDeal.dealDate.toISOString() : new Date(0).toISOString(),
-    sinceFirstCheckMultiple: firstDeal ? computeMultiple(firstDeal.entryValuation, firstDeal.currentValuation) : null,
+    sinceFirstCheckMultiple: firstDeal ? effectiveMultiple(firstDeal) : null,
     firstCheckEntryValuationUsd: firstDeal ? firstDeal.entryValuation : null,
     firstCheckCurrentValuationUsd: firstDeal ? firstDeal.currentValuation : null,
     totalInvestedUsd,

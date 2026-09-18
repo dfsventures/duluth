@@ -41,6 +41,7 @@ export default async function AdminReportPreviewPage({ params }: { params: Promi
           amountUsd: Number(d.amountUsd),
           entryValuation: d.entryValuation !== null ? Number(d.entryValuation) : null,
           currentValuation: d.currentValuation !== null ? Number(d.currentValuation) : null,
+          ownershipPct: d.ownershipPct !== null ? Number(d.ownershipPct) : null,
         }))
       ),
     }));

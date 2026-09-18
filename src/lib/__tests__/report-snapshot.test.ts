@@ -24,7 +24,7 @@ describe("computeMultiple", () => {
 describe("buildMentionSnapshot", () => {
   it("single initial deal — since-first-check multiple matches the deal's own multiple", () => {
     const deals: DealInput[] = [
-      { investmentType: "INITIAL", dealDate: new Date("2020-10-01"), amountUsd: 100_000, entryValuation: 1_000_000, currentValuation: 4_600_000 },
+      { investmentType: "INITIAL", dealDate: new Date("2020-10-01"), amountUsd: 100_000, entryValuation: 1_000_000, currentValuation: 4_600_000, ownershipPct: null },
     ];
     const snap = buildMentionSnapshot("Acme", "Kenya", deals);
     expect(snap.sinceFirstCheckMultiple).toBeCloseTo(4.6);
@@ -37,8 +37,8 @@ describe("buildMentionSnapshot", () => {
 
   it("initial + follow-on — headline uses the EARLIEST deal, not a blend (Q6)", () => {
     const deals: DealInput[] = [
-      { investmentType: "FOLLOW_ON", dealDate: new Date("2022-01-01"), amountUsd: 200_000, entryValuation: 5_000_000, currentValuation: 5_000_000 },
-      { investmentType: "INITIAL", dealDate: new Date("2020-10-01"), amountUsd: 100_000, entryValuation: 1_000_000, currentValuation: 4_600_000 },
+      { investmentType: "FOLLOW_ON", dealDate: new Date("2022-01-01"), amountUsd: 200_000, entryValuation: 5_000_000, currentValuation: 5_000_000, ownershipPct: null },
+      { investmentType: "INITIAL", dealDate: new Date("2020-10-01"), amountUsd: 100_000, entryValuation: 1_000_000, currentValuation: 4_600_000, ownershipPct: null },
     ];
     const snap = buildMentionSnapshot("Acme", "Kenya", deals);
     // Headline is the first (earliest) deal's multiple, 4.6x — not any blend with the 1x follow-on.
@@ -51,7 +51,7 @@ describe("buildMentionSnapshot", () => {
 
   it("written off (current valuation 0) renders as multiple 0, not null", () => {
     const deals: DealInput[] = [
-      { investmentType: "INITIAL", dealDate: new Date("2021-01-01"), amountUsd: 50_000, entryValuation: 2_000_000, currentValuation: 0 },
+      { investmentType: "INITIAL", dealDate: new Date("2021-01-01"), amountUsd: 50_000, entryValuation: 2_000_000, currentValuation: 0, ownershipPct: null },
     ];
     const snap = buildMentionSnapshot("Defunct Co", null, deals);
     expect(snap.sinceFirstCheckMultiple).toBe(0);
@@ -60,7 +60,7 @@ describe("buildMentionSnapshot", () => {
 
   it("null entry valuation on the first deal -> since-first-check multiple is null (n/a)", () => {
     const deals: DealInput[] = [
-      { investmentType: "INITIAL", dealDate: new Date("2021-01-01"), amountUsd: 50_000, entryValuation: null, currentValuation: 1_000_000 },
+      { investmentType: "INITIAL", dealDate: new Date("2021-01-01"), amountUsd: 50_000, entryValuation: null, currentValuation: 1_000_000, ownershipPct: null },
     ];
     const snap = buildMentionSnapshot("Unknown Entry Co", null, deals);
     expect(snap.sinceFirstCheckMultiple).toBeNull();
@@ -69,7 +69,7 @@ describe("buildMentionSnapshot", () => {
 
   it("carries full dollar detail per deal (entry, current, check size)", () => {
     const deals: DealInput[] = [
-      { investmentType: "INITIAL", dealDate: new Date("2020-01-01"), amountUsd: 250_000, entryValuation: 4_000_000, currentValuation: 18_500_000 },
+      { investmentType: "INITIAL", dealDate: new Date("2020-01-01"), amountUsd: 250_000, entryValuation: 4_000_000, currentValuation: 18_500_000, ownershipPct: null },
     ];
     const snap = buildMentionSnapshot("Full Detail Co", "Nigeria", deals);
     expect(snap.deals[0]).toMatchObject({
@@ -77,6 +77,19 @@ describe("buildMentionSnapshot", () => {
       entryValuationUsd: 4_000_000,
       currentValuationUsd: 18_500_000,
     });
+  });
+
+  // F103 follow-up — the hover card's multiple (both the headline
+  // since-first-check figure and the per-deal breakdown) must agree with
+  // the fund-level/report-table calculations once a deal's ownershipPct is
+  // known, not fall back to the old raw entry/current ratio.
+  it("uses the dilution-aware multiple (ownershipPct-derived) for both the headline and the per-deal row", () => {
+    const deals: DealInput[] = [
+      { investmentType: "INITIAL", dealDate: new Date("2025-03-25"), amountUsd: 25_000, entryValuation: 2_500_000, currentValuation: 250_000_000, ownershipPct: 0.5568 },
+    ];
+    const snap = buildMentionSnapshot("Diluted Co", null, deals);
+    expect(snap.sinceFirstCheckMultiple).toBeCloseTo(55.68, 5);
+    expect(snap.deals[0].multiple).toBeCloseTo(55.68, 5);
   });
 });
 

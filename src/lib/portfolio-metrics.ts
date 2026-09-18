@@ -1,4 +1,12 @@
-import { computeMultiple } from "@/lib/report-snapshot";
+import { computeMultiple, positionValue, type PositionValueDeal, type PositionValueResult } from "@/lib/report-snapshot";
+
+// positionValue()/PositionValueDeal/PositionValueResult moved to
+// report-snapshot.ts (F103 follow-up), so buildMentionSnapshot there can use
+// it without an import cycle. Re-exported here unchanged so every existing
+// `import { positionValue } from "@/lib/portfolio-metrics"` call site (and
+// this file's own callers below) keeps working untouched.
+export { positionValue };
+export type { PositionValueDeal, PositionValueResult };
 
 // Pure derived-metrics engine behind Part 10, WS26 — admin-only (Q23).
 // Nothing here is imported by /lp, share, or hover-card code (grep-guarded
@@ -193,34 +201,6 @@ export function dpi(paidIn: number, distributions: number): number | null {
 export function rvpi(paidIn: number, nav: number): number | null {
   if (paidIn <= 0) return null;
   return nav / paidIn;
-}
-
-export interface PositionValueDeal {
-  amountUsd: number;
-  entryValuation: number | null;
-  currentValuation: number | null;
-  ownershipPct: number | null; // 0-100
-}
-
-export interface PositionValueResult {
-  value: number | null;
-  dilutionAware: boolean;
-}
-
-/**
- * Dilution-aware when ownershipPct is known (ownershipPct% of the latest
- * company valuation mark). Otherwise falls back to the shipped
- * zero-dilution assumption — amountUsd × multiple — with
- * `dilutionAware: false` so the UI can badge it (expected: everywhere,
- * until the sheet's round-size/ownership columns land, Q24).
- */
-export function positionValue(deal: PositionValueDeal, latestMarkValuationUsd: number | null): PositionValueResult {
-  if (deal.ownershipPct !== null && latestMarkValuationUsd !== null) {
-    return { value: (deal.ownershipPct / 100) * latestMarkValuationUsd, dilutionAware: true };
-  }
-  const multiple = computeMultiple(deal.entryValuation, deal.currentValuation);
-  if (multiple === null) return { value: null, dilutionAware: false };
-  return { value: deal.amountUsd * multiple, dilutionAware: false };
 }
 
 // ─── Part 14, WS33.2 — computeFundPerformance() ────────────────────────────
