@@ -331,7 +331,13 @@ export interface FundSnapshotDealRow {
   instrument: string | null;
   entryValuationUsd: number | null;
   currentValuationUsd: number | null;
-  multiple: number | null; // reuses computeMultiple from report-snapshot.ts
+  // F103 — derived via positionValue(), not a bare computeMultiple(entry,
+  // current) call: when a deal's ownershipPct is known, this is the
+  // dilution-aware effective multiple (positionValue / amountUsd), matching
+  // the fund-level Implied Value total. Byte-identical to the old
+  // computeMultiple() result for the (still-common) case where ownershipPct
+  // is null.
+  multiple: number | null;
   valuationAsOf: string | null; // JC-D — included even though Q41-A's literal list didn't name it
 }
 
@@ -448,19 +454,36 @@ export function buildFundReportSnapshot(
     fundName,
     performance: computeFundPerformance(deals, cashflows),
     performanceOverride,
-    deals: deals.map((d) => ({
-      companyName: d.companyName,
-      investmentType: d.investmentType,
-      dealDate: d.dealDate.toISOString(),
-      amountUsd: d.amountUsd,
-      instrument: d.instrument,
-      entryValuationUsd: d.entryValuation,
-      currentValuationUsd: d.currentValuation,
-      multiple: computeMultiple(d.entryValuation, d.currentValuation),
-      valuationAsOf: d.valuationAsOf ? d.valuationAsOf.toISOString() : null,
-      // Deliberately no sheetRowId / "synced from sheet" field of any kind —
-      // Q42 is held structurally (the type has no such key), not just hidden
-      // by the renderer.
-    })),
+    deals: deals.map((d) => {
+      // F103 — the per-deal table used to call computeMultiple(entry,
+      // current) directly, ignoring ownershipPct entirely, while the
+      // fund-level Implied Value total (above, via computeFundPerformance)
+      // already used positionValue()'s dilution-aware math. That mismatch
+      // is exactly what let the two numbers visibly disagree on the same
+      // card. Routing through positionValue() here and deriving an
+      // effective multiple (value / amountUsd) makes the two consistent;
+      // for a deal with no ownershipPct set, positionValue() falls back to
+      // amountUsd * computeMultiple(...), so multiple = value / amountUsd
+      // reduces to the exact same computeMultiple() result as before.
+      const pv = positionValue(
+        { amountUsd: d.amountUsd, entryValuation: d.entryValuation, currentValuation: d.currentValuation, ownershipPct: d.ownershipPct },
+        d.currentValuation
+      );
+      const multiple = pv.value !== null && d.amountUsd > 0 ? pv.value / d.amountUsd : null;
+      return {
+        companyName: d.companyName,
+        investmentType: d.investmentType,
+        dealDate: d.dealDate.toISOString(),
+        amountUsd: d.amountUsd,
+        instrument: d.instrument,
+        entryValuationUsd: d.entryValuation,
+        currentValuationUsd: d.currentValuation,
+        multiple,
+        valuationAsOf: d.valuationAsOf ? d.valuationAsOf.toISOString() : null,
+        // Deliberately no sheetRowId / "synced from sheet" field of any kind —
+        // Q42 is held structurally (the type has no such key), not just hidden
+        // by the renderer.
+      };
+    }),
   };
 }

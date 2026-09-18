@@ -264,6 +264,23 @@ describe("buildFundReportSnapshot", () => {
     expect(snapshot.performance.invested).toBe(10000);
   });
 
+  // F103 — a deal's per-row `multiple` must use the same dilution-aware
+  // math as the fund-level Implied Value total (positionValue()), not a
+  // bare current/entry ratio. Before this fix the two could visibly
+  // disagree on the same report: the total would reflect ownershipPct, the
+  // deal row underneath it wouldn't.
+  it("uses the dilution-aware multiple (positionValue-derived) when ownershipPct is set, not the raw entry/current ratio", () => {
+    const dilutedDeal = {
+      ...dealInput,
+      amountUsd: 25_000,
+      entryValuation: 2_500_000,
+      currentValuation: 250_000_000, // raw ratio would be 100x
+      ownershipPct: 0.5568, // dilution-aware: (0.5568% of 250M) / 25,000 = 55.68x
+    };
+    const snapshot = buildFundReportSnapshot("Test Fund I", [dilutedDeal], []);
+    expect(snapshot.deals[0].multiple).toBeCloseTo(55.68, 5);
+  });
+
   it("Q42 structural guard: never carries a sheetRowId/provenance key, even when the input deal fixture has one", () => {
     const inputWithSheetRowId = { ...dealInput, sheetRowId: "sheet-row-123" };
     const snapshot = buildFundReportSnapshot("Test Fund I", [inputWithSheetRowId], []);
