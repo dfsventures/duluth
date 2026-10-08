@@ -154,6 +154,8 @@ Priorities run P0 (do first) through P3 (later).
 
 > **Update 2026-10-08:** Part 37 is now partly built. All of Q92–Q102 are confirmed. WS104 shipped (`1609439`): editing a digest no longer wipes todo ticks, and digest HTML is limited to `<p>`/`<br>` via `src/lib/digest-html.ts`. WS105 shipped (`31c378d`): the board tables plus additive digest columns, applied to production with `prisma db push` before the deploy. WS106 shipped (`85d1d70`): the board reconciliation library, ordering, and admin CRUD/move/resolve APIs, 553/553 tests. Next is WS107, the `/admin/board` kanban UI; then WS108, WS111, WS109 and WS110.
 >
+> **Update 2026-10-08 (later):** WS107 shipped (`7c9871d`): the Team Board UI at `/admin/board` (Board and People & projects tabs, drag plus Move-to and ↑/↓, URL-persisted filters, resolve dialog, one-time import of the latest digest's open todos). The Intake tab is deferred to WS109. 558/558 tests. Next is WS108 (digest ↔ board), then WS111, WS109 and WS110.
+>
 > **Team Board with automatic Granola intake — Part 37, WS104–WS111, F104–F114 in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), scoped 2026-10-08. PLANNED, not built.**
 >
 > **What it adds:**
