@@ -22,6 +22,7 @@ import {
   sendDiligenceCompletedFounderEmail,
   sendDiligenceCompletedAdminNotification,
   sendCommentNotificationEmail,
+  sendWeeklyDigestEmail,
 } from "@/lib/email";
 
 const NAME = 'Q1 & <SPV> "Special"';
@@ -132,5 +133,23 @@ describe("WS56 email body escaping", () => {
     expect(html).toContain("ARR &lt;$&gt;");
     expect(html).toContain("&amp;k");
     expect(subject).toBe(`[${NAME}] T & <U> — Q1 <2>`);
+  });
+  it("Part 37 WS104: sendWeeklyDigestEmail escapes todos, assignee and title; section HTML is allowlisted, subject raw", async () => {
+    await sendWeeklyDigestEmail({
+      toEmail: "x@y.com",
+      title: EVIL,
+      sections: [
+        { id: "s1", heading: "Wins", content: `<p>${EVIL}</p><p onclick="x()">ok</p><script>alert(1)</script>` },
+      ],
+      todos: [{ text: EVIL, completed: false, assigneeName: NAME }],
+    });
+    const { html, subject } = sent();
+    expect(html).not.toContain('<a href="https://evil.example">');
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<p onclick");
+    expect(html).toContain("<p>Acme &lt;a href=");
+    expect(html).toContain("Acme &lt;a href=&quot;https://evil.example&quot;&gt;x&lt;/a&gt;");
+    expect(html).toContain(ESC);
+    expect(subject).toBe(EVIL);
   });
 });

@@ -9,17 +9,20 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; todoId: string }> }
 ) {
   try {
-    const { todoId } = await params;
+    const { id, todoId } = await params;
     const { user, error } = await requireAdmin();
     if (error) return error;
 
     const body = await request.json();
     const { completed } = body as { completed: boolean };
 
-    const todo = await db.digestTodo.update({
-      where: { id: todoId },
+    // Part 37, WS104.5 (F107): scope to the digest in the path.
+    const { count } = await db.digestTodo.updateMany({
+      where: { id: todoId, digestId: id },
       data: { completed },
     });
+    if (count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const todo = await db.digestTodo.findUnique({ where: { id: todoId } });
 
     await logAdminAction(user!, "DIGEST_TODO_TOGGLED", { targetType: "DigestTodo", targetId: todoId, metadata: { completed } });
     return NextResponse.json(todo);

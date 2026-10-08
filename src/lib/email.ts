@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { ORG_NAME } from "@/lib/org";
+import { sanitizeDigestHtml } from "@/lib/digest-html";
 import { SETUP_TOKEN_TTL_DAYS } from "@/lib/setup-token";
 
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
@@ -475,7 +476,7 @@ export async function sendWeeklyDigestEmail(opts: {
       (s) => `
       <div style="margin-bottom: 24px;">
         ${subheading(s.heading)}
-        <div style="font-size: 14px; line-height: 1.7; color: ${C.tide};">${s.content}</div>
+        <div style="font-size: 14px; line-height: 1.7; color: ${C.tide};">${sanitizeDigestHtml(s.content)}</div>
       </div>`
     )
     .join("");
@@ -490,7 +491,7 @@ export async function sendWeeklyDigestEmail(opts: {
                 (t) => `
               <li style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid ${C.bone}; font-size: 14px; color: ${t.completed ? C.muted : C.tide};">
                 <span style="flex-shrink: 0; margin-top: 2px; width: 16px; height: 16px; border: 2px solid ${t.completed ? C.sky : C.bone}; background: ${t.completed ? C.sky : "transparent"}; display: inline-block; text-align: center; line-height: 12px; color: #fff; font-size: 10px;">${t.completed ? "✓" : ""}</span>
-                <span style="${t.completed ? "text-decoration: line-through;" : ""}">${t.text}${t.assigneeName ? `<span style="margin-left: 8px; font-size: 12px; color: ${C.muted};">— ${t.assigneeName}</span>` : ""}</span>
+                <span style="${t.completed ? "text-decoration: line-through;" : ""}">${escapeHtml(t.text)}${t.assigneeName ? `<span style="margin-left: 8px; font-size: 12px; color: ${C.muted};">— ${escapeHtml(t.assigneeName)}</span>` : ""}</span>
               </li>`
               )
               .join("")}
@@ -505,7 +506,7 @@ export async function sendWeeklyDigestEmail(opts: {
     subject: opts.title,
     html: emailWrapper(`
       ${eyebrow("Weekly Digest")}
-      ${heading(opts.title)}
+      ${heading(escapeHtml(opts.title))}
       ${hairline()}
 
       ${sectionsHtml}

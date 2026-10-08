@@ -7,6 +7,7 @@ import { ArrowLeft, Sparkles, Loader2, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { plainToDigestHtml } from "@/lib/digest-html";
 
 interface DigestSection {
   id: string;
@@ -93,11 +94,7 @@ export default function NewDigestPage() {
           title,
           sections: sections.map((s) => ({
             ...s,
-            content: s.content
-              .split("\n\n")
-              .filter(Boolean)
-              .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-              .join(""),
+            content: plainToDigestHtml(s.content),
           })),
           todos,
         }),

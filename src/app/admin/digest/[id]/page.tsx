@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { plainToDigestHtml, digestHtmlToPlain, sanitizeDigestHtml } from "@/lib/digest-html";
 
 interface DigestSection {
   id: string;
@@ -49,7 +50,7 @@ export default function DigestDetailPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editWeekOf, setEditWeekOf] = useState("");
   const [editSections, setEditSections] = useState<DigestSection[]>([]);
-  const [editTodos, setEditTodos] = useState<{ text: string }[]>([]);
+  const [editTodos, setEditTodos] = useState<{ id?: string; text: string }[]>([]);
   const [newTodo, setNewTodo] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -71,8 +72,8 @@ export default function DigestDetailPage() {
     if (!digest) return;
     setEditTitle(digest.title);
     setEditWeekOf(new Date(digest.weekOf).toISOString().slice(0, 10));
-    setEditSections(digest.sections.map((s) => ({ ...s })));
-    setEditTodos(digest.todos.map((t) => ({ text: t.text })));
+    setEditSections(digest.sections.map((s) => ({ ...s, content: digestHtmlToPlain(s.content) })));
+    setEditTodos(digest.todos.map((t) => ({ id: t.id, text: t.text })));
     setSaveError(null);
     setEditing(true);
   }
@@ -92,7 +93,7 @@ export default function DigestDetailPage() {
   }
 
   function updateTodo(index: number, text: string) {
-    setEditTodos((prev) => prev.map((t, i) => (i === index ? { text } : t)));
+    setEditTodos((prev) => prev.map((t, i) => (i === index ? { ...t, text } : t)));
   }
 
   async function handleSave() {
@@ -107,11 +108,7 @@ export default function DigestDetailPage() {
           weekOf: editWeekOf,
           sections: editSections.map((s) => ({
             ...s,
-            content: s.content
-              .split("\n\n")
-              .filter(Boolean)
-              .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-              .join(""),
+            content: plainToDigestHtml(s.content),
           })),
           todos: editTodos,
         }),
@@ -319,7 +316,7 @@ export default function DigestDetailPage() {
               ) : (
                 <div
                   className="prose prose-sm max-w-none text-foreground"
-                  dangerouslySetInnerHTML={{ __html: section.content }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeDigestHtml(section.content) }}
                 />
               )}
             </CardContent>

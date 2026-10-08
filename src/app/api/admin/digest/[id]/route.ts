@@ -58,7 +58,7 @@ export async function PATCH(
       title?: string;
       weekOf?: string;
       sections?: { id: string; heading: string; content: string }[];
-      todos?: { text: string }[];
+      todos?: { id?: string; text: string }[];
     };
 
     const digest = await db.$transaction(async (tx) => {
@@ -72,15 +72,21 @@ export async function PATCH(
       });
 
       if (Array.isArray(body.todos)) {
-        await tx.digestTodo.deleteMany({ where: { digestId: id } });
-        if (body.todos.length > 0) {
-          await tx.digestTodo.createMany({
-            data: body.todos.map((t) => ({
-              id: crypto.randomUUID().replace(/-/g, "").slice(0, 25),
-              digestId: id,
-              text: t.text,
-            })),
-          });
+        // Part 37, WS104.4 (F104): diff instead of delete-all, so done ticks,
+        // assignees and ids survive an edit.
+        const existingTodos = await tx.digestTodo.findMany({ where: { digestId: id }, select: { id: true } });
+        const keep = new Set(body.todos.filter((t) => t.id).map((t) => t.id!));
+        const removed = existingTodos.filter((e) => !keep.has(e.id)).map((e) => e.id);
+        if (removed.length) await tx.digestTodo.deleteMany({ where: { digestId: id, id: { in: removed } } });
+        for (const t of body.todos) {
+          if (t.id) {
+            // updateMany scopes to this digest: an id from another digest is a no-op, not a cross-digest write
+            await tx.digestTodo.updateMany({ where: { id: t.id, digestId: id }, data: { text: t.text } });
+          } else {
+            await tx.digestTodo.create({
+              data: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 25), digestId: id, text: t.text },
+            });
+          }
         }
       }
 
