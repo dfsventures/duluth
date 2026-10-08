@@ -75,6 +75,7 @@ model User {
   createdFundReports   FundReport[]            @relation("CreatedFundReports")
   capTableScenarios    CapTableScenario[]
   createdBroadcasts    CompanyBroadcast[]      @relation("CreatedBroadcasts")
+  boardPerson          BoardPerson?            @relation("BoardPersonUser")
 
   @@map("users")
 }
@@ -382,6 +383,11 @@ model WeeklyDigest {
   createdAt DateTime     @default(now())
   todos     DigestTodo[]
 
+  // Part 37 (WS105)
+  source        String    @default("MANUAL") // "MANUAL" | "GRANOLA"
+  granolaNoteId String?   @unique // one draft per Granola note
+  slackPostedAt DateTime?
+
   @@map("weekly_digests")
 }
 
@@ -394,6 +400,12 @@ model DigestTodo {
   assignee   User?        @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
   completed  Boolean      @default(false)
   createdAt  DateTime     @default(now())
+
+  // Part 37 (WS105)
+  cardId       String?
+  card         BoardCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  ownerLabel   String?
+  projectLabel String?
 
   @@map("digest_todos")
 }
@@ -455,6 +467,101 @@ model DigestExtraRecipient {
   createdAt DateTime @default(now())
 
   @@map("digest_extra_recipients")
+}
+
+// ─── Team Board (Part 37) ────────────────────────────────
+
+model BoardProject {
+  id         String       @id @default(cuid())
+  name       String       @unique
+  archivedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  cards      BoardCard[]
+  aliases    BoardAlias[]
+
+  @@map("board_projects")
+}
+
+model BoardPerson {
+  id          String       @id @default(cuid())
+  displayName String // plain-name owners; for linked admins the UI prefers user.name ?? user.email (JC-TB-A)
+  userId      String?      @unique
+  user        User?        @relation("BoardPersonUser", fields: [userId], references: [id], onDelete: SetNull)
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  cards       BoardCard[]
+  aliases     BoardAlias[]
+
+  @@map("board_people")
+}
+
+model BoardCard {
+  id             String        @id @default(cuid())
+  title          String
+  notes          String? // plain text, rendered as text (never HTML)
+  status         String        @default("TODO") // "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" (JC-TB-B)
+  position       Float // order within its status column (JC-TB-C)
+  dueDate        DateTime? // date-only semantics, stored at 00:00 UTC
+  projectId      String?
+  project        BoardProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ownerId        String?
+  owner          BoardPerson?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  rawOwnerName   String? // as extracted, when it differed from / failed to match the canonical name (Q100-a/c)
+  rawProjectName String?
+  needsReview    Boolean       @default(false)
+  source         String        @default("MANUAL") // "MANUAL" | "GRANOLA" | "DIGEST_PASTE" | "DIGEST_IMPORT"
+  sourceRef      String? // Granola note id or WeeklyDigest id
+  sourceKey      String?       @unique // idempotency key for automated creates (WS108/WS109); null for MANUAL
+  humanEditedAt  DateTime? // any human PATCH/move stamps this; automation never overwrites a stamped card (Q100-e)
+  completedAt    DateTime?
+  archivedAt     DateTime?
+  createdById    String? // admin user id; null when automated
+  updatedById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  digestTodos    DigestTodo[]
+
+  @@index([status, position])
+  @@index([ownerId])
+  @@index([projectId])
+  @@map("board_cards")
+}
+
+model BoardAlias {
+  id          String        @id @default(cuid())
+  kind        String // "PERSON" | "PROJECT"
+  normalized  String // normalizeName(alias) — see src/lib/board-reconcile.ts
+  personId    String?
+  person      BoardPerson?  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  projectId   String?
+  project     BoardProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdAt   DateTime      @default(now())
+
+  @@unique([kind, normalized])
+  @@map("board_aliases")
+}
+
+model GranolaIntake {
+  id           String    @id @default(cuid())
+  noteId       String    @unique // "not_…" — the exactly-once key
+  status       String // "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "SKIPPED"
+  trigger      String // "WEBHOOK" | "SWEEP" | "MANUAL"
+  lastEventId  String? // webhook-id of the most recent delivery, diagnostics only
+  noteTitle    String? // DB-only; never logged
+  attempts     Int       @default(0)
+  lockedAt     DateTime?
+  digestId     String?
+  cardsCreated Int       @default(0)
+  cardsLinked  Int       @default(0)
+  skipReason   String?
+  error        String? // message only, truncated to 500 chars, never note content
+  createdAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  @@index([createdAt])
+  @@map("granola_intakes")
 }
 
 // ─── Rate Limiting ────────────────────────────────────────
