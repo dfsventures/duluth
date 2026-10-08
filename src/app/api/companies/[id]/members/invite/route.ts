@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { sendTeamInviteEmail, sendMemberAddedEmail } from "@/lib/email";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { generateSetupToken, isSetupTokenExpired } from "@/lib/setup-token";
 
 export async function POST(
@@ -23,6 +24,15 @@ export async function POST(
       if (callerMembership?.role !== "OWNER") {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
+    }
+
+    // F50/WS57: cap invite emails per inviter (the abuse unit is one account
+    // blasting invites, so key on user id, not IP). 20/hour, confirmed by Joseph.
+    if (!(await checkRateLimit("member-invite", user.id, 20))) {
+      return NextResponse.json(
+        { error: "Too many invitations. Try again in an hour." },
+        { status: 429 }
+      );
     }
 
     const body = await request.json();
