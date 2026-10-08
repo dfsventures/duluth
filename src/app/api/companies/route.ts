@@ -172,6 +172,7 @@ export async function POST(request: Request) {
           toEmail: result.founderEmail,
           companyName: result.newCompany.name,
           token: result.setupToken,
+          isStellarEcosystem: dueDiligence.isStellarEcosystem ?? false,
         }).catch((err) => console.error("Failed to send diligence-invite email:", err));
       }
 

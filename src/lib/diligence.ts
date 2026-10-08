@@ -96,6 +96,20 @@ export async function getDdDocumentSummary(
 }
 
 /**
+ * Every active passport upload, newest first — same name+date-only
+ * shape as `getDdDocumentSummary`. Each founder uploads their own
+ * passport, so the checklist lists them all rather than just the latest.
+ */
+export async function getPassportDocuments(companyId: string): Promise<DdDocumentSummaryEntry[]> {
+  const docs = await db.document.findMany({
+    where: { companyId, docType: "passport", archivedAt: null },
+    orderBy: { createdAt: "desc" },
+    select: { name: true, createdAt: true },
+  });
+  return docs.map((doc) => ({ name: doc.name, createdAt: doc.createdAt }));
+}
+
+/**
  * Recompute completion and persist `completedAt` if it changed. Shared
  * by the founder checklist route (GET/PATCH) and the admin review queue
  * (WS41) so all three call sites agree on the same recompute-on-read

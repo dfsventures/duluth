@@ -42,6 +42,9 @@ interface Diligence {
   // isInternal, so this page can't rely on that list for its own upload
   // status without losing visibility into the founder's own uploads.
   documents: Record<string, { name: string; createdAt: string } | null>;
+  // Every active passport, newest first — one per founder, so the
+  // passport row lists them all instead of just the latest.
+  passports: { name: string; createdAt: string }[];
 }
 
 export default function DiligencePage() {
@@ -306,6 +309,8 @@ export default function DiligencePage() {
         <CardContent className="space-y-4">
           {DD_DOC_TYPES.map((docType) => {
             const existing = diligence.documents[docType.value] ?? null;
+            const isPassport = docType.value === "passport";
+            const shownFiles = isPassport ? diligence.passports : existing ? [existing] : [];
             const uploading = uploadingType === docType.value;
             const failed = failedUploads[docType.value] ?? null;
             return (
@@ -316,17 +321,24 @@ export default function DiligencePage() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-48 flex-1">
                     <p className="text-sm font-medium">
-                      {docType.label}
-                      {docType.value === "passport" && (
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">(required)</span>
+                      {isPassport ? "Founder Passports" : docType.label}
+                      {isPassport && (
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">
+                          — one per founder (required)
+                        </span>
                       )}
                     </p>
-                    {existing ? (
-                      <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-                        <FileText className="h-3.5 w-3.5" />
-                        {existing.name}
-                        <span className="text-xs">&middot; {formatDate(existing.createdAt)}</span>
-                      </p>
+                    {shownFiles.length > 0 ? (
+                      shownFiles.map((f) => (
+                        <p
+                          key={`${f.name}-${f.createdAt}`}
+                          className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          {f.name}
+                          <span className="text-xs">&middot; {formatDate(f.createdAt)}</span>
+                        </p>
+                      ))
                     ) : (
                       <p className="mt-1 text-sm text-muted-foreground">No file uploaded yet.</p>
                     )}
@@ -340,7 +352,13 @@ export default function DiligencePage() {
                       onClick={() => fileInputRefs.current[docType.value]?.click()}
                     >
                       <Upload className="mr-2 h-3.5 w-3.5" />
-                      {uploading ? "Uploading..." : existing ? "Replace" : "Upload"}
+                      {uploading
+                        ? "Uploading..."
+                        : !existing
+                          ? "Upload"
+                          : isPassport
+                            ? "Add another"
+                            : "Replace"}
                     </Button>
                     <input
                       ref={(el) => {

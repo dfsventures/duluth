@@ -329,8 +329,11 @@ export async function sendDiligenceInviteEmail(opts: {
   toEmail: string;
   companyName: string;
   token: string;
+  isStellarEcosystem: boolean;
 }) {
   const link = `${BASE_URL}/set-password?token=${opts.token}`;
+  const listItem = (text: string) => `<li style="margin: 0 0 4px;">${text}</li>`;
+  const optional = `<span style="color: ${C.muted};">(if available)</span>`;
 
   const result = await resend.emails.send({
     from: FROM,
@@ -340,13 +343,25 @@ export async function sendDiligenceInviteEmail(opts: {
     html: emailWrapper(`
       ${eyebrow("Due Diligence")}
       ${heading("We're moving forward")}
-      <p style="margin: 0 0 16px;">Good news — we'd like to move ahead with an investment in <strong>${opts.companyName}</strong>. The next step is diligence: a handful of documents and a couple of quick questions, all in one place.</p>
+      <p style="margin: 0 0 16px;">Good news — we'd like to move ahead with an investment in <strong>${opts.companyName}</strong>. The next step is diligence. Here's what we'll ask for:</p>
+
+      ${subheading("Documents")}
+      <ul style="margin: 0 0 16px; padding-left: 20px;">
+        ${listItem("A passport for each founder")}
+        ${listItem(`Cap table / investor documents ${optional}`)}
+        ${listItem(`Recent bank statements ${optional}`)}
+        ${listItem(`Certificate of incorporation ${optional}`)}
+        ${listItem(`Business license ${optional}`)}
+      </ul>
+      <p style="margin: 0 0 ${opts.isStellarEcosystem ? "8px" : "16px"};"><strong>Plus</strong> one quick question about where the company is incorporated.</p>
+      ${opts.isStellarEcosystem ? `<p style="margin: 0 0 16px;"><strong>Plus</strong> two short written answers about why you're building on Stellar and your timeline.</p>` : ""}
+
       <p style="margin: 0 0 24px;">We've set up ${opts.companyName}'s account on Molly &mdash; the same platform you'll use to share updates with us for as long as we're working together. Set a password and you can get started right away.</p>
 
       <p>${primaryButton(link, "Get Started →")}</p>
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        This link expires in <strong>${SETUP_TOKEN_TTL_DAYS} days</strong>. Questions any time — just reply to this email.
+        This link expires in <strong>${SETUP_TOKEN_TTL_DAYS} days</strong>.
       </p>
       ${linkFallback(link)}
     `),

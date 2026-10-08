@@ -5,6 +5,7 @@ import { requireCompanyAccess } from "@/lib/auth-guard";
 import {
   diligenceProgress,
   getDdDocumentSummary,
+  getPassportDocuments,
   hasActivePassportDocument,
   recomputeDiligenceCompletion,
 } from "@/lib/diligence";
@@ -75,6 +76,7 @@ export async function GET(
       hasPassportDocument,
     });
     const documents = await getDdDocumentSummary(id);
+    const passports = await getPassportDocuments(id);
 
     return NextResponse.json({
       ...company.diligence,
@@ -82,6 +84,7 @@ export async function GET(
       stage: company.stage,
       progress,
       documents,
+      passports,
     });
   } catch (err) {
     console.error("GET /api/companies/[id]/diligence error:", err);
@@ -140,8 +143,9 @@ export async function PATCH(
       hasPassportDocument,
     });
     const documents = await getDdDocumentSummary(id);
+    const passports = await getPassportDocuments(id);
 
-    return NextResponse.json({ ...updated, completedAt, progress, documents });
+    return NextResponse.json({ ...updated, completedAt, progress, documents, passports });
   } catch (err) {
     console.error("PATCH /api/companies/[id]/diligence error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

@@ -21,6 +21,7 @@ vi.mock("@/lib/db", () => ({
 import {
   diligenceProgress,
   getDdDocumentSummary,
+  getPassportDocuments,
   hasActivePassportDocument,
   isDiligenceChecklistComplete,
   recomputeDiligenceCompletion,
@@ -140,6 +141,29 @@ describe("getDdDocumentSummary", () => {
     expect(summary.bank_statements).toBeNull();
     expect(summary.business_license).toBeNull();
     expect(summary.certificate_of_incorporation).toBeNull();
+  });
+});
+
+describe("getPassportDocuments", () => {
+  beforeEach(() => {
+    mockDocumentFindMany.mockReset();
+  });
+
+  it("returns every active passport (one per founder), not just the latest", async () => {
+    mockDocumentFindMany.mockResolvedValue([
+      { name: "cofounder-passport.pdf", createdAt: new Date("2026-02-01") },
+      { name: "founder-passport.pdf", createdAt: new Date("2026-01-01") },
+    ]);
+
+    const passports = await getPassportDocuments("company-1");
+
+    expect(mockDocumentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { companyId: "company-1", docType: "passport", archivedAt: null } })
+    );
+    expect(passports).toEqual([
+      { name: "cofounder-passport.pdf", createdAt: new Date("2026-02-01") },
+      { name: "founder-passport.pdf", createdAt: new Date("2026-01-01") },
+    ]);
   });
 });
 
