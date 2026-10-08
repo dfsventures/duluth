@@ -10739,3 +10739,1132 @@ It must show, without a click:
 **The one thing still genuinely unknown** is Q90, and it is unknowable from the repo: whether the sheet's Net IRR cells are `%`-formatted. It is structured so that the answer arrives for free from a dry run that was already mandatory, with a one-parameter fix if it goes the other way. **It does not block the build.**
 
 ---
+
+# Part 37 — Team board with automatic Granola intake (WS104–WS111, F104–F114, 2026-10-08)
+
+> **Status update 2026-10-08: ALL DECISIONS CONFIRMED (Q92 = Business plan already in place; Q93–Q102 as recommended); WS104 approved and dispatched. See the "Open decisions" section.** _Original status follows:_ **Status: PLANNED, not built.** Joseph has locked six decisions: the five from scoping (D1–D5) and **Q91**, relayed by the coordinator on 2026-10-08: Granola-triggered digests land as **drafts** and never auto-send. **Eleven questions are open (Q92–Q102), each with a recommendation.** **WS104 (fix-first) is not blocked by any of them and can ship alone today.** WS105–WS108 and WS111 are blocked only by Q95–Q100 and Q102, which are small UI and policy calls. WS109–WS110 (Granola) are blocked by **Q92**: whether the Granola workspace is already on a plan that includes the API. If it is not, upgrading is a **new cost line**, and the board, the digest changes and Slack all ship without it.
+>
+> **Numbering note:** `F102`/`F103` are already used in `ROADMAP.md:3`, in the 2026-09-17 dilution-aware-multiple fixes that never got a Part. This Part therefore starts at **F104**, not F102, to avoid a collision. Decisions continue from Q90, so they start at **Q91**.
+
+**What Joseph asked for (condensed):** a kanban-style project board in Molly, with to-dos living on the board. Granola connects directly: shortly after a team call, Molly gets the notes, drafts the weekly digest with everyone assigned, and updates the board. People then move things around. When Granola misspells a name or project, **whatever is on the board is correct.**
+
+**Ground rules carried into this Part:**
+
+1. **Confidentiality (Part 27/28 convention, top of this file).** Board cards, project names and meeting content are real operational data. They live in Postgres only. No fixture, test, seed, comment, doc or commit message may contain a real person, company, fund or project name. Fixtures use `Jane Founder`, `Sam Partner`, `Acme`, `AcmeHQ onboarding`, `FUND1`. Logs carry **counts and ids only, never note content**, the same discipline as the cron logs at `src/app/api/cron/fund-metrics-sync/route.ts:31-34`.
+2. **Additive-only schema.** Five new tables plus new nullable or defaulted columns on `WeeklyDigest` and `DigestTodo`. Nothing is dropped, renamed or made required, and no backfill is needed. Safe for `prisma db push` against prod.
+3. **No new cost line without Joseph's sign-off.** Anthropic, Resend, Vercel and Neon are existing lines. Slack incoming webhooks are free. **The Granola API and webhooks require Granola Business or Enterprise. That is Q92, and a possible new cost line.**
+4. **Every integration is optional and off unless configured** (D1). The pattern is the `sheetsSyncEnabled()`/`fundMetricsSyncEnabled()` env-presence check (`src/lib/sheets.ts:28-29,127-128`) plus the cron no-op-with-200 when unconfigured (`src/app/api/cron/fund-metrics-sync/route.ts:22-25`). A fork with no Granola or Slack env vars gets the board and the existing digest, and nothing else changes.
+5. **The paste and share-link digest path keeps working** as the fallback (`src/app/api/admin/digest/generate/route.ts`). It gains the same name and project reconciliation as Granola intake, because both go through one shared extraction module.
+
+---
+
+## Granola integration: what Granola actually offers (researched 2026-10-08)
+
+All of the following comes from Granola's official docs unless marked otherwise.
+
+| Capability | What it is | Plan required | Fit for unattended intake |
+|---|---|---|---|
+| **Public REST API** (`https://public-api.granola.ai/v1`) | Bearer API key (`grn_…`), created in the desktop app under Settings → Connectors → API keys. `GET /v1/notes` filters on `created_after`/`updated_after`/`folder_id`, pages with a `cursor`, and allows `page_size` ≤ 30. `GET /v1/notes/{id}` returns `title`, `owner`, `attendees[]{name,email}`, `calendar_event`, `folder_membership[]`, `summary_text`, `summary_markdown`, `web_url`, and `transcript` with `?include=transcript` (413 if too large). Rate limit: 25-request burst, 5 requests/s sustained. Read-only for notes. There is no sandbox; Granola recommends a dedicated test folder. | **Business or Enterprise**: "Any workspace member on a Business or Enterprise plan can create API keys." Admins can create workspace keys that don't expire and aren't tied to a person. | **Yes.** This is the content source for every option. |
+| **Webhooks** | Events: `note.generated` (first AI summary generated), `note.edited` (summary edited or regenerated), `note.access_granted` (a note is shared to you or your folder). The payload carries **ids only**: `{event_id, event_type, note_id, occurred_at}`. You fetch the note through the API. Deliveries follow **Standard Webhooks**: headers `webhook-id`/`webhook-timestamp`/`webhook-signature` (`v1,<base64 HMAC-SHA256>` over `{id}.{timestamp}.{rawBody}`, with the key being the base64-decoded `whsec_` secret). Granola recommends rejecting stale timestamps after "a few minutes". Your endpoint must answer within **15 s**. 408, 429, 5xx and timeouts are retried with exponential backoff for 4 days, reusing `event_id`. Other 3xx and 4xx responses are permanent failures. After 4 days of failure the endpoint is disabled and **missed events are not replayed**. Endpoints can be scoped to `folder_ids` and registered in the UI or via `POST /v1/webhook-endpoints`. | **Business or Enterprise** | **Yes, best fit.** It is the only option that delivers "minutes after the call" independent of Molly's Vercel plan. |
+| **Zapier** | Triggers "Note Added to Granola Folder" and "Note Shared to Zapier". No Granola actions. | Business or Enterprise. Per the billing page, integrations other than Slack are Business/Enterprise only. Zapier's own webhook step is a Zapier paid feature (unverified here). | No advantage. It costs the same Granola tier, possibly adds a Zapier line, and is one more hop. **Rejected.** |
+| **MCP server** (`https://mcp.granola.ai/mcp`) | Browser OAuth per user: "there is no API key or service account access method for MCP." Built for interactive AI clients, and the docs point scripts to the REST API instead. Free tier sees the last 30 days of personal notes. | Free tier is limited; folder and transcript tools need a paid plan | **No.** It cannot run unattended from a cron or webhook. **Rejected.** |
+| **Plans** | Basic is free (Slack integration only, 30-day history). **Business $14/user/month.** Enterprise from $35/user/month. | | |
+
+**Unconfirmed (do not build on these as facts):**
+- Whether this deployment's Granola workspace is already on Business. I could not determine this from the repo. **This is Q92.**
+- When `note.generated` fires relative to meeting end. Granola's docs don't say. "About 10 minutes after the call" depends on Granola, and Molly adds only seconds.
+- Whether workspace API keys (the non-personal, non-expiring kind) are available on Business or need Enterprise. The help page says admins create them but doesn't name a tier.
+- Granola's exact replay tolerance ("a few minutes"). This plan uses 300 s, the Standard Webhooks reference default.
+- Whether Granola's public share pages render note content server-side. This matters for the existing fallback (F109).
+- The Sonnet 4.6 price below comes from third-party aggregators. Check the Anthropic pricing page before quoting it.
+
+**Sources:**
+- [Granola API help page](https://docs.granola.ai/help-center/sharing/integrations/granola-api)
+- [List Notes](https://docs.granola.ai/api-reference/list-notes)
+- [Get Note](https://docs.granola.ai/api-reference/get-note)
+- [Webhooks](https://docs.granola.ai/webhooks.md)
+- [Zapier](https://docs.granola.ai/help-center/sharing/integrations/zapier.md)
+- [MCP](https://docs.granola.ai/help-center/sharing/integrations/mcp.md)
+- [Subscriptions and billing](https://docs.granola.ai/help-center/managing-your-account/subscriptions-and-billing.md)
+- [Docs index](https://docs.granola.ai/llms.txt)
+- [Slack incoming webhooks](https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/)
+- [Slack text escaping](https://docs.slack.dev/messaging/formatting-message-text/)
+- Older third-party pages say Granola has no webhooks, for example [ZoomInfo's API review](https://pipeline.zoominfo.com/sales/granola-api) and the [api-evangelist profile](https://github.com/api-evangelist/granola). They are contradicted by Granola's own current docs and should be treated as stale.
+
+**Design consequence (JC-TB-D):** **push is the main path, pull is the safety net, and both are free on Molly's side.**
+- **Push:** a `note.generated` webhook, scoped to one Granola folder (Q93), acknowledges fast and processes the note.
+- **Pull:** a **daily** sweep cron lists the folder for notes Molly hasn't seen. It covers missed events: a 401 from a rotated secret is a permanent failure, and a disabled endpoint never replays.
+- **Manual:** a "Check Granola now" admin button runs the same sweep on demand.
+
+A pull-only design was considered and rejected as the main path. Every cron in `vercel.json` is daily or weekly, and a "10 minutes after" poll needs a sub-daily schedule. Per Part 5 (line ~1026, verified against Vercel docs in 2026-07), that requires Vercel Pro. The repo can't confirm which plan this project is on (F114).
+
+---
+
+## Method: what was verified against the working tree
+
+**The five briefed claims, each re-read in source:**
+
+- **Claude extracts to-dos from notes and share links.** Confirmed. `src/app/api/admin/digest/generate/route.ts`:
+  - `:22-61` `fetchTranscriptFromUrl` strips HTML and caps at 15,000 chars.
+  - `:126-142` is the prompt and `:144-151` the call to model `claude-sonnet-4-6` with `max_tokens: 4096`.
+  - `:155-164` strips fences and runs `JSON.parse` with no schema validation.
+  - `:131` asks for todos as **free text with the assignee inline**, so names are never structured.
+- **`DigestTodo` belongs to one digest, and its `assigneeId` is never set.** Confirmed at `prisma/schema.prisma:388-399`, with `onDelete: Cascade` from `WeeklyDigest`.
+  - The only writer of `assigneeId` is `src/app/api/admin/digest/route.ts:39,58`, and neither UI page sends it: `src/app/admin/digest/new/page.tsx:102` sends `todos` as `{text}`, and the generate route returns `{text}` only (`:175`).
+- **The PATCH wipes todos.** Confirmed, and worse than briefed (F104).
+  - `src/app/api/admin/digest/[id]/route.ts:74-84` runs `deleteMany` then `createMany` with `text` only, so `completed` and `assigneeId` are both lost.
+  - The client can't preserve them either: `src/app/admin/digest/[id]/page.tsx:75` drops `id` when entering edit mode (`{ text: t.text }`).
+- **The digest email is unescaped.** Confirmed at `src/lib/email.ts:478` (section content), `:493` (todo text and assignee name) and **`:508` (`heading(opts.title)`, also unescaped and not briefed)**.
+  - `escapeHtml` exists at `src/lib/email.ts:49-55`. **But a plain `escapeHtml(s.content)` would be wrong** (F105).
+- **The digest is sent manually only, and there is no Slack.** Confirmed.
+  - `vercel.json` has five crons, none for the digest.
+  - `src/app/api/admin/digest/[id]/send/route.ts` is admin-session-only.
+  - No Slack code exists in `src/`. Slack appears only as a P3 row at `ROADMAP.md:236`.
+
+**Infrastructure this plan reuses (verified):**
+- `checkRateLimit(bucket, identifier, limit)` in `src/lib/rate-limit.ts`: 1-hour fixed windows, **fails open** on DB errors.
+- `logAdminAction(actor, action, opts)` in `src/lib/audit.ts:7-26`. The actor can be a bare `{ email }`; the cron convention `{ email: "fund-metrics-sync@cron" }` is at `src/app/api/cron/fund-metrics-sync/route.ts:29`.
+- Constant-time compare with a length guard: `src/app/api/lp/auth/verify/route.ts:61`.
+- Middleware public paths: `PUBLIC_PREFIXES` in `src/lib/route-access.ts`, with the "sessionless route" history in its header comment (the cron fix and F15).
+- Settings "Configured / Not set" status idiom: `src/app/admin/settings/page.tsx:104-108`.
+- Admin nav group "Admin Tools": `src/components/layout/sidebar.tsx:99-104`.
+- Radix Dialog and Tabs are already dependencies (`package.json`). Native `<select>` is the house convention.
+- House mobile patterns A–D are defined in this file at lines ~1509-1512.
+- Email escaping tests: `src/lib/__tests__/email-escaping.test.ts`. Route tests mock `db` in `src/lib/__tests__/*-route.test.ts`.
+
+**Absent (checked so nothing is invented):**
+- **No drag-and-drop library.** `package.json` has no `@dnd-kit`, `react-beautiful-dnd`, `@hello-pangea/dnd` or `sortablejs`, and `src/` has no `draggable` or `onDragStart`. Searched both `import` and `require`/`await import` forms.
+- **No `waitUntil`, `unstable_after` or `maxDuration`** anywhere in `src/`. `next` is `^14.2.35`, and `after()` only arrives in Next 15.
+- **No HMAC or webhook-verification code** (`createHmac` has zero hits in `src/`).
+- **No generic key/value settings table.** Settings are env vars plus purpose-built tables such as `DigestExtraRecipient` (`prisma/schema.prisma:452`).
+
+---
+
+## F104 — Editing a digest deletes and recreates every todo, wiping done ticks and assignees (HIGH, data loss; fixed in WS104)
+
+`src/app/api/admin/digest/[id]/route.ts:74-84`: any PATCH that includes `todos` runs `tx.digestTodo.deleteMany({ where: { digestId: id } })` and recreates each row from `{ text }` alone. Every tick (`completed`) and every `assigneeId` is lost, and every todo gets a new id. That breaks any open tab still holding the old ids: a later tick from that tab 500s on a missing row, via `todos/[todoId]/route.ts:19`.
+
+The client half: `src/app/admin/digest/[id]/page.tsx:75` builds edit state as `{ text: t.text }` and `:116` sends it, so a server-only fix is impossible. **Both halves change in WS104.** The edit window lets this run on a **sent** digest for 12 hours (`[id]/route.ts:49-55`). That is exactly when the team is ticking items off.
+
+## F105 — The digest email interpolates section content, todo text, assignee names and the title unescaped, and the stored section format makes a naive fix wrong (MEDIUM now, HIGH once automated intake lands; fixed in WS104)
+
+Same class as Part 25/F49 (`4523816`), which skipped `sendWeeklyDigestEmail`, and `ROADMAP.md:27` says so explicitly. Raw interpolation happens at `src/lib/email.ts:478` (`${s.content}`), `:493` (`${t.text}` and `${t.assigneeName}`) and `:508` (`heading(opts.title)`).
+
+**The trap:** section content is **stored as HTML**. Both editors build it client-side by wrapping **unescaped** text in `<p>`/`<br>`: `src/app/admin/digest/new/page.tsx:93-99` and `src/app/admin/digest/[id]/page.tsx:108-114`. So `escapeHtml(s.content)` would print literal `<p>` tags in every digest email.
+
+The same unescaped HTML also reaches the **admin browser**: `src/app/admin/digest/[id]/page.tsx:322` renders `dangerouslySetInnerHTML={{ __html: section.content }}`.
+
+Today the inputs are an admin's own typing plus Claude output. **Once Granola intake lands, untrusted text flows in automatically**: whatever any meeting participant (including external guests) said, and, on the share-link path, arbitrary fetched HTML. WS104 therefore fixes this with an **allowlist sanitizer on read** plus **escape-on-write**, both from one pure module, rather than `escapeHtml` at the email site.
+
+## F106 — Every edit of a digest section nests another `<p>` and shows the admin raw tags (MEDIUM, visible bug; fixed in WS104)
+
+`src/app/admin/digest/[id]/page.tsx:74` loads `digest.sections` (stored HTML) straight into the edit textareas (`{ ...s }`). The admin sees `<p>…</p><br>` markup. On save, `:108-114` splits on `\n\n` and wraps it again, giving `<p><p>…</p><p>…</p></p>`, which nests one level deeper per edit. Not briefed. Found while verifying F105, and fixed by the same module (`digestHtmlToPlain`).
+
+## F107 — The todo-toggle route ignores the digest id in its own path (LOW, admin-only; fixed in WS104)
+
+`src/app/api/admin/digest/[id]/todos/[todoId]/route.ts:12` destructures only `todoId`, and `:19-22` updates `where: { id: todoId }`. A request under digest A can toggle a todo of digest B. The route is admin-only, so this is a correctness and audit issue, not an access-control breach. WS108 makes this route also drive board state, so it gets scoped first.
+
+## F108 — "Todo list with assignees" is a false feature claim; no path anywhere sets an assignee (LOW, docs; ROADMAP annotated in this pass)
+
+`ROADMAP.md:111` says the digest has a "todo list with assignees". The rendering exists (`[id]/page.tsx:385-387`, `send/route.ts:54`, `email.ts:493`), but per the Method section no UI or AI path ever writes `assigneeId`. Assignees only ever appear as free text inside the todo string (`generate/route.ts:131`). Annotated in `ROADMAP.md` in this pass. This Part makes the claim true (WS108).
+
+## F109 — The Granola share-link fallback fetches any admin-supplied URL server-side, and it is unverified whether Granola share pages contain the notes in their HTML (LOW, recorded; deliberately not changed)
+
+`generate/route.ts:22-27,75,81-83` treats every line beginning `http(s)://` as a URL and `fetch`es it from the server, with no host check. That is an SSRF-shaped surface, reachable only by admins. If a Granola share page is a client-rendered app shell, this path silently yields boilerplate, and `:84-90` only logs fetch failures, not empty extractions.
+
+**Not changed in this Part.** It is the locked fallback (ground rule 5), and restricting hosts could break whatever links admins paste today. WS108 adds one harmless improvement: if a fetched page yields under 200 chars of text, the response carries a `warnings[]` entry that the composer shows, instead of drafting from nothing. Host allowlisting is left for the Part 25/28 security track.
+
+## F110 — "Resend" re-emails everyone, and `sentAt` is stamped even when every send failed (LOW; shapes WS111's Slack idempotency)
+
+`send/route.ts:57-66` loops over the sends, swallowing each failure, then sets `sentAt` unconditionally. `[id]/page.tsx:290` offers **"Resend"** on a sent digest, which re-emails every recipient. Bolting Slack onto this route as-is would double-post to the channel on every Resend. WS111 gives Slack its own `slackPostedAt` marker: post at most once per digest, retry automatically only if the first post failed. The email behaviour is left as-is (no UX change). The "stamped even if all failed" half is recorded only.
+
+## F111 — The digest AI response is parsed without validation (LOW; fixed for the new shared path in WS108)
+
+`generate/route.ts:158-164` runs `JSON.parse` and casts to an inline type. A missing `todos` array is tolerated (`:175`), but no field types are checked. With automated intake there is no human watching the composer to notice a malformed response. WS108's shared module validates with `zod` (already a dependency, `package.json`) and treats any id Claude returns that isn't in the canonical lists as "unmatched" (JC-TB-H).
+
+## F112 — The P3 "Slack / Webhook Integrations" row no longer describes what will be built first (LOW, docs; annotated in this pass)
+
+`ROADMAP.md:236` lists Slack notifications for overdue updates, approvals and published updates. Part 37 ships a narrower first slice: one incoming-webhook post of the digest's open items (D3). The row is annotated to point at Part 37 and to say that the per-event notifications remain unplanned.
+
+## F113 — Two committed source files carry a real team member's identity (LOW, confidentiality class; recorded for the Part 28 track, not fixed here)
+
+Per the convention at the top of this file, described by location and category only:
+- `src/app/admin/settings/page.tsx:20` hardcodes a real team-member email address as the `TEAM_EMAIL` fallback.
+- `src/app/api/admin/digest/generate/route.ts:131` uses a real team member's first name as the example assignee inside the prompt.
+
+WS108 rewrites that prompt anyway and **must use `Jane Founder`** in the replacement. The settings fallback is outside this Part's files and is routed to Part 28 (WS62–WS65, still unbuilt). It should probably fall back to `SUPPORT_EMAIL`, which needs a Joseph call there, not here.
+
+## F114 — The repo contradicts itself on Vercel cron limits and cannot tell us the plan tier (informational; drives JC-TB-D)
+
+Part 5 (this file, ~line 1026, "verified against Vercel docs, 2026-07") says 100 crons per project, Hobby once per day, and Pro per-minute. Part 36 (~line 10729) says "a 5th Vercel cron against an allowance of 40". Every entry in `vercel.json` is daily or weekly, which is consistent with Hobby but not proof of it.
+
+This Part adds a **6th, daily** cron (Hobby-safe), and nothing in it depends on sub-daily scheduling. Function duration is also plan-dependent and unknown here, so the new long-running routes set `export const maxDuration = 60`, valid on every plan, and the sweep keeps an internal time budget.
+
+---
+
+## Confirmed decisions (Joseph, scoping 2026-10-08; do NOT re-litigate)
+
+| | Decision |
+|---|---|
+| **D1** | The board lives **in Molly**, admin-only, named generically ("Team Board", with cards called "action items"). Granola and Slack are each optional and **off unless configured**, through env presence, matching Fork Configuration and the Part 36 `*_ENABLED` pattern. |
+| **D2** | Owners are a **mix**: Molly admins where possible, plus plain-name owners for people without Molly access. Admin owners can move their own cards. (Whether they can move *others'* cards is Q97.) |
+| **D3** | Delivery is the weekly digest email **plus one Slack channel via an incoming webhook**, weekly to start. **Deferred:** a daily per-person nudge and any interactive Slack bot. |
+| **D4** | Items can be **added and edited directly on the board**, not only via a digest. |
+| **D5** | **Fix first, in its own early workstream:** the todo-wiping PATCH (F104) and the unescaped digest email (F105). WS104 also takes F106 and F107, because they live in the same files and share the same new module. |
+| **Q91** | **A Granola-triggered digest is a DRAFT.** It never auto-sends by email or Slack. An admin reviews it and clicks Send. **The board updates immediately** when the notes are processed. **LOCKED (Joseph, 2026-10-08, relayed by the coordinator mid-planning).** This is also the recommendation: an auto-send would push every misspelling or wrong owner straight to inboxes and the channel, while the draft step makes the "needs review" queue (Q100) a natural pre-send checklist. |
+
+## Open decisions for Joseph (Q92–Q102; each has a recommendation, none decided silently)
+
+> **✅ ALL CONFIRMED 2026-10-08 by Joseph.** **Q92: the Granola workspace is already on the Business plan**, so there is no new cost line and WS109–WS110 are unblocked. Whether Business covers a *workspace* API key (rather than a personal one) is still unconfirmed; check this when building WS109. **Q93–Q102: every recommendation below is accepted as written**, including Q100 as refined (only an admin's resolution is saved as an alias). Q94 = A therefore adds `@vercel/functions` as an approved new dependency. Q95 = A means no drag-and-drop library. WS104 is approved to start immediately, on its own.
+
+### Q92: Is the Granola workspace already on Business or Enterprise? If not, does Joseph want to pay for it? (BLOCKS WS109–WS110 only)
+
+The API and webhooks both require **Business ($14/user/month) or Enterprise** (see the research section). Zapier needs the same tier, and MCP cannot run unattended, so **there is no free path to automatic intake.**
+
+- **(A)** The workspace is already on Business or Enterprise. No new cost; build WS109–WS110.
+- **(B)** It is on Basic. Upgrading is a **new cost line**, which needs Joseph's explicit sign-off under the hard constraints. If declined, ship WS104–WS108 and WS111 only. The paste and share-link path then gets the full board, reconciliation and Slack treatment. WS109–WS110 stay planned, can be built dormant behind env vars (zero runtime effect), or can wait.
+
+**Recommendation:** confirm the current plan first. If it's Basic, **don't upgrade for this alone.** The paste path plus the board delivers most of the value, and "paste the share link into Molly after the call" is about 10 seconds of work. Upgrade only if Granola Business is wanted for other reasons.
+
+**Sub-point:** prefer a **workspace API key** (admin-created, doesn't expire, not tied to one person) over a personal key. Otherwise intake silently breaks the day that person leaves. Tier availability of workspace keys is unconfirmed.
+
+### Q93: Which Granola notes count as "a team call"?
+
+- **(A)** A **dedicated Granola folder** (for example "Team call"). Molly only ever sees notes in it, via `GRANOLA_FOLDER_ID`. The webhook is registered with `folder_ids`, and the processor re-checks `folder_membership` before sending anything to Claude.
+- **(B)** Calendar-title matching (for example a title containing "weekly").
+- **(C)** All notes the key can see.
+
+**Recommendation: (A), strongly.** Folder scoping is native to both the webhook (`folder_ids`) and the list endpoint (`folder_id`). It is explicit, and it is the **confidentiality** guard: founder diligence calls and LP calls never reach the board, Claude, or Slack. (B) is brittle. (C) would turn every call into a digest draft.
+
+**Consequence to accept:** one note in the folder produces one draft digest. If the folder gets two calls in a week, you get two drafts. Each carries forward all open items, so either can be sent and the other deleted. (Drafts can be deleted: `[id]/route.ts:120-124`.)
+
+### Q94: How does the webhook acknowledge within 15 s when processing takes 20–60 s? (affects WS110; one possible new dependency)
+
+Fetching the note and calling Claude can exceed Granola's 15 s window. Next 14 has no `after()`.
+
+- **(A)** Add **`@vercel/functions`** and call `waitUntil(processGranolaIntake(id))`, then return 200 immediately. Free, Vercel-maintained, tiny. **A new dependency, which is Joseph's call.** Off Vercel it degrades to plain fire-and-forget, which works on a long-lived Node server. The fork story holds.
+- **(B)** No new dependency. Process **synchronously** with `maxDuration = 60`. If Granola times out at 15 s it retries later with the same `event_id`, and by then the intake row is `PROCESSING` or `DONE`, so the retry gets a fast 200 and nothing runs twice. It is correct but noisy: Granola logs a failed delivery each time. It also relies on the function finishing after the client disconnects. I believe Vercel Node functions do, but I have not verified it.
+- **(C)** Webhook only enqueues, and the daily sweep processes. Correct, but up to about 24 h late on Hobby, which defeats the point.
+
+**Recommendation: (A).** It is the documented way to do exactly this on Vercel. If Joseph prefers zero new dependencies, (B) is a correct fallback, and switching between them is a one-line change in WS110.
+
+### Q95: Drag and drop: build it without a library, or add `@dnd-kit`? (affects WS107)
+
+- **(A)** No new dependency. **Native HTML5 drag** on desktop (pointer only), plus a **"Move to…" `<select>` and ↑/↓ reorder buttons on every card**, which work on touch, keyboard and screen readers. Mobile uses the select (JC-TB-J).
+- **(B)** Add **`@dnd-kit/core` + `@dnd-kit/sortable`** (MIT, free) for touch drag on phones, keyboard-sortable drag, and smoother reorder animation. A new dependency is Joseph's call. Adds roughly 1 day to WS107 and a few tens of KB to the board route only.
+
+**Recommendation: (A) for v1.** Native HTML5 DnD does not work on touch screens, but the house mobile direction (Part 6) is "make it work at phone widths", not "replicate desktop gestures". A select covers it with zero bundle cost. (B) can be added later without any API or schema change: the move endpoint is the same.
+
+### Q96: What happens to existing `DigestTodo` rows?
+
+They coexist in every option. The table stays, and legacy rows keep rendering exactly as today (JC-TB-G).
+
+- **(A)** One admin-triggered **"Import open items from the latest digest"** action on the board. It shows a preview, then creates cards from that digest's **unticked** todos and links them (`cardId`).
+- **(B)** No import. The board starts empty, and history stays in old digests.
+- **(C)** Import every open todo from every digest.
+
+**Recommendation: (A).** It seeds the board with what's actually live. (C) would resurrect months of stale items that no one ticked because the PATCH bug (F104) wiped their ticks.
+
+### Q97: Who may move or edit which cards?
+
+D2 says admin owners can move their own cards. Can admins also move cards owned by **someone else**?
+
+- **(A)** **Any admin can edit or move any card.** Every change is audit-logged, and the card shows "moved by X, time ago".
+- **(B)** Admins can move **only their own** cards. Cards owned by plain-name people or unassigned are editable by any admin.
+
+**Recommendation: (A).** No admin surface in Molly has per-admin ownership permissions (every admin route uses one `requireAdmin()` gate). Plain-name owners can't log in, so *someone* must move their cards. (B) would block the person running the meeting from tidying the board. The audit log covers accountability. Switching to (B) later is a single check in WS106's PATCH and move routes.
+
+### Q98: What exactly goes to Slack?
+
+- **(A)** **Open action items only, grouped by owner**, plus links to the digest and the board. Plain names, no `@mentions`.
+- **(B)** (A) plus the digest's section text.
+- **(C)** (A) with real Slack `@mentions` (`<@U…>`). This needs a Slack user id stored per person, an additive field, and pings people.
+
+**Recommendation: (A).** The digest sections can carry portfolio-company detail, and a Slack channel's membership is less controlled than the digest recipient list. Open items are the operational part. (C) is a natural follow-up once Joseph knows whether the team wants pings. Note that Slack only notifies a mentioned user who is already a channel member. **Operational note:** the target channel must be internal-only.
+
+### Q99: Which columns, and what happens to Done cards?
+
+- **Columns.**
+  - **(A)** Fixed: **To do · In progress · Blocked · Done.**
+  - **(B)** Admin-configurable columns. A new table and management UI, about +0.5 day.
+- **Done cards.**
+  - **(i)** The Done column shows cards completed in the **last 14 days**. Older ones stay queryable through a "Show archived" filter. Nothing is deleted.
+  - **(ii)** Done shows everything forever.
+
+**Recommendation: (A) + (i).** Status is stored as a string, not a Postgres enum (JC-TB-B), so (B) stays a purely additive later change.
+
+### Q100: Confirm the "board is correct" reconciliation rule as refined here
+
+The brief proposed:
+1. Claude gets the canonical people and projects lists and must map to them.
+2. Unmatched names are **flagged, not duplicated.**
+3. Resolutions become **aliases.**
+4. **Human edits win** on re-processing.
+5. **Open items carry forward.**
+
+I confirm all five, with these refinements for Joseph to accept or reject:
+
+- **(a)** An unmatched item **still becomes a card immediately** (Q91: the board updates right away). It is owner-less or project-less, with `needsReview = true` and the raw extracted text kept (`rawOwnerName`/`rawProjectName`). It is not held back in a queue. The board header shows "N items need review". The digest draft page shows the same count next to Send, as a warning, not a block.
+- **(b)** **Claude never creates people or projects.** Only an admin does: on the board, or in the resolve dialog's "Add as new person/project".
+- **(c)** When Claude maps a misspelling to a canonical name on its own (for example "Jayne" to Jane Founder), Molly **accepts the mapping but does not save an alias.** **Aliases are learned only from a human resolution** (JC-TB-H), so a wrong AI guess never becomes permanent. The card keeps the raw spelling so the admin can see what was heard.
+- **(d)** Molly first does a deterministic pass: exact match on normalized name or alias, and attendee email matched to an admin's `User.email`. That pass runs **before** Claude's answer is trusted, so a learned alias always wins.
+- **(e)** "Human edits win" is implemented as **any human PATCH or move stamps `humanEditedAt`.** Re-processing (a sweep retry, a manual retry, or a later call mentioning the same item) **never changes a stamped card.** It may fill in fields on an untouched card from the same note, and it never deletes a card.
+- **(f)** A later call that repeats an open item is linked to the existing card (Claude is given the open cards and returns `existingCardId`). No duplicate is created.
+- **(g)** Carry-forward means a new digest's action-item list is **every open card**, plus cards completed since the last sent digest (shown ticked). The list stays live against the board until the digest is sent, then freezes (JC-TB-K).
+
+**Recommendation: confirm as refined.** (c) is the refinement most worth Joseph's attention.
+
+### Q101: How does anyone find out a Granola draft is waiting?
+
+Under Q91 nothing goes out on its own. Without a ping, the draft sits until someone looks.
+
+- **(A)** In-app only: a "Draft ready" pill on the Weekly Digest sidebar item and the digest list, plus a needs-review count.
+- **(B)** (A) plus **one short email to the admin who recorded the call**. Granola's `owner.email` is matched to an `ADMIN` `User`. If there is no match, no email is sent, and nobody else is emailed.
+- **(C)** (A) plus an email to all digest recipients.
+
+**Recommendation: (B).** One email to one person: the one who just ran the meeting and knows whether "Jayne" meant Jane Founder. It is a new admin-only email template. Templates escape everything per F49/F105.
+
+### Q102: Does the manual paste or share-link digest also create board cards?
+
+- **(A)** **Yes.** Saving a new digest composed from pasted notes creates cards for its new items (source `DIGEST_PASTE`), reconciled the same way, and the digest's list carries forward open cards.
+- **(B)** No. Only Granola intake and direct board edits create cards. Manual digests behave exactly as today.
+
+**Recommendation: (A).** It's the same "digest with everyone assigned updates the board" flow without Granola, and it is the whole product if Q92 lands on "no upgrade".
+
+**UX change to accept with (A):** the composer's todo rows gain owner and project selects, pre-filled by Claude, and the saved digest lists carried-forward open items. Both are additive, but the digest email will contain more items than the admin typed.
+
+---
+
+## Judgment calls (Felix's, made; each with its reversal path)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-TB-A** | **One `BoardPerson` table with an optional unique `userId`**, rather than two owner FKs on the card. Admins are lazily upserted as people on board load, displaying `user.name ?? user.email`. Plain-name people have `userId = null`. One owner FK per card. | Add `ownerUserId` to the card and backfill from `BoardPerson.userId` |
+| **JC-TB-B** | Card `status` is a `String`, not a Prisma enum. The four values are validated in one constant (`BOARD_STATUSES`), following the `SheetSyncRun.kind` precedent (`prisma/schema.prisma:814`). | Convert to an enum (would need a migration; avoided because enums are not additive-friendly) |
+| **JC-TB-C** | Ordering within a column uses `position Float` with midpoint insertion. If a gap falls below `1e-6`, that one column is renormalized in the same transaction. | Switch to an `Int` gap scheme; data is reorderable either way |
+| **JC-TB-D** | Webhook first, daily sweep as backstop, manual "Check now" (see the research section). | Drop the webhook and tighten the sweep schedule (needs Pro for sub-daily) |
+| **JC-TB-E** | Claude gets Granola's **`summary_markdown` + attendees + title + date, not the transcript**. Granola's AI summary already distils action items. The existing 15k-char cap (`generate/route.ts:59`) would cut a 60-minute transcript to roughly its first 20 minutes, and action items cluster at the end. | Add `?include=transcript` and send the transcript tail; one parameter plus a slice |
+| **JC-TB-F** | Standard Webhooks verification is hand-rolled (about 25 lines on node `crypto`), not the `standardwebhooks` package. No new dependency; tested against a fixture signed with a known synthetic secret. | Swap to the package |
+| **JC-TB-G** | `DigestTodo` is **reused as the frozen per-digest snapshot**, with additive `cardId`/`ownerLabel`/`projectLabel`. No parallel table. Legacy rows (`cardId = null`) behave exactly as today. | None needed; the columns are nullable |
+| **JC-TB-H** | Aliases are learned only from human resolutions (Q100-c). Claude-returned ids not in the canonical set are treated as unmatched. | Auto-save Claude mappings as aliases; one branch in `reconcile()` |
+| **JC-TB-I** | Claude output is validated with `zod` (already a dependency). On validation failure, one retry with the validation error appended, then `FAILED`. | Remove the retry |
+| **JC-TB-J** | Mobile below `md`: columns **stack vertically** as collapsible sections with counts. Card rows use Pattern B. Status changes go through the "Move to" select. No horizontal-swipe board. | Swap to `overflow-x-auto snap-x` horizontal columns; CSS only |
+| **JC-TB-K** | A draft digest's action items are **refreshed from the board at send time** (linked rows take the card's current title, owner, project and status, and open cards created since the draft are appended), then **frozen** once sent. Rows are never deleted by the refresh. | Freeze at draft creation instead; delete the one refresh call |
+| **JC-TB-L** | The webhook lives at **`/api/webhooks/granola`** under a new public prefix **`/api/webhooks`**, with the header-comment rule "no session-authenticated route may ever live under /api/webhooks" (the F15/`/lp` family lesson). | Move the route; one prefix string |
+| **JC-TB-M** | Adding a todo while editing a digest creates a linked board card. Linked rows are read-only in the digest editor, with an "Edit on board" link. Unlinked legacy rows stay editable as today. | Make linked rows editable and write through to the card |
+
+---
+
+## WS104 — Fix first: the digest stops losing ticks and stops interpolating raw HTML (F104–F107), ~0.6 day
+
+**Goal:** make the existing digest safe and lossless **before** anything automated writes to it. **Ship alone, first.** No schema change, no dependency on any open question.
+
+**WS104.1 — new pure module `src/lib/digest-html.ts`.** No `db` import, so both client pages and the server can import it.
+
+```ts
+// Part 37, WS104 (F105/F106). Digest section content is stored as a tiny HTML
+// subset: <p>, </p>, <br>. Writers escape text before wrapping; readers run
+// an allowlist so legacy rows (written unescaped before this fix) are safe too.
+
+/** Plain text (textarea) → stored digest HTML. Escapes &, <, > before wrapping. */
+export function plainToDigestHtml(text: string): string {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return text.split("\n\n").filter((p) => p.trim()).map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
+}
+
+/** Stored digest HTML → safe HTML. Every "<" that does not open exactly <p>, </p>, <br>, <br/>, <br />
+ *  becomes "&lt;". Allowed tags carry no attributes (`<p onclick=…>` does not match). Entities pass through,
+ *  so already-escaped content is not double-escaped. */
+export function sanitizeDigestHtml(html: string): string {
+  return html.replace(/<(?!\/?p>|br\s*\/?>)/gi, "&lt;");
+}
+
+/** Stored digest HTML → textarea text (inverse of plainToDigestHtml; fixes F106's nesting). */
+export function digestHtmlToPlain(html: string): string {
+  return html
+    .replace(/<\/p>\s*<p>/gi, "\n\n").replace(/<br\s*\/?>/gi, "\n").replace(/<\/?p>/gi, "")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, "&");
+}
+```
+
+**WS104.2 — writers.**
+- `src/app/admin/digest/new/page.tsx:93-99` and `src/app/admin/digest/[id]/page.tsx:108-114`: replace the inline split/wrap with `content: plainToDigestHtml(s.content)`.
+- `[id]/page.tsx:74` (`startEditing`): `setEditSections(digest.sections.map((s) => ({ ...s, content: digestHtmlToPlain(s.content) })))`.
+
+**WS104.3 — readers.**
+- `[id]/page.tsx:322`: `dangerouslySetInnerHTML={{ __html: sanitizeDigestHtml(section.content) }}`.
+- `src/lib/email.ts:478`: `${sanitizeDigestHtml(s.content)}`.
+- `:493`: `${escapeHtml(t.text)}` and `${escapeHtml(t.assigneeName)}`.
+- `:508`: `heading(escapeHtml(opts.title))`. **The subject stays raw**, per WS56's convention (`email-escaping.test.ts:5`).
+
+**WS104.4 — the PATCH stops wiping todos (F104).**
+- **Client:** `[id]/page.tsx`. Edit-state type becomes `{ id?: string; text: string }[]`. `:75` becomes `digest.todos.map((t) => ({ id: t.id, text: t.text }))`. `updateTodo` keeps the `id` (`:95` currently rebuilds `{ text }`). `addTodo` pushes `{ text }`, with no id.
+- **Server:** `src/app/api/admin/digest/[id]/route.ts:61,74-84`. The body type becomes `todos?: { id?: string; text: string }[]`, and the delete-all is replaced with a diff:
+
+```ts
+if (Array.isArray(body.todos)) {
+  const existing = await tx.digestTodo.findMany({ where: { digestId: id }, select: { id: true } });
+  const keep = new Set(body.todos.filter((t) => t.id).map((t) => t.id!));
+  const removed = existing.filter((e) => !keep.has(e.id)).map((e) => e.id);
+  if (removed.length) await tx.digestTodo.deleteMany({ where: { digestId: id, id: { in: removed } } });
+  for (const t of body.todos) {
+    if (t.id) {
+      // updateMany scopes to this digest — an id from another digest is a no-op, not a cross-digest write
+      await tx.digestTodo.updateMany({ where: { id: t.id, digestId: id }, data: { text: t.text } });
+    } else {
+      await tx.digestTodo.create({ data: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 25), digestId: id, text: t.text } });
+    }
+  }
+}
+```
+
+Reorder is not supported today either: rows sort by `createdAt` (`[id]/route.ts:21`). Unchanged.
+
+**WS104.5 — scope the toggle (F107).** In `todos/[todoId]/route.ts:12,19-22`, destructure `id` as well and use `const { count } = await db.digestTodo.updateMany({ where: { id: todoId, digestId: id }, data: { completed } })`. Return 404 when `count === 0`, then return the row via `findUnique`.
+
+**WS104.6 — tests.**
+- New `src/lib/__tests__/digest-html.test.ts`:
+  - The round trip `digestHtmlToPlain(plainToDigestHtml(x)) === normalized(x)` holds.
+  - `sanitizeDigestHtml` neutralizes `<script>`, `<img onerror>`, `<p onclick=…>` and `<a href=…>`.
+  - It leaves `<p>`/`<br>` intact and does not double-escape `&amp;`.
+  - A legacy unescaped row (`<p>Acme <b>x</b></p>`) renders `<b>` as text.
+- Extend `email-escaping.test.ts` with a `sendWeeklyDigestEmail` case. Use the file's existing `EVIL`/`NAME` constants (`:27-29`) in the section content, todo text, assignee name and title. Assert the body contains no raw `<a href` and still contains `<p>`.
+- New `src/lib/__tests__/digest-patch-route.test.ts` (mocked `db`, same pattern as `*-route.test.ts`):
+  - A PATCH with `[{id:"t1",text:"edited"},{text:"new"}]` calls update for t1 and create for one row, and deletes only ids absent from the payload.
+  - It never calls `deleteMany` without an `id: { in }` filter.
+
+**Acceptance (Alvin):**
+- [ ] typecheck, lint, test and build are clean, and the test count is up by the new cases.
+- [ ] Live, on a **new draft digest titled `TEST — delete me`** (never send it):
+  - [ ] Add three todos and tick one. Edit the title and save. The tick survives. Add a fourth todo and save. All ticks survive.
+  - [ ] Enter edit mode. Textareas show plain paragraphs, not `<p>` tags. Save twice. Viewing shows no nested blank paragraphs.
+  - [ ] Put `<b>x</b> & <script>alert(1)</script>` in a section. The view shows that text literally and no alert fires.
+  - [ ] Delete the draft.
+- [ ] **No email is sent during verification.** The escaping is covered by the unit test, so there is no need to Send.
+
+**UX impact:** invisible except that bugs stop. Ticks survive edits, the edit textareas show text instead of markup, and characters such as `<` and `&` typed in a section now display as typed. Existing sent digests render the same, apart from any raw tags in legacy rows, which now show as text. **Cost impact:** none.
+
+---
+
+## WS105 — Schema: board, people, projects, aliases, intake log; additive digest columns, ~0.3 day
+
+**Goal:** every table Part 37 needs, in one additive `prisma db push`. **Joseph (or whoever holds prod env) runs `prisma db push` before WS106's deploy.** The memory note confirms this is safe for additive changes. Nothing reads these tables until WS106, so WS105 can deploy on its own.
+
+`prisma/schema.prisma`: append after `DigestExtraRecipient` (`:452-458`), with the same `@@map` snake_case convention:
+
+```prisma
+// ─── Team Board (Part 37) ────────────────────────────────
+
+model BoardProject {
+  id         String       @id @default(cuid())
+  name       String       @unique
+  archivedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  cards      BoardCard[]
+  aliases    BoardAlias[]
+
+  @@map("board_projects")
+}
+
+model BoardPerson {
+  id          String       @id @default(cuid())
+  displayName String // plain-name owners; for linked admins the UI prefers user.name ?? user.email (JC-TB-A)
+  userId      String?      @unique
+  user        User?        @relation("BoardPersonUser", fields: [userId], references: [id], onDelete: SetNull)
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  cards       BoardCard[]
+  aliases     BoardAlias[]
+
+  @@map("board_people")
+}
+
+model BoardCard {
+  id             String        @id @default(cuid())
+  title          String
+  notes          String? // plain text, rendered as text (never HTML)
+  status         String        @default("TODO") // "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" (JC-TB-B)
+  position       Float // order within its status column (JC-TB-C)
+  dueDate        DateTime? // date-only semantics, stored at 00:00 UTC
+  projectId      String?
+  project        BoardProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  ownerId        String?
+  owner          BoardPerson?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  rawOwnerName   String? // as extracted, when it differed from / failed to match the canonical name (Q100-a/c)
+  rawProjectName String?
+  needsReview    Boolean       @default(false)
+  source         String        @default("MANUAL") // "MANUAL" | "GRANOLA" | "DIGEST_PASTE" | "DIGEST_IMPORT"
+  sourceRef      String? // Granola note id or WeeklyDigest id
+  sourceKey      String?       @unique // idempotency key for automated creates (WS108/WS109); null for MANUAL
+  humanEditedAt  DateTime? // any human PATCH/move stamps this; automation never overwrites a stamped card (Q100-e)
+  completedAt    DateTime?
+  archivedAt     DateTime?
+  createdById    String? // admin user id; null when automated
+  updatedById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  digestTodos    DigestTodo[]
+
+  @@index([status, position])
+  @@index([ownerId])
+  @@index([projectId])
+  @@map("board_cards")
+}
+
+model BoardAlias {
+  id         String        @id @default(cuid())
+  kind       String // "PERSON" | "PROJECT"
+  normalized String // normalizeName(alias) — see src/lib/board-reconcile.ts
+  personId   String?
+  person     BoardPerson?  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  projectId  String?
+  project    BoardProject? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdAt  DateTime      @default(now())
+
+  @@unique([kind, normalized])
+  @@map("board_aliases")
+}
+
+model GranolaIntake {
+  id           String    @id @default(cuid())
+  noteId       String    @unique // "not_…" — the exactly-once key
+  status       String // "PENDING" | "PROCESSING" | "DONE" | "FAILED" | "SKIPPED"
+  trigger      String // "WEBHOOK" | "SWEEP" | "MANUAL"
+  lastEventId  String? // webhook-id of the most recent delivery, diagnostics only
+  noteTitle    String? // DB-only; never logged
+  attempts     Int       @default(0)
+  lockedAt     DateTime?
+  digestId     String?
+  cardsCreated Int       @default(0)
+  cardsLinked  Int       @default(0)
+  skipReason   String?
+  error        String? // message only, truncated to 500 chars, never note content
+  createdAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  @@index([createdAt])
+  @@map("granola_intakes")
+}
+```
+
+**Additive columns on existing models:**
+- `WeeklyDigest` (`:376-386`):
+  - `source String @default("MANUAL") // "MANUAL" | "GRANOLA"`
+  - `granolaNoteId String? @unique`. Nullable and unique: Postgres treats NULLs as distinct, so every existing row is fine. This is the second exactly-once guard: one draft per note.
+  - `slackPostedAt DateTime?` (F110)
+- `DigestTodo` (`:388-399`):
+  - `cardId String?` with `card BoardCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)`
+  - `ownerLabel String?`
+  - `projectLabel String?` (the frozen display values, JC-TB-G/K)
+- `User` (`:47-80`): the relation field `boardPerson BoardPerson? @relation("BoardPersonUser")`. Prisma-only, no column.
+
+**Acceptance:**
+- [ ] `npx prisma validate` passes.
+- [ ] `npx prisma db push --accept-data-loss` is **NOT** needed. If Prisma asks for it, **stop**: something isn't additive.
+- [ ] After the push, `\d weekly_digests` and `\d digest_todos` show only new nullable or defaulted columns, and the existing row counts are unchanged.
+- [ ] typecheck and build are clean.
+
+**UX impact:** none. **Cost impact:** none (a handful of rows in existing Neon Postgres).
+
+---
+
+## WS106 — Board core: reconciliation library, ordering, CRUD and move APIs, ~1.0 day
+
+**WS106.1 — `src/lib/board.ts`** (constants and pure helpers, client-safe):
+- `BOARD_STATUSES = ["TODO","IN_PROGRESS","BLOCKED","DONE"] as const`, plus their labels ("To do", "In progress", "Blocked", "Done").
+- `DONE_VISIBLE_DAYS = 14` (Q99-i).
+- `positionBetween(before?: number, after?: number): number`. Returns the midpoint, `before + 1024` at the end, `after - 1024` at the start, and `1024` for an empty column.
+- `needsRenormalize(a, b)`, true when `|a - b| < 1e-6`.
+
+**WS106.2 — `src/lib/board-reconcile.ts`** (pure, the heart of "the board is correct"; fully unit-tested):
+
+```ts
+export function normalizeName(s: string): string {
+  return s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+export interface Canonical { id: string; name: string; aliases: string[]; email?: string | null }
+
+/** Q100-d: deterministic pass first (name, alias, attendee email); Claude's guess only if it is a real canonical id. */
+export function resolveEntity(
+  raw: string | null, claudeId: string | null, list: Canonical[], attendeeEmail?: string | null
+): { id: string | null; raw: string | null; needsReview: boolean; via: "exact" | "alias" | "email" | "claude" | "none" } {
+  if (!raw?.trim()) return { id: null, raw: null, needsReview: false, via: "none" };
+  const n = normalizeName(raw);
+  const byName = list.find((c) => normalizeName(c.name) === n);
+  if (byName) return { id: byName.id, raw: null, needsReview: false, via: "exact" };
+  const byAlias = list.find((c) => c.aliases.includes(n));
+  if (byAlias) return { id: byAlias.id, raw, needsReview: false, via: "alias" };
+  if (attendeeEmail) {
+    const byEmail = list.find((c) => c.email && c.email.toLowerCase() === attendeeEmail.toLowerCase());
+    if (byEmail) return { id: byEmail.id, raw, needsReview: false, via: "email" };
+  }
+  if (claudeId && list.some((c) => c.id === claudeId)) return { id: claudeId, raw, needsReview: false, via: "claude" }; // JC-TB-H: no alias saved
+  return { id: null, raw, needsReview: true, via: "none" };
+}
+
+/** Q100-e/f: decide, per extracted item, create / link / fill / skip. Never deletes, never touches humanEditedAt cards. */
+export function planCardWrites(items: ResolvedItem[], existing: ExistingCardLite[]): CardWritePlan[]
+```
+
+`planCardWrites` rules:
+1. `existingCardId` matching an open card means **link** (no write to the card).
+2. A `sourceKey` already present with `humanEditedAt == null` means **fill** only the null fields (owner, project, due).
+3. A `sourceKey` present with `humanEditedAt` set means **skip**.
+4. Otherwise **create**.
+
+**WS106.3 — `src/lib/board-server.ts`** (db-touching):
+- `ensureAdminPeople()` upserts a `BoardPerson` for every `roles: { has: "ADMIN" }` user without one (`displayName = name ?? email`). It is called on board GET. Removed admins keep their person row, with `archivedAt` left to an admin.
+- `loadBoardContext()` returns `{ people: Canonical[], projects: Canonical[], openCards }` for the extraction prompt.
+- `moveCard(id, status, beforeId?, afterId?, actor)` runs in a transaction. It computes the position from its neighbours, renormalizes the column if needed, sets `completedAt` when entering DONE and clears it when leaving, and stamps `humanEditedAt` and `updatedById`.
+
+**WS106.4 — routes** (all `requireAdmin()` and `logAdminAction`, with actions `BOARD_CARD_CREATED|UPDATED|MOVED|ARCHIVED`, `BOARD_PROJECT_*`, `BOARD_PERSON_*`, `BOARD_ALIAS_CREATED`):
+
+| Route | Purpose |
+|---|---|
+| `GET /api/admin/board` | Returns cards (excluding archived, and DONE older than 14 days unless `?archived=1`), projects, people, and `needsReviewCount`. Calls `ensureAdminPeople()`. |
+| `POST /api/admin/board/cards` | Create (D4): `{title, status?, ownerId?, projectId?, dueDate?, notes?}` with `source "MANUAL"`, position at the end of the column, and `humanEditedAt = now`. |
+| `PATCH /api/admin/board/cards/[id]` | Hand-written allowlist (the F95 lesson): title, notes, ownerId, projectId, dueDate, archived. Stamps `humanEditedAt`. Setting `ownerId` or `projectId` clears the matching raw field. `needsReview` is cleared when both are resolved or the raw values are dismissed. |
+| `POST /api/admin/board/cards/[id]/move` | `{status, beforeId?, afterId?}` → `moveCard`. |
+| `POST /api/admin/board/cards/[id]/resolve` | `{ownerId?, projectId?, newPersonName?, newProjectName?, rememberAlias: boolean}`. Optionally creates the person or project, sets the field, and, if `rememberAlias` and the raw value is non-empty, creates a `BoardAlias` (409-safe on the `@@unique`). Also applies the same resolution to **every other open card with the same normalized raw value** and returns how many were fixed. |
+| `GET/POST /api/admin/board/projects`, `PATCH /…/[id]` | Rename and archive. A rename doesn't break aliases (they point at the id). |
+| `GET/POST /api/admin/board/people`, `PATCH /…/[id]` | Plain-name people. A linked-admin person's `displayName` is not editable here (the user's name wins). |
+| `DELETE /api/admin/board/aliases/[id]` | Undo a bad alias. |
+
+Q97 = (A) means every route uses `requireAdmin()` only. If Joseph picks (B), the PATCH and move routes add `if (card.owner?.userId && card.owner.userId !== user.id) return 403`.
+
+**WS106.5 — tests:**
+- `board-reconcile.test.ts`:
+  - The exact, alias, email, claude and none branches.
+  - A hallucinated `claudeId` becomes none.
+  - Diacritics and case: `"José"` vs `"jose"`.
+  - `planCardWrites` covers all four outcomes, including "never touches a `humanEditedAt` card".
+- `board.test.ts`: `positionBetween` edges.
+- `board-move-route.test.ts`: `completedAt` set and clear, and that `humanEditedAt` is stamped.
+
+All fixtures use `Jane Founder`, `Sam Partner` and `AcmeHQ onboarding`.
+
+**Acceptance:**
+- [ ] All gates are clean.
+- [ ] Curl smoke after deploy: `GET /api/admin/board` without a session gives a **307 to `/login`**, not 200 and not 500.
+- [ ] Authenticated checks happen in WS107's UI.
+
+**UX impact:** none until WS107 (the APIs only). **Cost impact:** none.
+
+---
+
+## WS107 — Kanban UI: `/admin/board`, ~1.5 days (+~1 day if Q95 = B)
+
+**Files:**
+- `src/app/admin/board/page.tsx` (client page inside `AppShell` + `PageHeader`, title "Team Board", description "Action items from team calls and the weekly digest").
+- `src/components/admin/board/{board-column,board-card,card-dialog,resolve-dialog,people-projects-panel,intake-panel}.tsx`.
+- Sidebar entry `{ label: "Team Board", href: "/admin/board", icon: KanbanSquare }` as the **first** item of "Admin Tools" (`sidebar.tsx:99-104`). `lucide-react` ships it (`node_modules/lucide-react/dist/esm/icons/kanban-square.js` is present in the installed `^0.564.0`).
+
+**Layout.** Radix Tabs, already a dependency: **Board · People & projects · Intake**. The Intake tab only renders when `granolaIntakeEnabled()`. Pass it as a prop from a server wrapper, the same as `hasApiKey` on `settings/page.tsx:19`.
+
+**Board tab:**
+- **Filter row** (Pattern D: `flex flex-wrap items-end gap-3`): native `<select>`s for **Project** (All / each / No project) and **Owner** (All / Me / each / Unassigned), a **Needs review** toggle chip, a search `Input` (title substring, as in Part 32's universal list search), and a "+ Add item" `Button`. Filters persist in the URL query (`?project=&owner=`) so links are shareable among admins.
+- **Needs-review banner** when the count is above 0: "3 items need review: names or projects Molly couldn't match", with a "Show them" button that applies the toggle. Brand tokens: `border-ochre`/`text-ochre` (ochre is the warning colour per the design system).
+- **Columns** (`md:` and up): `grid grid-cols-4 gap-4`. Each column has a header (status label plus count) and a vertical card list on `bg-card border border-border` panels with the flat 0–2px corners of the house style.
+- **Card:** title (`text-sm text-foreground`) and a meta row of mono `text-xs text-muted-foreground` holding the owner, project chip and due date. Overdue shows in `text-laterite`. A `needsReview` dot shows "heard as 'Jayne'" in a tooltip, set via `title=` (no new dependency). The footer reads "moved by Sam Partner · 2h", from `updatedById` plus `updatedAt`.
+- **Moving cards (Q95 = A):**
+  - Desktop drag uses native `draggable` with `onDragStart`/`onDragOver`/`onDrop`. Drop position is computed from the hovered card's midpoint, then `POST …/move` runs with optimistic reorder and rolls back on a non-2xx response with an inline error.
+  - **Every card also has a "Move to…" `<select>` and ↑/↓ buttons** (keyboard and touch path). Controls are `aria-label`led.
+- **Card dialog:** Radix Dialog, the pattern of `src/components/admin/portco-link-dialog.tsx`. It edits title, notes, owner, project, due date and status, and has Archive. Notes render as text (`whitespace-pre-wrap`), never HTML.
+- **Resolve dialog** (opened from a needs-review card): "Molly heard **'Jayne'**". Pick an existing person, or "Add 'Jayne' as a new person", plus a checkbox (default on) **"Remember 'Jayne' as this person next time"**, and the same for project. On submit it shows "Also fixed 2 other items" from the route's count.
+
+**Mobile, below `md` (JC-TB-J, Part 6 patterns):**
+- Columns stack as four collapsible sections (`<details open>` for To do and In progress, closed for Blocked and Done). Each has its count in the `<summary>`, the same `<details>` idiom Part 32 used for audit-log details.
+- Card meta uses Pattern B (`flex flex-wrap items-start gap-3`, text `min-w-48 flex-1`, actions `shrink-0`).
+- The filter row is Pattern D, and the page header Pattern C (already inside `PageHeader`).
+- No drag on touch. The "Move to" select is the path.
+- The page uses no `100vh`; it follows the `h-dvh` conventions already in `AppShell`.
+
+**People & projects tab:**
+- Two lists (Pattern B rows): Add, Rename, Archive, and per-row **aliases** shown as removable chips.
+- Linked admins are marked "Molly admin" and cannot be renamed here.
+- An "Import open items from the latest digest" button with a preview modal (Q96 = A). It calls `POST /api/admin/board/import-latest-digest` with `{dryRun}`, which creates `source "DIGEST_IMPORT"` cards with `sourceKey = import:<digestTodoId>` (exactly once) and sets `DigestTodo.cardId`. Each todo's text goes through `resolveEntity` on its inline `— Name` suffix. If it can't be resolved, the card gets `needsReview`.
+
+**Acceptance (live, authenticated, admin):**
+- [ ] The sidebar shows "Team Board", and the page loads with four empty columns.
+- [ ] Create `TEST — Jane Founder follow-up` (owner: yourself; project: a new `TEST project`). Drag it To do → In progress (desktop). Reload: the position persists. Use "Move to…" to reach Done; it shows in Done, and `completedAt` is set (check via the "moved" footer).
+- [ ] Reorder two TEST cards within a column with ↑/↓. Reload: the order persists.
+- [ ] Filters: Owner = Me shows only yours. Project = TEST project shows only those. The URL updates.
+- [ ] At about 375px (device or devtools): columns stack, there is no horizontal page scroll, and "Move to" works.
+- [ ] The audit log shows `BOARD_CARD_CREATED` and `BOARD_CARD_MOVED`.
+- [ ] Clean up: archive every TEST card and archive TEST project.
+
+**UX impact:** additive. A new admin-only page and one new sidebar item. Founders, LPs and link recipients are unaffected (`/admin/*` is already gated, `route-access.ts`). **Cost impact:** none (no dependency under Q95 = A).
+
+---
+
+## WS108 — Digest ↔ board: one shared extraction path, carry-forward, live-until-sent action items, ~1.0 day
+
+**WS108.1 — `src/lib/digest-extraction.ts`** (server-only). It moves `SECTION_DEFS` (`generate/route.ts:10-17`), the riddle lookup (`:107-124`), the prompt and the Claude call out of the route, so both the paste path and Granola intake use them:
+
+```ts
+export const DIGEST_MODEL = "claude-sonnet-4-6"; // unchanged from generate/route.ts:146
+
+export async function extractDigest(input: {
+  notesText: string;                          // pasted text and/or fetched share pages, or Granola summary_markdown
+  meetingTitle?: string; meetingDate?: Date;
+  attendees?: { name: string | null; email: string }[];
+  ctx: BoardContext;                          // loadBoardContext() — canonical people/projects/open cards
+}): Promise<ExtractedDigest>                  // zod-validated (F111, JC-TB-I)
+```
+
+**Prompt additions** to the existing text, which is kept verbatim otherwise:
+- The canonical people as `id | name | aliases` and projects in the same shape.
+- Open cards as `id | title | owner | project`.
+- The instruction: *"For each action item return `title` (without the owner's name), `ownerRaw` (the name as said in the notes, or null), `ownerId` (an id from PEOPLE only if you are confident it is the same person, else null; never invent ids), `projectRaw`/`projectId` likewise from PROJECTS, `dueDate` (YYYY-MM-DD or null), and `existingCardId` if the item restates an OPEN CARD. The board's spellings are always correct; the notes may misspell names."*
+- **The example assignee becomes `Jane Founder`** (F113).
+
+The zod schema covers `{ title, sections[6]{id,heading,content}, items[]{title,ownerRaw,ownerId,projectRaw,projectId,dueDate,existingCardId} }`. Any id not present in `ctx` is nulled before `resolveEntity` sees it.
+
+**WS108.2 — the paste path.**
+- `generate/route.ts` becomes thin: it still splits URLs from text and still calls `fetchTranscriptFromUrl` (fallback unchanged). It then calls `loadBoardContext()` + `extractDigest()` + `resolveEntity()` per item, and returns `{ title, weekOf, sections, todos: [{ text, ownerId, projectId, ownerRaw, projectRaw, needsReview, existingCardId, dueDate }], warnings }`.
+- F109's warning: any fetched page under 200 chars adds `warnings: ["One link returned almost no text. Granola share pages may need to be pasted as text."]`.
+- The 503/529 handling at `:179-182` is preserved.
+
+**WS108.3 — composer** (`src/app/admin/digest/new/page.tsx:216+`). Each todo row gains an owner `<select>` and a project `<select>` (people and projects from `GET /api/admin/board`), pre-filled. Unresolved rows show "heard as 'Jayne'" and an ochre dot. `warnings` render above the form. Below the todos, a muted line: "Plus N open items already on the board will be carried into this digest."
+
+**WS108.4 — save** (`POST /api/admin/digest`, `route.ts:29-76`). It accepts the richer todo shape. In one transaction (Q102 = A):
+1. Create the digest.
+2. For each todo, `planCardWrites` gives create (with `source "DIGEST_PASTE"`, `sourceKey = paste:<digestId>:<sha1(normalizeName(title)).slice(0,12)>`, `humanEditedAt = now`, since an admin reviewed it in the composer) or link.
+3. Build the action-item rows with `buildDigestActionItems(digestId)`.
+
+**`buildDigestActionItems(digestId)`** in `board-server.ts`, called by save, by intake (WS109) and by send:
+- **Membership:** linked rows for every open card (status ≠ DONE, not archived), plus cards with `completedAt` after the last sent digest's `sentAt`, marked `completed: true` (Q100-g).
+- **Never deletes rows.** It only creates missing linked rows and refreshes the linked rows' `text`, `ownerLabel`, `projectLabel`, `completed` and `assigneeId`. `assigneeId` is set from `owner.userId`, which **makes F108's "assignees" claim true.**
+- **No-op once `sentAt` is set** (JC-TB-K freeze).
+
+**WS108.5 — digest page.**
+- `[id]/page.tsx` todos show `— ownerLabel · projectLabel`.
+- Linked rows in edit mode are read-only, with an "Edit on board" link (JC-TB-M). "Add a todo" in edit mode posts a MANUAL board card, then refreshes. `removeTodo` on a linked row removes it from this digest only (WS104's diff deletes the row; the card stays).
+- The needs-review count shows next to Send: "2 items still need review", in ochre, with a link to the filtered board.
+- A "Draft ready" pill is added to the list page (`digest/page.tsx:98-106` already distinguishes Draft from Sent; add a `source === "GRANOLA"` label "From Granola").
+
+**WS108.6 — the tick drives the board.** `todos/[todoId]/route.ts` (scoped in WS104): if the row has a `cardId`, the same transaction moves the card to DONE (or back to TODO when unticked) via `moveCard(…, actor)`.
+
+**WS108.7 — send** (`send/route.ts:17-25`). Before building `todos`, `if (!digest.sentAt) await buildDigestActionItems(id)`, then re-read. `:51-55` maps `assigneeName: t.assignee?.name ?? t.assignee?.email ?? t.ownerLabel ?? null`. `sendWeeklyDigestEmail` gains an optional `projectLabel` per todo, escaped.
+
+**Tests:**
+- `digest-extraction.test.ts` (mock `@anthropic-ai/sdk`):
+  - The prompt contains the canonical names and the open card ids.
+  - Malformed JSON gets one retry, then throws.
+  - Unknown ids are nulled.
+  - The prompt contains no name other than placeholders.
+- `digest-action-items.test.ts`:
+  - Carry-forward membership.
+  - The freeze after `sentAt`.
+  - Never deletes.
+  - Assignee and label refresh.
+- Update the existing digest-route tests, if any, for the new todo shape.
+
+**Acceptance (live):**
+- [ ] On the board, create person `Jane Founder` (plain name) and project `AcmeHQ onboarding`.
+- [ ] In `/admin/digest/new`, paste **synthetic** notes: *"Jayne will send the AcmeHQ onbording deck by Friday. Sam to chase the Acme intro."*
+  - [ ] "Jayne" resolves to Jane Founder ("heard as 'Jayne'") or shows needs-review. "AcmeHQ onbording" resolves to the project. "Sam" (no such person) is needs-review.
+  - [ ] Save **as a draft titled `TEST — delete me`**.
+- [ ] The board shows the new cards, plus any open cards carried into the draft's list.
+- [ ] Resolve "Sam" via the dialog → Add as new person "Sam Partner", remember the alias.
+- [ ] Generate a second draft with "Sam to …": it resolves automatically via the alias.
+- [ ] Tick an item on the draft: its card moves to Done on the board. Untick: it returns to To do.
+- [ ] Delete both drafts. Archive the TEST cards, person and project. **Do not Send** (Send is verified in WS111 to a test channel and self-only recipients).
+
+**UX impact:** additive. The composer gains owner and project selects plus a carry-forward line. Digests now show real assignees. Ticks on a digest also move board cards (the intended behaviour). Legacy digests are unchanged. **Cost impact:** the paste path's prompt grows by the canonical lists and open cards (≈1–2k input tokens), about +$0.005 per generate at Sonnet 4.6 list price. Negligible, and on the existing Anthropic line.
+
+---
+
+## WS109 — Granola client, intake runner (exactly-once), daily sweep, manual check and preview, ~1.0 day (blocked by Q92)
+
+**Env vars** (all optional; nothing runs unless set):
+- `GRANOLA_API_KEY` (`grn_…`; prefer a workspace key per Q92)
+- `GRANOLA_FOLDER_ID` (`fol_…`, per Q93; **required**: no folder means intake is disabled, never "all notes")
+- `GRANOLA_WEBHOOK_SECRET` (`whsec_…`, used by WS110)
+
+**WS109.1 — `src/lib/granola.ts`:**
+
+```ts
+export function granolaIntakeEnabled(): boolean {
+  return Boolean(process.env.GRANOLA_API_KEY && process.env.GRANOLA_FOLDER_ID);
+}
+export function granolaWebhookEnabled(): boolean {
+  return granolaIntakeEnabled() && Boolean(process.env.GRANOLA_WEBHOOK_SECRET);
+}
+const BASE = "https://public-api.granola.ai/v1";
+async function granolaFetch(path: string): Promise<Response> {
+  return fetch(`${BASE}${path}`, {
+    headers: { Authorization: `Bearer ${process.env.GRANOLA_API_KEY}` },
+    signal: AbortSignal.timeout(10_000),
+  }); // 429 → caller retries once after 1s (limit is 25 burst / 5 rps)
+}
+export async function getGranolaNote(noteId: string): Promise<GranolaNote | null>   // 404 → null
+export async function listFolderNotes(opts: { updatedAfter: Date; maxPages?: number }): Promise<GranolaNoteSummary[]>
+export function noteInFolder(note: GranolaNote, folderId: string): boolean          // direct or parent_folder_id match
+```
+
+The response types mirror the Get Note fields listed in the research section, and `noteId` is validated against `/^not_[a-zA-Z0-9]{14}$/` before use in a path.
+
+**WS109.2 — `src/lib/granola-intake.ts`.** The exactly-once design has **three layers**:
+1. `GranolaIntake.noteId @unique`: a note can be enqueued once.
+2. A conditional-claim `updateMany`: only one worker processes it.
+3. `BoardCard.sourceKey @unique` + `WeeklyDigest.granolaNoteId @unique`: even a crash after partial writes cannot duplicate cards or drafts on retry.
+
+```ts
+export async function enqueueGranolaNote(noteId: string, trigger: "WEBHOOK"|"SWEEP"|"MANUAL", eventId?: string) {
+  try {
+    return await db.granolaIntake.create({ data: { noteId, trigger, status: "PENDING", lastEventId: eventId ?? null } });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      if (eventId) await db.granolaIntake.update({ where: { noteId }, data: { lastEventId: eventId } }).catch(() => {});
+      return null; // already known — webhook still answers 200
+    }
+    throw err;
+  }
+}
+
+async function claim(id: string): Promise<boolean> {
+  const stale = new Date(Date.now() - 15 * 60_000);
+  const { count } = await db.granolaIntake.updateMany({
+    where: { id, OR: [
+      { status: "PENDING" },
+      { status: "FAILED", attempts: { lt: 3 } },
+      { status: "PROCESSING", lockedAt: { lt: stale } },   // crashed worker
+    ] },
+    data: { status: "PROCESSING", lockedAt: new Date(), attempts: { increment: 1 } },
+  });
+  return count === 1;
+}
+
+export async function processGranolaIntake(id: string, opts: { dryRun?: boolean } = {}): Promise<IntakeResult>
+```
+
+**`processGranolaIntake` steps.** Each `SKIPPED` path returns **before** any Claude call.
+1. `claim`, or return `{ skipped: "busy-or-done" }`.
+2. `getGranolaNote(noteId)`. A null or `deleted_at` result means `SKIPPED("not accessible")`.
+3. `!noteInFolder(note, GRANOLA_FOLDER_ID)` means `SKIPPED("outside folder")`. **This is the confidentiality guard** (Q93), and it holds even if the webhook was registered without `folder_ids`.
+4. `created_at` older than 7 days means `SKIPPED("older than 7 days")`. This guards a bulk `note.access_granted` flood from re-sharing an old folder.
+5. No `summary_markdown` and no `summary_text` resets the row to `PENDING` without counting the attempt (`attempts: { decrement: 1 }`), and the next sweep retries.
+6. `ctx = await loadBoardContext()`, then `extractDigest({ notesText: note.summary_markdown ?? note.summary_text, meetingTitle: note.title, meetingDate: note.calendar_event?.scheduled_start_time ?? note.created_at, attendees: note.attendees, ctx })` (JC-TB-E: no transcript).
+7. Resolve each item with `resolveEntity` (attendee email hint: when `ownerRaw` matches an attendee's name, pass that attendee's email), then `planCardWrites` with `sourceKey = granola:<noteId>:<sha1(normalizeName(title)).slice(0,12)>`.
+8. If `dryRun`, return the plan with **no writes** (used by the Preview button; the intake row is reset to its prior status).
+9. One transaction:
+   - Apply the card writes (`source "GRANOLA"`, `sourceRef = noteId`, `humanEditedAt = null`) with `createMany({ skipDuplicates: true })` for creates.
+   - Create the draft `WeeklyDigest` (`source "GRANOLA"`, `granolaNoteId`, `title` from extraction, `sections` via `plainToDigestHtml` per section, which is the server-side writer from WS104), or reuse the existing one if `granolaNoteId` already exists.
+   - `buildDigestActionItems(digestId)`.
+   - Intake becomes `DONE` with counts and `digestId`.
+10. `logAdminAction({ email: "granola-intake@system" }, "GRANOLA_INTAKE_PROCESSED", { targetType: "WeeklyDigest", targetId: digestId, metadata: { cardsCreated, cardsLinked, needsReview } })`. Counts only.
+11. The Q101 notification (WS111.4). Best-effort: a failure is logged, never a FAILED intake.
+
+**Errors:** status `FAILED` with `error` set to the message truncated to 500 chars. `console.error` gets the intake id and error class only, never note content.
+
+**WS109.3 — sweep cron** `src/app/api/cron/granola-sweep/route.ts`. It is a copy of `cron/fund-metrics-sync/route.ts`'s shape: shared GET+POST, `CRON_SECRET` bearer check, and a no-op 200 `{ skipped: true }` when `!granolaIntakeEnabled()`.
+- Add `export const maxDuration = 60`.
+- `listFolderNotes({ updatedAfter: now − 72h, maxPages: 3 })`, then enqueue each.
+- Process claimable rows oldest-first, **max 3 per run, and stop starting new ones after 40 s elapsed.**
+- Log `[cron/granola-sweep] enqueued=N processed=N skipped=N failed=N`.
+- `vercel.json`: append `{ "path": "/api/cron/granola-sweep", "schedule": "15 8 * * *" }`. That is the 6th cron, daily and Hobby-safe (F114). No middleware change: `/api/cron` is already public (`route-access.ts`).
+
+**WS109.4 — admin routes and Intake tab** (WS107's tab content):
+- `GET /api/admin/granola/intakes`: the last 25 rows.
+- `POST /api/admin/granola/check`: the same body as the sweep, `trigger "MANUAL"`, audit-logged.
+- `POST /api/admin/granola/preview` `{ noteId }`: a dry run. It needs an existing intake row or creates one marked `trigger "MANUAL"`, then returns the plan. It costs one Claude call and is labelled as such in the UI.
+- `POST /api/admin/granola/intakes/[id]/retry`.
+
+The tab shows a table (Pattern A: `overflow-x-auto` + `min-w-[640px]`) with columns When · Meeting · Status · Cards · Draft · Error/Skip reason · Retry, a "Check Granola now" button, and a "Preview a note" input.
+
+**Tests:** `granola-intake.test.ts` (mock `granola.ts` + `db` + `extractDigest`):
+- A double enqueue makes one row and returns null the second time.
+- A claim race lets exactly one of two concurrent claims win (mocked `updateMany` counts).
+- An outside-folder note is SKIPPED, and **`extractDigest` is never called**.
+- An old note is SKIPPED.
+- No summary goes back to PENDING without spending an attempt.
+- A crash after the card writes and a retry produce no duplicate cards or draft (sourceKey / granolaNoteId).
+- A dry run writes nothing.
+- A card with `humanEditedAt` is untouched on retry.
+
+**Acceptance (live, no spam):**
+- [ ] With `GRANOLA_*` unset: the Intake tab is hidden, and `curl` of the cron with the secret returns `{"skipped":true}`.
+- [ ] Create a Granola folder **`Molly test`**, record a 2-minute synthetic call that says the WS108 script (Jayne / AcmeHQ onbording / Sam), and wait for Granola's summary. Set `GRANOLA_API_KEY` and `GRANOLA_FOLDER_ID` to **the test folder** in Vercel Production, then redeploy.
+- [ ] Preview that note: the plan shows the expected resolutions, and the DB is unchanged.
+- [ ] "Check Granola now": one intake becomes DONE, a draft digest "From Granola" exists, and the cards appear on the board.
+- [ ] Click again: nothing new (exactly-once).
+- [ ] Move one card. Retry the intake: the moved card is unchanged.
+- [ ] A note **outside** the folder never appears in the intake list.
+- [ ] Delete the draft. Archive the TEST cards. Only after Joseph is happy, repoint `GRANOLA_FOLDER_ID` to the real team-call folder.
+
+**UX impact:** additive and admin-only. Invisible unless configured. **Cost impact:** **Claude ≈ 3–6k input + ≈1.5–2.5k output tokens per meeting** (summary + canonical lists + open cards → 6 sections + items), about **$0.03–0.06 per meeting** at the Sonnet 4.6 list price ($3/$15 per MTok; aggregator-sourced, verify). Weekly that is **under $5/year**, on the existing Anthropic line. Previews and retries cost the same each. Granola API calls: free within the plan, about 2–4 per meeting. **The Granola plan itself is Q92.** Vercel: one daily cron, seconds of function time. Neon: one row per meeting.
+
+---
+
+## WS110 — Granola webhook: signature, rate limit, middleware exemption, fast acknowledgement, ~0.5 day (blocked by Q92; Q94 picks the ack mechanism)
+
+**WS110.1 — `src/lib/standard-webhooks.ts`** (pure, JC-TB-F):
+
+```ts
+import crypto from "crypto";
+
+/** Standard Webhooks v1 (Granola): HMAC-SHA256 over `${id}.${timestamp}.${rawBody}`, key = base64(secret minus "whsec_").
+ *  Header may hold several space-separated "v1,<sig>" entries (key rotation). Constant-time, length-guarded
+ *  (same guard as src/app/api/lp/auth/verify/route.ts:61). */
+export function verifyStandardWebhook(o: {
+  secret: string; id: string | null; timestamp: string | null; signatures: string | null;
+  rawBody: string; nowSec?: number; toleranceSec?: number;
+}): boolean {
+  if (!o.id || !o.timestamp || !o.signatures) return false;
+  const ts = Number(o.timestamp);
+  const now = o.nowSec ?? Math.floor(Date.now() / 1000);
+  if (!Number.isInteger(ts) || Math.abs(now - ts) > (o.toleranceSec ?? 300)) return false;
+  const key = Buffer.from(o.secret.replace(/^whsec_/, ""), "base64");
+  const expected = crypto.createHmac("sha256", key).update(`${o.id}.${o.timestamp}.${o.rawBody}`).digest();
+  return o.signatures.split(" ").some((entry) => {
+    const [version, sig] = entry.split(",");
+    if (version !== "v1" || !sig) return false;
+    const candidate = Buffer.from(sig, "base64");
+    return candidate.length === expected.length && crypto.timingSafeEqual(candidate, expected);
+  });
+}
+```
+
+**WS110.2 — `src/app/api/webhooks/granola/route.ts`:**
+
+```ts
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+const Event = z.object({ event_id: z.string(), event_type: z.string(), note_id: z.string().regex(/^not_[a-zA-Z0-9]{14}$/), occurred_at: z.string() });
+
+export async function POST(req: Request) {
+  if (!granolaWebhookEnabled()) return Response.json({ error: "Not configured" }, { status: 404 }); // 4xx = Granola stops retrying; sweep still covers
+  const raw = await req.text();                                   // raw body BEFORE any JSON parse — required for the HMAC
+  if (raw.length > 64_000) return Response.json({ error: "Too large" }, { status: 413 });
+  const ok = verifyStandardWebhook({
+    secret: process.env.GRANOLA_WEBHOOK_SECRET!, rawBody: raw,
+    id: req.headers.get("webhook-id"), timestamp: req.headers.get("webhook-timestamp"), signatures: req.headers.get("webhook-signature"),
+  });
+  if (!ok) return Response.json({ error: "Invalid signature" }, { status: 401 }); // no DB write for unsigned junk
+  // Rate limit AFTER verification: the risk being limited is Claude spend from a leaked secret or a bulk
+  // note.access_granted flood, not anonymous traffic. 429 is retried by Granola with backoff — it self-throttles.
+  if (!(await checkRateLimit("granola-webhook", "global", 30))) return Response.json({ error: "Rate limited" }, { status: 429 });
+  const parsed = Event.safeParse(JSON.parse(raw));
+  if (!parsed.success) return Response.json({ error: "Bad payload" }, { status: 400 });
+  const e = parsed.data;
+  if (e.event_type !== "note.generated" && e.event_type !== "note.access_granted") {
+    return Response.json({ ignored: e.event_type });             // note.edited: exactly-once per note (Q100-e); 200 so it isn't retried
+  }
+  const intake = await enqueueGranolaNote(e.note_id, "WEBHOOK", e.event_id);
+  if (intake) waitUntil(processGranolaIntake(intake.id));        // Q94-A. Q94-B: `await processGranolaIntake(intake.id)` instead
+  return Response.json({ received: true });
+}
+```
+
+**WS110.3 — the middleware exemption** (`src/lib/route-access.ts`). Append `"/api/webhooks"` to `PUBLIC_PREFIXES`, and add a paragraph to the header comment in the same voice as the `/api/cron` and F15 entries:
+
+> "/api/webhooks" (Part 37, WS110) is public because third-party webhook deliveries (Granola) carry no user session. Each route under it verifies its own signature as the real gate. Without this, middleware 307-redirects every delivery to /login and Granola records a permanent 3xx failure without retrying (`3xx` responses are not retried, per Granola's webhook docs). Per the F15 family lesson, no session-authenticated route may ever be created under a path starting with "/api/webhooks".
+
+Extend `src/lib/__tests__/route-access.test.ts`: `/api/webhooks/granola` with no session gives `{type:"next"}`, and `/admin/board` with no session gives a redirect to `/login`.
+
+**WS110.4 — tests:** `standard-webhooks.test.ts` covers:
+- A valid signature generated in-test with a **synthetic** `whsec_` secret (base64 of `"test-secret-not-real"`).
+- A tampered body.
+- A wrong secret.
+- A stale timestamp (301 s).
+- A future timestamp.
+- Multiple signatures where one is valid.
+- A `v2,` prefix ignored.
+- A length-mismatched signature that doesn't throw.
+
+`granola-webhook-route.test.ts` covers:
+- Disabled gives 404.
+- A bad signature gives 401 **with no db call**.
+- Rate limited gives 429.
+- `note.edited` gives 200 and is ignored.
+- A duplicate `event_id`/note gives 200, enqueued once.
+
+**WS110.5 — registration (Joseph or the Granola admin, one-time).** In Granola: Settings → Connectors → Webhooks (or the test folder's Integrations → Webhooks):
+- URL: `https://molly.dfs.vc/api/webhooks/granola`. **Use the canonical host.** `molly.dfslab.net` 308-redirects, and Granola treats 3xx as a permanent failure.
+- Scope: as Q92/Q93 decide. Events: `note.generated`, `note.access_granted`. Folder: **`Molly test`** first.
+
+Copy the signing secret (shown once) into Vercel `GRANOLA_WEBHOOK_SECRET` (Production) and redeploy.
+
+**Acceptance (live):**
+- [ ] `curl -X POST https://molly.dfs.vc/api/webhooks/granola -d '{}'` returns **401**. Not 307 (middleware) and not 500.
+- [ ] Before the secret is set it returns **404**.
+- [ ] Record another 2-minute synthetic call in `Molly test`. Within a few minutes of Granola's summary appearing, the Intake tab shows a `WEBHOOK` row with status DONE, a "From Granola" draft, and cards on the board. **Record the observed minutes-after-call**, which closes the "unconfirmed timing" item.
+- [ ] Re-share the same note into the folder (`note.access_granted`): no new draft and no new cards.
+- [ ] Clean up as in WS109. Then repoint the webhook's folder to the real one when Joseph says so.
+
+**UX impact:** none for anyone (a machine endpoint). **Cost impact:** none beyond WS109's Claude estimate. `@vercel/functions` is free (Q94-A).
+
+---
+
+## WS111 — Slack post, Integrations settings panel, "draft ready" ping, docs, ~0.6 day
+
+**WS111.1 — `src/lib/slack.ts`:**
+
+```ts
+export function slackDigestEnabled(): boolean { return Boolean(process.env.SLACK_DIGEST_WEBHOOK_URL); }
+
+/** Slack treats only &, <, > as control characters (docs.slack.dev, "Escaping text"). */
+export function slackEscape(s: string): string { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+export function buildDigestSlackText(o: {
+  title: string; digestUrl: string; boardUrl: string;
+  items: { title: string; ownerLabel: string | null; projectLabel: string | null; dueDate: Date | null }[];
+}): string // header "*<title>* — N open items"; grouped by owner (Unassigned last); "• title _(project)_ — due Oct 12";
+           // cap 50 lines then "…and N more"; footer "<digestUrl|Open digest> · <boardUrl|Open board>"
+
+export async function postToSlack(text: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  // POST JSON { text } to SLACK_DIGEST_WEBHOOK_URL, AbortSignal.timeout(10_000).
+  // The URL is a secret (Slack docs): never log it, never return it to the client, never include it in audit metadata.
+}
+```
+
+**WS111.2 — send route** (`send/route.ts`, after the email loop at `:57-63`; F110):
+
+```ts
+let slack: "disabled" | "posted" | "already-posted" | "failed" = "disabled";
+if (slackDigestEnabled()) {
+  if (digest.slackPostedAt) slack = "already-posted";               // Resend never double-posts
+  else {
+    const open = digest.todos.filter((t) => !t.completed);
+    const r = await postToSlack(buildDigestSlackText({ title: digest.title, digestUrl: `${BASE_URL}/admin/digest/${id}`, boardUrl: `${BASE_URL}/admin/board`, items: open.map(toSlackItem) }));
+    if (r.ok) { await db.weeklyDigest.update({ where: { id }, data: { slackPostedAt: new Date() } }); slack = "posted"; }
+    else { slack = "failed"; console.error("[digest/send] slack post failed:", r.error); }
+  }
+}
+// response: { sentAt, slack } — the page shows a muted note "Posted to Slack" / "Slack post failed — Resend will retry it"
+```
+
+Slack never blocks email, and a failed post is retried naturally by the next Send or Resend, because `slackPostedAt` is still null. Audit `DIGEST_SENT` metadata gains `slack` (the status string only). `BASE_URL` is **not exported** today. It is a module-private `const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000"` at `src/lib/email.ts:12`. Export it from `email.ts` (a one-word change) rather than re-deriving it, so links can't drift between email and Slack.
+
+**WS111.3 — Integrations section on `/admin/settings`.** A new `<section>` in the existing card idiom (`settings/page.tsx:39-48`, icon `Plug`). Status rows use the existing **Configured / Not set** pattern (`:104-108`):
+- **Granola:**
+  - `GRANOLA_API_KEY`, `GRANOLA_FOLDER_ID` and `GRANOLA_WEBHOOK_SECRET`, each Configured or Not set. Values are never shown.
+  - Webhook URL to register (`${BASE_URL}/api/webhooks/granola`, mono, copyable).
+  - Last intake, with status and time.
+  - Link to the board's Intake tab.
+- **Slack:**
+  - `SLACK_DIGEST_WEBHOOK_URL`, Configured or Not set.
+  - A **"Send test post"** button calls `POST /api/admin/integrations/slack/test` (requireAdmin, audit `SLACK_TEST_POSTED`). It posts the fixed synthetic text "Molly test post: the Slack integration is working." It mirrors the "Send Test Upload" and test-email pattern.
+
+**WS111.4 — the Q101 ping** (if Q101 = B). New `sendDigestDraftReadyEmail({ toEmail, meetingTitle, needsReviewCount, digestUrl })` in `email.ts`:
+- The 11th or 12th template. Count the `send*` functions at implementation time.
+- `escapeHtml` on every interpolated value, with a case added to `email-escaping.test.ts`.
+- Recipient: the `ADMIN` `User` whose email equals the Granola `note.owner.email`, or nobody.
+- Also list it in the settings "Emails sent by Molly" list (`settings/page.tsx:50-67`), so the docs don't drift (the F108 lesson).
+
+**WS111.5 — docs** (Alvin, in the same deploy):
+- `SETUP.md`: an "Optional integrations" section.
+  - Granola: the plan requirement, a workspace key, the folder id, webhook registration on the **canonical host**, and the test-folder-first procedure.
+  - Slack: create an app, enable Incoming Webhooks, pick an **internal** channel, set the env var, and click "Send test post". The free Slack plan caps workspaces at 10 app integrations (third-party sources; unconfirmed officially).
+- `.env.example` (exists at the repo root): the four new vars, commented "optional".
+- `ROADMAP.md`:
+  - Move the board, intake and Slack post into Existing Features.
+  - Remove the F108 annotation once true.
+  - Keep the P3 Slack row for the still-unplanned per-event notifications (F112).
+
+**Acceptance (live, no spam):**
+- [ ] In Slack, create a private channel `#molly-test`, add an incoming webhook to it, set `SLACK_DIGEST_WEBHOOK_URL` to **that** URL, and redeploy.
+- [ ] Settings shows Slack as Configured. "Send test post" makes the synthetic message appear in `#molly-test`.
+- [ ] **Self-only email:** on `/admin/settings`, temporarily untick "receives digest" for every admin except yourself, and note any `DigestExtraRecipient` rows. If there are extras, do this step in a quiet window, or remove them temporarily and re-add them. Then Send a `TEST — delete me` digest:
+  - [ ] One email arrives to you, with assignees and project labels shown.
+  - [ ] One post lands in `#molly-test`, grouped by owner.
+  - [ ] Resend emails you again but **does not** re-post to Slack.
+  - [ ] **Restore every recipient setting afterwards** and record that you did.
+  - Sent digests can't be deleted (`[id]/route.ts:120-122`), so title it plainly as a test. Its existence in the list is the only trace.
+- [ ] Unset the Slack URL, then verify Send still works and the response says `slack: "disabled"`.
+- [ ] Repoint the URL to the real channel only when Joseph says so.
+
+**UX impact:** additive. Digest senders see a one-line Slack status. Admins gain a settings section. If Q101 = B, the admin who recorded a call gets one email per call. **Cost impact:** none. Slack incoming webhooks are free, and Resend volume rises by at most one email per meeting.
+
+---
+
+## Sequencing & handoff (Part 37)
+
+**Order and deploys.** On this project a pushed branch is a production deploy, and every step below compiles and is safe on its own.
+
+1. **WS104**, alone, now. No blockers.
+2. **WS105** (schema). Then **`prisma db push` against prod**, run by Joseph or whoever holds the prod env, before step 3 deploys.
+3. **WS106 → WS107**. Can be one deploy, or two (the APIs ship invisibly first). Needs Q95, Q96 and Q97 answered (Q99 for columns).
+4. **WS108**. Needs Q100 and Q102.
+5. **WS111** (Slack + settings + docs). Independent of Granola. Ships the whole non-Granola product. Needs Q98 (and Q101 only for WS111.4, which can trail).
+6. **WS109 → WS110**. Only if Q92 is resolved toward building. WS110 needs Q94. WS109 can ship and be verified via "Check Granola now" before the webhook exists.
+
+**Effort:**
+
+| Workstream | Effort |
+|---|---|
+| WS104 | 0.6 |
+| WS105 | 0.3 |
+| WS106 | 1.0 |
+| WS107 | 1.5 |
+| WS108 | 1.0 |
+| WS109 | 1.0 |
+| WS110 | 0.5 |
+| WS111 | 0.6 |
+| **Total** | **≈ 6.5 days** |
+
+Add about 1 day if Q95 = B. Without Granola (Q92 = no upgrade), the total is about 5 days.
+
+**Do not touch in this Part:**
+- `fetchTranscriptFromUrl`'s behaviour (F109, beyond the warning).
+- `sendUpdatePublishedEmail`'s trusted TipTap body.
+- The 12-hour edit window and the "sent can't be deleted" rule.
+- `src/app/admin/settings/page.tsx:20` (F113, Part 28's).
+- Any other cron's schedule.
+
+**Never write** a real name, company, project or fund in fixtures, prompts (F113), docs or commits.
+
+**Three things that must survive the handoff verbatim:**
+
+1. **Exactly-once has three layers:** `GranolaIntake.noteId @unique`, the conditional `claim()` `updateMany`, and `BoardCard.sourceKey` + `WeeklyDigest.granolaNoteId` uniques. Dropping any one of them reintroduces duplicates on some retry path.
+2. **The folder check runs before Claude**, in `processGranolaIntake`, even though the webhook is folder-scoped. It is the confidentiality guard, not an optimization.
+3. **Automation never writes to a card with `humanEditedAt` set, and never deletes a card.** Aliases come only from human resolutions. That is "the board is correct", made structural.
+
+## Part 37 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **D1** | In Molly, admin-only, generic naming; Granola and Slack optional and off unless configured | **LOCKED** (Joseph, 2026-10-08) |
+| **D2** | Mixed owners (admins + plain names); admin owners can move their own cards | **LOCKED** (Joseph, 2026-10-08). Scope of "others' cards" is Q97 |
+| **D3** | Digest email + one Slack channel (incoming webhook), weekly; daily nudge and bot deferred | **LOCKED** (Joseph, 2026-10-08) |
+| **D4** | Add and edit directly on the board | **LOCKED** (Joseph, 2026-10-08) |
+| **D5** | Fix first: F104 + F105 as their own early workstream | **LOCKED** (Joseph, 2026-10-08). WS104, which also takes F106/F107 |
+| **Q91** | Granola digest is a **draft**, never auto-sent; board updates immediately | **LOCKED** (Joseph, 2026-10-08, relayed by the coordinator). Matches Felix's recommendation |
+| **Q92** | Granola Business/Enterprise: already have it, or pay for it? | **OPEN, blocks WS109–WS110.** Rec: confirm; don't upgrade for this alone |
+| **Q93** | Which notes: dedicated folder / title match / all | **OPEN.** Rec: **(A) dedicated folder** |
+| **Q94** | Webhook fast-ack: `@vercel/functions` `waitUntil` (new free dependency) / synchronous with Granola retry / sweep-only | **OPEN.** Rec: **(A)** |
+| **Q95** | DnD: native + Move-to select (no dependency) / `@dnd-kit` | **OPEN.** Rec: **(A)** |
+| **Q96** | Existing todos: import open items from latest digest / none / all | **OPEN.** Rec: **(A)** |
+| **Q97** | Any admin moves any card / own cards only | **OPEN.** Rec: **(A)** + audit |
+| **Q98** | Slack content: open items by owner, no @mentions / + sections / + mentions | **OPEN.** Rec: **(A)** |
+| **Q99** | Fixed 4 columns + Done shows 14 days / configurable / Done forever | **OPEN.** Rec: **(A)+(i)** |
+| **Q100** | Reconciliation rule as refined (a)–(g); aliases only from humans | **OPEN.** Rec: **confirm as refined** |
+| **Q101** | Draft-ready signal: in-app / + email to call owner / + email all | **OPEN.** Rec: **(B)** |
+| **Q102** | Paste-path digests also create board cards | **OPEN.** Rec: **(A) yes** |
+| **JC-TB-A…M** | See the judgment-calls table | **Decided (technical)**, each with a reversal |
+| **F104** | PATCH wipes ticks and assignees; client drops ids | WS104.4 |
+| **F105** | Unescaped digest email + admin render; stored-HTML trap | WS104.1–.3 |
+| **F106** | Edit mode nests `<p>` and shows raw tags | WS104.2 |
+| **F107** | Toggle route ignores digest id | WS104.5 |
+| **F108** | "Todo list with assignees" false claim | ROADMAP annotated in this pass; made true in WS108 |
+| **F109** | Share-link fetch: no host check, unverified content | Recorded; warning added in WS108; hardening left to Part 25/28 |
+| **F110** | Resend re-emails all; `sentAt` stamped on total failure | Slack idempotency via `slackPostedAt` (WS111); email behaviour recorded |
+| **F111** | AI JSON unvalidated | zod in WS108 |
+| **F112** | P3 Slack row describes something different | ROADMAP annotated in this pass |
+| **F113** | Real team-member identity in two source files | Prompt fixed in WS108; settings fallback routed to Part 28 |
+| **F114** | Cron-limit docs contradict; plan tier unknown | Design is daily-cron and plan-independent |
+
+**Constraints honored:**
+- **No new cost line, except the one Q92 explicitly puts to Joseph** (Granola Business, $14/user/month, only if not already held). Claude is about $0.03–0.06 per meeting on the existing Anthropic line, Slack webhooks are free, there is one daily cron, and the data sits in existing Neon.
+- **Additive-only schema:** five new tables, plus nullable or defaulted columns on two existing ones and a Prisma-only relation on `User`.
+- **No UX regression:** founders, LPs and investor-link recipients are untouched. Every admin change is additive, and the paste and share-link digest keeps working (with reconciliation added).
+- **New dependencies are only proposed, never assumed:** `@vercel/functions` (Q94-A) and `@dnd-kit` (Q95-B), each Joseph's call.
+
+**Handoff status: WS104 is READY FOR ALVIN now.** The rest is ready once the listed questions are answered.
+
+---
