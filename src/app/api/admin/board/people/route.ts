@@ -12,7 +12,10 @@ export async function GET() {
     if (error) return error;
     await ensureAdminPeople();
     const people = await db.boardPerson.findMany({
-      include: { user: { select: { name: true, email: true } } },
+      include: {
+        user: { select: { name: true, email: true } },
+        aliases: { select: { id: true, normalized: true } }, // additive (WS107): alias chips
+      },
       orderBy: { displayName: "asc" },
     });
     return NextResponse.json(

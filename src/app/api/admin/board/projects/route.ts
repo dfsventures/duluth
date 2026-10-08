@@ -10,7 +10,10 @@ export async function GET() {
   try {
     const { error } = await requireAdmin();
     if (error) return error;
-    const projects = await db.boardProject.findMany({ orderBy: { name: "asc" } });
+    const projects = await db.boardProject.findMany({
+      orderBy: { name: "asc" },
+      include: { aliases: { select: { id: true, normalized: true } } }, // additive (WS107)
+    });
     return NextResponse.json(projects);
   } catch (err) {
     console.error("GET /api/admin/board/projects error:", err);

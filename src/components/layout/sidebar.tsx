@@ -28,6 +28,7 @@ import {
   Calculator,
   Megaphone,
   Contact,
+  KanbanSquare,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 import { useCompany } from "@/context/company-context";
@@ -98,6 +99,7 @@ const adminNavGroups = [
   {
     label: "Admin Tools",
     items: [
+      { label: "Team Board", href: "/admin/board", icon: KanbanSquare },
       { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
       { label: "Service Providers", href: "/admin/providers", icon: Wrench },
       { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
