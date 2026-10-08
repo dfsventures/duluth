@@ -6643,6 +6643,8 @@ Swap the import on line 3 from `requireAuth` to `requireCompanyAccess` (from `@/
 
 ## WS56 — Apply `escapeHtml` to the remaining email templates (F49) — ~0.5 day
 
+> **Corrections before build (2026-10-08).** (1) **Line numbers in F49/WS56 are stale** — `src/lib/email.ts` has shifted since Part 25 was written (e.g. the DD invite email gained a document list and a new boolean param in `6a0cba4`). Locate each function by name, not line. (2) **Missing function:** `sendDiligenceCompletedFounderEmail` also interpolates `founderName` (first-name split) and `companyName` raw into the body — escape both, same as the others. (3) `sendDiligenceInviteEmail` names `companyName` in **two** body places (intro paragraph and account paragraph) — escape both, leave the subject raw.
+
 **Goal:** wrap every plain-text, user-controlled value interpolated into an email HTML body in the existing `escapeHtml` (`src/lib/email.ts:46`), matching what WS54 already did for `sendLpReportPublishedEmail`. No new dependency, no new helper — the function is right there.
 
 **File:** `src/lib/email.ts` only.
@@ -6697,7 +6699,7 @@ if (!(await checkRateLimit("member-invite", user.id, 20))) {
 ```
 Pick the cap to sit comfortably above any real team-building session (20/hr/inviter suggested; confirm with Joseph — see decision note). Optionally apply the same guard to the admin DD-invite branch in `POST /api/companies` keyed on the admin's id.
 
-**Decision for Joseph (product):** the limit value. Recommendation: **20/hour/inviter** — well past a realistic onboarding burst, tight enough to blunt scripted abuse. Cheaply reversible (one integer). Not choosing silently since it's a UX-facing threshold.
+**Decision for Joseph (product):** ✅ **CONFIRMED 2026-10-08 — 20/hour/inviter.** Original recommendation: **20/hour/inviter** — well past a realistic onboarding burst, tight enough to blunt scripted abuse. Cheaply reversible (one integer). Not choosing silently since it's a UX-facing threshold.
 
 **Acceptance checklist:**
 - [ ] 21st invite within an hour from the same inviter returns 429.

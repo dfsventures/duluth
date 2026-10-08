@@ -126,7 +126,7 @@ function fieldRow(label: string, value: string): string {
   return `<tr>
     <td style="padding: 12px 16px; background: ${C.paper}; border: 1px solid ${C.bone};">
       <p style="margin: 0 0 3px; font-family: ${FONT_MONO}; font-size: 10px; color: ${C.muted}; text-transform: uppercase; letter-spacing: 0.06em;">${label}</p>
-      <p style="margin: 0; font-size: 15px; font-weight: 600; color: ${C.obsidian};">${value}</p>
+      <p style="margin: 0; font-size: 15px; font-weight: 600; color: ${C.obsidian};">${escapeHtml(value)}</p>
     </td>
   </tr>
   <tr><td style="height: 8px;"></td></tr>`;
@@ -209,9 +209,9 @@ export async function sendUpdatePublishedEmail(opts: {
             ${opts.metrics
               .map(
                 (m, i) => `<tr style="background: ${i % 2 === 0 ? C.white : C.paper};">
-                <td style="padding: 10px 16px; font-size: 14px; color: ${C.tide}; border-bottom: 1px solid ${C.bone};">${m.name}</td>
+                <td style="padding: 10px 16px; font-size: 14px; color: ${C.tide}; border-bottom: 1px solid ${C.bone};">${escapeHtml(m.name)}</td>
                 <td style="padding: 10px 16px; font-family: ${FONT_MONO}; font-size: 14px; font-weight: 600; color: ${C.obsidian}; text-align: right; border-bottom: 1px solid ${C.bone};">
-                  ${Number(m.value).toLocaleString()}${m.unit ? `<span style="font-family: ${FONT_BODY}; font-weight: 400; color: ${C.muted}; font-size: 12px;"> ${m.unit}</span>` : ""}
+                  ${Number(m.value).toLocaleString()}${m.unit ? `<span style="font-family: ${FONT_BODY}; font-weight: 400; color: ${C.muted}; font-size: 12px;"> ${escapeHtml(m.unit)}</span>` : ""}
                 </td>
               </tr>`
               )
@@ -227,8 +227,8 @@ export async function sendUpdatePublishedEmail(opts: {
     subject: `[${opts.companyName}] ${opts.title} — ${opts.period}`,
     html: emailWrapper(`
       ${eyebrow("Portfolio Update")}
-      ${heading(opts.companyName)}
-      <p style="margin: 0 0 20px; font-size: 14px; color: ${C.muted};">${opts.title} &middot; ${opts.period}</p>
+      ${heading(escapeHtml(opts.companyName))}
+      <p style="margin: 0 0 20px; font-size: 14px; color: ${C.muted};">${escapeHtml(opts.title)} &middot; ${escapeHtml(opts.period)}</p>
 
       ${metricsSection}
 
@@ -283,13 +283,13 @@ export async function sendUpdateReminderEmail(opts: {
     html: emailWrapper(`
       ${eyebrow("Reminder")}
       ${heading("Time for an update")}
-      <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${opts.founderName.split(" ")[0]}` : ""},</p>
-      <p style="margin: 0 0 24px;">It's been <strong>${opts.daysSinceLastUpdate} day${opts.daysSinceLastUpdate === 1 ? "" : "s"}</strong> since your last <strong>${opts.companyName}</strong> update, and we'd love to hear how things are going. A few honest lines &mdash; wins, blockers, numbers &mdash; is plenty. It genuinely helps us help you.</p>
+      <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${escapeHtml(opts.founderName.split(" ")[0])}` : ""},</p>
+      <p style="margin: 0 0 24px;">It's been <strong>${opts.daysSinceLastUpdate} day${opts.daysSinceLastUpdate === 1 ? "" : "s"}</strong> since your last <strong>${escapeHtml(opts.companyName)}</strong> update, and we'd love to hear how things are going. A few honest lines &mdash; wins, blockers, numbers &mdash; is plenty. It genuinely helps us help you.</p>
 
       ${primaryButton(dashboardLink, "Submit an Update →")}
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        You're receiving this because ${ORG_NAME} has configured update reminders for ${opts.companyName}. Reply to this email if you have any questions.
+        You're receiving this because ${ORG_NAME} has configured update reminders for ${escapeHtml(opts.companyName)}. Reply to this email if you have any questions.
       </p>
     `),
   });
@@ -312,7 +312,7 @@ export async function sendTeamInviteEmail(opts: {
     html: emailWrapper(`
       ${eyebrow("Team Invite")}
       ${heading("Come join your team")}
-      <p style="margin: 0 0 24px;">${opts.inviterName ?? "A teammate"} invited you to join <strong>${opts.companyName}</strong> on Molly &mdash; the platform the team uses to share updates and stay close to ${ORG_NAME}. Set up your account and you're in.</p>
+      <p style="margin: 0 0 24px;">${escapeHtml(opts.inviterName ?? "A teammate")} invited you to join <strong>${escapeHtml(opts.companyName)}</strong> on Molly &mdash; the platform the team uses to share updates and stay close to ${ORG_NAME}. Set up your account and you're in.</p>
 
       <p>${primaryButton(link, "Set Up Your Account →")}</p>
 
@@ -343,7 +343,7 @@ export async function sendDiligenceInviteEmail(opts: {
     html: emailWrapper(`
       ${eyebrow("Due Diligence")}
       ${heading("We're moving forward")}
-      <p style="margin: 0 0 16px;">Good news — we'd like to move ahead with an investment in <strong>${opts.companyName}</strong>. The next step is diligence. Here's what we'll ask for:</p>
+      <p style="margin: 0 0 16px;">Good news — we'd like to move ahead with an investment in <strong>${escapeHtml(opts.companyName)}</strong>. The next step is diligence. Here's what we'll ask for:</p>
 
       ${subheading("Documents")}
       <ul style="margin: 0 0 16px; padding-left: 20px;">
@@ -356,7 +356,7 @@ export async function sendDiligenceInviteEmail(opts: {
       <p style="margin: 0 0 ${opts.isStellarEcosystem ? "8px" : "16px"};"><strong>Plus</strong> one quick question about where the company is incorporated.</p>
       ${opts.isStellarEcosystem ? `<p style="margin: 0 0 16px;"><strong>Plus</strong> two short written answers about why you're building on Stellar and your timeline.</p>` : ""}
 
-      <p style="margin: 0 0 24px;">We've set up ${opts.companyName}'s account on Molly &mdash; the same platform you'll use to share updates with us for as long as we're working together. Set a password and you can get started right away.</p>
+      <p style="margin: 0 0 24px;">We've set up ${escapeHtml(opts.companyName)}'s account on Molly &mdash; the same platform you'll use to share updates with us for as long as we're working together. Set a password and you can get started right away.</p>
 
       <p>${primaryButton(link, "Get Started →")}</p>
 
@@ -389,8 +389,8 @@ export async function sendDiligenceCompletedFounderEmail(opts: {
     html: emailWrapper(`
       ${eyebrow("Due Diligence")}
       ${heading("All done!")}
-      <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${opts.founderName.split(" ")[0]}` : ""},</p>
-      <p style="margin: 0 0 24px;">We are reviewing your documents and will be in touch soon. Thanks for getting everything in for <strong>${opts.companyName}</strong> &mdash; your documents and questionnaire are both complete.</p>
+      <p style="margin: 0 0 16px;">Hi${opts.founderName ? ` ${escapeHtml(opts.founderName.split(" ")[0])}` : ""},</p>
+      <p style="margin: 0 0 24px;">We are reviewing your documents and will be in touch soon. Thanks for getting everything in for <strong>${escapeHtml(opts.companyName)}</strong> &mdash; your documents and questionnaire are both complete.</p>
 
       <p>${primaryButton(link, "Review Your Submission →")}</p>
 
@@ -419,7 +419,7 @@ export async function sendDiligenceCompletedAdminNotification(opts: {
     html: emailWrapper(`
       ${eyebrow("Due Diligence")}
       ${heading("Ready for review")}
-      <p style="margin: 0 0 24px;">${opts.founderName || opts.founderEmail} has finished ${opts.companyName}'s diligence checklist &mdash; documents and questionnaire are both in.</p>
+      <p style="margin: 0 0 24px;">${escapeHtml(opts.founderName || opts.founderEmail)} has finished ${escapeHtml(opts.companyName)}'s diligence checklist &mdash; documents and questionnaire are both in.</p>
 
       <table cellpadding="0" cellspacing="0" style="margin: 0 0 24px; width: 100%;">
         ${fieldRow("Company", opts.companyName)}
@@ -448,7 +448,7 @@ export async function sendMemberAddedEmail(opts: {
     html: emailWrapper(`
       ${eyebrow("Team Invite")}
       ${heading("You're on the team")}
-      <p style="margin: 0 0 24px;">${opts.inviterName ?? "A teammate"} added you to <strong>${opts.companyName}</strong> on Molly. One quick step &mdash; set up your access &mdash; and everything's ready for you.</p>
+      <p style="margin: 0 0 24px;">${escapeHtml(opts.inviterName ?? "A teammate")} added you to <strong>${escapeHtml(opts.companyName)}</strong> on Molly. One quick step &mdash; set up your access &mdash; and everything's ready for you.</p>
 
       <p>${primaryButton(link, "Set Up Access →")}</p>
 
@@ -542,17 +542,17 @@ export async function sendCommentNotificationEmail(opts: {
     subject: `New comment on ${opts.companyName}: ${opts.updateTitle}`,
     html: emailWrapper(`
       ${eyebrow("New Comment")}
-      ${heading(`Hi${opts.toName ? ` ${opts.toName.split(" ")[0]}` : ""}, you have a reply`)}
-      <p style="margin: 0 0 24px;"><strong>${opts.commenterName ?? "Someone"}</strong> left a comment on <strong>${opts.updateTitle}</strong> (${opts.updatePeriod}) for <strong>${opts.companyName}</strong>:</p>
+      ${heading(`Hi${opts.toName ? ` ${escapeHtml(opts.toName.split(" ")[0])}` : ""}, you have a reply`)}
+      <p style="margin: 0 0 24px;"><strong>${escapeHtml(opts.commenterName ?? "Someone")}</strong> left a comment on <strong>${escapeHtml(opts.updateTitle)}</strong> (${escapeHtml(opts.updatePeriod)}) for <strong>${escapeHtml(opts.companyName)}</strong>:</p>
 
       <div style="border-left: 3px solid ${C.sky}; background: ${C.paper}; padding: 14px 18px; margin: 0 0 28px;">
-        <p style="margin: 0; font-size: 14px; line-height: 1.65; color: ${C.tide};">${snippet}</p>
+        <p style="margin: 0; font-size: 14px; line-height: 1.65; color: ${C.tide};">${escapeHtml(snippet)}</p>
       </div>
 
       ${primaryButton(opts.ctaLink, opts.ctaLabel)}
 
       <p style="margin: 24px 0 0; font-size: 13px; color: ${C.muted};">
-        You're receiving this because you're a member of <strong>${opts.companyName}</strong> on Molly.
+        You're receiving this because you're a member of <strong>${escapeHtml(opts.companyName)}</strong> on Molly.
       </p>
     `),
   });
