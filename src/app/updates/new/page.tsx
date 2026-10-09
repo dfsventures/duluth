@@ -253,7 +253,7 @@ export default function NewUpdatePage() {
       {/* Publish confirm — slim banner under the top bar */}
       {confirmPublish && (
         <div className="mb-6 flex flex-wrap items-center justify-end gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
-          <span className="text-sm text-ochre">Publish and notify the {ORG_NAME} team?</span>
+          <span className="text-sm text-foreground">Publish and notify the {ORG_NAME} team?</span>
           <Button variant="secondary" size="sm" disabled={submitting} onClick={() => setConfirmPublish(false)}>
             Cancel
           </Button>
@@ -301,7 +301,7 @@ export default function NewUpdatePage() {
                 if (e.target.value) applyTemplate(e.target.value);
                 e.target.value = "";
               }}
-              className="w-full max-w-xs border-0 bg-transparent p-0 text-sm text-muted-foreground focus:outline-none focus:ring-0"
+              className="w-auto max-w-xs border-0 bg-transparent p-0 text-sm text-muted-foreground focus:outline-none focus:ring-0"
             >
               <option value="">Start from a template</option>
               {templates.map((t) => (

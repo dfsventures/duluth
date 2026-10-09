@@ -33,7 +33,11 @@ export function BoardColumn({ status, count, droppable, isDropTarget, onDragOver
         )}
       >
         {children}
-        {count === 0 && <p className="px-1 py-2 text-xs text-muted-foreground">Nothing here.</p>}
+        {count === 0 && (
+          <p className="py-6 text-center font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+            {isDropTarget ? "Drop here" : "Empty"}
+          </p>
+        )}
       </div>
     </div>
   );

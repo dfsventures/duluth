@@ -17,7 +17,10 @@ interface Props {
   projects: BoardProjectData[];
   defaultOwnerId?: string | null;
   onClose: () => void;
-  onSaved: () => void;
+  /** Receives the saved card (when the API returned one) so the board can update instantly. */
+  onSaved: (card?: BoardCardData) => void;
+  /** PATCH persisted but the follow-up status move failed. */
+  onPartialFailure?: (message: string) => void;
 }
 
 async function readError(res: Response, fallback: string) {
@@ -26,7 +29,7 @@ async function readError(res: Response, fallback: string) {
 }
 
 // Notes are plain text: a <textarea> value, never rendered as HTML.
-export function CardDialog({ card, people, projects, defaultOwnerId, onClose, onSaved }: Props) {
+export function CardDialog({ card, people, projects, defaultOwnerId, onClose, onSaved, onPartialFailure }: Props) {
   const [title, setTitle] = useState(card?.title ?? "");
   const [notes, setNotes] = useState(card?.notes ?? "");
   const [ownerId, setOwnerId] = useState(card?.ownerId ?? defaultOwnerId ?? "");
@@ -43,6 +46,7 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
     }
     setBusy(true);
     setError("");
+    let result: BoardCardData | undefined;
     try {
       if (!card) {
         const res = await fetch("/api/admin/board/cards", {
@@ -58,6 +62,7 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
           }),
         });
         if (!res.ok) throw new Error(await readError(res, "Failed to create the item."));
+        result = await res.json().catch(() => undefined);
       } else {
         const res = await fetch(`/api/admin/board/cards/${card.id}`, {
           method: "PATCH",
@@ -71,16 +76,24 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
           }),
         });
         if (!res.ok) throw new Error(await readError(res, "Failed to save the item."));
+        const saved: BoardCardData | undefined = await res.json().catch(() => undefined);
+        result = saved;
         if (status !== card.status) {
           const mv = await fetch(`/api/admin/board/cards/${card.id}/move`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ status }),
           });
-          if (!mv.ok) throw new Error(await readError(mv, "Saved, but moving the item failed."));
+          if (!mv.ok) {
+            // The edit persisted: refresh the board with it, close, and surface the move failure there.
+            onPartialFailure?.(`Saved, but moving the item failed: ${await readError(mv, "please try again")}`);
+            onSaved(saved);
+            return;
+          }
+          result = saved ? { ...saved, status } : saved;
         }
       }
-      onSaved();
+      onSaved(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -99,7 +112,8 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
         body: JSON.stringify({ archived: true }),
       });
       if (!res.ok) throw new Error(await readError(res, "Failed to archive."));
-      onSaved();
+      const archived: BoardCardData | undefined = await res.json().catch(() => undefined);
+      onSaved(archived);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {

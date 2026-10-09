@@ -197,7 +197,12 @@ export function IntakePanel({ onBoardChanged }: { onBoardChanged: () => void }) 
                     <span className="text-xs text-muted-foreground">
                       {[i.owner, i.project].filter(Boolean).join(" · ")}
                     </span>
-                    {i.needsReview && <span className="text-xs text-ochre">needs review</span>}
+                    {i.needsReview && (
+                      <span className="inline-flex items-center gap-1 text-xs text-foreground">
+                        <span className="h-1.5 w-1.5 rounded-full bg-ochre" aria-hidden />
+                        needs review
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>

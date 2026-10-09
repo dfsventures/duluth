@@ -12,13 +12,15 @@ interface Props {
   people: BoardPersonData[];
   projects: BoardProjectData[];
   onClose: () => void;
+  /** Fires as soon as the server confirms, before the "Resolved." screen is dismissed. */
+  onApplied?: (card: BoardCardData | null) => void;
   onResolved: () => void;
 }
 
 const NEW = "__new__";
 
 // Route contract (WS106): POST …/cards/[id]/resolve -> { card, fixed }.
-export function ResolveDialog({ card, people, projects, onClose, onResolved }: Props) {
+export function ResolveDialog({ card, people, projects, onClose, onApplied, onResolved }: Props) {
   const [ownerChoice, setOwnerChoice] = useState("");
   const [projectChoice, setProjectChoice] = useState("");
   const [remember, setRemember] = useState(true);
@@ -50,6 +52,7 @@ export function ResolveDialog({ card, people, projects, onClose, onResolved }: P
       });
       const d = await res.json().catch(() => null);
       if (!res.ok) throw new Error(d?.error ?? "Failed to resolve.");
+      onApplied?.((d?.card as BoardCardData | undefined) ?? null);
       setFixed(typeof d?.fixed === "number" ? d.fixed : 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");

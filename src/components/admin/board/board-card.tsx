@@ -63,8 +63,8 @@ export function BoardCard({
         dropIndicator === "below" && "border-b-2 border-b-foreground"
       )}
     >
-      <div className="flex flex-wrap items-start gap-2">
-        <div className="min-w-48 flex-1">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
           <button
             type="button"
             onClick={onOpen}
@@ -84,17 +84,17 @@ export function BoardCard({
             onClick={onResolve}
             title={heard.length ? `Heard as ${heard.join(", ")}` : "Needs review"}
             aria-label="Needs review: resolve names"
-            className="shrink-0 text-ochre hover:text-foreground"
+            className="-m-1 shrink-0 rounded-sm p-1 text-ochre hover:bg-ochre/10"
           >
             <AlertCircle className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-muted-foreground">
-        <span>{ownerLabel ?? "Unassigned"}</span>
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 font-mono text-xs text-muted-foreground">
+        <span className="text-foreground">{ownerLabel ?? "Unassigned"}</span>
         {projectName && (
-          <span className="border border-border px-1.5 py-0.5 rounded-sm">{projectName}</span>
+          <span className="rounded-sm border border-border px-1.5 py-0.5">{projectName}</span>
         )}
         {card.dueDate && (
           <span className={cn(overdue && "text-laterite")}>
@@ -111,7 +111,7 @@ export function BoardCard({
           onChange={(e) => {
             if (e.target.value) onMoveTo(e.target.value as BoardStatus);
           }}
-          className="h-7 min-w-0 flex-1 rounded-sm border border-input bg-card px-2 text-xs text-foreground"
+          className="h-10 min-w-0 flex-1 rounded-sm border border-input bg-card pl-2 text-xs md:h-8 text-foreground"
         >
           <option value="">Move to…</option>
           {BOARD_STATUSES.filter((s) => s !== card.status).map((s) => (
@@ -126,7 +126,7 @@ export function BoardCard({
             aria-label={`Move "${card.title}" up`}
             disabled={isFirst}
             onClick={() => onNudge("up")}
-            className="flex h-7 w-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:bg-muted disabled:opacity-30"
+            className="flex h-10 w-10 items-center justify-center rounded-sm border border-border text-muted-foreground hover:bg-muted disabled:opacity-30 md:h-8 md:w-8"
           >
             <ArrowUp className="h-3.5 w-3.5" />
           </button>
@@ -135,7 +135,7 @@ export function BoardCard({
             aria-label={`Move "${card.title}" down`}
             disabled={isLast}
             onClick={() => onNudge("down")}
-            className="flex h-7 w-7 items-center justify-center rounded-sm border border-border text-muted-foreground hover:bg-muted disabled:opacity-30"
+            className="flex h-10 w-10 items-center justify-center rounded-sm border border-border text-muted-foreground hover:bg-muted disabled:opacity-30 md:h-8 md:w-8"
           >
             <ArrowDown className="h-3.5 w-3.5" />
           </button>
@@ -143,8 +143,12 @@ export function BoardCard({
       </div>
 
       {movedBy && (
-        <p className="mt-2 font-mono text-[10px] text-muted-foreground">
-          moved by {movedBy} · {timeAgo(card.updatedAt)}
+        <p
+          className="mt-2 flex min-w-0 gap-1 font-mono text-[11px] text-muted-foreground"
+          title={`Moved by ${movedBy}, ${timeAgo(card.updatedAt)}`}
+        >
+          <span className="truncate">moved by {movedBy}</span>
+          <span className="shrink-0">· {timeAgo(card.updatedAt)}</span>
         </p>
       )}
     </div>

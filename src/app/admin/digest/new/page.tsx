@@ -7,6 +7,7 @@ import { ArrowLeft, Sparkles, Loader2, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { plainToDigestHtml } from "@/lib/digest-html";
 
 interface DigestSection {
@@ -286,17 +287,16 @@ export default function NewDigestPage() {
               <label className="label block">This Week&apos;s Todos</label>
 
               {todos.length > 0 && (
-                <ul className="space-y-2">
+                <ul className="space-y-3">
                   {todos.map((todo, i) => (
-                    <li key={i} className="space-y-1.5 border-b border-border pb-2 last:border-0">
+                    <li key={i} className="space-y-1.5 border-b border-border pb-3 last:border-0">
                       <div className="flex items-center gap-2">
-                        {unresolved(todo) && (
-                          <span
-                            className="h-2 w-2 shrink-0 rounded-full bg-ochre"
-                            title="Needs review"
-                            aria-label="Needs review"
-                          />
-                        )}
+                        <span
+                          className={cn("h-2 w-2 shrink-0 rounded-full", unresolved(todo) ? "bg-ochre" : "bg-transparent")}
+                          title={unresolved(todo) ? "Needs review" : undefined}
+                          aria-label={unresolved(todo) ? "Needs review" : undefined}
+                          aria-hidden={!unresolved(todo)}
+                        />
                         <input
                           className="input-field flex-1 text-sm"
                           value={todo.text}
@@ -310,10 +310,10 @@ export default function NewDigestPage() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-4">
+                      <div className="flex flex-wrap items-center gap-2 pl-4">
                         <select
                           aria-label="Owner"
-                          className="input-field w-full text-xs sm:w-auto sm:min-w-40"
+                          className="input-field h-9 w-full text-xs sm:w-44"
                           value={todo.ownerId ?? ""}
                           onChange={(e) => patchTodo(i, { ownerId: e.target.value || null, ownerRaw: null })}
                         >
@@ -324,7 +324,7 @@ export default function NewDigestPage() {
                         </select>
                         <select
                           aria-label="Project"
-                          className="input-field w-full text-xs sm:w-auto sm:min-w-40"
+                          className="input-field h-9 w-full text-xs sm:w-44"
                           value={todo.projectId ?? ""}
                           onChange={(e) => patchTodo(i, { projectId: e.target.value || null, projectRaw: null })}
                         >
@@ -333,14 +333,16 @@ export default function NewDigestPage() {
                             <option key={p.id} value={p.id}>{p.label}</option>
                           ))}
                         </select>
-                        {todo.heardOwner && (
-                          <span className="text-xs text-muted-foreground">heard as &lsquo;{todo.heardOwner}&rsquo;</span>
-                        )}
-                        {todo.heardProject && (
-                          <span className="text-xs text-muted-foreground">project heard as &lsquo;{todo.heardProject}&rsquo;</span>
-                        )}
-                        {todo.existingCardId && (
-                          <span className="text-xs text-muted-foreground">already on the board</span>
+                        {(todo.heardOwner || todo.heardProject || todo.existingCardId) && (
+                          <p className="basis-full text-xs leading-5 text-muted-foreground">
+                            {todo.heardOwner && (
+                              <>Owner heard as <span className="font-mono">&lsquo;{todo.heardOwner}&rsquo;</span>. </>
+                            )}
+                            {todo.heardProject && (
+                              <>Project heard as <span className="font-mono">&lsquo;{todo.heardProject}&rsquo;</span>. </>
+                            )}
+                            {todo.existingCardId && <>Already on the board.</>}
+                          </p>
                         )}
                       </div>
                     </li>
@@ -354,7 +356,7 @@ export default function NewDigestPage() {
                 </p>
               )}
 
-              <div className="flex gap-2">
+              <div className="flex gap-2 pl-4">
                 <input
                   className="input-field flex-1 text-sm"
                   placeholder="Add a todo…"
