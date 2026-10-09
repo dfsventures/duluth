@@ -172,6 +172,8 @@ Priorities run P0 (do first) through P3 (later).
 >
 > **Update 2026-10-09 (WS110):** Granola intake has been tested live end to end. The Preview box was removed (`3615ade`). WS110 shipped (`34277e2`): `/api/webhooks/granola` verifies Standard Webhooks signatures and acknowledges fast, then processes in the background through the same exactly-once intake. It stays inactive (404) until `GRANOLA_WEBHOOK_SECRET` is set. Granola generates that secret once, at endpoint creation. That completes Part 37's build.
 >
+> **Security fix, 2026-10-09:** production had an approved admin account created by the dev bootstrap route, whose password was hardcoded in this public repo. Password sign-in now refuses every admin account (admins are Google-only), the bootstrap route was removed and `/api/dev` is no longer public (`c4534ac`). The account was deleted from production. Also shipped: Team Board People & projects can delete plain people and projects, explain how admins appear, and no longer have the digest import (`bfd3c07`).
+>
 > **Team Board with automatic Granola intake — Part 37, WS104–WS111, F104–F114 in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), scoped 2026-10-08. PLANNED, not built.**
 >
 > **What it adds:**
