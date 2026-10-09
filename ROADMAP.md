@@ -166,6 +166,8 @@ Priorities run P0 (do first) through P3 (later).
 >
 > **Update 2026-10-08 (WS108):** WS108 shipped (`0213a16`): pasted notes go through one shared, zod-validated extraction step (`src/lib/digest-extraction.ts`) that matches owners and projects against the board; the composer gets owner/project selects; saving a digest creates or links board cards; every open card carries into the digest until it is sent; ticking a digest item moves its card. Digest assignees now come from the board owner's linked user (F108). 579/579 tests. Next is WS111 (Slack), then WS109 and WS110 (Granola).
 >
+> **Update 2026-10-09:** WS111 shipped (`b0d9f3b`): Slack post of each sent digest's open items, an Integrations section on `/admin/settings`, and the draft-ready email. WS109 shipped (`7e779d3`): Granola client, exactly-once intake into draft digests and board cards, a daily sweep cron, and an Intake tab on `/admin/board` (shown only when `GRANOLA_API_KEY` and `GRANOLA_FOLDER_ID` are set). Not yet run against the live Granola API. Keep the Granola folder flat: notes in nested subfolders are skipped. Next is WS110 (Granola webhook).
+>
 > **Team Board with automatic Granola intake — Part 37, WS104–WS111, F104–F114 in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), scoped 2026-10-08. PLANNED, not built.**
 >
 > **What it adds:**
