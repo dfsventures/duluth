@@ -54,6 +54,7 @@ export default function DigestDetailPage() {
   const [editWeekOf, setEditWeekOf] = useState("");
   const [editSections, setEditSections] = useState<DigestSection[]>([]);
   const [editTodos, setEditTodos] = useState<{ id?: string; text: string; linked?: boolean }[]>([]);
+  const [slackStatus, setSlackStatus] = useState<string | null>(null);
   const [reviewCardIds, setReviewCardIds] = useState<Set<string>>(new Set());
   const [newTodo, setNewTodo] = useState("");
   const [saving, setSaving] = useState(false);
@@ -147,6 +148,7 @@ export default function DigestDetailPage() {
   async function handleSend() {
     setSending(true);
     setSendError(null);
+    setSlackStatus(null);
     try {
       const res = await fetch(`/api/admin/digest/${id}/send`, { method: "POST" });
       if (!res.ok) {
@@ -155,6 +157,8 @@ export default function DigestDetailPage() {
       }
       const data = await res.json();
       setDigest((d) => (d ? { ...d, sentAt: data.sentAt } : d));
+      if (data.slack === "posted") setSlackStatus("Posted to Slack.");
+      else if (data.slack === "failed") setSlackStatus("Slack post failed. Resend will retry it.");
     } catch (err) {
       setSendError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -317,6 +321,10 @@ export default function DigestDetailPage() {
             Open the board
           </Link>
         </p>
+      )}
+
+      {slackStatus && (
+        <p className="mb-4 text-xs text-muted-foreground">{slackStatus}</p>
       )}
 
       {(sendError || saveError) && (

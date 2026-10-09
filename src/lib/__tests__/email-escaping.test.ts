@@ -23,6 +23,7 @@ import {
   sendDiligenceCompletedAdminNotification,
   sendCommentNotificationEmail,
   sendWeeklyDigestEmail,
+  sendDigestDraftReadyEmail,
 } from "@/lib/email";
 
 const NAME = 'Q1 & <SPV> "Special"';
@@ -162,5 +163,20 @@ describe("WS56 email body escaping", () => {
     const { html } = sent();
     expect(html).not.toContain('<a href="https://evil.example">');
     expect(html).toContain("Acme &lt;a href=&quot;https://evil.example&quot;&gt;x&lt;/a&gt;");
+  });
+
+  it("Part 37 WS111: sendDigestDraftReadyEmail escapes meetingTitle and digestUrl; subject raw", async () => {
+    await sendDigestDraftReadyEmail({
+      toEmail: "x@y.com",
+      meetingTitle: EVIL,
+      needsReviewCount: 2,
+      digestUrl: 'https://molly.test/admin/digest/1?a="><script>',
+    });
+    const { html, subject } = sent();
+    expect(html).not.toContain('<a href="https://evil.example">');
+    expect(html).toContain("Acme &lt;a href=&quot;https://evil.example&quot;&gt;x&lt;/a&gt;");
+    expect(html).not.toContain('"><script>');
+    expect(html).toContain("2 items need your review");
+    expect(subject).toBe(`Draft digest ready: ${EVIL}`);
   });
 });

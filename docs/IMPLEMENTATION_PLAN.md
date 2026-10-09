@@ -11478,6 +11478,15 @@ The zod schema covers `{ title, sections[6]{id,heading,content}, items[]{title,o
 
 ---
 
+**As shipped, WS108 differs from the plan in four ways (recorded 2026-10-09 with WS111):**
+
+1. Removing a board-linked todo from a draft digest does not stick. Send rebuilds the digest's membership from the board, so the todo comes back. Joseph decided on 2026-10-09 to **accept** this (option a): the digest mirrors the board, and the way to leave an item out is to close or archive its card. No schema change.
+2. The composer never saves aliases. Only the board's resolve dialog does, which matches Q100 (only human admin resolutions become aliases).
+3. The extraction prompt includes at most 150 open cards.
+4. WS107 added `aliases` to the responses of `GET` people and projects.
+
+---
+
 ## WS109 — Granola client, intake runner (exactly-once), daily sweep, manual check and preview, ~1.0 day (blocked by Q92)
 
 **Env vars** (all optional; nothing runs unless set):

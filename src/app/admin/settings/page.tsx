@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Mail, Bell, BookOpen, HardDrive } from "lucide-react";
+import { Mail, Bell, BookOpen, HardDrive, Plug } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AppShell } from "@/components/layout/app-shell";
@@ -8,7 +8,16 @@ import { EmailSettingsPanel } from "./email-settings-panel";
 import { DigestRecipientsPanel } from "./digest-recipients-panel";
 import { StorageSettingsPanel } from "./storage-settings-panel";
 import { OrphanedDocumentsPanel } from "./orphaned-documents-panel";
-import { FROM as emailFrom } from "@/lib/email";
+import { FROM as emailFrom, BASE_URL } from "@/lib/email";
+import { SlackTestPanel } from "./slack-test-panel";
+
+function Status({ on }: { on: boolean }) {
+  return on ? (
+    <span className="text-acacia font-medium">Configured</span>
+  ) : (
+    <span className="text-ochre font-medium">Not set</span>
+  );
+}
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -27,6 +36,13 @@ export default async function SettingsPage() {
   const uploadFailureCount = await db.auditLog.count({
     where: { action: "DOCUMENT_UPLOAD_FAILED", createdAt: { gte: sevenDaysAgo } },
   });
+
+  // Part 37, WS111.3 — env-var presence only; values are never rendered.
+  const lastIntake = await db.granolaIntake.findFirst({
+    orderBy: { createdAt: "desc" },
+    select: { status: true, createdAt: true },
+  });
+  const slackConfigured = !!process.env.SLACK_DIGEST_WEBHOOK_URL;
 
   return (
     <AppShell>
@@ -59,6 +75,10 @@ export default async function SettingsPage() {
             <li>
               <span className="font-medium text-foreground">Update published</span>
               {" "}— to <span className="font-mono text-foreground">{teamEmail}</span> when a founder publishes an update (includes metrics + full body)
+            </li>
+            <li>
+              <span className="font-medium text-foreground">Draft digest ready</span>
+              {" "}— to the admin who recorded a call when Molly drafts a weekly digest from it (not sent to anyone else)
             </li>
             <li>
               <span className="font-medium text-foreground">Update reminder</span>
@@ -116,6 +136,46 @@ export default async function SettingsPage() {
           </p>
         </div>
       </section>
+      <section className="mt-6 rounded-xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
+            <Plug className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Integrations</h2>
+            <p className="text-xs text-muted-foreground">Optional. Each one does nothing until its environment variables are set.</p>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground space-y-1.5">
+          <p className="font-medium text-foreground">Granola (call intake)</p>
+          <p><span className="font-mono text-foreground">GRANOLA_API_KEY</span> — <Status on={!!process.env.GRANOLA_API_KEY} /></p>
+          <p><span className="font-mono text-foreground">GRANOLA_FOLDER_ID</span> — <Status on={!!process.env.GRANOLA_FOLDER_ID} /></p>
+          <p><span className="font-mono text-foreground">GRANOLA_WEBHOOK_SECRET</span> — <Status on={!!process.env.GRANOLA_WEBHOOK_SECRET} /></p>
+          <p>
+            Webhook URL to register (used once intake is built, WS110):{" "}
+            <span className="select-all break-all font-mono text-foreground">{`${BASE_URL}/api/webhooks/granola`}</span>
+          </p>
+          <p>
+            Last intake:{" "}
+            {lastIntake ? (
+              <span className="text-foreground">
+                {lastIntake.status}, {lastIntake.createdAt.toISOString().replace("T", " ").slice(0, 16)} UTC
+              </span>
+            ) : (
+              <span className="text-foreground">None yet</span>
+            )}
+          </p>
+        </div>
+
+        <div className="mt-4 rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground space-y-1.5">
+          <p className="font-medium text-foreground">Slack (digest post)</p>
+          <p><span className="font-mono text-foreground">SLACK_DIGEST_WEBHOOK_URL</span> — <Status on={slackConfigured} /></p>
+          <p>When set, sending a digest also posts its open items to one channel (once per digest).</p>
+        </div>
+        <SlackTestPanel configured={slackConfigured} />
+      </section>
+
       <section className="mt-6 rounded-xl border border-border bg-card p-6">
         <div className="mb-5 flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">

@@ -46,6 +46,14 @@ Molly is open source (MIT) with the explicit goal that other investment teams ca
 
 ## Existing Features
 
+### Team Board & Integrations (Part 37, added 2026-10-09)
+- **Team Board** (`/admin/board`, admin-only) — kanban with To do, In progress, Blocked and Done columns; cards have owners (admins or plain-name people), projects, due dates and notes; drag or Move-to; a People & projects tab with aliases; a resolve dialog for unmatched names; one-time import of the latest digest's open todos (WS105-WS107).
+- **Digest and board share one extraction path** (WS108) — pasted notes are matched against the board's owners and projects; saving a digest creates or links cards; every open card carries into the digest until it is sent; ticking a digest item moves its card. Digest assignees come from the board.
+- **Slack digest post** (WS111, optional, off unless `SLACK_DIGEST_WEBHOOK_URL` is set) — sending a digest also posts its open items, grouped by owner, to one channel, at most once per digest (`slackPostedAt`); Resend re-emails but does not re-post. A failed post never blocks email and is retried on the next send.
+- **Integrations panel** on `/admin/settings` — Configured / Not set status for the Granola and Slack variables, the Granola webhook URL, last intake, and a "Send test post" button for Slack.
+- **"Draft digest ready" email** (`sendDigestDraftReadyEmail`) — built and tested, to be sent to the recording admin by Granola intake (WS109, not built yet).
+- **Supersedes the F108 annotation** on the Weekly Digest bullet below: digest assignees are now set, from the board owner's linked user (shipped in WS108). The older annotation is left in place as history.
+
 ### Authentication & Access
 - **Public homepage** (`/`) — founder-focused hero ("One place to keep your investors in the loop.") with a single primary CTA (Apply for Access); nav bar collapses to a single "Log in" link → `/login` (which already serves both founders and admins); footer carries a muted "Investor access" link → `/investors` (shipped 2026-07-03 — investors never log in, so an audience-split nav overpromised); a vertically-stacked `01./02./03.` "how it works" section replaces the old icon grid; authenticated users auto-redirect to their dashboard
 - Email/password login + Google OAuth (admins restricted to a single email domain, configurable via `NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN`, defaults to `dfs.vc` — see Fork Configuration below)

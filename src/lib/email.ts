@@ -10,7 +10,7 @@ export const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <hello@dfs
 // rather than the product name — same mailbox, different display name.
 const BROADCAST_FROM = process.env.BROADCAST_EMAIL_FROM || "Joey from DFS <hello@dfs.vc>";
 const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfs.vc";
-const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
+export const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
 const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/dfs-logo-primary.png";
 
@@ -701,6 +701,36 @@ export async function sendCompanyBroadcastEmails(
     }
   }
   return out;
+}
+
+// Part 37, WS111.4 (Q101 = B) — tells the admin who recorded a call that a
+// draft digest is waiting. Caller lands with the Granola intake (WS109).
+export async function sendDigestDraftReadyEmail(opts: {
+  toEmail: string;
+  meetingTitle: string;
+  needsReviewCount: number;
+  digestUrl: string;
+}) {
+  const n = opts.needsReviewCount;
+  const reviewLine =
+    n > 0
+      ? `${n} item${n === 1 ? " needs" : "s need"} your review on the board before you send it.`
+      : "Nothing needs review. Read it over and send it when you are ready.";
+
+  const result = await resend.emails.send({
+    from: FROM,
+    replyTo: SUPPORT_EMAIL,
+    to: opts.toEmail,
+    subject: `Draft digest ready: ${opts.meetingTitle}`,
+    html: emailWrapper(`
+      ${eyebrow("Weekly Digest")}
+      ${heading("Your draft digest is ready")}
+      <p style="margin: 0 0 16px;">Molly drafted a digest from <strong>${escapeHtml(opts.meetingTitle)}</strong>. It has not been sent to anyone.</p>
+      <p style="margin: 0 0 24px;">${escapeHtml(reviewLine)}</p>
+      ${primaryButton(escapeHtml(opts.digestUrl), "Review Draft →")}
+    `),
+  });
+  assertSent(result, "digest-draft-ready");
 }
 
 export async function sendTestEmail(toEmail: string) {

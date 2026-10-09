@@ -2,7 +2,8 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
-import { sendWeeklyDigestEmail } from "@/lib/email";
+import { sendWeeklyDigestEmail, BASE_URL } from "@/lib/email";
+import { slackDigestEnabled, postToSlack, buildDigestSlackText } from "@/lib/slack";
 import { logAdminAction } from "@/lib/audit";
 import { buildDigestActionItems } from "@/lib/board-server";
 
@@ -23,7 +24,10 @@ export async function POST(
       where: { id },
       include: {
         todos: {
-          include: { assignee: { select: { id: true, name: true, email: true } } },
+          include: {
+            assignee: { select: { id: true, name: true, email: true } },
+            card: { select: { dueDate: true } },
+          },
           orderBy: { createdAt: "asc" },
         },
       },
@@ -71,8 +75,45 @@ export async function POST(
     const now = new Date();
     await db.weeklyDigest.update({ where: { id }, data: { sentAt: now } });
 
-    await logAdminAction(user!, "DIGEST_SENT", { targetType: "WeeklyDigest", targetId: id, metadata: { recipientCount: recipients.length } });
-    return NextResponse.json({ sentAt: now.toISOString() });
+    // WS111.2 (F110): Slack never blocks email, and slackPostedAt means a Resend
+    // never double-posts. A failed post leaves it null, so the next Send retries.
+    // The webhook URL is a secret and is never logged or returned.
+    let slack: "disabled" | "posted" | "already-posted" | "failed" = "disabled";
+    if (slackDigestEnabled()) {
+      if (digest.slackPostedAt) {
+        slack = "already-posted";
+      } else {
+        try {
+          const open = digest.todos.filter((t) => !t.completed);
+          const r = await postToSlack(
+            buildDigestSlackText({
+              title: digest.title,
+              digestUrl: `${BASE_URL}/admin/digest/${id}`,
+              boardUrl: `${BASE_URL}/admin/board`,
+              items: open.map((t) => ({
+                title: t.text,
+                ownerLabel: t.assignee?.name ?? t.assignee?.email ?? t.ownerLabel ?? null,
+                projectLabel: t.projectLabel ?? null,
+                dueDate: t.card?.dueDate ?? null,
+              })),
+            })
+          );
+          if (r.ok) {
+            await db.weeklyDigest.update({ where: { id }, data: { slackPostedAt: new Date() } });
+            slack = "posted";
+          } else {
+            slack = "failed";
+            console.error("[digest/send] slack post failed:", r.error);
+          }
+        } catch (err) {
+          slack = "failed";
+          console.error("[digest/send] slack post failed:", err instanceof Error ? err.name : "unknown");
+        }
+      }
+    }
+
+    await logAdminAction(user!, "DIGEST_SENT", { targetType: "WeeklyDigest", targetId: id, metadata: { recipientCount: recipients.length, slack } });
+    return NextResponse.json({ sentAt: now.toISOString(), slack });
   } catch (err) {
     console.error("POST /api/admin/digest/[id]/send error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

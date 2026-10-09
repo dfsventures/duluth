@@ -146,6 +146,25 @@ variables and what each one does.
 2. Paste it into `OPENAI_API_KEY`.
 3. The chatbot works without this — it will show a "not configured" message until you add the key.
 
+### Optional integrations
+
+Both integrations below are off until their environment variables are set. Leaving them unset changes nothing else in Molly. After changing any variable, redeploy, then check **Admin > Settings > Integrations**, which shows each one as Configured or Not set (values are never displayed).
+
+**Granola (automatic call intake — takes effect once the webhook route ships, Part 37 WS110)**
+
+1. Requires a Granola plan that includes API access (Business or higher). Create an API key from a **workspace** (not personal) key if your plan offers one, and set `GRANOLA_API_KEY`.
+2. Put the calls Molly should read in one dedicated Granola folder and set `GRANOLA_FOLDER_ID` to its id.
+3. Pick a long random string and set `GRANOLA_WEBHOOK_SECRET`.
+4. Register the webhook in Granola using the URL shown on the Settings page, which is `<your canonical host>/api/webhooks/granola`. Use the canonical host (the one in `NEXTAUTH_URL`), not an alias that redirects, because redirected webhooks can lose their signature headers.
+5. Test with a throwaway test folder first, and only then point `GRANOLA_FOLDER_ID` at the real one. Granola-created digests are always drafts; nothing is emailed or posted until an admin sends it.
+
+**Slack (post a digest's open items when it is sent)**
+
+1. Create a Slack app (api.slack.com/apps), enable **Incoming Webhooks**, and add a webhook to an **internal** channel. Try a private test channel first.
+2. Set `SLACK_DIGEST_WEBHOOK_URL` to that webhook URL. Treat it as a secret: anyone who has it can post to the channel. Molly never logs it or shows it.
+3. Redeploy, open **Admin > Settings > Integrations**, and click **Send test post**.
+4. Each digest posts once. Resending a digest re-emails but does not re-post to Slack. A failed post is retried on the next send. The free Slack plan limits a workspace to 10 app integrations (unconfirmed officially).
+
 ## 3. Set up the database
 
 Push the schema to your database:
