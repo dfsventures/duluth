@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Mail, Bell, BookOpen, HardDrive, Plug } from "lucide-react";
 import { auth } from "@/lib/auth";
@@ -42,6 +43,7 @@ export default async function SettingsPage() {
     orderBy: { createdAt: "desc" },
     select: { status: true, createdAt: true },
   });
+  const granolaOn = !!process.env.GRANOLA_API_KEY && !!process.env.GRANOLA_FOLDER_ID;
   const slackConfigured = !!process.env.SLACK_DIGEST_WEBHOOK_URL;
 
   return (
@@ -153,8 +155,13 @@ export default async function SettingsPage() {
           <p><span className="font-mono text-foreground">GRANOLA_FOLDER_ID</span> — <Status on={!!process.env.GRANOLA_FOLDER_ID} /></p>
           <p><span className="font-mono text-foreground">GRANOLA_WEBHOOK_SECRET</span> — <Status on={!!process.env.GRANOLA_WEBHOOK_SECRET} /></p>
           <p>
-            Webhook URL to register (used once intake is built, WS110):{" "}
+            Webhook URL to register (used once the webhook ships, WS110):{" "}
             <span className="select-all break-all font-mono text-foreground">{`${BASE_URL}/api/webhooks/granola`}</span>
+          </p>
+          <p>
+            Reads one folder only, and only each note&apos;s summary. A <em>personal</em> API key cannot see teammates&apos;
+            calls that were not shared with its owner (they would never appear); a <em>workspace</em> key sees folders with API
+            access enabled. Use a workspace key.
           </p>
           <p>
             Last intake:{" "}
@@ -164,6 +171,14 @@ export default async function SettingsPage() {
               </span>
             ) : (
               <span className="text-foreground">None yet</span>
+            )}
+            {granolaOn && (
+              <>
+                {" "}
+                <Link href="/admin/board?tab=intake" className="text-primary underline">
+                  Open Intake
+                </Link>
+              </>
             )}
           </p>
         </div>
