@@ -156,6 +156,8 @@ Priorities run P0 (do first) through P3 (later).
 >
 > **Update 2026-10-08 (later):** WS107 shipped (`7c9871d`): the Team Board UI at `/admin/board` (Board and People & projects tabs, drag plus Move-to and ↑/↓, URL-persisted filters, resolve dialog, one-time import of the latest digest's open todos). The Intake tab is deferred to WS109. 558/558 tests. Next is WS108 (digest ↔ board), then WS111, WS109 and WS110.
 >
+> **Update 2026-10-08 (WS108):** WS108 shipped (`0213a16`): pasted notes go through one shared, zod-validated extraction step (`src/lib/digest-extraction.ts`) that matches owners and projects against the board; the composer gets owner/project selects; saving a digest creates or links board cards; every open card carries into the digest until it is sent; ticking a digest item moves its card. Digest assignees now come from the board owner's linked user (F108). 579/579 tests. Next is WS111 (Slack), then WS109 and WS110 (Granola).
+>
 > **Team Board with automatic Granola intake — Part 37, WS104–WS111, F104–F114 in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), scoped 2026-10-08. PLANNED, not built.**
 >
 > **What it adds:**
