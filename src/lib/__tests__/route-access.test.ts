@@ -147,3 +147,18 @@ describe("decideRoute — admin and founder", () => {
     expect(decideRoute("/admin", "", adminAndFounder)).toEqual({ type: "next" });
   });
 });
+
+describe("decideRoute — Granola webhook (Part 37, WS110)", () => {
+  const anon = { isLoggedIn: false, roles: [] as string[] };
+  it("exempts exactly /api/webhooks/granola for an anonymous caller", () => {
+    expect(decideRoute("/api/webhooks/granola", "", anon)).toEqual({ type: "next" });
+  });
+  it("does not exempt lookalikes or siblings", () => {
+    for (const p of ["/api/webhooks", "/api/webhooks/other", "/api/webhooks/granola-x", "/api/webhooks/granola/x"]) {
+      expect(decideRoute(p, "", anon)).toMatchObject({ type: "redirect", to: "/login" });
+    }
+  });
+  it("still gates /admin/board", () => {
+    expect(decideRoute("/admin/board", "", anon)).toMatchObject({ type: "redirect", to: "/login" });
+  });
+});

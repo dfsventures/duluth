@@ -14,7 +14,7 @@ interface Props {
   resendOn: boolean;
   cronOn: boolean;
   uploadFailureCount: number;
-  granola: { on: boolean; last: { status: string; createdAt: Date } | null };
+  granola: { on: boolean; webhookOn?: boolean; last: { status: string; createdAt: Date } | null };
   slackOn: boolean;
 }
 
@@ -38,7 +38,9 @@ export function SettingsStatusStrip({ resendOn, cronOn, uploadFailureCount, gran
         ? "Not configured"
         : granola.last
           ? `Last intake: ${granola.last.status}, ${granola.last.createdAt.toISOString().slice(0, 10)}`
-          : "Configured, no intake yet",
+          : granola.webhookOn
+          ? "Webhook active, no intake yet"
+          : "Configured, webhook inactive",
       tone: granola.on ? "ok" : "neutral",
       tab: "integrations",
     },

@@ -72,7 +72,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
         resendOn={hasApiKey}
         cronOn={!!process.env.CRON_SECRET}
         uploadFailureCount={uploadFailureCount}
-        granola={{ on: granolaOn, last: lastIntake }}
+        granola={{ on: granolaOn, webhookOn: granolaOn && !!process.env.GRANOLA_WEBHOOK_SECRET, last: lastIntake }}
         slackOn={slackConfigured}
       />
 
@@ -128,8 +128,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
               <dt className="min-w-0 break-all font-mono text-foreground">GRANOLA_WEBHOOK_SECRET</dt>
               <dd><Status on={!!process.env.GRANOLA_WEBHOOK_SECRET} /></dd>
             </dl>
-            <p className="mt-3 text-xs text-muted-foreground">Webhook URL to register:</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Webhook URL to register with Granola (the route is live; it answers 404 until all three variables above are set):
+            </p>
             <p className="mt-1 select-all break-all font-mono text-xs text-foreground">{`${BASE_URL}/api/webhooks/granola`}</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Webhook:{" "}
+              <span className="text-foreground">
+                {granolaOn && !!process.env.GRANOLA_WEBHOOK_SECRET ? "Active, accepting signed deliveries" : "Inactive until GRANOLA_WEBHOOK_SECRET is set"}
+              </span>
+              . Granola generates the signing secret and shows it only once, when the endpoint is created. Do not invent your own;
+              copy the <span className="font-mono">whsec_</span> value from the create response. The daily sweep covers any missed delivery.
+            </p>
             <p className="mt-3 text-xs text-muted-foreground">
               Last intake:{" "}
               {lastIntake ? (

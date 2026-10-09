@@ -38,13 +38,21 @@ export type RouteDecision =
 // getLp(), read directly by Server Components (JC5) or the three auth
 // mutation routes under /api/lp/auth. Per this same F15-family lesson, no
 // authenticated route may ever be created under a path starting with "/lp".
+//
+// "/api/webhooks/granola" (Part 37, WS110) is public because Granola's webhook
+// deliveries carry no user session; the route verifies the Standard Webhooks
+// HMAC signature as the real gate. Without this, middleware 307-redirects every
+// delivery to /login and Granola records a permanent failure (3xx is never
+// retried). It is matched as an EXACT path, not a prefix, so nothing else under
+// /api/webhooks (or a lookalike such as /api/webhooks/granola-x) becomes public.
+const PUBLIC_EXACT = ["/api/webhooks/granola"];
 const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/share", "/api/cron", "/investors", "/brand", "/lp", "/api/lp"];
 
 export function decideRoute(pathname: string, search: string, s: SessionInfo): RouteDecision {
   const isAdmin = s.roles.includes("ADMIN");
   const isFounder = s.roles.includes("FOUNDER");
 
-  const isPublic = pathname === "/" || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+  const isPublic = pathname === "/" || PUBLIC_EXACT.includes(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
   if (isPublic) return { type: "next" };
 
   if (!s.isLoggedIn) {
