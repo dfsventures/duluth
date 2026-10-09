@@ -20,7 +20,7 @@ ADDED="$(git diff --cached --unified=0 --no-color | grep '^+' | grep -v '^+++' |
 HIT=0
 while IFS= read -r term; do
   case "$term" in ''|\#*) continue ;; esac      # skip blanks and comments
-  if printf '%s\n' "$ADDED" | grep -iqF -- "$term"; then
+  if printf '%s\n' "$ADDED" | grep -iqwF -- "$term"; then
     echo "BLOCKED: staged change adds a confidential term: \"$term\""
     HIT=1
   fi
