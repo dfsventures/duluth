@@ -466,7 +466,7 @@ export async function sendWeeklyDigestEmail(opts: {
   toEmail: string;
   title: string;
   sections: { id: string; heading: string; content: string }[];
-  todos: { text: string; completed: boolean; assigneeName: string | null }[];
+  todos: { text: string; completed: boolean; assigneeName: string | null; projectLabel?: string | null }[];
 }) {
   const digestLink = `${BASE_URL}/admin/digest`;
 
@@ -491,7 +491,7 @@ export async function sendWeeklyDigestEmail(opts: {
                 (t) => `
               <li style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid ${C.bone}; font-size: 14px; color: ${t.completed ? C.muted : C.tide};">
                 <span style="flex-shrink: 0; margin-top: 2px; width: 16px; height: 16px; border: 2px solid ${t.completed ? C.sky : C.bone}; background: ${t.completed ? C.sky : "transparent"}; display: inline-block; text-align: center; line-height: 12px; color: #fff; font-size: 10px;">${t.completed ? "✓" : ""}</span>
-                <span style="${t.completed ? "text-decoration: line-through;" : ""}">${escapeHtml(t.text)}${t.assigneeName ? `<span style="margin-left: 8px; font-size: 12px; color: ${C.muted};">— ${escapeHtml(t.assigneeName)}</span>` : ""}</span>
+                <span style="${t.completed ? "text-decoration: line-through;" : ""}">${escapeHtml(t.text)}${t.assigneeName ? `<span style="margin-left: 8px; font-size: 12px; color: ${C.muted};">— ${escapeHtml(t.assigneeName)}</span>` : ""}${t.projectLabel ? `<span style="margin-left: 8px; font-size: 12px; color: ${C.muted};">· ${escapeHtml(t.projectLabel)}</span>` : ""}</span>
               </li>`
               )
               .join("")}

@@ -7,6 +7,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/auth-guard", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ logAdminAction: vi.fn() }));
 
+const mockBuild = vi.fn();
+const mockMoveIn = vi.fn();
+vi.mock("@/lib/board-server", () => ({
+  buildDigestActionItems: (...a: unknown[]) => mockBuild(...a),
+  endPosition: vi.fn().mockResolvedValue(1024),
+  moveCardIn: (...a: unknown[]) => mockMoveIn(...a),
+}));
+
 const tx = {
   weeklyDigest: { update: vi.fn() },
   digestTodo: {
@@ -14,10 +22,11 @@ const tx = {
     deleteMany: vi.fn(),
     updateMany: vi.fn(),
     create: vi.fn(),
+    findUnique: vi.fn(),
   },
+  boardCard: { findUnique: vi.fn() },
 };
-const mockToggleUpdateMany = vi.fn();
-const mockToggleFindUnique = vi.fn();
+const mockBoardCardCreate = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -25,10 +34,7 @@ vi.mock("@/lib/db", () => ({
       findUnique: vi.fn().mockResolvedValue({ sentAt: null, id: "d1", todos: [] }),
     },
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
-    digestTodo: {
-      updateMany: (...a: unknown[]) => mockToggleUpdateMany(...a),
-      findUnique: (...a: unknown[]) => mockToggleFindUnique(...a),
-    },
+    boardCard: { create: (...a: unknown[]) => mockBoardCardCreate(...a) },
   },
 }));
 
@@ -55,6 +61,8 @@ describe("PATCH /api/admin/digest/[id] todos diff", () => {
     tx.digestTodo.deleteMany.mockResolvedValue({ count: 1 });
     tx.digestTodo.updateMany.mockResolvedValue({ count: 1 });
     tx.digestTodo.create.mockResolvedValue({});
+    mockBoardCardCreate.mockReset().mockResolvedValue({ id: "c1", title: "new", status: "TODO" });
+    mockBuild.mockReset();
   });
 
   it("updates existing ids, creates new rows, deletes only ids absent from the payload", async () => {
@@ -64,11 +72,14 @@ describe("PATCH /api/admin/digest/[id] todos diff", () => {
     expect(res.status).toBe(200);
     expect(tx.digestTodo.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.digestTodo.updateMany).toHaveBeenCalledWith({
-      where: { id: "t1", digestId: "d1" },
+      where: { id: "t1", digestId: "d1", cardId: null },
       data: { text: "edited" },
     });
-    expect(tx.digestTodo.create).toHaveBeenCalledTimes(1);
-    expect(tx.digestTodo.create.mock.calls[0][0].data).toMatchObject({ digestId: "d1", text: "new" });
+    // WS108.5: on a draft, a new todo becomes a MANUAL board card + a rebuilt linked row
+    expect(tx.digestTodo.create).not.toHaveBeenCalled();
+    expect(mockBoardCardCreate).toHaveBeenCalledTimes(1);
+    expect(mockBoardCardCreate.mock.calls[0][0].data).toMatchObject({ title: "new", source: "MANUAL" });
+    expect(mockBuild).toHaveBeenCalledWith("d1");
     expect(tx.digestTodo.deleteMany).toHaveBeenCalledTimes(1);
     expect(tx.digestTodo.deleteMany).toHaveBeenCalledWith({
       where: { digestId: "d1", id: { in: ["t2", "t3"] } },
@@ -93,32 +104,59 @@ describe("PATCH /api/admin/digest/[id] todos diff", () => {
   });
 });
 
-describe("PATCH /api/admin/digest/[id]/todos/[todoId] (F107)", () => {
+describe("PATCH /api/admin/digest/[id]/todos/[todoId] (F107, WS108.6)", () => {
   beforeEach(() => {
     vi.mocked(requireAdmin).mockResolvedValue({ user: ADMIN, error: null } as never);
-    mockToggleUpdateMany.mockReset();
-    mockToggleFindUnique.mockReset();
+    tx.digestTodo.updateMany.mockReset();
+    tx.digestTodo.findUnique.mockReset();
+    tx.boardCard.findUnique.mockReset();
+    mockMoveIn.mockReset();
   });
 
-  function toggle() {
-    return TOGGLE(req({ completed: true }), { params: Promise.resolve({ id: "d1", todoId: "t9" }) });
+  function toggle(completed = true) {
+    return TOGGLE(req({ completed }), { params: Promise.resolve({ id: "d1", todoId: "t9" }) });
   }
 
   it("scopes the update to the digest id in the path", async () => {
-    mockToggleUpdateMany.mockResolvedValue({ count: 1 });
-    mockToggleFindUnique.mockResolvedValue({ id: "t9", completed: true });
+    tx.digestTodo.updateMany.mockResolvedValue({ count: 1 });
+    tx.digestTodo.findUnique.mockResolvedValue({ id: "t9", completed: true, cardId: null });
     const res = await toggle();
     expect(res.status).toBe(200);
-    expect(mockToggleUpdateMany).toHaveBeenCalledWith({
+    expect(tx.digestTodo.updateMany).toHaveBeenCalledWith({
       where: { id: "t9", digestId: "d1" },
       data: { completed: true },
     });
+    expect(mockMoveIn).not.toHaveBeenCalled();
   });
 
   it("returns 404 when the todo belongs to another digest", async () => {
-    mockToggleUpdateMany.mockResolvedValue({ count: 0 });
+    tx.digestTodo.updateMany.mockResolvedValue({ count: 0 });
     const res = await toggle();
     expect(res.status).toBe(404);
-    expect(mockToggleFindUnique).not.toHaveBeenCalled();
+    expect(tx.digestTodo.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("ticking a linked row moves its card to DONE in the same transaction", async () => {
+    tx.digestTodo.updateMany.mockResolvedValue({ count: 1 });
+    tx.digestTodo.findUnique.mockResolvedValue({ id: "t9", completed: true, cardId: "c1" });
+    tx.boardCard.findUnique.mockResolvedValue({ status: "TODO", archivedAt: null });
+    await toggle(true);
+    expect(mockMoveIn).toHaveBeenCalledWith(tx, "c1", "DONE", undefined, undefined, ADMIN);
+  });
+
+  it("unticking a linked row returns a DONE card to TODO", async () => {
+    tx.digestTodo.updateMany.mockResolvedValue({ count: 1 });
+    tx.digestTodo.findUnique.mockResolvedValue({ id: "t9", completed: false, cardId: "c1" });
+    tx.boardCard.findUnique.mockResolvedValue({ status: "DONE", archivedAt: null });
+    await toggle(false);
+    expect(mockMoveIn).toHaveBeenCalledWith(tx, "c1", "TODO", undefined, undefined, ADMIN);
+  });
+
+  it("does not move a card that is already in the target state", async () => {
+    tx.digestTodo.updateMany.mockResolvedValue({ count: 1 });
+    tx.digestTodo.findUnique.mockResolvedValue({ id: "t9", completed: true, cardId: "c1" });
+    tx.boardCard.findUnique.mockResolvedValue({ status: "DONE", archivedAt: null });
+    await toggle(true);
+    expect(mockMoveIn).not.toHaveBeenCalled();
   });
 });

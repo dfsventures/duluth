@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { sendWeeklyDigestEmail } from "@/lib/email";
 import { logAdminAction } from "@/lib/audit";
+import { buildDigestActionItems } from "@/lib/board-server";
 
 export async function POST(
   _request: Request,
@@ -13,6 +14,10 @@ export async function POST(
     const { id } = await params;
     const { user, error } = await requireAdmin();
     if (error) return error;
+
+    // WS108.7: refresh the linked rows from the board just before sending (no-op once sent).
+    const pre = await db.weeklyDigest.findUnique({ where: { id }, select: { sentAt: true } });
+    if (pre && !pre.sentAt) await buildDigestActionItems(id);
 
     const digest = await db.weeklyDigest.findUnique({
       where: { id },
@@ -51,7 +56,8 @@ export async function POST(
     const todos = digest.todos.map((t) => ({
       text: t.text,
       completed: t.completed,
-      assigneeName: t.assignee?.name ?? t.assignee?.email ?? null,
+      assigneeName: t.assignee?.name ?? t.assignee?.email ?? t.ownerLabel ?? null,
+      projectLabel: t.projectLabel ?? null,
     }));
 
     for (const { email } of recipients) {

@@ -17,6 +17,7 @@ interface DigestSummary {
   title: string;
   weekOf: string;
   sentAt: string | null;
+  source?: string;
   createdAt: string;
   todos: { completed: boolean }[];
 }
@@ -106,6 +107,7 @@ export default function DigestListPage() {
                           Draft
                         </Badge>
                       )}
+                      {d.source === "GRANOLA" && <Badge variant="info">From Granola</Badge>}
                       <Link href={`/admin/digest/${d.id}`}>
                         <Button size="sm" variant="secondary">View</Button>
                       </Link>

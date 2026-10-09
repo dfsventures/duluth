@@ -25,6 +25,9 @@ interface DigestTodo {
   text: string;
   completed: boolean;
   assignee: { id: string; name: string | null; email: string } | null;
+  cardId: string | null;
+  ownerLabel: string | null;
+  projectLabel: string | null;
 }
 
 interface Digest {
@@ -50,7 +53,8 @@ export default function DigestDetailPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editWeekOf, setEditWeekOf] = useState("");
   const [editSections, setEditSections] = useState<DigestSection[]>([]);
-  const [editTodos, setEditTodos] = useState<{ id?: string; text: string }[]>([]);
+  const [editTodos, setEditTodos] = useState<{ id?: string; text: string; linked?: boolean }[]>([]);
+  const [reviewCardIds, setReviewCardIds] = useState<Set<string>>(new Set());
   const [newTodo, setNewTodo] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -68,12 +72,25 @@ export default function DigestDetailPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  useEffect(() => {
+    // Which of this digest's cards still need review (for the count next to Send).
+    fetch("/api/admin/board")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setReviewCardIds(
+          new Set((d.cards ?? []).filter((c: { needsReview: boolean }) => c.needsReview).map((c: { id: string }) => c.id))
+        );
+      })
+      .catch(() => {});
+  }, [id]);
+
   function startEditing() {
     if (!digest) return;
     setEditTitle(digest.title);
     setEditWeekOf(new Date(digest.weekOf).toISOString().slice(0, 10));
     setEditSections(digest.sections.map((s) => ({ ...s, content: digestHtmlToPlain(s.content) })));
-    setEditTodos(digest.todos.map((t) => ({ id: t.id, text: t.text })));
+    setEditTodos(digest.todos.map((t) => ({ id: t.id, text: t.text, linked: Boolean(t.cardId) })));
     setSaveError(null);
     setEditing(true);
   }
@@ -110,7 +127,7 @@ export default function DigestDetailPage() {
             ...s,
             content: plainToDigestHtml(s.content),
           })),
-          todos: editTodos,
+          todos: editTodos.map((t) => ({ id: t.id, text: t.text })),
         }),
       });
       if (!res.ok) {
@@ -200,6 +217,7 @@ export default function DigestDetailPage() {
   const isEditWindow = isDraft || (sentAgeMs !== null && sentAgeMs < TWELVE_HOURS_MS);
   const editHoursLeft = sentAgeMs !== null ? Math.max(0, Math.ceil((TWELVE_HOURS_MS - sentAgeMs) / 3_600_000)) : null;
   const sections = editing ? editSections : (digest.sections as DigestSection[]);
+  const reviewCount = digest.todos.filter((t) => t.cardId && reviewCardIds.has(t.cardId)).length;
 
   return (
     <AppShell>
@@ -292,6 +310,15 @@ export default function DigestDetailPage() {
         </div>
       </div>
 
+      {isDraft && reviewCount > 0 && !editing && (
+        <p className="mb-4 text-sm text-ochre">
+          {reviewCount} item{reviewCount === 1 ? " still needs" : "s still need"} review.{" "}
+          <Link href="/admin/board?review=1" className="underline underline-offset-2">
+            Open the board
+          </Link>
+        </p>
+      )}
+
       {(sendError || saveError) && (
         <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {sendError ?? saveError}
@@ -337,12 +364,25 @@ export default function DigestDetailPage() {
                     <ul className="space-y-2">
                       {editTodos.map((todo, i) => (
                         <li key={i} className="flex items-center gap-2">
-                          <input
-                            className="input-field flex-1 text-sm"
-                            value={todo.text}
-                            onChange={(e) => updateTodo(i, e.target.value)}
-                          />
+                          {todo.linked ? (
+                            <>
+                              <span className="flex-1 text-sm text-foreground">{todo.text}</span>
+                              <Link
+                                href="/admin/board"
+                                className="shrink-0 text-xs text-foreground underline underline-offset-2"
+                              >
+                                Edit on board
+                              </Link>
+                            </>
+                          ) : (
+                            <input
+                              className="input-field flex-1 text-sm"
+                              value={todo.text}
+                              onChange={(e) => updateTodo(i, e.target.value)}
+                            />
+                          )}
                           <button
+                            aria-label="Remove from this digest"
                             onClick={() => removeTodo(i)}
                             className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                           >
@@ -379,10 +419,14 @@ export default function DigestDetailPage() {
                         <span className={`text-sm ${todo.completed ? "line-through text-muted-foreground" : "text-foreground"}`}>
                           {todo.text}
                         </span>
-                        {todo.assignee && (
+                        {(todo.ownerLabel ?? todo.assignee?.name ?? todo.assignee?.email) && (
                           <span className="ml-2 text-xs text-muted-foreground">
-                            — {todo.assignee.name ?? todo.assignee.email}
+                            — {todo.ownerLabel ?? todo.assignee?.name ?? todo.assignee?.email}
+                            {todo.projectLabel ? ` · ${todo.projectLabel}` : ""}
                           </span>
+                        )}
+                        {!todo.ownerLabel && !todo.assignee && todo.projectLabel && (
+                          <span className="ml-2 text-xs text-muted-foreground">· {todo.projectLabel}</span>
                         )}
                       </div>
                     </li>

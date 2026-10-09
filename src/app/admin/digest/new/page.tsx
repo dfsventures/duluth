@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, Loader2, Plus, X } from "lucide-react";
@@ -17,6 +17,24 @@ interface DigestSection {
 
 interface DigestTodo {
   text: string;
+  ownerId: string | null;
+  projectId: string | null;
+  ownerRaw: string | null; // sent to the server; cleared when an admin picks a name
+  projectRaw: string | null;
+  heardOwner: string | null; // display only: what the notes said
+  heardProject: string | null;
+  existingCardId: string | null;
+  dueDate: string | null;
+}
+
+interface Option { id: string; label: string }
+
+function blankTodo(text: string): DigestTodo {
+  return { text, ownerId: null, projectId: null, ownerRaw: null, projectRaw: null, heardOwner: null, heardProject: null, existingCardId: null, dueDate: null };
+}
+
+function unresolved(t: DigestTodo): boolean {
+  return Boolean((t.heardOwner && !t.ownerId) || (t.heardProject && !t.projectId));
 }
 
 type Step = "paste" | "edit";
@@ -36,6 +54,30 @@ export default function NewDigestPage() {
   const [newTodo, setNewTodo] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [people, setPeople] = useState<Option[]>([]);
+  const [projects, setProjects] = useState<Option[]>([]);
+  const [openCardIds, setOpenCardIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/board")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setPeople((d.people ?? []).map((p: { id: string; label: string }) => ({ id: p.id, label: p.label })));
+        setProjects((d.projects ?? []).map((p: { id: string; name: string }) => ({ id: p.id, label: p.name })));
+        setOpenCardIds(
+          (d.cards ?? [])
+            .filter((c: { status: string; archivedAt: string | null }) => c.status !== "DONE" && !c.archivedAt)
+            .map((c: { id: string }) => c.id)
+        );
+      })
+      .catch(() => {});
+  }, []);
+
+  // Open cards not already restated in this draft are carried in automatically.
+  const linkedIds = new Set(todos.map((t) => t.existingCardId).filter(Boolean) as string[]);
+  const carriedCount = openCardIds.filter((cid) => !linkedIds.has(cid)).length;
 
   async function handleGenerate() {
     if (!notes.trim()) return;
@@ -55,7 +97,20 @@ export default function NewDigestPage() {
       setTitle(data.title);
       setWeekOf(new Date(data.weekOf).toISOString().slice(0, 10));
       setSections(data.sections);
-      setTodos(data.todos);
+      setTodos(
+        (data.todos ?? []).map((t: Partial<DigestTodo> & { text: string }) => ({
+          ...blankTodo(t.text),
+          ownerId: t.ownerId ?? null,
+          projectId: t.projectId ?? null,
+          ownerRaw: t.ownerRaw ?? null,
+          projectRaw: t.projectRaw ?? null,
+          heardOwner: t.ownerRaw ?? null,
+          heardProject: t.projectRaw ?? null,
+          existingCardId: t.existingCardId ?? null,
+          dueDate: t.dueDate ?? null,
+        }))
+      );
+      setWarnings(data.warnings ?? []);
       setStep("edit");
     } catch (err) {
       setGenerateError(err instanceof Error ? err.message : "Something went wrong");
@@ -70,7 +125,7 @@ export default function NewDigestPage() {
 
   function addTodo() {
     if (!newTodo.trim()) return;
-    setTodos((prev) => [...prev, { text: newTodo.trim() }]);
+    setTodos((prev) => [...prev, blankTodo(newTodo.trim())]);
     setNewTodo("");
   }
 
@@ -79,7 +134,11 @@ export default function NewDigestPage() {
   }
 
   function updateTodo(index: number, text: string) {
-    setTodos((prev) => prev.map((t, i) => (i === index ? { text } : t)));
+    setTodos((prev) => prev.map((t, i) => (i === index ? { ...t, text } : t)));
+  }
+
+  function patchTodo(index: number, patch: Partial<DigestTodo>) {
+    setTodos((prev) => prev.map((t, i) => (i === index ? { ...t, ...patch } : t)));
   }
 
   async function handleSave() {
@@ -96,7 +155,16 @@ export default function NewDigestPage() {
             ...s,
             content: plainToDigestHtml(s.content),
           })),
-          todos,
+          todos: todos.map((t) => ({
+            text: t.text,
+            ownerId: t.ownerId,
+            projectId: t.projectId,
+            ownerRaw: t.ownerRaw,
+            projectRaw: t.projectRaw,
+            needsReview: unresolved(t),
+            existingCardId: t.existingCardId,
+            dueDate: t.dueDate,
+          })),
         }),
       });
       if (!res.ok) {
@@ -167,6 +235,13 @@ export default function NewDigestPage() {
 
       {step === "edit" && (
         <div className="space-y-5">
+          {warnings.length > 0 && (
+            <div className="rounded-md border border-ochre/40 bg-ochre/10 px-4 py-3 text-sm text-foreground">
+              {warnings.map((w) => (
+                <p key={w}>{w}</p>
+              ))}
+            </div>
+          )}
           {/* Title + week */}
           <Card>
             <CardContent className="pt-5 space-y-4">
@@ -213,21 +288,70 @@ export default function NewDigestPage() {
               {todos.length > 0 && (
                 <ul className="space-y-2">
                   {todos.map((todo, i) => (
-                    <li key={i} className="flex items-center gap-2">
-                      <input
-                        className="input-field flex-1 text-sm"
-                        value={todo.text}
-                        onChange={(e) => updateTodo(i, e.target.value)}
-                      />
-                      <button
-                        onClick={() => removeTodo(i)}
-                        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
+                    <li key={i} className="space-y-1.5 border-b border-border pb-2 last:border-0">
+                      <div className="flex items-center gap-2">
+                        {unresolved(todo) && (
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-full bg-ochre"
+                            title="Needs review"
+                            aria-label="Needs review"
+                          />
+                        )}
+                        <input
+                          className="input-field flex-1 text-sm"
+                          value={todo.text}
+                          onChange={(e) => updateTodo(i, e.target.value)}
+                        />
+                        <button
+                          onClick={() => removeTodo(i)}
+                          aria-label="Remove todo"
+                          className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pl-0 sm:pl-4">
+                        <select
+                          aria-label="Owner"
+                          className="input-field w-full text-xs sm:w-auto sm:min-w-40"
+                          value={todo.ownerId ?? ""}
+                          onChange={(e) => patchTodo(i, { ownerId: e.target.value || null, ownerRaw: null })}
+                        >
+                          <option value="">No owner</option>
+                          {people.map((p) => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                          ))}
+                        </select>
+                        <select
+                          aria-label="Project"
+                          className="input-field w-full text-xs sm:w-auto sm:min-w-40"
+                          value={todo.projectId ?? ""}
+                          onChange={(e) => patchTodo(i, { projectId: e.target.value || null, projectRaw: null })}
+                        >
+                          <option value="">No project</option>
+                          {projects.map((p) => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                          ))}
+                        </select>
+                        {todo.heardOwner && (
+                          <span className="text-xs text-muted-foreground">heard as &lsquo;{todo.heardOwner}&rsquo;</span>
+                        )}
+                        {todo.heardProject && (
+                          <span className="text-xs text-muted-foreground">project heard as &lsquo;{todo.heardProject}&rsquo;</span>
+                        )}
+                        {todo.existingCardId && (
+                          <span className="text-xs text-muted-foreground">already on the board</span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {carriedCount > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Plus {carriedCount} open item{carriedCount === 1 ? "" : "s"} already on the board will be carried into this digest.
+                </p>
               )}
 
               <div className="flex gap-2">

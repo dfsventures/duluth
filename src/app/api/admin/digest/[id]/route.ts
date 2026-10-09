@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { buildDigestActionItems, endPosition } from "@/lib/board-server";
 
 export async function GET(
   _request: Request,
@@ -61,6 +62,12 @@ export async function PATCH(
       todos?: { id?: string; text: string }[];
     };
 
+    // Part 37 (WS108.5): on a draft, a todo added in edit mode is a MANUAL board
+    // card (the digest row is then built from it). On a sent digest the rows are
+    // frozen, so it stays a plain digest-only todo as before.
+    const isDraft = !existing.sentAt;
+    const newBoardTodos: string[] = [];
+
     const digest = await db.$transaction(async (tx) => {
       const updated = await tx.weeklyDigest.update({
         where: { id },
@@ -80,8 +87,11 @@ export async function PATCH(
         if (removed.length) await tx.digestTodo.deleteMany({ where: { digestId: id, id: { in: removed } } });
         for (const t of body.todos) {
           if (t.id) {
-            // updateMany scopes to this digest: an id from another digest is a no-op, not a cross-digest write
-            await tx.digestTodo.updateMany({ where: { id: t.id, digestId: id }, data: { text: t.text } });
+            // updateMany scopes to this digest: an id from another digest is a no-op, not a cross-digest write.
+            // cardId: null — rows linked to a board card are read-only here (edit on the board).
+            await tx.digestTodo.updateMany({ where: { id: t.id, digestId: id, cardId: null }, data: { text: t.text } });
+          } else if (isDraft) {
+            if (t.text?.trim()) newBoardTodos.push(t.text.trim().slice(0, 300));
           } else {
             await tx.digestTodo.create({
               data: { id: crypto.randomUUID().replace(/-/g, "").slice(0, 25), digestId: id, text: t.text },
@@ -92,6 +102,28 @@ export async function PATCH(
 
       return updated;
     });
+
+    if (newBoardTodos.length > 0) {
+      for (const text of newBoardTodos) {
+        const card = await db.boardCard.create({
+          data: {
+            title: text,
+            status: "TODO",
+            position: await endPosition("TODO"),
+            source: "MANUAL",
+            humanEditedAt: new Date(),
+            createdById: user!.id,
+            updatedById: user!.id,
+          },
+        });
+        await logAdminAction(user!, "BOARD_CARD_CREATED", {
+          targetType: "BoardCard",
+          targetId: card.id,
+          metadata: { title: card.title, status: card.status, via: "digest" },
+        });
+      }
+      await buildDigestActionItems(id);
+    }
 
     const full = await db.weeklyDigest.findUnique({
       where: { id },

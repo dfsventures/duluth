@@ -1,20 +1,13 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth-guard";
-import { db } from "@/lib/db";
-import Anthropic from "@anthropic-ai/sdk";
 import { ORG_NAME } from "@/lib/org";
+import { extractDigest, DigestExtractionError } from "@/lib/digest-extraction";
+import { loadBoardContext } from "@/lib/board-server";
+import { resolveEntity } from "@/lib/board-reconcile";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const SECTION_DEFS = [
-  { id: "projects", heading: "Running Projects" },
-  { id: "news", heading: "Latest Relevant News" },
-  { id: "done", heading: "Things That Got Done Last Week" },
-  { id: "portfolio", heading: "Portfolio Company Updates" },
-  { id: "personal", heading: "Personal / Fun Team Updates" },
-  { id: "riddle", heading: "Riddle of the Week" },
-];
+// Part 37 (WS108.2): thin route. Fetching/splitting stays here; the prompt,
+// Claude call and validation live in src/lib/digest-extraction.ts.
 
 /**
  * Fetch a Granola transcript URL and extract readable plain text from the HTML.
@@ -77,6 +70,7 @@ export async function POST(request: Request) {
 
     // Fetch all URLs in parallel
     const fetchedTexts: string[] = [];
+    const warnings: string[] = [];
     if (urlLines.length > 0) {
       const results = await Promise.allSettled(
         urlLines.map((url) => fetchTranscriptFromUrl(url.trim()))
@@ -84,6 +78,11 @@ export async function POST(request: Request) {
       for (const result of results) {
         if (result.status === "fulfilled") {
           fetchedTexts.push(result.value);
+          // F109: a page that yields almost no text is probably a JS-rendered share page.
+          const body = result.value.replace(/^\[Source: [^\]]*\]\n?/, "");
+          if (body.trim().length < 200 && !warnings.length) {
+            warnings.push("One link returned almost no text. Granola share pages may need to be pasted as text.");
+          }
         } else {
           console.error("Failed to fetch transcript:", result.reason);
         }
@@ -104,78 +103,36 @@ export async function POST(request: Request) {
     const today = new Date();
     const weekOf = today.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 
-    // Fetch last digest to extract previous riddle (best-effort)
-    const lastRiddleContent = await (async () => {
-      try {
-        const lastDigest = await db.weeklyDigest.findFirst({
-          orderBy: { weekOf: "desc" },
-          select: { sections: true },
-        });
-        if (!lastDigest) return null;
-        const sections = lastDigest.sections as { id: string; content: string }[];
-        return sections.find((s) => s.id === "riddle")?.content ?? null;
-      } catch {
-        return null;
-      }
-    })();
+    const ctx = await loadBoardContext();
+    const extracted = await extractDigest({ notesText: combinedNotes, ctx });
 
-    const riddleContext = lastRiddleContent
-      ? `\nLast week's riddle section was: "${lastRiddleContent}"\nFor the riddle section, first reveal the answer to last week's riddle, then pose a new original riddle. Format as plain text: "Last week's answer: [answer]\n\n[New riddle question]"`
-      : `\nFor the riddle section, pose a fun, original riddle. Format as plain text: "[Riddle question]\n\n(Answer revealed next week)"`;
-
-    const prompt = `You are generating the ${ORG_NAME} weekly digest from raw meeting notes.
-
-Today is ${weekOf}. Given the meeting notes below, produce a JSON object with:
-- "title": a digest title like "${ORG_NAME} Weekly — Week of ${weekOf}"
-- "sections": array of exactly 6 objects, one per section, each with "id", "heading", and "content" (plain text, 1-4 short paragraphs). Leave "content" as an empty string if there is nothing relevant from the notes.
-- "todos": array of action items extracted from the notes, each with "text" (include the assignee name inline if mentioned, e.g. "Follow up with Acme re: term sheet — Joseph")
-
-Sections must be in this exact order with these exact ids and headings:
-${SECTION_DEFS.map((s) => `- id: "${s.id}", heading: "${s.heading}"`).join("\n")}
-
-The first 5 sections should be populated from the meeting notes.
-${riddleContext}
-
-Return only valid JSON, no markdown fences.
-
-Meeting notes:
-${combinedNotes}`;
-
-    const message = await anthropic.messages.create(
-      {
-        model: "claude-sonnet-4-6",
-        max_tokens: 4096,
-        messages: [{ role: "user", content: prompt }],
-      },
-      { maxRetries: 3 }
-    );
-
-    const raw = message.content[0]?.type === "text" ? message.content[0].text : "";
-
-    // Strip markdown fences if Claude wrapped the JSON despite instructions
-    const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-
-    let parsed: { title: string; sections: { id: string; heading: string; content: string }[]; todos: { text: string }[] };
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      console.error("Failed to parse AI response. Raw output:", raw.slice(0, 500));
-      return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
-    }
-
-    const sections = SECTION_DEFS.map((def) => {
-      const found = parsed.sections?.find((s) => s.id === def.id);
-      return { id: def.id, heading: def.heading, content: found?.content ?? "" };
+    const todos = extracted.items.map((item) => {
+      const owner = resolveEntity(item.ownerRaw, item.ownerId, ctx.people);
+      const project = resolveEntity(item.projectRaw, item.projectId, ctx.projects);
+      return {
+        text: item.title,
+        ownerId: owner.id,
+        projectId: project.id,
+        ownerRaw: owner.raw,
+        projectRaw: project.raw,
+        needsReview: owner.needsReview || project.needsReview,
+        existingCardId: item.existingCardId,
+        dueDate: item.dueDate,
+      };
     });
 
     return NextResponse.json({
-      title: parsed.title ?? `${ORG_NAME} Weekly — Week of ${weekOf}`,
+      title: extracted.title || `${ORG_NAME} Weekly — Week of ${weekOf}`,
       weekOf: today.toISOString(),
-      sections,
-      todos: (parsed.todos ?? []).map((t) => ({ text: t.text })),
+      sections: extracted.sections,
+      todos,
+      warnings,
     });
   } catch (err: unknown) {
     console.error("POST /api/admin/digest/generate error:", err);
+    if (err instanceof DigestExtractionError) {
+      return NextResponse.json({ error: "Failed to parse AI response" }, { status: 500 });
+    }
     const status = (err as { status?: number })?.status;
     if (status === 529 || status === 503) {
       return NextResponse.json({ error: "Claude is currently overloaded — please try again in a moment" }, { status: 503 });

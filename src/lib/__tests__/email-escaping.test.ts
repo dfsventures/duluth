@@ -152,4 +152,15 @@ describe("WS56 email body escaping", () => {
     expect(html).toContain(ESC);
     expect(subject).toBe(EVIL);
   });
+  it("Part 37 WS108: sendWeeklyDigestEmail escapes the per-todo projectLabel", async () => {
+    await sendWeeklyDigestEmail({
+      toEmail: "x@y.com",
+      title: "T",
+      sections: [],
+      todos: [{ text: "t", completed: false, assigneeName: null, projectLabel: EVIL }],
+    });
+    const { html } = sent();
+    expect(html).not.toContain('<a href="https://evil.example">');
+    expect(html).toContain("Acme &lt;a href=&quot;https://evil.example&quot;&gt;x&lt;/a&gt;");
+  });
 });
