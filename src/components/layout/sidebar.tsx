@@ -97,11 +97,16 @@ const adminNavGroups = [
     ],
   },
   {
-    label: "Admin Tools",
+    label: "Team & Resources",
     items: [
       { label: "Team Board", href: "/admin/board", icon: KanbanSquare },
       { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
       { label: "Service Providers", href: "/admin/providers", icon: Wrench },
+    ],
+  },
+  {
+    label: "Admin Tools",
+    items: [
       { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
       { label: "Settings", href: "/admin/settings", icon: Settings },
     ],
@@ -190,7 +195,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           <>
             <ul className="space-y-1">{renderItem(adminDashboardItem)}</ul>
             {adminNavGroups.map((group, i) => {
-              const headingId = `sidebar-group-${group.label.toLowerCase().replace(/\s+/g, "-")}`;
+              const headingId = `sidebar-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
               const groupActive = group.items.some((item) => isActive(item.href));
               return (
                 <div
