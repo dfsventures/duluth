@@ -6,20 +6,8 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ADMIN_EMAIL_DOMAIN } from "@/lib/org";
 import type { BoardPersonData, BoardProjectData } from "./types";
-
-interface ImportItem {
-  todoId: string;
-  title: string;
-  ownerLabel: string | null;
-  rawOwnerName: string | null;
-  needsReview: boolean;
-}
-interface ImportPreview {
-  digest: { id: string; title: string } | null;
-  items: ImportItem[];
-  skipped: number;
-}
 
 async function readError(res: Response, fallback: string) {
   const d = await res.json().catch(() => null);
@@ -36,9 +24,8 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
   const [newPerson, setNewPerson] = useState("");
   const [newProject, setNewProject] = useState("");
   const [editing, setEditing] = useState<{ kind: "person" | "project"; id: string; value: string } | null>(null);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
-  const [importMsg, setImportMsg] = useState("");
-  const [importBusy, setImportBusy] = useState(false);
+  const [deleting, setDeleting] = useState<{ kind: "person" | "project"; id: string; name: string; cards: number } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -89,42 +76,16 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
     if (ok) setEditing(null);
   }
 
-  async function openImport() {
-    setImportMsg("");
-    setImportBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/admin/board/import-latest-digest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: true }),
-      });
-      if (!res.ok) throw new Error(await readError(res, "Failed to preview the import."));
-      setPreview(await res.json());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setImportBusy(false);
-    }
-  }
-  async function confirmImport() {
-    setImportBusy(true);
-    try {
-      const res = await fetch("/api/admin/board/import-latest-digest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dryRun: false }),
-      });
-      if (!res.ok) throw new Error(await readError(res, "Import failed."));
-      const d = await res.json();
-      setImportMsg(`Imported ${d.created} item${d.created === 1 ? "" : "s"} onto the board.`);
-      setPreview(null);
-      onChanged();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setImportBusy(false);
-    }
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    const url =
+      deleting.kind === "person"
+        ? `/api/admin/board/people/${deleting.id}`
+        : `/api/admin/board/projects/${deleting.id}`;
+    const ok = await call(url, "DELETE");
+    setDeleteBusy(false);
+    if (ok) setDeleting(null);
   }
 
   const aliasChips = (aliases: Aliases) =>
@@ -169,29 +130,21 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
     <div className="space-y-8">
       {error && <p className="text-xs text-laterite">{error}</p>}
 
-      <section className="rounded-sm border border-border bg-card p-4">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="min-w-48 flex-1">
-            <h3 className="text-sm font-semibold text-foreground">Import open items from the latest digest</h3>
-            <p className="mt-1 text-xs text-muted-foreground">
-              One-time: turns the open to-dos of the most recent digest into board cards. Safe to run again; it never
-              creates duplicates.
-            </p>
-            {importMsg && <p className="mt-2 text-xs text-acacia">{importMsg}</p>}
-          </div>
-          <Button variant="secondary" className="shrink-0" onClick={openImport} disabled={importBusy}>
-            Preview import
-          </Button>
-        </div>
-      </section>
-
       <div className="grid gap-8 md:grid-cols-2">
         <section>
           <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-widest text-foreground">People</h3>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Molly admins appear automatically the first time they sign in with their @{ADMIN_EMAIL_DOMAIN} Google
+            account. To assign work to someone without a Molly login, add their name below; they can own cards but
+            don&apos;t get a login or emails.
+          </p>
+          <label htmlFor="new-person-name" className="mb-1 block text-xs font-medium text-foreground">
+            Add someone without a Molly login
+          </label>
           <div className="mb-3 flex flex-wrap gap-2">
             <Input
-              aria-label="New person name"
-              placeholder="Add a person (no login needed)"
+              id="new-person-name"
+              placeholder="Name"
               value={newPerson}
               onChange={(e) => setNewPerson(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addPerson()}
@@ -230,6 +183,15 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
                     >
                       {p.archivedAt ? "Restore" : "Archive"}
                     </Button>
+                    {!p.userId && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => setDeleting({ kind: "person", id: p.id, name: p.displayName, cards: p.cardCount ?? 0 })}
+                      >
+                        Delete
+                      </Button>
+                    )}
                   </div>
                 </div>
               </li>
@@ -279,6 +241,13 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
                     >
                       {p.archivedAt ? "Restore" : "Archive"}
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setDeleting({ kind: "project", id: p.id, name: p.name, cards: p.cardCount ?? 0 })}
+                    >
+                      Delete
+                    </Button>
                   </div>
                 </div>
               </li>
@@ -288,57 +257,36 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
         </section>
       </div>
 
-      {preview && (
-        <Dialog.Root open onOpenChange={(o) => !o && setPreview(null)}>
+      {deleting && (
+        <Dialog.Root open onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
           <Dialog.Portal>
             <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-            <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm border border-border bg-card shadow-xl">
+            <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm border border-border bg-card shadow-xl">
               <div className="flex items-center justify-between border-b border-border px-6 py-4">
-                <Dialog.Title className="font-semibold text-foreground">Import preview</Dialog.Title>
+                <Dialog.Title className="break-words font-semibold text-foreground">Delete {deleting.name}?</Dialog.Title>
                 <Dialog.Close className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Close">
                   <X className="h-4 w-4" />
                 </Dialog.Close>
               </div>
-              <Dialog.Description className="sr-only">Open to-dos that would be added to the board</Dialog.Description>
-              <div className="space-y-3 px-6 py-5">
-                {!preview.digest ? (
-                  <p className="text-sm text-muted-foreground">There are no digests to import from.</p>
-                ) : preview.items.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Nothing to import from “{preview.digest.title}”: no open to-dos left that are not already on the
-                    board.
-                  </p>
-                ) : (
-                  <>
-                    <p className="text-sm text-foreground">
-                      {preview.items.length} item{preview.items.length === 1 ? "" : "s"} from “{preview.digest.title}”
-                      will be added to To do.
-                    </p>
-                    <ul className="space-y-2">
-                      {preview.items.map((i) => (
-                        <li key={i.todoId} className="rounded-sm border border-border p-2 text-sm">
-                          <p className="break-words text-foreground">{i.title}</p>
-                          <p className="font-mono text-xs text-muted-foreground">
-                            {i.ownerLabel ?? "Unassigned"}
-                            {i.needsReview && (
-                              <span className="ml-2 text-ochre">needs review: heard as &apos;{i.rawOwnerName}&apos;</span>
-                            )}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-              </div>
+              <Dialog.Description className="space-y-2 px-6 py-5 text-sm text-foreground">
+                <span className="block">
+                  {deleting.cards === 0
+                    ? "No cards use this " + (deleting.kind === "person" ? "person" : "project") + "."
+                    : `${deleting.cards} card${deleting.cards === 1 ? "" : "s"} will become ${
+                        deleting.kind === "person" ? "unassigned" : "unassigned from this project"
+                      }.`}
+                </span>
+                <span className="block">
+                  Saved name corrections for {deleting.name} will be removed. This can&apos;t be undone.
+                </span>
+              </Dialog.Description>
               <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-                <Button variant="secondary" onClick={() => setPreview(null)}>
-                  Close
+                <Button variant="secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+                  Cancel
                 </Button>
-                {preview.items.length > 0 && (
-                  <Button onClick={confirmImport} disabled={importBusy}>
-                    {importBusy ? "Importing..." : `Import ${preview.items.length}`}
-                  </Button>
-                )}
+                <Button variant="destructive" onClick={confirmDelete} disabled={deleteBusy}>
+                  {deleteBusy ? "Deleting..." : "Delete"}
+                </Button>
               </div>
             </Dialog.Content>
           </Dialog.Portal>

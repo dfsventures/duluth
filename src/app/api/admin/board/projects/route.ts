@@ -12,9 +12,12 @@ export async function GET() {
     if (error) return error;
     const projects = await db.boardProject.findMany({
       orderBy: { name: "asc" },
-      include: { aliases: { select: { id: true, normalized: true } } }, // additive (WS107)
+      include: {
+        aliases: { select: { id: true, normalized: true } }, // additive (WS107)
+        _count: { select: { cards: true } }, // additive: delete confirmation
+      },
     });
-    return NextResponse.json(projects);
+    return NextResponse.json(projects.map(({ _count, ...p }) => ({ ...p, cardCount: _count.cards })));
   } catch (err) {
     console.error("GET /api/admin/board/projects error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

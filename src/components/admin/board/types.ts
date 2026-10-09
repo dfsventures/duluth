@@ -25,6 +25,7 @@ export interface BoardPersonData {
   label: string;
   archivedAt: string | null;
   aliases?: { id: string; normalized: string }[];
+  cardCount?: number;
 }
 
 export interface BoardProjectData {
@@ -32,6 +33,7 @@ export interface BoardProjectData {
   name: string;
   archivedAt: string | null;
   aliases?: { id: string; normalized: string }[];
+  cardCount?: number;
 }
 
 export interface BoardPayload {

@@ -15,11 +15,12 @@ export async function GET() {
       include: {
         user: { select: { name: true, email: true } },
         aliases: { select: { id: true, normalized: true } }, // additive (WS107): alias chips
+        _count: { select: { cards: true } }, // additive: delete confirmation
       },
       orderBy: { displayName: "asc" },
     });
     return NextResponse.json(
-      people.map(({ user, ...p }) => ({ ...p, label: user?.name ?? user?.email ?? p.displayName }))
+      people.map(({ user, _count, ...p }) => ({ ...p, cardCount: _count.cards, label: user?.name ?? user?.email ?? p.displayName }))
     );
   } catch (err) {
     console.error("GET /api/admin/board/people error:", err);

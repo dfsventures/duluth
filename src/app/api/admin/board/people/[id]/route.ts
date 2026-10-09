@@ -57,3 +57,40 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// Hard delete, plain-name people only. Cards keep existing (owner -> null via
+// onDelete SetNull); aliases go via cascade. Linked admins are archived instead,
+// because ensureAdminPeople() would just recreate them.
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { user, error } = await requireAdmin();
+    if (error) return error;
+
+    const person = await db.boardPerson.findUnique({
+      where: { id },
+      include: { _count: { select: { cards: true } } },
+    });
+    if (!person) return NextResponse.json({ error: "Person not found" }, { status: 404 });
+    if (person.userId) {
+      return NextResponse.json(
+        { error: "This person is a Molly admin and can't be deleted. Archive them instead." },
+        { status: 400 }
+      );
+    }
+
+    await db.boardPerson.delete({ where: { id } });
+    await logAdminAction(user!, "BOARD_PERSON_DELETED", {
+      targetType: "BoardPerson",
+      targetId: id,
+      metadata: { name: person.displayName, affectedCards: person._count.cards },
+    });
+    return NextResponse.json({ ok: true, affectedCards: person._count.cards });
+  } catch (err) {
+    console.error("DELETE /api/admin/board/people/[id] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

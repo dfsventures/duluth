@@ -59,11 +59,3 @@ export function parseDueDate(v: unknown): Date | null | undefined {
 export const MAX_TITLE_LENGTH = 300;
 export const MAX_NOTES_LENGTH = 5000;
 export const MAX_NAME_LENGTH = 120;
-
-/** Splits a trailing "— Name" suffix off a todo's text. */
-export function splitOwnerSuffix(text: string): { title: string; ownerRaw: string | null } {
-  const t = text.trim();
-  const m = t.match(/^(.*\S)\s+[—–]\s+([^—–]{1,80})$/);
-  if (!m) return { title: t, ownerRaw: null };
-  return { title: m[1].trim(), ownerRaw: m[2].trim() || null };
-}

@@ -62,3 +62,33 @@ export async function PATCH(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// Hard delete. Cards keep existing (project -> null via onDelete SetNull);
+// aliases go via cascade. Past digests keep their frozen projectLabel text.
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { user, error } = await requireAdmin();
+    if (error) return error;
+
+    const project = await db.boardProject.findUnique({
+      where: { id },
+      include: { _count: { select: { cards: true } } },
+    });
+    if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+
+    await db.boardProject.delete({ where: { id } });
+    await logAdminAction(user!, "BOARD_PROJECT_DELETED", {
+      targetType: "BoardProject",
+      targetId: id,
+      metadata: { name: project.name, affectedCards: project._count.cards },
+    });
+    return NextResponse.json({ ok: true, affectedCards: project._count.cards });
+  } catch (err) {
+    console.error("DELETE /api/admin/board/projects/[id] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

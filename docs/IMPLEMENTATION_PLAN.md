@@ -11386,6 +11386,7 @@ All fixtures use `Jane Founder`, `Sam Partner` and `AcmeHQ onboarding`.
 - Two lists (Pattern B rows): Add, Rename, Archive, and per-row **aliases** shown as removable chips.
 - Linked admins are marked "Molly admin" and cannot be renamed here.
 - An "Import open items from the latest digest" button with a preview modal (Q96 = A). It calls `POST /api/admin/board/import-latest-digest` with `{dryRun}`, which creates `source "DIGEST_IMPORT"` cards with `sourceKey = import:<digestTodoId>` (exactly once) and sets `DigestTodo.cardId`. Each todo's text goes through `resolveEntity` on its inline `— Name` suffix. If it can't be resolved, the card gets `needsReview`.
+- Import removed 2026-10-09 at Joseph's request: the board now fills from digests and Granola. The button, `POST /api/admin/board/import-latest-digest`, its tests and `splitOwnerSuffix` are gone. Same day: hard Delete added for projects and plain-name people (`DELETE /api/admin/board/{people,projects}/[id]`; linked admins stay archive-only).
 
 **Acceptance (live, authenticated, admin):**
 - [ ] The sidebar shows "Team Board", and the page loads with four empty columns.
