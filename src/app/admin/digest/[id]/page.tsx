@@ -315,7 +315,7 @@ export default function DigestDetailPage() {
       </div>
 
       {isDraft && reviewCount > 0 && !editing && (
-        <p className="mb-4 text-sm text-ochre">
+        <p className="mb-4 text-sm text-foreground">
           {reviewCount} item{reviewCount === 1 ? " still needs" : "s still need"} review.{" "}
           <Link href="/admin/board?review=1" className="underline underline-offset-2">
             Open the board

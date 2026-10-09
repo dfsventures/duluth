@@ -320,9 +320,9 @@ export default function AdminReportEditorPage() {
             </div>
           )}
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm text-ochre">Publishing freezes today&apos;s valuation numbers into this report. Continue?</span>
+            <span className="text-sm text-foreground">Publishing freezes today&apos;s valuation numbers into this report. Continue?</span>
             <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-ochre">
+              <label className="flex items-center gap-2 text-sm text-foreground">
                 <input
                   type="checkbox"
                   checked={notifyLps}
@@ -341,7 +341,7 @@ export default function AdminReportEditorPage() {
           </div>
           {notifyLps && (
             <div className="mt-2 w-full">
-              <label htmlFor="lp-note" className="mb-1 block text-xs text-ochre">
+              <label htmlFor="lp-note" className="mb-1 block text-xs text-foreground">
                 Add a note to the email (optional)
               </label>
               <textarea

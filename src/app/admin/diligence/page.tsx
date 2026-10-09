@@ -278,8 +278,8 @@ export default function AdminDiligencePage() {
       />
 
       {notice && (
-        <div className="mb-6 flex items-start gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-ochre">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="mb-6 flex items-start gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-ochre" />
           <span>{notice}</span>
         </div>
       )}

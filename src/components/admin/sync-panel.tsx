@@ -310,7 +310,7 @@ export function SyncPanel() {
                   <p className="mb-2 text-sm text-muted-foreground">All deals are already linked — nothing to apply.</p>
                 )}
                 {(linkPreview.counts.ambiguous > 0 || linkPreview.counts.unmatched > 0) && (
-                  <p className="mb-2 text-sm text-ochre">
+                  <p className="mb-2 text-sm text-foreground">
                     Apply is disabled until every deal is matched or already-linked — this is all-or-nothing by design for a one-time operation.
                   </p>
                 )}

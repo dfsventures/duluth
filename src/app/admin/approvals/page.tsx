@@ -478,7 +478,7 @@ export default function ApprovalsPage() {
                         <div className="w-full rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm">
                           {selected && visibleMatches.length > 0 ? (
                             <>
-                              <p className="text-ochre">
+                              <p className="text-foreground">
                                 Looks like <strong>{selected.portfolioCompanyName}</strong> in the portfolio —{" "}
                                 {topReasonCopy}.
                               </p>
@@ -505,7 +505,7 @@ export default function ApprovalsPage() {
                                 </div>
                               )}
                               {!selected.signupEmailIsAlreadyContact && (
-                                <label className="mt-2 flex items-center gap-2 text-xs text-ochre">
+                                <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
                                   <input
                                     type="checkbox"
                                     checked={addContact}

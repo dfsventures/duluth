@@ -370,7 +370,7 @@ export default function AdminBroadcastEditorPage() {
       {confirmSend && (
         <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-sm text-ochre">
+            <span className="text-sm text-foreground">
               This sends the email immediately to {preview?.recipientCount ?? 0} contact{preview?.recipientCount === 1 ? "" : "s"} across{" "}
               {selectedCompanyIds.length} compan{selectedCompanyIds.length === 1 ? "y" : "ies"}. It can&apos;t be unsent.
             </span>
@@ -461,7 +461,7 @@ export default function AdminBroadcastEditorPage() {
                 {previewLoading ? "…" : preview?.recipientCount ?? 0} contact{preview?.recipientCount === 1 ? "" : "s"} will receive this
               </p>
               {preview && preview.companiesWithNoContacts !== null && preview.companiesWithNoContacts > 0 && (
-                <p className="mt-1 text-sm text-ochre">
+                <p className="mt-1 text-sm text-foreground">
                   {preview.companiesWithNoContacts} selected compan{preview.companiesWithNoContacts === 1 ? "y has" : "ies have"} no contacts and will
                   receive nothing.
                 </p>

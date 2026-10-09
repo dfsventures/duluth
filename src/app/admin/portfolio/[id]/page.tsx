@@ -456,7 +456,7 @@ export default function AdminPortfolioCompanyPage() {
               )}
             </div>
             {showUnlinkConfirm && (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm text-ochre">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm text-foreground">
                 <span>Unlink {data.company?.name} from this portfolio company?</span>
                 <div className="flex gap-2">
                   <Button variant="secondary" size="sm" disabled={unlinking} onClick={() => setShowUnlinkConfirm(false)}>

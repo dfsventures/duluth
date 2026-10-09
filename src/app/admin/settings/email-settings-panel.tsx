@@ -40,8 +40,8 @@ export function EmailSettingsPanel({
   return (
     <>
       {!hasApiKey && (
-        <div className="mb-4 flex gap-2.5 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-xs text-ochre">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="mb-4 flex gap-2.5 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-xs text-foreground">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ochre" />
           <span>
             <strong>RESEND_API_KEY</strong> is not set. Add it to your environment variables to enable email delivery.{" "}
             <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">

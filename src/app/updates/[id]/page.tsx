@@ -489,12 +489,12 @@ export default function UpdateDetailPage() {
       {/* Publish banner (view mode only) */}
       {!editing && update.status === "DRAFT" && (
         <div className="mb-6 flex flex-col gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-ochre">
+          <p className="text-sm text-foreground">
             This update is still a draft. Publish it when ready.
           </p>
           {confirmPublish ? (
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-ochre">Publish and notify the {ORG_NAME} team?</span>
+              <span className="text-sm text-foreground">Publish and notify the {ORG_NAME} team?</span>
               <Button variant="secondary" size="sm" disabled={sending} onClick={() => setConfirmPublish(false)}>
                 Cancel
               </Button>
