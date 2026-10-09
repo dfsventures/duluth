@@ -170,6 +170,8 @@ Priorities run P0 (do first) through P3 (later).
 >
 > **Update 2026-10-09 (UI and settings):** Nisat's UI fixes shipped for the board and composer (`3e66e3d`) and app-wide (`246ad16`), including one global native-select style. The sidebar gained a Team & Resources section (`cfd7c06`). `/admin/settings` is now a status strip plus three URL tabs (`?tab=email|storage|integrations`) with an up-to-date list of every email Molly sends (`5d8da5a`). F113 is fixed: no real addresses or names remain as code fallbacks. Broadcasts send one team copy to the optional `BROADCAST_COPY_EMAIL` (`2fd9a9d`).
 >
+> **Update 2026-10-09 (WS110):** Granola intake has been tested live end to end. The Preview box was removed (`3615ade`). WS110 shipped (`34277e2`): `/api/webhooks/granola` verifies Standard Webhooks signatures and acknowledges fast, then processes in the background through the same exactly-once intake. It stays inactive (404) until `GRANOLA_WEBHOOK_SECRET` is set. Granola generates that secret once, at endpoint creation. That completes Part 37's build.
+>
 > **Team Board with automatic Granola intake — Part 37, WS104–WS111, F104–F114 in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), scoped 2026-10-08. PLANNED, not built.**
 >
 > **What it adds:**
