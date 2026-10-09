@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 
 // Part 37 (WS109.4) — the board's Intake tab. Only rendered when the server
@@ -21,16 +20,6 @@ interface IntakeRow {
   error: string | null;
   createdAt: string;
 }
-interface PreviewResult {
-  outcome: string;
-  reason?: string;
-  needsReview: number;
-  preview?: {
-    digestTitle: string;
-    items: { title: string; owner: string | null; project: string | null; needsReview: boolean; action: string }[];
-  };
-}
-
 const VARIANT: Record<IntakeRow["status"], "success" | "warning" | "info" | "neutral" | "danger"> = {
   DONE: "success",
   PENDING: "warning",
@@ -50,8 +39,6 @@ export function IntakePanel({ onBoardChanged }: { onBoardChanged: () => void }) 
   const [error, setError] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
-  const [noteId, setNoteId] = useState("");
-  const [preview, setPreview] = useState<PreviewResult | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -85,26 +72,6 @@ export function IntakePanel({ onBoardChanged }: { onBoardChanged: () => void }) 
       onBoardChanged();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Check failed.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function runPreview(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy("preview");
-    setMsg("");
-    setPreview(null);
-    try {
-      const res = await fetch("/api/admin/granola/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ noteId }),
-      });
-      if (!res.ok) throw new Error(await readError(res, "Preview failed."));
-      setPreview(await res.json());
-    } catch (err) {
-      setMsg(err instanceof Error ? err.message : "Preview failed.");
     } finally {
       setBusy(null);
     }
@@ -161,59 +128,6 @@ export function IntakePanel({ onBoardChanged }: { onBoardChanged: () => void }) 
           <p>If a teammate&apos;s call is missing, check the folder&apos;s sharing and API access in Granola first.</p>
         </div>
       </details>
-
-      <form onSubmit={runPreview} className="space-y-2">
-        <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-          Preview a note (writes nothing, uses one Claude call)
-          <div className="flex flex-wrap gap-2">
-            <Input
-              aria-label="Granola note id"
-              placeholder="not_1d3tmYTlCICgjy"
-              value={noteId}
-              onChange={(e) => setNoteId(e.target.value)}
-              className="h-9 w-64 font-mono"
-            />
-            <Button type="submit" variant="secondary" size="sm" disabled={busy !== null || !noteId.trim()}>
-              {busy === "preview" ? "Previewing…" : "Preview"}
-            </Button>
-          </div>
-        </label>
-      </form>
-
-      {preview && (
-        <div className="rounded-sm border border-border p-3 text-sm">
-          {preview.preview ? (
-            <>
-              <p className="font-medium text-foreground">{preview.preview.digestTitle}</p>
-              <p className="mb-2 text-xs text-muted-foreground">
-                Dry run: {preview.preview.items.length} item{preview.preview.items.length === 1 ? "" : "s"},{" "}
-                {preview.needsReview} needing review. Nothing was saved.
-              </p>
-              <ul className="space-y-1">
-                {preview.preview.items.map((i, idx) => (
-                  <li key={idx} className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{i.action}</span>
-                    <span>{i.title}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {[i.owner, i.project].filter(Boolean).join(" · ")}
-                    </span>
-                    {i.needsReview && (
-                      <span className="inline-flex items-center gap-1 text-xs text-foreground">
-                        <span className="h-1.5 w-1.5 rounded-full bg-ochre" aria-hidden />
-                        needs review
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : (
-            <p className="text-muted-foreground">
-              Not previewable: {preview.reason ?? preview.outcome}.
-            </p>
-          )}
-        </div>
-      )}
 
       {loading ? (
         <p className="py-6 text-sm text-muted-foreground">Loading...</p>

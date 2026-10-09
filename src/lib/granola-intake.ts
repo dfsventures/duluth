@@ -29,23 +29,13 @@ const SYSTEM_ACTOR = { email: "granola-intake@system" };
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_ITEMS = 100;
 
-export interface PreviewItem {
-  title: string;
-  owner: string | null;
-  project: string | null;
-  needsReview: boolean;
-  action: "create" | "link" | "fill" | "skip";
-}
-
 export interface IntakeResult {
-  outcome: "done" | "skipped" | "failed" | "retry-later" | "busy" | "dry-run";
+  outcome: "done" | "skipped" | "failed" | "retry-later" | "busy";
   reason?: string;
   digestId?: string;
   cardsCreated: number;
   cardsLinked: number;
   needsReview: number;
-  /** Only for dry runs. Shown to the admin who asked; never logged. */
-  preview?: { digestTitle: string; items: PreviewItem[] };
 }
 
 const empty = (outcome: IntakeResult["outcome"], reason?: string): IntakeResult => ({
@@ -112,36 +102,20 @@ async function finish(id: string, data: Prisma.GranolaIntakeUpdateInput) {
   await db.granolaIntake.update({ where: { id }, data: { lockedAt: null, ...data } });
 }
 
-export async function processGranolaIntake(
-  id: string,
-  opts: { dryRun?: boolean; manual?: boolean } = {}
-): Promise<IntakeResult> {
-  const dry = Boolean(opts.dryRun);
-  // Dry runs never claim or touch the intake row: "DB unchanged".
-  let row: { id: string; noteId: string } | null;
-  if (dry) {
-    row = await db.granolaIntake.findUnique({ where: { id }, select: { id: true, noteId: true } });
-  } else {
-    if (!(await claim(id))) return empty("busy", "busy-or-done");
-    row = await db.granolaIntake.findUnique({ where: { id }, select: { id: true, noteId: true } });
-  }
+export async function processGranolaIntake(id: string, opts: { manual?: boolean } = {}): Promise<IntakeResult> {
+  if (!(await claim(id))) return empty("busy", "busy-or-done");
+  const row = await db.granolaIntake.findUnique({ where: { id }, select: { id: true, noteId: true } });
   if (!row) return empty("skipped", "unknown intake");
   return processNote(row.id, row.noteId, opts);
 }
 
-/** Preview by note id with no intake row at all (WS109.4). */
-export async function previewGranolaNote(noteId: string): Promise<IntakeResult> {
-  return processNote(null, noteId, { dryRun: true, manual: true });
-}
-
 async function processNote(
-  intakeId: string | null,
+  intakeId: string,
   noteId: string,
-  opts: { dryRun?: boolean; manual?: boolean }
+  opts: { manual?: boolean }
 ): Promise<IntakeResult> {
-  const dry = Boolean(opts.dryRun);
   const skip = async (reason: string): Promise<IntakeResult> => {
-    if (intakeId && !dry) await finish(intakeId, { status: "SKIPPED", skipReason: reason, finishedAt: new Date() });
+    await finish(intakeId, { status: "SKIPPED", skipReason: reason, finishedAt: new Date() });
     return empty("skipped", reason);
   };
 
@@ -153,9 +127,7 @@ async function processNote(
     const folderId = process.env.GRANOLA_FOLDER_ID ?? "";
     if (!folderId || !noteInFolder(note, folderId)) return skip("outside folder");
 
-    if (intakeId && !dry) {
-      await db.granolaIntake.update({ where: { id: intakeId }, data: { noteTitle: note.title?.slice(0, 300) ?? null } });
-    }
+    await db.granolaIntake.update({ where: { id: intakeId }, data: { noteTitle: note.title?.slice(0, 300) ?? null } });
 
     // Guards a bulk access-granted flood from re-sharing an old folder. Manual actions bypass it.
     if (!opts.manual && Date.now() - new Date(note.created_at).getTime() > MAX_AGE_MS) {
@@ -165,9 +137,7 @@ async function processNote(
     const notesText = note.summary_markdown ?? note.summary_text ?? "";
     if (!notesText.trim()) {
       // Summary not ready yet: back to PENDING without spending an attempt.
-      if (intakeId && !dry) {
-        await finish(intakeId, { status: "PENDING", attempts: { decrement: 1 }, skipReason: "waiting for summary" });
-      }
+      await finish(intakeId, { status: "PENDING", attempts: { decrement: 1 }, skipReason: "waiting for summary" });
       return empty("retry-later", "no summary yet");
     }
 
@@ -206,27 +176,6 @@ async function processNote(
       select: { id: true, sourceKey: true, humanEditedAt: true, ownerId: true, projectId: true, dueDate: true },
     });
     const plans = planCardWrites(items, existing);
-
-    if (dry) {
-      const pName = new Map(ctx.people.map((p) => [p.id, p.name]));
-      const prName = new Map(ctx.projects.map((p) => [p.id, p.name]));
-      return {
-        outcome: "dry-run",
-        cardsCreated: plans.filter((p) => p.action === "create").length,
-        cardsLinked: plans.filter((p) => p.action === "link").length,
-        needsReview: items.filter((i) => i.needsReview).length,
-        preview: {
-          digestTitle: extracted.title,
-          items: plans.map((p) => ({
-            title: p.item.title,
-            owner: (p.item.ownerId && pName.get(p.item.ownerId)) || (p.item.rawOwnerName ? `heard as "${p.item.rawOwnerName}"` : null),
-            project: (p.item.projectId && prName.get(p.item.projectId)) || (p.item.rawProjectName ? `heard as "${p.item.rawProjectName}"` : null),
-            needsReview: p.item.needsReview,
-            action: p.action,
-          })),
-        },
-      };
-    }
 
     let digestId = "";
     let createdDigest = false;
@@ -295,21 +244,19 @@ async function processNote(
           });
         }
         await buildDigestActionItems(digestId, tx);
-        if (intakeId) {
-          await tx.granolaIntake.update({
-            where: { id: intakeId },
-            data: {
-              status: "DONE",
-              digestId,
-              cardsCreated,
-              cardsLinked,
-              skipReason: null,
-              error: null,
-              lockedAt: null,
-              finishedAt: new Date(),
-            },
-          });
-        }
+        await tx.granolaIntake.update({
+          where: { id: intakeId },
+          data: {
+            status: "DONE",
+            digestId,
+            cardsCreated,
+            cardsLinked,
+            skipReason: null,
+            error: null,
+            lockedAt: null,
+            finishedAt: new Date(),
+          },
+        });
       },
       { timeout: 20_000 }
     );
@@ -325,11 +272,8 @@ async function processNote(
 
     return { outcome: "done", digestId, cardsCreated, cardsLinked, needsReview };
   } catch (err) {
-    if (dry) throw err; // the caller (preview route) turns this into a message
     console.error(`[granola-intake] ${intakeId} failed: ${safeErrorText(err)}`);
-    if (intakeId) {
-      await finish(intakeId, { status: "FAILED", error: safeErrorText(err), finishedAt: new Date() }).catch(() => {});
-    }
+    await finish(intakeId, { status: "FAILED", error: safeErrorText(err), finishedAt: new Date() }).catch(() => {});
     return empty("failed", safeErrorText(err));
   }
 }

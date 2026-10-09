@@ -77,7 +77,7 @@ vi.mock("@/lib/board-server", () => ({
   titleKey: (t: string) => t.toLowerCase().slice(0, 12),
 }));
 
-import { enqueueGranolaNote, claim, processGranolaIntake, previewGranolaNote, safeErrorText } from "@/lib/granola-intake";
+import { enqueueGranolaNote, claim, processGranolaIntake, safeErrorText } from "@/lib/granola-intake";
 import { Prisma } from "@prisma/client";
 
 const FOLDER = "fol_AAAAAAAAAAAAAA";
@@ -200,23 +200,6 @@ describe("granola intake", () => {
     expect(res.cardsCreated).toBe(0);
     expect(m.cardCreateMany).not.toHaveBeenCalled();
     expect(m.cardUpdate).not.toHaveBeenCalled();
-  });
-
-  it("a dry run writes nothing and never claims", async () => {
-    const res = await processGranolaIntake("i1", { dryRun: true });
-    expect(res.outcome).toBe("dry-run");
-    expect(res.preview?.items[0]).toMatchObject({ title: "Send deck", action: "create" });
-    expect(m.updateMany).not.toHaveBeenCalled();
-    expect(m.update).not.toHaveBeenCalled();
-    expect(m.cardCreateMany).not.toHaveBeenCalled();
-    expect(m.digestCreate).not.toHaveBeenCalled();
-    expect(m.email).not.toHaveBeenCalled();
-  });
-
-  it("previewGranolaNote needs no intake row", async () => {
-    const res = await previewGranolaNote(NOTE);
-    expect(res.outcome).toBe("dry-run");
-    expect(m.findUnique).not.toHaveBeenCalled();
   });
 
   it("a failed email does not fail the intake", async () => {

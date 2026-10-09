@@ -11489,6 +11489,8 @@ The zod schema covers `{ title, sections[6]{id,heading,content}, items[]{title,o
 
 ## WS109 — Granola client, intake runner (exactly-once), daily sweep, manual check and preview, ~1.0 day (blocked by Q92)
 
+> **Update 2026-10-09:** the "Preview a note" feature (the preview input, `POST /api/admin/granola/preview`, and the dry-run path in `granola-intake.ts`) was removed at Joseph's request. It required an API note id (`not_…`) that Granola never shows users, pasted share links (`notes.granola.ai/t/…`) cannot be used instead, and it bypassed the 7-day age guard. "Check Granola now" plus the intake list (with Retry) is the supported flow.
+
 **Env vars** (all optional; nothing runs unless set):
 - `GRANOLA_API_KEY` (`grn_…`; prefer a workspace key per Q92)
 - `GRANOLA_FOLDER_ID` (`fol_…`, per Q93; **required**: no folder means intake is disabled, never "all notes")
