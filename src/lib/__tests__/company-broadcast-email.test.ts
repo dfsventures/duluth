@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // Part 30, WS72 — sendCompanyBroadcastEmail / sendCompanyBroadcastEmails.
 // Mirrors lp-report-published-email.test.ts: mock only the resend SDK and
@@ -14,7 +14,7 @@ vi.mock("resend", () => ({
   },
 }));
 
-import { sendCompanyBroadcastEmail, sendCompanyBroadcastEmails } from "@/lib/email";
+import { sendCompanyBroadcastEmail, sendCompanyBroadcastEmails, sendBroadcastTeamCopy } from "@/lib/email";
 
 beforeEach(() => {
   mockSend.mockReset();
@@ -125,5 +125,45 @@ describe("sendCompanyBroadcastEmails (fan-out)", () => {
     const messages = [{ email: "a@example.com", subject: "Hi", bodyHtml: "<p>hi</p>" }];
     const result = await sendCompanyBroadcastEmails(messages);
     expect(result).toEqual([{ email: "a@example.com", ok: false, error: expect.stringContaining("network error") }]);
+  });
+});
+
+describe("sendBroadcastTeamCopy", () => {
+  const OLD = process.env.BROADCAST_COPY_EMAIL;
+  afterEach(() => {
+    if (OLD === undefined) delete process.env.BROADCAST_COPY_EMAIL;
+    else process.env.BROADCAST_COPY_EMAIL = OLD;
+  });
+
+  it("sends nothing when BROADCAST_COPY_EMAIL is unset", async () => {
+    delete process.env.BROADCAST_COPY_EMAIL;
+    const sent = await sendBroadcastTeamCopy({ subject: "Hi", bodyHtml: "<p>x</p>", recipientCount: 3 });
+    expect(sent).toBe(false);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it("sends one [Copy] email to the configured inbox, labelled as a team copy with the recipient count", async () => {
+    process.env.BROADCAST_COPY_EMAIL = "inbox@example.com";
+    const sent = await sendBroadcastTeamCopy({ subject: "Hi", bodyHtml: "<p><strong>news</strong></p>", recipientCount: 12 });
+    expect(sent).toBe(true);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    const arg = mockSend.mock.calls[0][0];
+    expect(arg.to).toBe("inbox@example.com");
+    expect(arg.subject).toBe("[Copy] Hi");
+    expect(arg.html).toContain("Team copy");
+    expect(arg.html).toContain("12 recipients");
+    expect(arg.html).toContain("<strong>news</strong>");
+  });
+
+  it("uses singular wording for one recipient", async () => {
+    process.env.BROADCAST_COPY_EMAIL = "inbox@example.com";
+    await sendBroadcastTeamCopy({ subject: "Hi", bodyHtml: "<p>x</p>", recipientCount: 1 });
+    expect(mockSend.mock.calls[0][0].html).toContain("1 recipient.");
+  });
+
+  it("never throws when the provider fails", async () => {
+    process.env.BROADCAST_COPY_EMAIL = "inbox@example.com";
+    mockSend.mockRejectedValue(new Error("down"));
+    await expect(sendBroadcastTeamCopy({ subject: "Hi", bodyHtml: "<p>x</p>", recipientCount: 2 })).resolves.toBe(false);
   });
 });

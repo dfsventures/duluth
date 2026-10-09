@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { resolveBroadcastRecipients } from "@/lib/broadcast-recipients";
-import { sendCompanyBroadcastEmails } from "@/lib/email";
+import { sendCompanyBroadcastEmails, sendBroadcastTeamCopy } from "@/lib/email";
 
 // Part 30, WS73 — the heart of the feature. Order of operations mirrors
 // the report publish route: freeze → publish → best-effort send → audit
@@ -115,10 +115,24 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const sent = sentEmails.length;
     const failed = failedResults.length;
 
+    // One team copy per send (BROADCAST_COPY_EMAIL, optional). Initial publish
+    // only: retry has no "copy sent" marker (no schema change), so it never
+    // re-sends it. sendBroadcastTeamCopy never throws; the guard is belt and braces.
+    let teamCopySent = false;
+    try {
+      teamCopySent = await sendBroadcastTeamCopy({
+        subject: broadcast.subject,
+        bodyHtml: broadcast.body,
+        recipientCount: recipients.length,
+      });
+    } catch (copyErr) {
+      console.error("Broadcast team copy failed:", copyErr);
+    }
+
     await logAdminAction(user!, "BROADCAST_PUBLISHED", {
       targetType: "CompanyBroadcast",
       targetId: id,
-      metadata: { companyCount: broadcast.targets.length, recipientCount: recipients.length, sent, failed },
+      metadata: { companyCount: broadcast.targets.length, recipientCount: recipients.length, sent, failed, teamCopySent },
     });
 
     return NextResponse.json({ ...published, sendResult: { recipientCount: recipients.length, sent, failed } });

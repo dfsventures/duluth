@@ -10,8 +10,10 @@ vi.mock("@/lib/auth-guard", () => ({ requireAdmin: vi.fn() }));
 vi.mock("@/lib/audit", () => ({ logAdminAction: vi.fn() }));
 
 const mockSendCompanyBroadcastEmails = vi.fn();
+const mockSendBroadcastTeamCopy = vi.fn();
 vi.mock("@/lib/email", () => ({
   sendCompanyBroadcastEmails: (...args: unknown[]) => mockSendCompanyBroadcastEmails(...args),
+  sendBroadcastTeamCopy: (...args: unknown[]) => mockSendBroadcastTeamCopy(...args),
 }));
 
 const mockBroadcastFindUnique = vi.fn();
@@ -74,6 +76,8 @@ beforeEach(() => {
   mockRequireAdmin.mockReset();
   mockLogAdminAction.mockReset();
   mockSendCompanyBroadcastEmails.mockReset();
+  mockSendBroadcastTeamCopy.mockReset();
+  mockSendBroadcastTeamCopy.mockResolvedValue(true);
   mockBroadcastFindUnique.mockReset();
   mockBroadcastUpdate.mockReset();
   mockContactFindMany.mockReset();
@@ -176,6 +180,35 @@ describe("POST /api/admin/broadcasts/[id]/publish", () => {
     );
   });
 
+  it("sends exactly one team copy per publish, carrying the recipient count", async () => {
+    mockContactFindMany.mockResolvedValue([
+      { id: "c-1", email: "a@example.com", name: null, portfolioCompany: { id: "pc-1", name: "Acme" } },
+      { id: "c-2", email: "b@example.com", name: null, portfolioCompany: { id: "pc-2", name: "Northwind" } },
+    ]);
+    mockSendCompanyBroadcastEmails.mockResolvedValue([
+      { email: "a@example.com", ok: true },
+      { email: "b@example.com", ok: true },
+    ]);
+    await publishPOST(req(), params());
+    expect(mockSendBroadcastTeamCopy).toHaveBeenCalledTimes(1);
+    expect(mockSendBroadcastTeamCopy).toHaveBeenCalledWith({
+      subject: "Hello portfolio",
+      bodyHtml: "<p>Some news</p>",
+      recipientCount: 2,
+    });
+  });
+
+  it("a team copy that throws never fails the publish", async () => {
+    mockContactFindMany.mockResolvedValue([
+      { id: "c-1", email: "a@example.com", name: null, portfolioCompany: { id: "pc-1", name: "Acme" } },
+    ]);
+    mockSendCompanyBroadcastEmails.mockResolvedValue([{ email: "a@example.com", ok: true }]);
+    mockSendBroadcastTeamCopy.mockRejectedValue(new Error("boom"));
+    const res = await publishPOST(req(), params());
+    expect(res.status).toBe(200);
+    expect(mockLogAdminAction).toHaveBeenCalled();
+  });
+
   it("never reads or mocks userCompanyMembership anywhere (D4's single path stays single)", async () => {
     mockContactFindMany.mockResolvedValue([
       { id: "c-1", email: "a@example.com", name: null, portfolioCompany: { id: "pc-1", name: "Acme" } },
@@ -209,6 +242,8 @@ describe("POST /api/admin/broadcasts/[id]/retry", () => {
       expect.objectContaining({ where: expect.objectContaining({ status: { in: ["PENDING", "FAILED"] } }) })
     );
     expect(data).toEqual({ ok: true, attempted: 2, sent: 2, failed: 0 });
+    // No "copy sent" marker exists, so retry never re-sends the team copy.
+    expect(mockSendBroadcastTeamCopy).not.toHaveBeenCalled();
   });
 
   it("400s when the broadcast is not PUBLISHED", async () => {

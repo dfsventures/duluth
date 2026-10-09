@@ -97,7 +97,7 @@ be completely valid and uploads will still fail.
 1. In the bucket's **Permissions** tab, edit **Cross-origin resource sharing (CORS)** and add an equivalent policy
    allowing `GET`/`PUT`/`HEAD` from the same origin(s).
 
-Once your app is deployed, use the **"Send Test Upload"** button on `/admin/settings` (Storage section) to confirm
+Once your app is deployed, use the **"Send Test Upload"** button on `/admin/settings?tab=storage` (Settings, Storage tab) to confirm
 credentials and CORS are both actually working — it exercises the exact same browser→bucket path a real document
 upload takes.
 
@@ -107,7 +107,7 @@ upload takes.
 > at the browser — with no server-side error, no log line, and nothing in the app to indicate a
 > problem. This has happened in production: a domain migration on one day, four silently failed
 > founder document uploads the next, discovered three days later by accident. After any domain
-> change, add the new origin here and confirm with **"Send Test Upload"** on `/admin/settings`.
+> change, add the new origin here and confirm with **"Send Test Upload"** on `/admin/settings?tab=storage`.
 
 ### Google Sheets sync (optional)
 
@@ -139,6 +139,8 @@ variables and what each one does.
 2. Verify your sending domain (or use Resend's test domain for development).
 3. Create an API key and paste it into `RESEND_API_KEY`.
 4. Set `EMAIL_FROM` to your verified sender address.
+5. Set `TEAM_EMAIL` to the inbox that receives team notifications (new applications, published updates). If unset, Molly falls back to a placeholder address, so set it in every real deployment.
+6. Optional: set `BROADCAST_COPY_EMAIL` to an inbox that should get one `[Copy]` of every portfolio broadcast, with the recipient count (sent on the first send only, never on retries; unset means no copy). `BROADCAST_EMAIL_FROM` optionally overrides the broadcast sender name.
 
 ### OpenAI (optional — for AI chatbot)
 
@@ -148,14 +150,14 @@ variables and what each one does.
 
 ### Optional integrations
 
-Both integrations below are off until their environment variables are set. Leaving them unset changes nothing else in Molly. After changing any variable, redeploy, then check **Admin > Settings > Integrations**, which shows each one as Configured or Not set (values are never displayed).
+Both integrations below are off until their environment variables are set. Leaving them unset changes nothing else in Molly. After changing any variable, redeploy, then check **Admin > Settings > Integrations** (`/admin/settings?tab=integrations`), which shows each one as Configured or Not set (values are never displayed).
 
 **Granola (automatic call intake — takes effect once the webhook route ships, Part 37 WS110)**
 
 1. Requires a Granola plan that includes API access (Business or higher). Create an API key from a **workspace** (not personal) key if your plan offers one, and set `GRANOLA_API_KEY`.
 2. Put the calls Molly should read in one dedicated Granola folder and set `GRANOLA_FOLDER_ID` to its id.
 3. Pick a long random string and set `GRANOLA_WEBHOOK_SECRET`.
-4. Register the webhook in Granola using the URL shown on the Settings page, which is `<your canonical host>/api/webhooks/granola`. Use the canonical host (the one in `NEXTAUTH_URL`), not an alias that redirects, because redirected webhooks can lose their signature headers.
+4. Register the webhook in Granola using the URL shown on Settings, Integrations tab (`/admin/settings?tab=integrations`), which is `<your canonical host>/api/webhooks/granola`. Use the canonical host (the one in `NEXTAUTH_URL`), not an alias that redirects, because redirected webhooks can lose their signature headers.
 5. Test with a throwaway test folder first, and only then point `GRANOLA_FOLDER_ID` at the real one. Granola-created digests are always drafts; nothing is emailed or posted until an admin sends it.
 
 **Slack (post a digest's open items when it is sent)**

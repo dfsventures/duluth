@@ -6,10 +6,14 @@ import { SETUP_TOKEN_TTL_DAYS } from "@/lib/setup-token";
 const resend = new Resend(process.env.RESEND_API_KEY || "re_placeholder");
 
 export const FROM = process.env.EMAIL_FROM || `Molly from ${ORG_NAME} <hello@dfs.vc>`;
-// Broadcasts to portfolio-company contacts send from a personal identity
-// rather than the product name — same mailbox, different display name.
-const BROADCAST_FROM = process.env.BROADCAST_EMAIL_FROM || "Joey from DFS <hello@dfs.vc>";
-const TEAM_EMAIL = process.env.TEAM_EMAIL || "joseph@dfs.vc";
+// Broadcasts to portfolio-company contacts use their own sender display name
+// (BROADCAST_EMAIL_FROM); the fallback is the org name.
+const BROADCAST_FROM = process.env.BROADCAST_EMAIL_FROM || `${ORG_NAME} <hello@dfs.vc>`;
+// Team inbox (new-application, update-published and diligence-complete
+// notifications; reply-to on broadcasts and LP report emails). Set TEAM_EMAIL
+// in every real deploy: the fallback is a synthetic placeholder (F113) so no
+// real address lives in the source.
+const TEAM_EMAIL = process.env.TEAM_EMAIL || "team@example.com";
 export const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
 const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/dfs-logo-primary.png";
@@ -656,6 +660,40 @@ export async function sendCompanyBroadcastEmail(msg: BroadcastMessage) {
     html: broadcastHtml(msg),
   });
   assertSent(result, "company-broadcast");
+}
+
+/**
+ * One team copy per broadcast send (not per recipient), to the optional
+ * BROADCAST_COPY_EMAIL inbox. Unset means no copy. NEVER throws: a failed
+ * copy must not block or fail the broadcast. Returns whether a copy went out.
+ */
+export async function sendBroadcastTeamCopy(opts: {
+  subject: string;
+  bodyHtml: string;
+  recipientCount: number;
+}): Promise<boolean> {
+  const to = process.env.BROADCAST_COPY_EMAIL?.trim();
+  if (!to) return false;
+  try {
+    const n = opts.recipientCount;
+    const result = await resend.emails.send({
+      from: BROADCAST_FROM,
+      replyTo: TEAM_EMAIL,
+      to,
+      subject: `[Copy] ${opts.subject}`,
+      html: emailWrapper(`
+        <p style="margin: 0 0 24px; padding: 10px 14px; border: 1px solid ${C.bone}; background: ${C.paper}; font-size: 13px; color: ${C.muted};">
+          Team copy. This broadcast was sent to ${n} recipient${n === 1 ? "" : "s"}. This is not the recipient email; the greeting below is generic.
+        </p>
+        ${broadcastHtml({ email: to, subject: opts.subject, bodyHtml: opts.bodyHtml })}
+      `),
+    });
+    assertSent(result, "company-broadcast-copy");
+    return true;
+  } catch (err) {
+    console.error("Failed to send broadcast team copy:", err);
+    return false;
+  }
 }
 
 /**
