@@ -46,7 +46,7 @@ export type RouteDecision =
 // retried). It is matched as an EXACT path, not a prefix, so nothing else under
 // /api/webhooks (or a lookalike such as /api/webhooks/granola-x) becomes public.
 const PUBLIC_EXACT = ["/api/webhooks/granola"];
-const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/api/dev", "/share", "/api/share", "/api/cron", "/investors", "/brand", "/lp", "/api/lp"];
+const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/share", "/api/share", "/api/cron", "/investors", "/brand", "/lp", "/api/lp"];
 
 export function decideRoute(pathname: string, search: string, s: SessionInfo): RouteDecision {
   const isAdmin = s.roles.includes("ADMIN");

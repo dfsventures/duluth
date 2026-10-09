@@ -90,6 +90,11 @@ describe("decideRoute — public routes", () => {
     expect(result.type).toBe("redirect");
   });
 
+  it("REGRESSION: /api/dev/* is not public (dev bootstrap route was removed)", () => {
+    const result = decideRoute("/api/dev/bootstrap", "", loggedOut);
+    expect(result.type).toBe("redirect");
+  });
+
   it("REGRESSION: an arbitrary API route is not public — requires login", () => {
     const result = decideRoute("/api/admin/dashboard", "", loggedOut);
     expect(result.type).toBe("redirect");

@@ -195,6 +195,8 @@ Open [http://localhost:3000](http://localhost:3000).
 2. Click "Sign in with Google" using a `@dfslab.net` account.
 3. The system will automatically create your admin account.
 
+Admins sign in with Google only; password sign-in is refused for any account with the ADMIN role. There is no dev bootstrap route or seeded admin password. Local dev needs a Google OAuth client and an account on your admin email domain.
+
 ## 5b. LP Fund-Report Portal (optional — one-time import)
 
 The LP portal (`/lp`) needs no setup to run — its tables are dormant until an admin creates a fund via `/admin/funds`. If you're bootstrapping DFS Lab's own data (or a fork's equivalent investment tracker), there's a one-time importer:
