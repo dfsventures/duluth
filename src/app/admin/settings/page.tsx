@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Mail, Bell, BookOpen, HardDrive, Plug } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { AppShell } from "@/components/layout/app-shell";
@@ -11,6 +10,10 @@ import { StorageSettingsPanel } from "./storage-settings-panel";
 import { OrphanedDocumentsPanel } from "./orphaned-documents-panel";
 import { FROM as emailFrom, BASE_URL } from "@/lib/email";
 import { SlackTestPanel } from "./slack-test-panel";
+import { SettingsTabs } from "./settings-tabs";
+import { normalizeSettingsTab } from "./settings-tabs-util";
+import { SettingsStatusStrip } from "./settings-status-strip";
+import { EmailsSentList } from "./emails-sent-list";
 
 function Status({ on }: { on: boolean }) {
   return on ? (
@@ -20,14 +23,25 @@ function Status({ on }: { on: boolean }) {
   );
 }
 
-export default async function SettingsPage() {
+function SectionHeading({ title, description }: { title: string; description?: string }) {
+  return (
+    <div className="mb-4">
+      <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>
+      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    </div>
+  );
+}
+
+const SECTION = "border-t border-border pt-6 mt-8 first:mt-0 first:border-t-0 first:pt-0";
+
+export default async function SettingsPage({ searchParams }: { searchParams: { tab?: string } }) {
   const session = await auth();
   if (!session?.user?.roles.includes("ADMIN")) {
     redirect("/login");
   }
 
+  const tab = normalizeSettingsTab(searchParams?.tab);
   const hasApiKey = !!process.env.RESEND_API_KEY;
-  const teamEmail = process.env.TEAM_EMAIL || "joseph@dfs.vc";
 
   // Part 35, WS95.2 (D2=A) — under D1=B a failed upload leaves no Document
   // row anywhere, so this DOCUMENT_UPLOAD_FAILED audit-log count is the
@@ -48,163 +62,118 @@ export default async function SettingsPage() {
 
   return (
     <AppShell>
-    <div className="max-w-2xl">
+    <div className="max-w-3xl">
       <PageHeader
         title="Settings"
         description="Platform configuration and diagnostics."
       />
 
-      <section className="rounded-xl border border-border bg-card p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
-            <Mail className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Email</h2>
-            <p className="text-xs text-muted-foreground">Transactional email via Resend</p>
-          </div>
-        </div>
+      <SettingsStatusStrip
+        resendOn={hasApiKey}
+        cronOn={!!process.env.CRON_SECRET}
+        uploadFailureCount={uploadFailureCount}
+        granola={{ on: granolaOn, last: lastIntake }}
+        slackOn={slackConfigured}
+      />
 
-        <div className="mb-4 rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground">
-          <p className="mb-2 font-medium text-foreground">Emails sent by Molly:</p>
-          <ul className="space-y-1.5">
-            <li><span className="font-medium text-foreground">Approval</span> — to the founder when their account is approved (includes set-password link)</li>
-            <li><span className="font-medium text-foreground">Rejection</span> — to the founder when their access request is declined</li>
-            <li>
-              <span className="font-medium text-foreground">New application</span>
-              {" "}— to <span className="font-mono text-foreground">{teamEmail}</span> when a founder applies for access
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Update published</span>
-              {" "}— to <span className="font-mono text-foreground">{teamEmail}</span> when a founder publishes an update (includes metrics + full body)
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Draft digest ready</span>
-              {" "}— to the admin who recorded a call when Molly drafts a weekly digest from it (not sent to anyone else)
-            </li>
-            <li>
-              <span className="font-medium text-foreground">Update reminder</span>
-              {" "}— to founders when they haven&apos;t submitted an update within their configured reminder window (set per-company in company settings)
-            </li>
-          </ul>
-        </div>
+      <SettingsTabs active={tab} />
 
-        <EmailSettingsPanel hasApiKey={hasApiKey} emailFrom={emailFrom} />
-      </section>
+      {tab === "email" && (
+        <>
+          <section className={SECTION}>
+            <SectionHeading title="Weekly digest recipients" description="Choose which admins receive the weekly digest email" />
+            <DigestRecipientsPanel />
+          </section>
 
-      <section className="mt-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
-            <HardDrive className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Storage</h2>
-            <p className="text-xs text-muted-foreground">Document uploads via S3-compatible storage</p>
-          </div>
-        </div>
-        <StorageSettingsPanel uploadFailureCount={uploadFailureCount} />
-        <hr className="my-6 border-border" />
-        <OrphanedDocumentsPanel />
-      </section>
+          <section className={SECTION}>
+            <SectionHeading title="Outgoing email" description="Transactional email via Resend" />
+            <EmailSettingsPanel hasApiKey={hasApiKey} emailFrom={emailFrom} />
+            <EmailsSentList />
+          </section>
 
-      <section className="mt-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
-            <Bell className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Reminders</h2>
-            <p className="text-xs text-muted-foreground">Automated update reminders via Vercel Cron</p>
-          </div>
-        </div>
+          <section className={SECTION}>
+            <SectionHeading title="Update reminders" />
+            <p className="text-xs text-muted-foreground">
+              Runs daily at 9:00 AM UTC. Cadence is set per company on its detail page.{" "}
+              <Link href="/admin/companies" className="text-primary underline">
+                Open companies
+              </Link>
+            </p>
+          </section>
+        </>
+      )}
 
-        <div className="rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground space-y-1.5">
-          <p>
-            <span className="font-medium text-foreground">Schedule</span>
-            {" "}— runs daily at <span className="font-mono text-foreground">9:00 AM UTC</span> via Vercel Cron
-          </p>
-          <p>
-            <span className="font-medium text-foreground">Per-company frequency</span>
-            {" "}— configure reminder cadence (weekly, bi-weekly, monthly, or quarterly) on each company&apos;s detail page
-          </p>
-          <p>
-            <span className="font-medium text-foreground">CRON_SECRET</span>
-            {" "}— set this environment variable in Vercel to secure the cron endpoint. Without it, reminders will not be triggered.{" "}
-            {process.env.CRON_SECRET ? (
-              <span className="text-acacia font-medium">Configured</span>
-            ) : (
-              <span className="text-ochre font-medium">Not set</span>
-            )}
-          </p>
-        </div>
-      </section>
-      <section className="mt-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
-            <Plug className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Integrations</h2>
-            <p className="text-xs text-muted-foreground">Optional. Each one does nothing until its environment variables are set.</p>
-          </div>
-        </div>
+      {tab === "storage" && (
+        <>
+          <section className={SECTION}>
+            <SectionHeading title="Upload health check" description="Document uploads via S3-compatible storage" />
+            <StorageSettingsPanel uploadFailureCount={uploadFailureCount} />
+          </section>
+          <section className={SECTION}>
+            <SectionHeading title="Orphaned documents" description="Document rows whose file never reached storage" />
+            <OrphanedDocumentsPanel />
+          </section>
+        </>
+      )}
 
-        <div className="rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground space-y-1.5">
-          <p className="font-medium text-foreground">Granola (call intake)</p>
-          <p><span className="font-mono text-foreground">GRANOLA_API_KEY</span> — <Status on={!!process.env.GRANOLA_API_KEY} /></p>
-          <p><span className="font-mono text-foreground">GRANOLA_FOLDER_ID</span> — <Status on={!!process.env.GRANOLA_FOLDER_ID} /></p>
-          <p><span className="font-mono text-foreground">GRANOLA_WEBHOOK_SECRET</span> — <Status on={!!process.env.GRANOLA_WEBHOOK_SECRET} /></p>
-          <p>
-            Webhook URL to register (used once the webhook ships, WS110):{" "}
-            <span className="select-all break-all font-mono text-foreground">{`${BASE_URL}/api/webhooks/granola`}</span>
-          </p>
-          <p>
-            Reads one folder only, and only each note&apos;s summary. A <em>personal</em> API key cannot see teammates&apos;
-            calls that were not shared with its owner (they would never appear); a <em>workspace</em> key sees folders with API
-            access enabled. Use a workspace key.
-          </p>
-          <p>
-            Last intake:{" "}
-            {lastIntake ? (
-              <span className="text-foreground">
-                {lastIntake.status}, {lastIntake.createdAt.toISOString().replace("T", " ").slice(0, 16)} UTC
-              </span>
-            ) : (
-              <span className="text-foreground">None yet</span>
-            )}
-            {granolaOn && (
-              <>
-                {" "}
-                <Link href="/admin/board?tab=intake" className="text-primary underline">
-                  Open Intake
-                </Link>
-              </>
-            )}
-          </p>
-        </div>
+      {tab === "integrations" && (
+        <>
+          <section className={SECTION}>
+            <SectionHeading title="Granola (call intake)" description="Optional. Does nothing until its environment variables are set." />
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <dt className="min-w-0 break-all font-mono text-foreground">GRANOLA_API_KEY</dt>
+              <dd><Status on={!!process.env.GRANOLA_API_KEY} /></dd>
+              <dt className="min-w-0 break-all font-mono text-foreground">GRANOLA_FOLDER_ID</dt>
+              <dd><Status on={!!process.env.GRANOLA_FOLDER_ID} /></dd>
+              <dt className="min-w-0 break-all font-mono text-foreground">GRANOLA_WEBHOOK_SECRET</dt>
+              <dd><Status on={!!process.env.GRANOLA_WEBHOOK_SECRET} /></dd>
+            </dl>
+            <p className="mt-3 text-xs text-muted-foreground">Webhook URL to register:</p>
+            <p className="mt-1 select-all break-all font-mono text-xs text-foreground">{`${BASE_URL}/api/webhooks/granola`}</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Last intake:{" "}
+              {lastIntake ? (
+                <span className="text-foreground">
+                  {lastIntake.status}, {lastIntake.createdAt.toISOString().replace("T", " ").slice(0, 16)} UTC
+                </span>
+              ) : (
+                <span className="text-foreground">None yet</span>
+              )}
+              {granolaOn && (
+                <>
+                  {" "}
+                  <Link href="/admin/board?tab=intake" className="text-primary underline">
+                    Open Intake
+                  </Link>
+                </>
+              )}
+            </p>
+            <details className="group mt-3">
+              <summary className="flex cursor-pointer list-none items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+                <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>&rsaquo;</span>
+                Which API key should I use?
+              </summary>
+              <p className="mt-3 border-l border-border pl-4 text-xs text-muted-foreground">
+                Reads one folder only, and only each note&apos;s summary. A <em>personal</em> API key cannot see teammates&apos;
+                calls that were not shared with its owner (they would never appear); a <em>workspace</em> key sees folders with API
+                access enabled. Use a workspace key.
+              </p>
+            </details>
+          </section>
 
-        <div className="mt-4 rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground space-y-1.5">
-          <p className="font-medium text-foreground">Slack (digest post)</p>
-          <p><span className="font-mono text-foreground">SLACK_DIGEST_WEBHOOK_URL</span> — <Status on={slackConfigured} /></p>
-          <p>When set, sending a digest also posts its open items to one channel (once per digest).</p>
-        </div>
-        <SlackTestPanel configured={slackConfigured} />
-      </section>
-
-      <section className="mt-6 rounded-xl border border-border bg-card p-6">
-        <div className="mb-5 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50">
-            <BookOpen className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-sm font-semibold text-foreground">Weekly Digest Recipients</h2>
-            <p className="text-xs text-muted-foreground">Choose which admins receive the weekly digest email</p>
-          </div>
-        </div>
-
-        <DigestRecipientsPanel />
-      </section>
-
+          <section className={SECTION}>
+            <SectionHeading title="Slack (digest post)" description="Optional. Does nothing until its environment variable is set." />
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <dt className="min-w-0 break-all font-mono text-foreground">SLACK_DIGEST_WEBHOOK_URL</dt>
+              <dd><Status on={slackConfigured} /></dd>
+            </dl>
+            <p className="mt-3 text-xs text-muted-foreground">
+              When set, sending a digest also posts its open items to one channel (once per digest).
+            </p>
+            <SlackTestPanel configured={slackConfigured} />
+          </section>
+        </>
+      )}
     </div>
     </AppShell>
   );

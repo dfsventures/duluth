@@ -55,7 +55,7 @@ export function EmailSettingsPanel({
         Sending from: <span className="font-mono text-foreground">{emailFrom}</span>
       </div>
 
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button
           variant="secondary"
           size="sm"

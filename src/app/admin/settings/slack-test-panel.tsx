@@ -28,7 +28,7 @@ export function SlackTestPanel({ configured }: { configured: boolean }) {
   }
 
   return (
-    <div className="mt-3 flex items-center gap-3">
+    <div className="mt-3 flex flex-wrap items-center gap-3">
       <Button variant="secondary" size="sm" onClick={handleTest} disabled={!configured || status === "sending"}>
         <Send className="mr-2 h-3.5 w-3.5" />
         {status === "sending" ? "Posting..." : "Send test post"}

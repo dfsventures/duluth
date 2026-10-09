@@ -67,7 +67,7 @@ export function StorageSettingsPanel({ uploadFailureCount = 0 }: StorageSettings
           run the test upload below, and check your bucket&apos;s CORS policy.
         </a>
       )}
-      <div className="mt-3 flex items-center gap-3">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <Button variant="secondary" size="sm" onClick={handleTestUpload} disabled={busy}>
           <Send className="mr-2 h-3.5 w-3.5" />
           {status === "uploading" ? "Uploading..." : status === "verifying" ? "Verifying..." : "Send Test Upload"}

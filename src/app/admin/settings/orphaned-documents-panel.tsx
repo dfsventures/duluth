@@ -53,7 +53,7 @@ export function OrphanedDocumentsPanel() {
 
   return (
     <>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Button variant="secondary" size="sm" onClick={handleScan} disabled={scanning}>
           <RefreshCw className="mr-2 h-3.5 w-3.5" />
           {scanning ? "Scanning..." : "Scan for orphaned documents"}
