@@ -174,6 +174,8 @@ Priorities run P0 (do first) through P3 (later).
 >
 > **Security fix, 2026-10-09:** production had an approved admin account created by the dev bootstrap route, whose password was hardcoded in this public repo. Password sign-in now refuses every admin account (admins are Google-only), the bootstrap route was removed and `/api/dev` is no longer public (`c4534ac`). The account was deleted from production. Also shipped: Team Board People & projects can delete plain people and projects, explain how admins appear, and no longer have the digest import (`bfd3c07`).
 >
+> **Update 2026-10-09 (sign-in auditing):** every sign-in is now recorded in the audit log: `SIGN_IN_SUCCEEDED` and `SIGN_IN_FAILED` with the method, a reason, IP and user agent, and never passwords. Password sign-in is rate-limited on failures: 10 per email or 30 per IP in 15 minutes. `/admin/audit` has Sign-ins and Failed sign-ins filters (`f5cee09`). Slack digest posts are live in `#task-board`.
+>
 > **Team Board with automatic Granola intake — Part 37, WS104–WS111, F104–F114 in [`docs/IMPLEMENTATION_PLAN.md`](./docs/IMPLEMENTATION_PLAN.md), scoped 2026-10-08. PLANNED, not built.**
 >
 > **What it adds:**
