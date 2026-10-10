@@ -16,6 +16,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronDown, ChevronUp, ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { isTypingTarget } from "@/lib/shortcuts";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import {
   ariaSort,
@@ -107,11 +108,6 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   );
 }
 
-function isTypingTarget(el: Element | null): boolean {
-  if (!el) return false;
-  const tag = el.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (el as HTMLElement).isContentEditable;
-}
 
 function DataTableInner<T>({
   rows,
@@ -190,6 +186,7 @@ function DataTableInner<T>({
   }, [qInput, state, writeState, urlState]);
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -197,6 +194,45 @@ function DataTableInner<T>({
       if (!searchRef.current || searchRef.current.offsetParent === null) return;
       e.preventDefault();
       searchRef.current.focus();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // j / k move through rows, Enter opens one (spec 6.9). Works when focus is in
+  // this table, or on the page body for the first table on the page.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      if (e.key !== "j" && e.key !== "k" && e.key !== "Enter") return;
+      const wrap = wrapRef.current;
+      if (!wrap || wrap.offsetParent === null) return;
+      const active = document.activeElement;
+      const inside = Boolean(active && wrap.contains(active));
+      const onBody = !active || active === document.body;
+      if (!inside && !(onBody && document.querySelector("[data-datatable]") === wrap)) return;
+      if (!inside && isTypingTarget(active)) return;
+      if (inside && isTypingTarget(active)) return;
+
+      const rowEls = Array.from(wrap.querySelectorAll<HTMLElement>("tbody tr[data-row]")).filter(
+        (el) => el.offsetParent !== null
+      );
+      if (rowEls.length === 0) return;
+      const current = active ? rowEls.findIndex((r) => r === active || r.contains(active)) : -1;
+
+      if (e.key === "Enter") {
+        // Only act on a row that has focus itself; links and buttons keep Enter.
+        if (current === -1 || active !== rowEls[current]) return;
+        const a = rowEls[current].querySelector<HTMLAnchorElement>("a[href]");
+        if (a) {
+          e.preventDefault();
+          a.click();
+        }
+        return;
+      }
+      e.preventDefault();
+      const next = e.key === "j" ? Math.min(current + 1, rowEls.length - 1) : Math.max(current - 1, 0);
+      rowEls[current === -1 ? 0 : next].focus();
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -276,7 +312,7 @@ function DataTableInner<T>({
   }
 
   return (
-    <div className={className}>
+    <div ref={wrapRef} data-datatable="" className={className}>
       {hasToolbar && (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {searchText && (
@@ -409,9 +445,11 @@ function DataTableInner<T>({
                   return (
                     <tr
                       key={rowKey(row)}
+                      data-row=""
+                      tabIndex={-1}
                       onClick={href ? (e) => openRow(e, href) : undefined}
                       className={cn(
-                        "group h-11 border-b border-row-divider transition-colors last:border-0 hover:bg-row-hover focus-within:bg-row-hover",
+                        "group h-11 border-b border-row-divider outline-none transition-colors last:border-0 hover:bg-row-hover focus-within:bg-row-hover focus-visible:bg-row-hover focus-visible:shadow-[inset_2px_0_0_var(--color-accent)]",
                         href && "cursor-pointer"
                       )}
                     >

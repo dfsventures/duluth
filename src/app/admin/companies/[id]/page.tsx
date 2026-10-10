@@ -23,6 +23,9 @@ import DiligenceAnswers from "@/components/admin/diligence-answers";
 import { uploadDocument } from "@/lib/upload-document";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { TabBar } from "@/components/ui/tab-bar";
+import { parseTab } from "@/lib/url-tab";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -130,6 +133,7 @@ interface CompanyDiligenceView {
 }
 
 type Tab = "updates" | "metrics" | "documents" | "members" | "notes" | "diligence";
+const TABS: readonly Tab[] = ["updates", "metrics", "documents", "members", "notes", "diligence"];
 
 function AdminCompanyDetailPageInner() {
   const params = useParams();
@@ -137,9 +141,9 @@ function AdminCompanyDetailPageInner() {
   const searchParams = useSearchParams();
   const companyId = params.id as string;
 
-  // Part 34, WS91 (JC-DR-C) — deep-link support for the "Open company →"
-  // link on /admin/diligence's queue cards (?tab=diligence).
-  const requestedTab: Tab = searchParams.get("tab") === "diligence" ? "diligence" : "updates";
+  // The tab lives in the URL (?tab=): back button, shared links and the
+  // Part 34 deep link from the diligence queue (?tab=diligence) all land on it.
+  const activeTab = parseTab(searchParams.get("tab"), TABS, "updates");
 
   const [company, setCompany] = useState<Company | null>(null);
   // Part 31, WS79 — read-only, from the new admin-only
@@ -154,12 +158,6 @@ function AdminCompanyDetailPageInner() {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>(requestedTab);
-
-  function selectTab(tab: Tab) {
-    setActiveTab(tab);
-    router.replace(tab === "diligence" ? `/admin/companies/${companyId}?tab=diligence` : `/admin/companies/${companyId}`);
-  }
 
   // Company edit mode
   const [editing, setEditing] = useState(false);
@@ -606,21 +604,22 @@ function AdminCompanyDetailPageInner() {
     );
   }
 
-  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: "updates", label: "Updates", icon: <FileText className="h-4 w-4" /> },
-    { key: "metrics", label: "Metrics", icon: <BarChart3 className="h-4 w-4" /> },
-    { key: "documents", label: "Documents", icon: <FolderOpen className="h-4 w-4" /> },
-    { key: "members", label: "Members", icon: <Users className="h-4 w-4" /> },
-    { key: "notes", label: "Notes", icon: <NotebookPen className="h-4 w-4" /> },
+  const tabs: { key: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
+    { key: "updates", label: "Updates", icon: <FileText aria-hidden="true" className="h-4 w-4" />, count: updates.length },
+    { key: "metrics", label: "Metrics", icon: <BarChart3 aria-hidden="true" className="h-4 w-4" />, count: metrics.length },
+    { key: "documents", label: "Documents", icon: <FolderOpen aria-hidden="true" className="h-4 w-4" />, count: documents.length },
+    { key: "members", label: "Members", icon: <Users aria-hidden="true" className="h-4 w-4" />, count: members.length },
+    { key: "notes", label: "Notes", icon: <NotebookPen aria-hidden="true" className="h-4 w-4" /> },
     // Part 34, WS91 (D1) — only shown when a CompanyDiligence row exists,
     // at any stage (in diligence or long since promoted).
     ...(diligence
-      ? [{ key: "diligence" as const, label: "Diligence", icon: <ClipboardCheck className="h-4 w-4" /> }]
+      ? [{ key: "diligence" as const, label: "Diligence", icon: <ClipboardCheck aria-hidden="true" className="h-4 w-4" /> }]
       : []),
   ];
 
   return (
     <AppShell>
+      <Breadcrumb items={[{ label: "Companies", href: "/admin/companies" }, { label: company.name }]} />
       <PageHeader
         title={company.name}
         description="Company detail view"
@@ -656,10 +655,6 @@ function AdminCompanyDetailPageInner() {
                 Delete
               </Button>
             )}
-            <Button variant="ghost" onClick={() => router.push("/admin/companies")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back
-            </Button>
           </div>
         }
       />
@@ -885,23 +880,8 @@ function AdminCompanyDetailPageInner() {
         </CardContent>
       </Card>
 
-      {/* Tab navigation */}
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => selectTab(tab.key)}
-            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* Tab navigation (URL tabs) */}
+      <TabBar<Tab> label="Company sections" tabs={tabs} active={activeTab} fallback="updates" />
 
       {/* Updates tab */}
       {activeTab === "updates" && (

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Eye } from "lucide-react";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { RichEditor } from "@/components/ui/rich-editor";
@@ -260,13 +261,7 @@ export default function AdminReportEditorPage() {
 
   return (
     <AppShell>
-      <button
-        onClick={() => router.push("/admin/reports")}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Reports
-      </button>
+      <Breadcrumb items={[{ label: "Fund Reports", href: "/admin/reports" }, { label: title.trim() || "Untitled report" }]} />
 
       <ComposerTopBar
         draftLabel={`${isDraft ? "Draft" : "Published"} in ${report.fund.name}`}

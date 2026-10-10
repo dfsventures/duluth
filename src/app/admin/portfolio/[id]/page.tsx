@@ -17,6 +17,7 @@ import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
 
@@ -401,7 +402,7 @@ export default function AdminPortfolioCompanyPage() {
       <AppShell>
         <Button variant="secondary" onClick={() => router.push("/admin/portfolio")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Portfolio
+          Back to Deal Ledger
         </Button>
       </AppShell>
     );
@@ -409,13 +410,7 @@ export default function AdminPortfolioCompanyPage() {
 
   return (
     <AppShell>
-      <button
-        onClick={() => router.push("/admin/portfolio")}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Portfolio
-      </button>
+      <Breadcrumb items={[{ label: "Deal Ledger", href: "/admin/portfolio" }, { label: data.name }]} />
 
 
       <div className="mb-6 rounded-md border border-border bg-card p-4">

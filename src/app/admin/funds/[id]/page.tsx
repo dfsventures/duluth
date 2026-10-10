@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -29,6 +29,9 @@ import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { TabBar } from "@/components/ui/tab-bar";
+import { parseTab } from "@/lib/url-tab";
 
 type Tab = "deals" | "lps" | "reports" | "cashflows";
 
@@ -136,14 +139,26 @@ function multipleNumber(d: { amountUsd: number; entryValuation: number | null; c
   return pv.value / d.amountUsd;
 }
 
+const FUND_TABS: readonly Tab[] = ["deals", "lps", "reports", "cashflows"];
+
 export default function AdminFundDetailPage() {
+  // useSearchParams (for the URL tab) needs a Suspense boundary.
+  return (
+    <Suspense fallback={null}>
+      <AdminFundDetailPageInner />
+    </Suspense>
+  );
+}
+
+function AdminFundDetailPageInner() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const fundId = params.id as string;
 
   const [fund, setFund] = useState<FundDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<Tab>("deals");
+  const activeTab = parseTab(searchParams.get("tab"), FUND_TABS, "deals");
   const [, setMessage] = useFlashMessage();
 
   const [portfolioCompanies, setPortfolioCompanies] = useState<PortfolioCompanyOption[]>([]);
@@ -487,11 +502,11 @@ export default function AdminFundDetailPage() {
 
   const unassignedLps = allLps.filter((lp) => !fund.lps.some((m) => m.lp.id === lp.id));
 
-  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: "deals", label: `Deals (${fund.deals.length})`, icon: <Layers className="h-4 w-4" /> },
-    { key: "lps", label: `LPs (${fund.lps.length})`, icon: <Handshake className="h-4 w-4" /> },
-    { key: "reports", label: `Reports (${fund.reports.length})`, icon: <FileText className="h-4 w-4" /> },
-    { key: "cashflows", label: `Cashflows (${fund.cashflows.length})`, icon: <DollarSign className="h-4 w-4" /> },
+  const tabs: { key: Tab; label: string; icon: React.ReactNode; count: number }[] = [
+    { key: "deals", label: "Deals", count: fund.deals.length, icon: <Layers aria-hidden="true" className="h-4 w-4" /> },
+    { key: "lps", label: "LPs", count: fund.lps.length, icon: <Handshake aria-hidden="true" className="h-4 w-4" /> },
+    { key: "reports", label: "Reports", count: fund.reports.length, icon: <FileText aria-hidden="true" className="h-4 w-4" /> },
+    { key: "cashflows", label: "Cashflows", count: fund.cashflows.length, icon: <DollarSign aria-hidden="true" className="h-4 w-4" /> },
   ];
 
   // Part 10, WS27.5: both conditions, mirroring the API's own enforcement. A fork
@@ -637,13 +652,7 @@ export default function AdminFundDetailPage() {
 
   return (
     <AppShell>
-      <button
-        onClick={() => router.push("/admin/funds")}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Funds
-      </button>
+      <Breadcrumb items={[{ label: "Funds", href: "/admin/funds" }, { label: fund.name }]} />
 
 
       <div className="mb-6 rounded-md border border-border bg-card p-4">
@@ -779,22 +788,7 @@ export default function AdminFundDetailPage() {
         </Button>
       )}
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <TabBar<Tab> label="Fund sections" tabs={tabs} active={activeTab} fallback="deals" />
 
       {activeTab === "deals" && (
         <div>

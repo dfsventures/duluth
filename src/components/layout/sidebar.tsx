@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,8 @@ import {
   FileText,
   BarChart3,
   LogOut,
-  ChevronRight,
+  ChevronDown,
+  Search,
   Shield,
   Link2,
   Settings,
@@ -32,6 +34,8 @@ import {
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 import { useCompany } from "@/context/company-context";
+import { ADMIN_DASHBOARD, ADMIN_NAV_GROUPS } from "@/lib/admin-nav";
+import { openCommandPalette } from "./command-palette";
 
 // Part 11, WS28 (Q33-B) — recurring actions first, setup-once items pushed down.
 const founderNav = [
@@ -54,64 +58,63 @@ const founderNav = [
   { label: "Service Providers", href: "/providers", icon: Wrench },
 ];
 
-// Dashboard sits ungrouped above the labeled clusters below (Q28-A).
-const adminDashboardItem = { label: "Dashboard", href: "/admin", icon: LayoutDashboard };
+// The admin nav itself (labels, hrefs, groups) is data in src/lib/admin-nav.ts,
+// shared with the command palette and the `g` shortcuts. Only icons live here.
+const ADMIN_ICONS: Record<string, typeof LayoutDashboard> = {
+  "/admin": LayoutDashboard,
+  "/admin/approvals": Shield,
+  "/admin/diligence": ClipboardCheck,
+  "/admin/companies": Building2,
+  "/admin/updates": FileText,
+  "/admin/links": Link2,
+  "/admin/funds": Landmark,
+  // Part 33, WS89 (D1): portfolio-WIDE contact + account-link management.
+  "/admin/portfolio": Rows3,
+  "/admin/portfolio-contacts": Contact,
+  "/admin/lps": Handshake,
+  "/admin/reports": NotebookPen,
+  "/admin/broadcasts": Megaphone,
+  "/admin/board": KanbanSquare,
+  "/admin/digest": BookOpen,
+  "/admin/providers": Wrench,
+  "/admin/audit": ScrollText,
+  "/admin/settings": Settings,
+};
 
-// Part 11, WS28 — admin nav regrouped into three labeled clusters
-// (Q28-A) after five parts of unrelated feature growth left this a flat,
-// 13-14 item list with no grouping cue (see docs/IMPLEMENTATION_PLAN.md
-// Part 11 findings). "Portfolio" -> "Deal Ledger" (Q29-B) is a copy-only
-// rename; href unchanged. "Fund Reports" (Q31-A) is newly linked here —
-// it previously had zero sidebar presence. Two items deliberately do NOT
-// appear anywhere in this file: "Sync" (Q30-B) is a genuinely global
-// integration (one spreadsheet, every fund), so it's a tab on
-// /admin/funds; "Update Templates" is a sub-feature of Updates (the
-// skeletons founders start an update from, not a peer destination), so
-// it's a tab on /admin/updates (see src/components/admin/*-panel.tsx).
-const adminNavGroups = [
-  {
-    label: "Company Operations",
-    items: [
-      { label: "Approvals", href: "/admin/approvals", icon: Shield },
-      { label: "Diligence", href: "/admin/diligence", icon: ClipboardCheck },
-      { label: "Companies", href: "/admin/companies", icon: Building2 },
-      { label: "Updates", href: "/admin/updates", icon: FileText },
-      { label: "Investor Links", href: "/admin/links", icon: Link2 },
-    ],
-  },
-  {
-    label: "Funds & LPs",
-    items: [
-      { label: "Funds", href: "/admin/funds", icon: Landmark },
-      { label: "Deal Ledger", href: "/admin/portfolio", icon: Rows3 },
-      // Part 33, WS89 (D1) — portfolio-WIDE contact + account-link management,
-      // moved off /admin/portfolio, whose job is the cross-fund deal ledger.
-      // Per-company contact CRUD and the link/unlink widget deliberately stay
-      // on /admin/portfolio/[id] — that is per-record management, not this.
-      { label: "Portfolio Contacts", href: "/admin/portfolio-contacts", icon: Contact },
-      { label: "LPs", href: "/admin/lps", icon: Handshake },
-      { label: "Fund Reports", href: "/admin/reports", icon: NotebookPen },
-      // Part 30, WS74 (JC-BC-I) — a PortfolioCompany-side tool (same
-      // entity as Deal Ledger and report mentions), not Company Operations.
-      { label: "Broadcasts", href: "/admin/broadcasts", icon: Megaphone },
-    ],
-  },
-  {
-    label: "Team & Resources",
-    items: [
-      { label: "Team Board", href: "/admin/board", icon: KanbanSquare },
-      { label: "Weekly Digest", href: "/admin/digest", icon: BookOpen },
-      { label: "Service Providers", href: "/admin/providers", icon: Wrench },
-    ],
-  },
-  {
-    label: "Admin Tools",
-    items: [
-      { label: "Audit Log", href: "/admin/audit", icon: ScrollText },
-      { label: "Settings", href: "/admin/settings", icon: Settings },
-    ],
-  },
-];
+interface NavItem {
+  label: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+}
+
+const adminDashboardItem: NavItem = { ...ADMIN_DASHBOARD, icon: LayoutDashboard };
+const adminNavGroups = ADMIN_NAV_GROUPS.map((g) => ({
+  label: g.label,
+  items: g.items.map((i): NavItem => ({ label: i.label, href: i.href, icon: ADMIN_ICONS[i.href] ?? FileText })),
+}));
+
+interface NavCounts {
+  approvals: number;
+  diligence: number;
+  boardReview: number;
+}
+
+/**
+ * Markers that say "this needs you". Approvals and Diligence are solid Obsidian
+ * (someone is waiting); the board's review count is informational and stays quiet.
+ */
+function countMarker(href: string, counts: NavCounts | null): { text: string; solid: boolean; sr: string } | null {
+  if (!counts) return null;
+  if (href === "/admin/approvals" && counts.approvals > 0)
+    return { text: String(counts.approvals), solid: true, sr: `${counts.approvals} waiting` };
+  if (href === "/admin/diligence" && counts.diligence > 0)
+    return { text: String(counts.diligence), solid: true, sr: `${counts.diligence} ready for review` };
+  if (href === "/admin/board" && counts.boardReview > 0)
+    return { text: `${counts.boardReview} to review`, solid: false, sr: `${counts.boardReview} to review` };
+  return null;
+}
+
+const COLLAPSE_KEY = "molly.nav.collapsed";
 
 interface SidebarProps {
   open?: boolean;
@@ -136,14 +139,56 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   // Dual-role users see admin nav on /admin paths, founder nav everywhere else
   const useAdminNav = isAdminPath || (isAdmin && !isFounder);
 
+  // Sidebar markers (admin nav only). Silent on failure: the nav works without them.
+  const [counts, setCounts] = useState<NavCounts | null>(null);
+  useEffect(() => {
+    if (!useAdminNav || !isAdmin) return;
+    let cancelled = false;
+    fetch("/api/admin/nav-counts")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => !cancelled && d && setCounts(d))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Refetch on navigation so a number drops after you clear the queue.
+  }, [useAdminNav, isAdmin, pathname]);
+
+  // Collapsed groups are remembered per browser. Storage can throw (private
+  // windows, blocked site data), so every access is guarded.
+  const [collapsed, setCollapsed] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setCollapsed(parsed.filter((x): x is string => typeof x === "string"));
+      }
+    } catch {
+      /* default: all open */
+    }
+  }, []);
+  function toggleGroup(label: string) {
+    setCollapsed((prev) => {
+      const next = prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label];
+      try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        /* not persisted */
+      }
+      return next;
+    });
+  }
+
   function isActive(href: string) {
     return href === "/admin" || href === "/dashboard"
       ? pathname === href
       : pathname === href || pathname.startsWith(href + "/");
   }
 
-  function renderItem(item: { label: string; href: string; icon: typeof LayoutDashboard }) {
+  function renderItem(item: NavItem) {
     const active = isActive(item.href);
+    const marker = useAdminNav ? countMarker(item.href, counts) : null;
     return (
       <li key={item.href}>
         <Link
@@ -151,15 +196,26 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           onClick={onClose}
           aria-current={active ? "page" : undefined}
           className={cn(
-            "flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
+            // Active: a white tab with a 2px Sky rule on its left edge.
+            "relative flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
             active
-              ? "bg-primary-50 text-primary-600"
+              ? "bg-card text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:bg-sky"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
         >
-          <item.icon className="h-4 w-4" />
+          <item.icon aria-hidden="true" className="h-4 w-4" />
           {item.label}
-          {active && <ChevronRight className="ml-auto h-4 w-4" />}
+          {marker && (
+            <span
+              className={cn(
+                "num ml-auto font-mono text-label",
+                marker.solid ? "bg-foreground px-1.5 text-background" : "text-muted-foreground"
+              )}
+            >
+              <span aria-hidden="true">{marker.text}</span>
+              <span className="sr-only">, {marker.sr}</span>
+            </span>
+          )}
         </Link>
       </li>
     );
@@ -193,10 +249,27 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         {useAdminNav ? (
           <>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.();
+                  openCommandPalette();
+                }}
+                className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Search aria-hidden="true" className="h-3.5 w-3.5" />
+                <span className="flex-1">Search or jump to</span>
+                <kbd className="border border-border bg-background px-1.5 font-mono text-[10px]">Ctrl K</kbd>
+              </button>
+            )}
             <ul className="space-y-1">{renderItem(adminDashboardItem)}</ul>
             {adminNavGroups.map((group, i) => {
               const headingId = `sidebar-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+              const listId = `${headingId}-list`;
               const groupActive = group.items.some((item) => isActive(item.href));
+              // A group holding the current page never hides it.
+              const isOpen = groupActive || !collapsed.includes(group.label);
               return (
                 <div
                   key={group.label}
@@ -204,16 +277,26 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   aria-labelledby={headingId}
                   className={cn(i === 0 ? "mt-6" : "mt-4", i > 0 && "border-t border-border pt-4")}
                 >
-                  <p
+                  <button
+                    type="button"
                     id={headingId}
+                    aria-expanded={isOpen}
+                    aria-controls={listId}
+                    onClick={() => toggleGroup(group.label)}
                     className={cn(
-                      "mb-1.5 px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em]",
+                      "mb-1.5 flex w-full items-center justify-between px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       groupActive ? "text-foreground" : "text-muted-foreground"
                     )}
                   >
                     {group.label}
-                  </p>
-                  <ul className="space-y-1">{group.items.map(renderItem)}</ul>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={cn("h-3.5 w-3.5 transition-transform", !isOpen && "-rotate-90")}
+                    />
+                  </button>
+                  <ul id={listId} hidden={!isOpen} className="space-y-1">
+                    {group.items.map(renderItem)}
+                  </ul>
                 </div>
               );
             })}

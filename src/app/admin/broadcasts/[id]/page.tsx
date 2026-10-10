@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
+import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -318,13 +319,7 @@ export default function AdminBroadcastEditorPage() {
 
   return (
     <AppShell>
-      <button
-        onClick={() => router.push("/admin/broadcasts")}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Broadcasts
-      </button>
+      <Breadcrumb items={[{ label: "Broadcasts", href: "/admin/broadcasts" }, { label: subject.trim() || "Untitled broadcast" }]} />
 
       <ComposerTopBar
         draftLabel={isDraft ? "Draft" : `Sent ${data.publishedAt ? formatDate(data.publishedAt) : ""}`}
