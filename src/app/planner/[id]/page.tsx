@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AlertCircle, CheckCircle2, ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,9 @@ import {
   type ScenarioInput,
   type SafeInvestor,
 } from "@/lib/cap-table";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 // Part 29, WS68 — Dilution Planner editor. "use client", useCompany() for
 // selectedCompany.id (same as /diligence). Computes the stage-by-stage
@@ -59,7 +62,7 @@ export default function ScenarioEditorPage() {
   const [notFound, setNotFound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
   const [dirty, setDirty] = useState(false);
 
   const [scenarioName, setScenarioName] = useState("Base case");
@@ -171,7 +174,7 @@ export default function ScenarioEditorPage() {
         setLoading(false);
       }
     })();
-  }, [companyId, companyLoading, loadScenario]);
+  }, [companyId, companyLoading, loadScenario, setMessage]);
 
   const scenarioInput: ScenarioInput = useMemo(
     () => ({
@@ -247,9 +250,10 @@ export default function ScenarioEditorPage() {
     onSave: () => handleSave({ silent: true }),
   });
 
+  const confirm = useConfirm();
   async function handleDelete() {
     if (!companyId) return;
-    if (!window.confirm("Delete this scenario? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this scenario", description: "This cannot be undone.", confirmLabel: "Delete scenario" }))) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/companies/${companyId}/scenarios/${scenarioId}`, { method: "DELETE" });
@@ -361,9 +365,7 @@ export default function ScenarioEditorPage() {
   if (companyLoading || loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -407,19 +409,6 @@ export default function ScenarioEditorPage() {
         }
       />
 
-      {message && (
-        <div
-          className={cn(
-            "mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm",
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          )}
-        >
-          {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          {message.text}
-        </div>
-      )}
 
       <div className="space-y-6">
         <Card>

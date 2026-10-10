@@ -25,6 +25,8 @@ import { isInlineViewable } from "@/lib/documents";
 import { formatDate, formatFileSize } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
 import { uploadDocument } from "@/lib/upload-document";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface Document {
   id: string;
@@ -60,7 +62,7 @@ export default function CompanyDocumentsPage() {
   const [uploadDocType, setUploadDocType] = useState("");
   const [docSearch, setDocSearch] = useState("");
   const [docTypeFilter, setDocTypeFilter] = useState("");
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
   const [failedUploads, setFailedUploads] = useState<FailedUpload[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -87,7 +89,7 @@ export default function CompanyDocumentsPage() {
     loadDocuments(companyId)
       .catch(() => setMessage({ type: "error", text: "Failed to load documents." }))
       .finally(() => setLoading(false));
-  }, [companyId, companyLoading, loadDocuments]);
+  }, [companyId, companyLoading, loadDocuments, setMessage]);
 
   async function handleUpload(file: File, retryKey?: string) {
     if (!companyId) return;
@@ -138,9 +140,7 @@ export default function CompanyDocumentsPage() {
   if (companyLoading || loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -160,25 +160,6 @@ export default function CompanyDocumentsPage() {
         description={`Files shared with the ${ORG_NAME} team — cap tables, financials, legal documents, and more.`}
       />
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-          ) : (
-            <AlertCircle className="h-4 w-4 shrink-0" />
-          )}
-          <span className="flex-1">{message.text}</span>
-          <button onClick={() => setMessage(null)}>
-            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
-          </button>
-        </div>
-      )}
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex-1">

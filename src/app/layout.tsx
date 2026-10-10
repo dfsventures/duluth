@@ -4,6 +4,8 @@ import "./globals.css";
 import { SessionProvider } from "next-auth/react";
 import { CompanyProvider } from "@/context/company-context";
 import { ORG_NAME } from "@/lib/org";
+import { Toaster } from "@/components/ui/toaster";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -45,7 +47,12 @@ export default function RootLayout({
       className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen bg-background antialiased">
-        <SessionProvider><CompanyProvider>{children}</CompanyProvider></SessionProvider>
+        <SessionProvider>
+          <CompanyProvider>
+            <ConfirmProvider>{children}</ConfirmProvider>
+          </CompanyProvider>
+        </SessionProvider>
+        <Toaster />
       </body>
     </html>
   );

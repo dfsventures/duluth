@@ -3,14 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Building2,
-  Save,
-  AlertCircle,
-  CheckCircle2,
-  ArrowLeft,
-  UserPlus,
-} from "lucide-react";
+import { Building2, Save, ArrowLeft, UserPlus } from "lucide-react";
 import { normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { AppShell } from "@/components/layout/app-shell";
@@ -20,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useFlashMessage } from "@/lib/use-flash-message";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -27,10 +21,7 @@ export default function NewCompanyPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   // Company form
   const [name, setName] = useState("");
@@ -131,22 +122,6 @@ export default function NewCompanyPage() {
         }
       />
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          {message.text}
-        </div>
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Company details */}

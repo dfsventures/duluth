@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Broadcast {
   id: string;
@@ -96,10 +97,11 @@ export default function AdminBroadcastsPage() {
     (b.subject || "").toLowerCase().includes(search.trim().toLowerCase())
   );
 
+  const confirm = useConfirm();
   async function handleDeleteDraft(e: React.MouseEvent, id: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm("Delete this draft broadcast? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this draft broadcast", description: "This cannot be undone.", confirmLabel: "Delete draft" }))) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/admin/broadcasts/${id}`, { method: "DELETE" });

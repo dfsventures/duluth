@@ -153,6 +153,15 @@ const config: Config = {
           to: { transform: "none", opacity: "1" },
         },
         "toast-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+        "overlay-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+        "dialog-out": {
+          from: { opacity: "1", transform: "none" },
+          to: { opacity: "0", transform: "translateY(6px)" },
+        },
+        "sheet-out": {
+          from: { transform: "none", opacity: "1" },
+          to: { transform: "translateX(24px)", opacity: "0" },
+        },
       },
       animation: {
         "skeleton-pulse": "skeleton-pulse 1.4s ease-in-out infinite",
@@ -161,6 +170,9 @@ const config: Config = {
         "sheet-in": "sheet-in 280ms var(--ease-out)",
         "toast-in": "toast-in 200ms var(--ease-out)",
         "toast-out": "toast-out 120ms var(--ease-in) forwards",
+        "overlay-out": "overlay-out 120ms var(--ease-in) forwards",
+        "dialog-out": "dialog-out 120ms var(--ease-in) forwards",
+        "sheet-out": "sheet-out 160ms var(--ease-in) forwards",
       },
     },
   },

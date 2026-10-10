@@ -26,6 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { FundPerformanceCard } from "@/components/fund-performance-card";
 import { positionValue } from "@/lib/portfolio-metrics";
 import { formatDate } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 type Tab = "deals" | "lps" | "reports" | "cashflows";
 
@@ -135,7 +138,7 @@ export default function AdminFundDetailPage() {
   const [fund, setFund] = useState<FundDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("deals");
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   const [portfolioCompanies, setPortfolioCompanies] = useState<PortfolioCompanyOption[]>([]);
   const [allLps, setAllLps] = useState<LpOption[]>([]);
@@ -366,8 +369,9 @@ export default function AdminFundDetailPage() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDeleteDeal(dealId: string) {
-    if (!window.confirm("Delete this deal? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this deal", description: "This cannot be undone.", confirmLabel: "Delete deal" }))) return;
     await fetch(`/api/admin/deals/${dealId}`, { method: "DELETE" });
     loadFund();
   }
@@ -450,7 +454,7 @@ export default function AdminFundDetailPage() {
   }
 
   async function handleDeleteCashflow(id: string) {
-    if (!window.confirm("Delete this cashflow record? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this cashflow record", description: "This cannot be undone.", confirmLabel: "Delete cashflow" }))) return;
     await fetch(`/api/admin/cashflows/${id}`, { method: "DELETE" });
     loadFund();
   }
@@ -458,9 +462,7 @@ export default function AdminFundDetailPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -496,15 +498,6 @@ export default function AdminFundDetailPage() {
         Back to Funds
       </button>
 
-      {message && (
-        <div
-          className={`mb-6 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
 
       <div className="mb-6 rounded-md border border-border bg-card p-4">
         {editingHeader ? (

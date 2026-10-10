@@ -1,11 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Eye, AlertCircle, CheckCircle2, Link2 } from "lucide-react";
+import { RefreshCw, Eye, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 // Part 11, WS28 (Q30-B) — the Sync surface used to be its own top-level
 // page at /admin/sync with its own sidebar nav item. Sync is a genuinely
@@ -99,12 +101,12 @@ export function SyncPanel() {
   const [syncing, setSyncing] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   const [linkPreview, setLinkPreview] = useState<LinkPreviewResponse | null>(null);
   const [linkPreviewing, setLinkPreviewing] = useState(false);
   const [linkApplying, setLinkApplying] = useState(false);
-  const [linkMessage, setLinkMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setLinkMessage] = useFlashMessage();
 
   const load = useCallback(async () => {
     try {
@@ -118,7 +120,7 @@ export function SyncPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setMessage]);
 
   useEffect(() => {
     load();
@@ -195,9 +197,7 @@ export function SyncPanel() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className="text-sm text-muted-foreground">Loading...</div>
-      </div>
+      <PageSkeleton />
     );
   }
 
@@ -242,16 +242,6 @@ export function SyncPanel() {
         <p className="mt-1 text-muted-foreground">Weekly cron runs Mondays at 08:00 UTC.</p>
       </div>
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          {message.text}
-        </div>
-      )}
 
       {/* Collapsed by default (unlike the status box above, this isn't
           auto-checked on load): a one-time bootstrapping step, already
@@ -287,16 +277,6 @@ export function SyncPanel() {
               treating them as new. Idempotent — already-linked deals are always skipped. Refuses to apply if any deal is ambiguous or unmatched.
             </p>
 
-            {linkMessage && (
-              <div
-                className={`mb-3 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-                  linkMessage.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
-                }`}
-              >
-                {linkMessage.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-                {linkMessage.text}
-              </div>
-            )}
 
             {linkPreview && (
               <div>

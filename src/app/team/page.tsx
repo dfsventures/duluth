@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Users, Plus, Trash2, AlertCircle, CheckCircle2, X } from "lucide-react";
+import { Users, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useCompany } from "@/context/company-context";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 interface Member {
   membershipId: string;
@@ -43,7 +45,7 @@ export default function TeamPage() {
   const [company, setCompany] = useState<Company | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   // Invite form
   const [showInvite, setShowInvite] = useState(false);
@@ -81,7 +83,7 @@ export default function TeamPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setMessage]);
 
   useEffect(() => {
     loadData();
@@ -175,25 +177,6 @@ export default function TeamPage() {
         }
       />
 
-      {message && (
-        <div
-          className={`mb-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          ) : (
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          )}
-          <span className="flex-1">{message.text}</span>
-          <button onClick={() => setMessage(null)} className="shrink-0 opacity-60 hover:opacity-100">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
 
       {/* Invite form */}
       {showInvite && (
@@ -244,7 +227,7 @@ export default function TeamPage() {
 
       {/* Members list */}
       {loading ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">Loading...</div>
+        <TableSkeleton rows={4} cols={3} />
       ) : members.length === 0 ? (
         <EmptyState
           icon={<Users className="h-8 w-8" />}

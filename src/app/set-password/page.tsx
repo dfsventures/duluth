@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoMark } from "@/components/ui/logo-mark";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
 
@@ -16,7 +17,7 @@ type ResendState = "idle" | "sending" | "sent";
 function CenteredLoading() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-muted-foreground">Loading...</div>
+      <div className="w-full max-w-md space-y-4 border border-border bg-card p-8"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-9 w-28" /></div>
     </div>
   );
 }

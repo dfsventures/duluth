@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { AlertCircle, CheckCircle2, ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,8 @@ import { RichEditor } from "@/components/ui/rich-editor";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { ComposerTitleField } from "@/components/composer/composer-title-field";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface MetricDefinition {
   id: string;
@@ -33,10 +35,7 @@ export default function AdminCreateUpdatePage() {
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   // Form state
   const [period, setPeriod] = useState("");
@@ -68,7 +67,7 @@ export default function AdminCreateUpdatePage() {
     }
 
     load();
-  }, [companyId]);
+  }, [companyId, setMessage]);
 
   function updateMetricInput(metricId: string, value: string) {
     setMetricInputs((prev) => ({ ...prev, [metricId]: value }));
@@ -131,9 +130,7 @@ export default function AdminCreateUpdatePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -163,22 +160,6 @@ export default function AdminCreateUpdatePage() {
         publishing={submitting}
       />
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          {message.text}
-        </div>
-      )}
 
       <div className="mx-auto max-w-3xl">
         <ComposerTitleField title={title} onTitleChange={setTitle} period={period} onPeriodChange={setPeriod} />

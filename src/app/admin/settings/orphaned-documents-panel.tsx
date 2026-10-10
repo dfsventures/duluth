@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface OrphanedDoc {
   id: string;
@@ -36,8 +37,9 @@ export function OrphanedDocumentsPanel() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDelete(id: string) {
-    if (!window.confirm("Permanently delete this document row? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Permanently delete this document row", description: "This cannot be undone.", confirmLabel: "Delete row" }))) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/admin/documents/${id}/orphan`, { method: "DELETE" });

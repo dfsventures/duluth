@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ADMIN_EMAIL_DOMAINS_LABEL } from "@/lib/org";
 import type { BoardPersonData, BoardProjectData } from "./types";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 async function readError(res: Response, fallback: string) {
   const d = await res.json().catch(() => null);
@@ -106,7 +107,7 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
       </span>
     ));
 
-  if (loading) return <p className="py-8 text-sm text-muted-foreground">Loading...</p>;
+  if (loading) return <TableSkeleton rows={4} cols={3} className="my-6" />;
 
   const renameForm = (kind: "person" | "project", id: string) =>
     editing && editing.kind === kind && editing.id === id ? (

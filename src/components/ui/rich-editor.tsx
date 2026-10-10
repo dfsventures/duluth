@@ -35,6 +35,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "@/lib/toast";
 
 interface RichEditorProps {
   value: string;
@@ -153,7 +154,7 @@ export function RichEditor({
         editor.chain().focus().setImage({ src: imageUrl, alt: file.name }).run();
       } catch (err) {
         const message = err instanceof UploadError ? err.message : "Image upload failed. Please try again.";
-        window.alert(message);
+        toast.error(message);
       }
     },
     [editor, companyId]

@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { formatDate } from "@/lib/utils";
 import { cadenceStatus } from "@/lib/update-cadence";
+import { Skeleton, CardSkeleton } from "@/components/ui/skeleton";
 
 interface Company {
   id: string;
@@ -169,9 +170,7 @@ export default function AdminCompaniesPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <div className="space-y-6"><Skeleton className="h-7 w-48" /><CardSkeleton count={6} /></div>
       </AppShell>
     );
   }

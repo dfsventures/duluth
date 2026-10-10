@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface FundOption {
   id: string;
@@ -54,10 +55,11 @@ function AdminReportsPageInner() {
   const [saveError, setSaveError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const confirm = useConfirm();
   async function handleDeleteDraft(e: React.MouseEvent, id: string) {
     e.preventDefault();
     e.stopPropagation();
-    if (!window.confirm("Delete this draft report? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this draft report", description: "This cannot be undone.", confirmLabel: "Delete draft" }))) return;
     setDeletingId(id);
     try {
       const res = await fetch(`/api/admin/reports/${id}`, { method: "DELETE" });

@@ -3,39 +3,7 @@
 import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import {
-  Building2,
-  FileText,
-  BarChart3,
-  FolderOpen,
-  Users,
-  Globe,
-  MapPin,
-  Pencil,
-  Plus,
-  ArrowLeft,
-  AlertCircle,
-  CheckCircle2,
-  Save,
-  Upload,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  ExternalLink,
-  Trash2,
-  Download,
-  X,
-  Search,
-  Archive,
-  ArchiveRestore,
-  Bell,
-  NotebookPen,
-  History,
-  ChevronLeft,
-  ChevronRight as ChevronRightIcon,
-  Eye,
-  ClipboardCheck,
-} from "lucide-react";
+import { Building2, FileText, BarChart3, FolderOpen, Users, Globe, MapPin, Pencil, Plus, ArrowLeft, AlertCircle, Save, Upload, TrendingUp, TrendingDown, Minus, ExternalLink, Trash2, Download, X, Search, Archive, ArchiveRestore, Bell, NotebookPen, History, ChevronLeft, Eye, ClipboardCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -53,6 +21,8 @@ import { isInlineViewable } from "@/lib/documents";
 import { RichEditor } from "@/components/ui/rich-editor";
 import DiligenceAnswers from "@/components/admin/diligence-answers";
 import { uploadDocument } from "@/lib/upload-document";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -195,10 +165,7 @@ function AdminCompanyDetailPageInner() {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<Company | null>(null);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   // Metric add form
   const [showAddMetric, setShowAddMetric] = useState(false);
@@ -612,9 +579,7 @@ function AdminCompanyDetailPageInner() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -699,25 +664,6 @@ function AdminCompanyDetailPageInner() {
         }
       />
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          <span className="flex-1">{message.text}</span>
-          <button onClick={() => setMessage(null)}>
-            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
-          </button>
-        </div>
-      )}
 
       {/* Company profile summary */}
       <Card className="mb-6">

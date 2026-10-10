@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, MAX_NOTES_LENGTH, MAX_TITLE_LENGTH, type BoardStatus } from "@/lib/board";
 import type { BoardCardData, BoardPersonData, BoardProjectData } from "./types";
+import { toast } from "@/lib/toast";
 
 interface Props {
   /** null = create mode. */
@@ -102,7 +103,11 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
   }
 
   async function archive() {
-    if (!card || !window.confirm("Archive this item? It will leave the board.")) return;
+    if (!card) return;
+    // Reversible (PATCH archived:false restores it), so no blocking dialog
+    // (spec 6.5): archive, then offer Undo.
+    const cardId = card.id;
+    const cardTitle = card.title;
     setBusy(true);
     setError("");
     try {
@@ -114,6 +119,21 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
       if (!res.ok) throw new Error(await readError(res, "Failed to archive."));
       const archived: BoardCardData | undefined = await res.json().catch(() => undefined);
       onSaved(archived);
+      toast.undo(`Archived "${cardTitle}".`, async () => {
+        try {
+          const back = await fetch(`/api/admin/board/cards/${cardId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ archived: false }),
+          });
+          if (!back.ok) throw new Error(await readError(back, "Failed to restore."));
+          const restored: BoardCardData | undefined = await back.json().catch(() => undefined);
+          onSaved(restored);
+          toast.success(`Restored "${cardTitle}".`);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Failed to restore.");
+        }
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {

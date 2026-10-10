@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Eye, AlertCircle, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 // Part 36, WS103.3 — a sibling sub-section inside the EXISTING Sync tab on
 // /admin/funds (not a new sidebar item — Part 11/WS28 deliberately
@@ -82,7 +84,7 @@ export function FundMetricsSyncPanel() {
   const [syncing, setSyncing] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   const load = useCallback(async () => {
     try {
@@ -96,7 +98,7 @@ export function FundMetricsSyncPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setMessage]);
 
   useEffect(() => {
     load();
@@ -132,9 +134,7 @@ export function FundMetricsSyncPanel() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="text-sm text-muted-foreground">Loading...</div>
-      </div>
+      <TableSkeleton rows={3} cols={3} className="my-6" />
     );
   }
 
@@ -180,16 +180,6 @@ export function FundMetricsSyncPanel() {
         <p className="mt-1 text-muted-foreground">Weekly cron runs Mondays at 08:30 UTC (30 minutes after the deals sync above).</p>
       </div>
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          {message.text}
-        </div>
-      )}
 
       <h3 className="mb-3 font-semibold">Run history</h3>
       {runs.length === 0 ? (

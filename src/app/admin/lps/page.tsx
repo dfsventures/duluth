@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface FundOption {
   id: string;
@@ -148,8 +149,9 @@ export default function AdminLpsPage() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDelete(id: string) {
-    if (!window.confirm("Delete this LP? This removes their fund memberships and signs them out everywhere. This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this LP", description: "This removes their fund memberships and signs them out everywhere. This cannot be undone.", confirmLabel: "Delete LP", typeToConfirm: lps.find((l) => l.id === id)?.name || lps.find((l) => l.id === id)?.email || "delete" }))) return;
     await fetch(`/api/admin/lps/${id}`, { method: "DELETE" });
     loadData();
   }
@@ -196,9 +198,11 @@ export default function AdminLpsPage() {
   async function handleRemoveAddress(lp: Lp, email: string) {
     const isLast = lp.emails.length === 1;
     if (isLast) {
-      const ok = window.confirm(
-        "This is their only address — removing it signs them out and they won't be able to log in until you add another. Continue?"
-      );
+      const ok = await confirm({
+        title: "Remove their only address",
+        description: "Removing it signs them out, and they won't be able to log in until you add another.",
+        confirmLabel: "Remove address",
+      });
       if (!ok) return;
     }
     setAddressBusy(true);

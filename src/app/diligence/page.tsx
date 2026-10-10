@@ -19,6 +19,8 @@ import { DD_DOC_TYPES, AUTO_INTERNAL_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { uploadDocument } from "@/lib/upload-document";
 import { RefreshCw } from "lucide-react";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 // Part 16, WS40 — founder-facing DD checklist. Purpose-built (not a
 // /setup-wizard extension, per F31 — that step's file input has no
@@ -60,7 +62,7 @@ export default function DiligencePage() {
   const [stellarWhyText, setStellarWhyText] = useState("");
   const [stellarTimelineText, setStellarTimelineText] = useState("");
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -171,9 +173,7 @@ export default function DiligencePage() {
   if (companyLoading || loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -224,22 +224,6 @@ export default function DiligencePage() {
         )}
       </div>
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          {message.text}
-        </div>
-      )}
 
       <form onSubmit={handleSave} className="space-y-6">
         <Card>

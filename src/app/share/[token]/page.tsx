@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface MetricSnapshot {
   name: string;
@@ -162,7 +163,7 @@ export default function SharePage() {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="text-sm text-muted-foreground">Loading...</div>
+        <div className="w-full max-w-2xl px-6"><PageSkeleton /></div>
       </div>
     );
   }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, AlertCircle, CheckCircle2, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,9 @@ import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface BroadcastTarget {
   portfolioCompanyId: string;
@@ -75,7 +78,7 @@ export default function AdminBroadcastEditorPage() {
   const [deleting, setDeleting] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   const isDraft = data?.status === "DRAFT";
   const skipNextAutosave = useRef(true);
@@ -95,7 +98,7 @@ export default function AdminBroadcastEditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [broadcastId]);
+  }, [broadcastId, setMessage]);
 
   const loadCompanies = useCallback(async () => {
     const res = await fetch("/api/admin/portfolio-companies");
@@ -238,8 +241,9 @@ export default function AdminBroadcastEditorPage() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDeleteDraft() {
-    if (!window.confirm("Delete this draft broadcast? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this draft broadcast", description: "This cannot be undone.", confirmLabel: "Delete draft" }))) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/admin/broadcasts/${broadcastId}`, { method: "DELETE" });
@@ -292,9 +296,7 @@ export default function AdminBroadcastEditorPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -356,16 +358,6 @@ export default function AdminBroadcastEditorPage() {
         }
       />
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          {message.text}
-        </div>
-      )}
 
       {confirmSend && (
         <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">

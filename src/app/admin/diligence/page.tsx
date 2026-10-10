@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { DD_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import DiligenceAnswers from "@/components/admin/diligence-answers";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 // Part 16, WS41 (Q54, JC-DD-G) — admin DD review queue. Its own page,
 // not a third section on /admin/approvals: this reviews Company/
@@ -121,9 +122,7 @@ export default function AdminDiligencePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

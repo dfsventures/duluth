@@ -3,13 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  FileText,
-  AlertCircle,
-  CheckCircle2,
-  Upload,
-  ArrowLeft,
-} from "lucide-react";
+import { FileText, Upload, ArrowLeft } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -21,6 +15,9 @@ import { ComposerTitleField } from "@/components/composer/composer-title-field";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { useCompany } from "@/context/company-context";
 import { ORG_NAME } from "@/lib/org";
+import { toast } from "@/lib/toast";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface MetricDefinition {
   id: string;
@@ -47,10 +44,7 @@ export default function NewUpdatePage() {
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   // Form state
   const [period, setPeriod] = useState("");
@@ -92,7 +86,7 @@ export default function NewUpdatePage() {
     }
 
     load();
-  }, [companyLoading, selectedCompany?.id]);
+  }, [companyLoading, selectedCompany?.id, setMessage]);
 
   function updateMetricInput(metricId: string, value: string) {
     setMetricInputs((prev) => ({ ...prev, [metricId]: value }));
@@ -102,12 +96,14 @@ export default function NewUpdatePage() {
     const template = templates.find((t) => t.id === templateId);
     if (!template) return;
 
-    const isBodyEmpty = body.replace(/<[^>]*>/g, "").trim() === "";
-    if (!isBodyEmpty && !window.confirm("Replace your current draft text with this template?")) {
-      return;
-    }
+    // Reversible, so no blocking dialog (spec 6.5): apply, then offer Undo.
+    const previousBody = body;
+    const isBodyEmpty = previousBody.replace(/<[^>]*>/g, "").trim() === "";
 
     setBody(template.body);
+    if (!isBodyEmpty) {
+      toast.undo("Replaced your draft with the template.", () => setBody(previousBody));
+    }
   }
 
   async function handleSubmit(status: "DRAFT" | "SENT", scheduledForISO?: string) {
@@ -186,9 +182,7 @@ export default function NewUpdatePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -233,22 +227,6 @@ export default function NewUpdatePage() {
         overflowItems={[{ label: showSchedule ? "Hide schedule" : "Schedule for later", onClick: () => setShowSchedule((v) => !v) }]}
       />
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : (
-            <AlertCircle className="h-4 w-4" />
-          )}
-          {message.text}
-        </div>
-      )}
 
       {/* Publish confirm — slim banner under the top bar */}
       {confirmPublish && (

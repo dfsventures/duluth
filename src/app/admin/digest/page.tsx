@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface DigestSummary {
   id: string;
@@ -41,9 +42,7 @@ export default function DigestListPage() {
   if (sessionStatus === "loading" || loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

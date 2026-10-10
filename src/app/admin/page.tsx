@@ -27,6 +27,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "@/lib/toast";
+import { Skeleton, KpiSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 
 interface OverdueCompany {
   id: string;
@@ -111,7 +113,14 @@ export default function AdminDashboardPage() {
       });
       if (res.ok) {
         setAlerts((prev) => prev.filter((a) => a.id !== id));
+        // No Undo: the alerts API only supports { resolved: true } (spec 6.5 asks
+        // for Undo here; it needs an API change, so this is a plain confirmation).
+        toast.success("Alert dismissed.");
+      } else {
+        toast.error("Couldn't dismiss the alert.", { retry: () => dismissAlert(id) });
       }
+    } catch {
+      toast.error("Couldn't dismiss the alert.", { retry: () => dismissAlert(id) });
     } finally {
       setDismissing((prev) => ({ ...prev, [id]: false }));
     }
@@ -128,9 +137,7 @@ export default function AdminDashboardPage() {
   if (sessionStatus === "loading" || loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <div className="space-y-6"><Skeleton className="h-7 w-56" /><KpiSkeleton /><TableSkeleton rows={4} cols={4} /></div>
       </AppShell>
     );
   }
@@ -163,7 +170,15 @@ export default function AdminDashboardPage() {
       if (res.ok) {
         const data = await res.json();
         setRemindedAt((prev) => ({ ...prev, [companyId]: data.lastReminderSentAt }));
+        const name = dashboard?.overdueCompanies?.find((c) => c.id === companyId)?.name;
+        toast.success(name ? `Reminder sent to ${name}.` : "Reminder sent.");
+      } else {
+        // Server-confirmed action: never optimistic. No Retry: a resend could
+        // email the founders twice, so it is not idempotent (spec 6.5).
+        toast.error("Couldn't send the reminder.");
       }
+    } catch {
+      toast.error("Couldn't send the reminder.");
     } finally {
       setReminding((prev) => ({ ...prev, [companyId]: false }));
     }

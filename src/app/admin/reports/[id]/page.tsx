@@ -3,13 +3,16 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, AlertCircle, CheckCircle2, Eye } from "lucide-react";
+import { ArrowLeft, Eye } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { portcoMention } from "@/components/ui/portco-mention";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { extractMentionIds } from "@/lib/report-snapshot";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 function daysSinceSync(lastSyncedAt: string | null): number | null {
   if (!lastSyncedAt) return null;
@@ -48,7 +51,7 @@ export default function AdminReportEditorPage() {
   const [publishing, setPublishing] = useState(false);
   const [unpublishing, setUnpublishing] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
   const [fundCompanies, setFundCompanies] = useState<{ id: string; name: string }[]>([]);
 
   // Part 10, WS27.6 (Q27) — staleness banner + inline "Sync now" on the
@@ -91,8 +94,9 @@ export default function AdminReportEditorPage() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDeleteDraft() {
-    if (!window.confirm("Delete this draft report? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this draft report", description: "This cannot be undone.", confirmLabel: "Delete draft" }))) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/admin/reports/${reportId}`, { method: "DELETE" });
@@ -121,7 +125,7 @@ export default function AdminReportEditorPage() {
     } finally {
       setLoading(false);
     }
-  }, [reportId]);
+  }, [reportId, setMessage]);
 
   useEffect(() => {
     loadReport();
@@ -234,9 +238,7 @@ export default function AdminReportEditorPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -294,16 +296,6 @@ export default function AdminReportEditorPage() {
         }
       />
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          {message.text}
-        </div>
-      )}
 
       {confirmPublish && (
         <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">

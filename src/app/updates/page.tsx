@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { useCompany } from "@/context/company-context";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface Update {
   id: string;
@@ -66,9 +67,7 @@ export default function UpdatesPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

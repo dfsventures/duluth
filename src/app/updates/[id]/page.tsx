@@ -4,23 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import {
-  Globe,
-  Download,
-  FileText,
-  MessageSquare,
-  AlertCircle,
-  CheckCircle2,
-  ArrowLeft,
-  Paperclip,
-  Pencil,
-  X,
-  Calendar,
-  ChevronDown,
-  ChevronUp,
-  Trash2,
-  Eye,
-} from "lucide-react";
+import { Globe, Download, FileText, MessageSquare, ArrowLeft, Paperclip, Pencil, X, Calendar, ChevronDown, ChevronUp, Trash2, Eye } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -37,6 +21,9 @@ import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { ComposerTitleField } from "@/components/composer/composer-title-field";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface MetricDefinition {
   id: string;
@@ -96,7 +83,7 @@ export default function UpdateDetailPage() {
   const [sending, setSending] = useState(false);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
   const [deleting, setDeleting] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -191,11 +178,12 @@ export default function UpdateDetailPage() {
     setMessage(null);
   }
 
+  const confirm = useConfirm();
   async function handleDeleteDraft() {
     if (!update) return;
     // Unlike the list page's one-click delete, the draft's content is on
     // screen here — confirm before destroying visible work.
-    if (!window.confirm("Delete this draft? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this draft", description: "This cannot be undone.", confirmLabel: "Delete draft" }))) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/updates/${update.id}`, { method: "DELETE" });
@@ -396,9 +384,7 @@ export default function UpdateDetailPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -461,18 +447,6 @@ export default function UpdateDetailPage() {
         />
       )}
 
-      {message && (
-        <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-acacia"
-              : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.type === "success" ? <CheckCircle2 className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-          {message.text}
-        </div>
-      )}
 
       {/* Scheduled banner (view mode only) */}
       {!editing && update.status === "DRAFT" && update.scheduledFor && (
@@ -577,15 +551,6 @@ export default function UpdateDetailPage() {
             publishDisabled={!editTitle.trim() || !editPeriod.trim()}
             publishing={saving}
           />
-
-          {/* Validation errors repeat next to the buttons that trigger them —
-              the top-of-page banner is out of view on this long form */}
-          {message?.type === "error" && (
-            <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
-              <AlertCircle className="h-4 w-4" />
-              {message.text}
-            </div>
-          )}
 
           <div className="mx-auto max-w-3xl">
             <ComposerTitleField

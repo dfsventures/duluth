@@ -11,6 +11,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
 import { useCompany } from "@/context/company-context";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 // Part 29, WS68 — Dilution Planner list page, mirroring /updates/page.tsx
 // (list-plus-editor split, Q71-B: multiple named scenarios per company).
@@ -76,11 +78,12 @@ export default function PlannerListPage() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDelete(e: React.MouseEvent, scenarioId: string) {
     e.preventDefault();
     e.stopPropagation();
     if (!selectedCompany) return;
-    if (!window.confirm("Delete this scenario? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this scenario", description: "This cannot be undone.", confirmLabel: "Delete scenario" }))) return;
     setDeletingId(scenarioId);
     try {
       const res = await fetch(`/api/companies/${selectedCompany.id}/scenarios/${scenarioId}`, {
@@ -97,9 +100,7 @@ export default function PlannerListPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

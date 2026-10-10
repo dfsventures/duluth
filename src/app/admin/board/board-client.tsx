@@ -19,6 +19,7 @@ import { PeopleProjectsPanel } from "@/components/admin/board/people-projects-pa
 import { IntakePanel } from "@/components/admin/board/intake-panel";
 import { applyCardToPayload, createSequencer } from "@/lib/board-client";
 import { localPosition, type BoardCardData, type BoardPayload } from "@/components/admin/board/types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // Part 37 (WS107). Tabs are data. The Intake tab (WS109) is appended only when
 // the server wrapper (page.tsx) says granolaIntakeEnabled().
@@ -318,7 +319,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
 
         <Tabs.Content value="board">
           {loading ? (
-            <p className="py-10 text-sm text-muted-foreground">Loading...</p>
+            <div className="grid gap-4 py-4 sm:grid-cols-2 lg:grid-cols-4"><Skeleton className="h-64" /><Skeleton className="h-64" /><Skeleton className="h-64" /><Skeleton className="h-64" /></div>
           ) : loadError || !data ? (
             <div className="flex flex-wrap items-center gap-3 py-10">
               <p className="text-sm text-laterite">{loadError || "Failed to load the board."}</p>

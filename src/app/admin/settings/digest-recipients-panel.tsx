@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 interface AdminUser {
   id: string;
@@ -84,7 +85,7 @@ export function DigestRecipientsPanel() {
   }
 
   if (loading) {
-    return <p className="text-xs text-muted-foreground">Loading…</p>;
+    return <TableSkeleton rows={3} cols={2} />;
   }
 
   return (

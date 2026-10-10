@@ -14,6 +14,9 @@ import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 import { parseContactsCSV } from "@/lib/csv";
 import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useFlashMessage } from "@/lib/use-flash-message";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
 
@@ -104,7 +107,7 @@ export default function AdminPortfolioCompanyPage() {
 
   const [data, setData] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [, setMessage] = useFlashMessage();
 
   const [showRoundModal, setShowRoundModal] = useState(false);
   const [editingRound, setEditingRound] = useState<Round | null>(null);
@@ -200,8 +203,9 @@ export default function AdminPortfolioCompanyPage() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDeleteRound(id: string) {
-    if (!window.confirm("Delete this round? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this round", description: "This cannot be undone.", confirmLabel: "Delete round" }))) return;
     const res = await fetch(`/api/admin/rounds/${id}`, { method: "DELETE" });
     if (!res.ok) {
       const d = await res.json().catch(() => null);
@@ -267,7 +271,7 @@ export default function AdminPortfolioCompanyPage() {
   }
 
   async function handleDeleteMark(id: string) {
-    if (!window.confirm("Delete this valuation-mark record? This only removes history — it does not change the current valuation.")) return;
+    if (!(await confirm({ title: "Delete this valuation-mark record", description: "This only removes history. It does not change the current valuation.", confirmLabel: "Delete record" }))) return;
     await fetch(`/api/admin/marks/${id}`, { method: "DELETE" });
     load();
   }
@@ -316,7 +320,7 @@ export default function AdminPortfolioCompanyPage() {
   }
 
   async function handleDeleteContact(id: string) {
-    if (!window.confirm("Remove this contact? They will no longer receive broadcasts to this company.")) return;
+    if (!(await confirm({ title: "Remove this contact", description: "They will no longer receive broadcasts to this company.", confirmLabel: "Remove contact" }))) return;
     await fetch(`/api/admin/portfolio-companies/${companyId}/contacts`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
@@ -387,9 +391,7 @@ export default function AdminPortfolioCompanyPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }
@@ -415,15 +417,6 @@ export default function AdminPortfolioCompanyPage() {
         Back to Portfolio
       </button>
 
-      {message && (
-        <div
-          className={`mb-6 rounded-md border px-4 py-3 text-sm ${
-            message.type === "success" ? "border-acacia/30 bg-acacia/10 text-acacia" : "border-laterite/30 bg-laterite/10 text-laterite"
-          }`}
-        >
-          {message.text}
-        </div>
-      )}
 
       <div className="mb-6 rounded-md border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">

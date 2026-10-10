@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { TableSkeleton } from "@/components/ui/skeleton";
 
 // Part 37 (WS109.4) — the board's Intake tab. Only rendered when the server
 // wrapper says Granola is configured.
@@ -130,7 +131,7 @@ export function IntakePanel({ onBoardChanged }: { onBoardChanged: () => void }) 
       </details>
 
       {loading ? (
-        <p className="py-6 text-sm text-muted-foreground">Loading...</p>
+        <TableSkeleton rows={3} cols={3} className="my-6" />
       ) : error ? (
         <p className="py-6 text-sm text-laterite">{error}</p>
       ) : rows.length === 0 ? (

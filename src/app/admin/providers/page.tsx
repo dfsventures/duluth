@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Category {
   id: string;
@@ -104,8 +105,9 @@ export default function AdminProvidersPage() {
     }
   }
 
+  const confirm = useConfirm();
   async function handleDelete(id: string) {
-    if (!confirm("Delete this provider? This cannot be undone.")) return;
+    if (!(await confirm({ title: "Delete this provider", description: "This cannot be undone.", confirmLabel: "Delete provider" }))) return;
     await fetch(`/api/admin/providers/${id}`, { method: "DELETE" });
     loadData();
   }

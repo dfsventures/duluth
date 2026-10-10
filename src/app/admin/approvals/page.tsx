@@ -23,6 +23,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
 import { formatDate } from "@/lib/utils";
 import { addPortcoContact } from "@/lib/portco-link-contact";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 // WS48 — awaiting-setup rows this stale (past their own token's expiry)
 // auto-group with dismissed rows. Deliberately longer than the 7-day
@@ -355,9 +356,7 @@ export default function ApprovalsPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

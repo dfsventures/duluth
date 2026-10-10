@@ -26,6 +26,7 @@ import { normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { useCompany } from "@/context/company-context";
 import { ORG_NAME } from "@/lib/org";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -160,9 +161,7 @@ export default function CompanyProfilePage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

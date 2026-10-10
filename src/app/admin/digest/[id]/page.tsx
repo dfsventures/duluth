@@ -13,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { plainToDigestHtml, digestHtmlToPlain, sanitizeDigestHtml } from "@/lib/digest-html";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface DigestSection {
   id: string;
@@ -195,9 +196,7 @@ export default function DigestDetailPage() {
   if (loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

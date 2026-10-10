@@ -19,6 +19,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, daysSince } from "@/lib/utils";
+import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface Company {
   id: string;
@@ -132,9 +133,7 @@ export default function DashboardPage() {
   if (sessionStatus === "loading" || loading) {
     return (
       <AppShell>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-sm text-muted-foreground">Loading...</div>
-        </div>
+        <PageSkeleton />
       </AppShell>
     );
   }

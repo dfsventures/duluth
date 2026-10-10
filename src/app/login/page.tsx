@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { ORG_NAME, ADMIN_EMAIL_DOMAINS_LABEL } from "@/lib/org";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const GoogleIcon = () => (
   <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
@@ -126,7 +127,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="text-muted-foreground">Loading...</div>
+          <div className="w-full max-w-md space-y-4 border border-border bg-card p-8"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-9 w-28" /></div>
         </div>
       }
     >
