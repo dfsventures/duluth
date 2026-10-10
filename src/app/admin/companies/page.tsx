@@ -1,31 +1,22 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
-import Link from "next/link";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Building2,
-  Plus,
-  Search,
-  MapPin,
-  Users,
-  Clock,
-  AlertCircle,
-  Upload,
-  X,
-  CheckCircle2,
-} from "lucide-react";
+import { Building2, Plus, Upload, Bell } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { StatusDot } from "@/components/ui/status-dot";
+import { NameTile, StageChip } from "@/components/ui/name-tile";
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { formatDate } from "@/lib/utils";
 import { cadenceStatus } from "@/lib/update-cadence";
-import { Skeleton, CardSkeleton } from "@/components/ui/skeleton";
+import { parseCompanyCsv, type CompanyCsvRow } from "@/lib/company-csv";
+import { toast } from "@/lib/toast";
+import type { FilterChipDef } from "@/lib/data-table";
 
 interface Company {
   id: string;
@@ -45,29 +36,46 @@ interface ImportResult {
   errors: string[];
 }
 
-// Part 32, WS85 (D1) — replaces the old naive 90/30/null rule with the
-// shared, already-shipped grace+cadence logic (F68). A brand-new company
-// with zero updates now gets a neutral "No updates yet" badge instead of
-// the same red "Overdue" a 90-day-delinquent company got — danger/laterite
-// is reserved for a state that actually requires intervention (C02).
-function getUpdateStatus(company: Pick<Company, "createdAt" | "recentPublishedUpdates">) {
-  const status = cadenceStatus({
-    createdAt: new Date(company.createdAt),
-    publishedUpdates: company.recentPublishedUpdates.map((u) => ({
-      sentAt: u.sentAt ? new Date(u.sentAt) : null,
-    })),
-  });
-  switch (status) {
-    case "NEW":
-      return { label: "No updates yet", variant: "info" as const };
-    case "CURRENT":
-      return { label: "Current", variant: "success" as const };
-    case "AGING":
-      return { label: "Aging", variant: "warning" as const };
-    case "BEHIND":
-      return { label: "Behind", variant: "danger" as const };
-  }
+type CadenceKey = "new" | "current" | "aging" | "behind";
+
+interface Row extends Company {
+  cadence: CadenceKey;
+  statusLabel: string;
+  daysSince: number | null;
 }
+
+// Part 32, WS85 (D1) — the shared, already-shipped grace+cadence logic (F68).
+// A brand-new company with zero updates gets a neutral "No updates yet", never
+// the same red as a 90-day-delinquent one: clay is reserved for a state that
+// actually requires intervention (C02).
+const STATUS: Record<CadenceKey, string> = {
+  new: "No updates yet",
+  current: "Current",
+  aging: "Aging",
+  behind: "Behind",
+};
+
+function toRow(c: Company): Row {
+  const s = cadenceStatus({
+    createdAt: new Date(c.createdAt),
+    publishedUpdates: c.recentPublishedUpdates.map((u) => ({ sentAt: u.sentAt ? new Date(u.sentAt) : null })),
+  });
+  const cadence = s.toLowerCase() as CadenceKey;
+  const daysSince = c.lastUpdateDate
+    ? Math.max(0, Math.floor((Date.now() - new Date(c.lastUpdateDate).getTime()) / 86_400_000))
+    : null;
+  return { ...c, cadence, statusLabel: STATUS[cadence], daysSince };
+}
+
+// "Who is behind" first: the chips answer it in one click.
+const CHIPS: FilterChipDef<Row>[] = [
+  { key: "behind", label: "Behind", test: (r) => r.cadence === "behind" },
+  { key: "aging", label: "Aging", test: (r) => r.cadence === "aging" },
+  { key: "current", label: "Current", test: (r) => r.cadence === "current" },
+  { key: "new", label: "No updates yet", test: (r) => r.cadence === "new" },
+];
+
+const CADENCE_ORDER: Record<CadenceKey, number> = { behind: 0, aging: 1, new: 2, current: 3 };
 
 export default function AdminCompaniesPage() {
   const router = useRouter();
@@ -76,10 +84,13 @@ export default function AdminCompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [reminding, setReminding] = useState<Record<string, boolean>>({});
+
+  // Import: pick a file, preview the parsed rows, then commit. Nothing is sent
+  // until the admin confirms.
+  const [preview, setPreview] = useState<{ fileName: string; rows: CompanyCsvRow[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
 
   const fetchCompanies = useCallback(async () => {
     try {
@@ -87,6 +98,7 @@ export default function AdminCompaniesPage() {
       if (!res.ok) throw new Error("Failed to load companies");
       const data = await res.json();
       setCompanies(data.data ?? data ?? []);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -98,100 +110,142 @@ export default function AdminCompaniesPage() {
     fetchCompanies();
   }, [fetchCompanies]);
 
-  function parseCSV(text: string): { name: string; website: string | null }[] {
-    const cleaned = text.replace(/^\uFEFF/, "");
-    const lines = cleaned.split(/\r?\n/).filter((l) => l.trim());
-    if (lines.length < 2) return [];
-
-    const headers = lines[0]
-      .split(",")
-      .map((h) => h.trim().toLowerCase().replace(/['"]/g, ""));
-    const nameIdx = headers.findIndex(
-      (h) => h === "name" || h === "company name" || h === "company"
-    );
-    const urlIdx = headers.findIndex(
-      (h) => h === "url" || h === "website" || h === "website url"
-    );
-
-    if (nameIdx === -1) return [];
-
-    const rows: { name: string; website: string | null }[] = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map((c) => c.trim().replace(/^["']|["']$/g, ""));
-      const name = cols[nameIdx]?.trim();
-      if (!name) continue;
-      const website = urlIdx !== -1 ? cols[urlIdx]?.trim() || null : null;
-      rows.push({ name, website });
-    }
-    return rows;
-  }
+  const rows = useMemo(() => companies.map(toRow), [companies]);
+  const existingNames = useMemo(() => new Set(companies.map((c) => c.name.trim().toLowerCase())), [companies]);
 
   async function handleCSVFile(file: File) {
-    setImporting(true);
+    const text = await file.text();
+    const parsed = parseCompanyCsv(text);
+    if (parsed.length === 0) {
+      toast.error('No valid rows found. The CSV needs a "name" column and, optionally, a "url" column.');
+      return;
+    }
     setImportResult(null);
-    setImportError(null);
+    setPreview({ fileName: file.name, rows: parsed });
+  }
 
+  function closePreview() {
+    setPreview(null);
+    setImportResult(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  async function commitImport() {
+    if (!preview) return;
+    setImporting(true);
     try {
-      const text = await file.text();
-      const rows = parseCSV(text);
-
-      if (rows.length === 0) {
-        setImportError(
-          'No valid rows found. CSV must have a "name" column and optionally a "url" column.'
-        );
-        return;
-      }
-
       const res = await fetch("/api/admin/companies/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companies: rows }),
+        body: JSON.stringify({ companies: preview.rows }),
       });
-
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
         throw new Error(errData?.error ?? "Import failed");
       }
-
       const result: ImportResult = await res.json();
-      setImportResult(result);
-
-      if (result.created > 0) {
-        await fetchCompanies();
+      if (result.errors.length > 0) {
+        // Keep the dialog open so the errors can be read.
+        setImportResult(result);
+      } else {
+        closePreview();
       }
+      toast.success(
+        `Imported ${result.created} ${result.created === 1 ? "company" : "companies"}` +
+          (result.skipped > 0 ? `, ${result.skipped} skipped (already exist)` : "") +
+          "."
+      );
+      if (result.created > 0) await fetchCompanies();
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "Import failed");
+      // Not idempotent-safe to auto-retry blindly, but the import skips existing
+      // names, so Retry is safe here.
+      toast.error(err instanceof Error ? err.message : "Import failed", { retry: commitImport });
     } finally {
       setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
-  if (loading) {
-    return (
-      <AppShell>
-        <div className="space-y-6"><Skeleton className="h-7 w-48" /><CardSkeleton count={6} /></div>
-      </AppShell>
-    );
+  async function sendReminder(c: Row) {
+    setReminding((p) => ({ ...p, [c.id]: true }));
+    try {
+      const res = await fetch(`/api/companies/${c.id}/remind`, { method: "POST" });
+      if (res.ok) toast.success(`Reminder sent to ${c.name}.`);
+      // Server-confirmed and not idempotent (a resend emails founders twice): no Retry.
+      else toast.error(`Couldn't send the reminder to ${c.name}.`);
+    } catch {
+      toast.error(`Couldn't send the reminder to ${c.name}.`);
+    } finally {
+      setReminding((p) => ({ ...p, [c.id]: false }));
+    }
   }
 
-  if (error) {
-    return (
-      <AppShell>
-        <div className="flex flex-col items-center justify-center py-20">
-          <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
-          <p className="text-sm text-destructive">{error}</p>
-          <Button variant="secondary" size="sm" className="mt-4" onClick={() => window.location.reload()}>
-            Retry
-          </Button>
-        </div>
-      </AppShell>
-    );
-  }
+  const columns: DataTableColumn<Row>[] = [
+    {
+      key: "name",
+      header: "Company",
+      sortValue: (r) => r.name,
+      cell: (r) => (
+        <>
+          <NameTile name={r.name} />
+          {r.name}
+        </>
+      ),
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortValue: (r) => CADENCE_ORDER[r.cadence],
+      mobile: "badge",
+      cell: (r) => <StatusDot status={r.cadence}>{r.statusLabel}</StatusDot>,
+    },
+    {
+      key: "sector",
+      header: "Sector",
+      sortValue: (r) => r.sector,
+      mobile: "meta",
+      cell: (r) => r.sector ?? <span className="text-muted-foreground">—</span>,
+    },
+    {
+      key: "stage",
+      header: "Stage",
+      sortValue: (r) => r.fundingStage,
+      cell: (r) => <StageChip stage={r.fundingStage} />,
+    },
+    {
+      key: "geography",
+      header: "Location",
+      sortValue: (r) => r.geography,
+      mobile: "meta",
+      cell: (r) => r.geography ?? <span className="text-muted-foreground">—</span>,
+    },
+    {
+      key: "lastUpdate",
+      header: "Last update",
+      align: "num",
+      // Oldest update (largest day count) first; "never" sorts last.
+      sortValue: (r) => r.daysSince,
+      firstDir: "desc",
+      mobile: "meta",
+      cell: (r) =>
+        r.lastUpdateDate ? (
+          <span title={formatDate(r.lastUpdateDate)} className={r.cadence === "behind" ? "text-tone-clay-ink" : undefined}>
+            {r.daysSince === 0 ? "Today" : `${r.daysSince}d ago`}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">None</span>
+        ),
+    },
+    {
+      key: "members",
+      header: "Members",
+      align: "num",
+      sortValue: (r) => r.memberCount,
+      firstDir: "desc",
+      cell: (r) => r.memberCount,
+    },
+  ];
 
-  const filteredCompanies = companies.filter((c) =>
-    c.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const importBlockedNames = preview ? preview.rows.filter((r) => existingNames.has(r.name.trim().toLowerCase())).length : 0;
 
   return (
     <AppShell>
@@ -200,163 +254,163 @@ export default function AdminCompaniesPage() {
         description="Manage all portfolio companies."
         action={
           <div className="flex flex-wrap gap-2">
-            <Button
-              variant="secondary"
-              disabled={importing}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {importing ? "Importing..." : "Import CSV"}
+            <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+              <Upload className="h-4 w-4" />
+              Import CSV
             </Button>
             <input
               ref={fileInputRef}
               type="file"
               accept=".csv"
               className="hidden"
+              aria-label="Choose a CSV file of companies to import"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) handleCSVFile(file);
               }}
             />
             <Button onClick={() => router.push("/admin/companies/new")}>
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="h-4 w-4" />
               Add Company
             </Button>
           </div>
         }
       />
 
-      {/* Import result */}
-      {importResult && (
-        <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-acacia">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="flex-1">
-            <span className="font-medium">Import complete.</span>{" "}
-            {importResult.created} company{importResult.created !== 1 ? "s" : ""} created
-            {importResult.skipped > 0 && `, ${importResult.skipped} skipped (already exist)`}.
-            {importResult.errors.length > 0 && (
-              <ul className="mt-1 list-disc pl-4 text-laterite">
-                {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
-              </ul>
-            )}
-          </div>
-          <button onClick={() => setImportResult(null)}>
-            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
-          </button>
-        </div>
-      )}
-
-      {importError && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <span className="flex-1">{importError}</span>
-          <button onClick={() => setImportError(null)}>
-            <X className="h-4 w-4 opacity-50 hover:opacity-100" />
-          </button>
-        </div>
-      )}
-
-      {/* CSV format hint */}
-      <div className="mb-6">
+      <div className="mb-4">
         <ComposerDisclosure label="CSV format">
           <p className="text-sm text-muted-foreground">
-            To bulk import, upload a CSV with a{" "}
-            <code className="rounded bg-muted px-1 text-xs">name</code> column and optional{" "}
-            <code className="rounded bg-muted px-1 text-xs">url</code> column. Founders fill in
-            remaining details after gaining access.
+            To bulk import, upload a CSV with a <code className="rounded bg-muted px-1 text-xs">name</code> column and
+            optional <code className="rounded bg-muted px-1 text-xs">url</code> column. You will see a preview before
+            anything is created. Founders fill in remaining details after gaining access.
           </p>
         </ComposerDisclosure>
       </div>
 
-      {/* Search */}
-      <div className="mb-6">
-        <Input
-          placeholder="Search by company name..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+      <DataTable<Row>
+        label="Companies"
+        noun="company"
+        pluralNoun="companies"
+        rows={rows}
+        rowKey={(r) => r.id}
+        rowHref={(r) => `/admin/companies/${r.id}`}
+        columns={columns}
+        defaultSort={{ key: "name", dir: "asc" }}
+        searchText={(r) => [r.name, r.sector, r.geography, r.fundingStage]}
+        searchPlaceholder="Filter companies"
+        chips={CHIPS}
+        loading={loading}
+        error={error}
+        onRetry={() => {
+          setLoading(true);
+          fetchCompanies();
+        }}
+        minWidth={820}
+        actionsLabel="Row actions"
+        rowActions={(r) =>
+          r.cadence === "behind" || r.cadence === "aging" ? (
+            <Button variant="ghost" size="sm" loading={reminding[r.id]} onClick={() => sendReminder(r)}>
+              <Bell className="h-3.5 w-3.5" />
+              Remind
+              <span className="sr-only"> {r.name}</span>
+            </Button>
+          ) : null
+        }
+        empty={
+          <EmptyState
+            icon={<Building2 className="h-10 w-10" />}
+            title="No companies yet"
+            description="Add your first portfolio company manually, or import a list from a CSV (a name column, optionally a url column)."
+            action={
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                  <Upload className="h-4 w-4" />
+                  Import CSV
+                </Button>
+                <Button onClick={() => router.push("/admin/companies/new")}>
+                  <Plus className="h-4 w-4" />
+                  Add Company
+                </Button>
+              </div>
+            }
+          />
+        }
+      />
 
-      {companies.length === 0 ? (
-        <EmptyState
-          icon={<Building2 className="h-10 w-10" />}
-          title="No companies yet"
-          description="Add your first portfolio company manually or import from a CSV."
-          action={
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="mr-2 h-4 w-4" />
-                Import CSV
+      <Dialog open={preview !== null} onOpenChange={(o) => !o && !importing && closePreview()}>
+        {preview && (
+          <DialogContent
+            title="Import companies"
+            description={`${preview.fileName}: ${preview.rows.length} ${preview.rows.length === 1 ? "row" : "rows"} found.`}
+            size="lg"
+          >
+            <DialogBody>
+              {importBlockedNames > 0 && (
+                <p className="mb-3 border-l-2 border-attention bg-attention-bg px-3 py-2 text-sm text-foreground">
+                  {importBlockedNames} {importBlockedNames === 1 ? "company already exists" : "companies already exist"} and
+                  will be skipped.
+                </p>
+              )}
+              <div className="max-h-72 overflow-y-auto border border-border">
+                <table className="w-full text-[13px]">
+                  <caption className="sr-only">Rows that will be imported</caption>
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th scope="col" className="h-8 px-3 font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+                        Name
+                      </th>
+                      <th scope="col" className="h-8 px-3 font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+                        Website
+                      </th>
+                      <th scope="col" className="h-8 px-3 font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+                        Result
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.map((r, i) => {
+                      const exists = existingNames.has(r.name.trim().toLowerCase());
+                      return (
+                        <tr key={`${r.name}-${i}`} className="border-b border-row-divider last:border-0">
+                          <td className="px-3 py-1.5 font-medium">{r.name}</td>
+                          <td className="px-3 py-1.5 text-muted-foreground">{r.website ?? "—"}</td>
+                          <td className="px-3 py-1.5">
+                            {exists ? (
+                              <span className="text-muted-foreground">Skipped, already exists</span>
+                            ) : (
+                              "Will be created"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {importResult && importResult.errors.length > 0 && (
+                <div role="alert" className="mt-3 text-sm">
+                  <p className="font-medium">Some rows could not be imported:</p>
+                  <ul className="mt-1 list-disc pl-5 text-foreground">
+                    {importResult.errors.map((e, i) => (
+                      <li key={i}>{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </DialogBody>
+            <DialogFooter>
+              <Button variant="secondary" onClick={closePreview} disabled={importing}>
+                {importResult ? "Close" : "Cancel"}
               </Button>
-              <Button onClick={() => router.push("/admin/companies/new")}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Company
-              </Button>
-            </div>
-          }
-        />
-      ) : filteredCompanies.length === 0 ? (
-        <EmptyState
-          icon={<Search className="h-10 w-10" />}
-          title="No results"
-          description="No companies match your search. Try a different term."
-        />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredCompanies.map((company) => {
-            const status = getUpdateStatus(company);
-            return (
-              <Link key={company.id} href={`/admin/companies/${company.id}`} className="block">
-                <Card className="h-full transition-colors hover:bg-muted/50">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        {company.name}
-                      </CardTitle>
-                      <Badge variant={status.variant}>{status.label}</Badge>
-                    </div>
-                    {company.sector && (
-                      <CardDescription>
-                        <Badge variant="neutral">{company.sector}</Badge>
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      {company.geography && (
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-3.5 w-3.5" />
-                          <span>{company.geography}</span>
-                        </div>
-                      )}
-                      {company.fundingStage && (
-                        <div className="flex items-center gap-2">
-                          <Badge variant="info">{company.fundingStage}</Badge>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <Users className="h-3.5 w-3.5" />
-                        <span>
-                          {company.memberCount} member{company.memberCount === 1 ? "" : "s"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span>
-                          {company.lastUpdateDate
-                            ? `Last update: ${formatDate(company.lastUpdateDate)}`
-                            : "No updates yet"}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
+              {!importResult && (
+                <Button onClick={commitImport} loading={importing}>
+                  Import {preview.rows.length - importBlockedNames}
+                </Button>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
     </AppShell>
   );
 }

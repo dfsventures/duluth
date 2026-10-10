@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
@@ -31,11 +31,67 @@ interface Lp {
   emails: LpEmail[];
 }
 
+function primaryEmail(lp: Lp): LpEmail | undefined {
+  return lp.emails.find((e) => e.isPrimary) ?? lp.emails[0];
+}
+
+const lpColumns: DataTableColumn<Lp>[] = [
+  {
+    key: "name",
+    header: "Name",
+    sortValue: (lp) => lp.name,
+    cell: (lp) => lp.name ?? "—",
+  },
+  {
+    key: "email",
+    header: "Email",
+    sortValue: (lp) => primaryEmail(lp)?.email,
+    mobile: "meta",
+    cell: (lp) => {
+      const primary = primaryEmail(lp);
+      return !primary ? (
+        <span className="text-muted-foreground">No address</span>
+      ) : (
+        <span className="font-mono text-xs">
+          {primary.email}
+          {lp.emails.length > 1 && <span className="ml-1 text-muted-foreground">+{lp.emails.length - 1}</span>}
+        </span>
+      );
+    },
+  },
+  {
+    key: "funds",
+    header: "Funds",
+    sortValue: (lp) => lp.funds.length,
+    firstDir: "desc",
+    mobile: "meta",
+    cell: (lp) =>
+      lp.funds.length === 0 ? (
+        <span className="text-xs text-muted-foreground">None</span>
+      ) : (
+        <span className="flex flex-wrap gap-1">
+          {lp.funds.map((f) => (
+            <span key={f.id} className="badge-neutral !px-1.5 !py-0.5 !text-xs">
+              {f.slug}
+            </span>
+          ))}
+        </span>
+      ),
+  },
+  {
+    key: "added",
+    header: "Added",
+    sortValue: (lp) => new Date(lp.createdAt).getTime(),
+    firstDir: "desc",
+    className: "whitespace-nowrap text-xs text-muted-foreground",
+    cell: (lp) => formatDate(lp.createdAt),
+  },
+];
+
 export default function AdminLpsPage() {
   const [lps, setLps] = useState<Lp[]>([]);
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
 
   const [editTarget, setEditTarget] = useState<Lp | "new" | null>(null);
   const [form, setForm] = useState<{ email: string; name: string; fundIds: string[] }>({ email: "", name: "", fundIds: [] });
@@ -156,15 +212,6 @@ export default function AdminLpsPage() {
     loadData();
   }
 
-  // Part 32, WS86 (D2) — an LP has many LpEmail rows (Part 26), so search
-  // must match any of them, not just the primary one shown in the table.
-  const filteredLps = lps.filter((lp) => {
-    const term = search.trim().toLowerCase();
-    if (!term) return true;
-    if (lp.name?.toLowerCase().includes(term)) return true;
-    return lp.emails.some((e) => e.email.toLowerCase().includes(term));
-  });
-
   function toggleFund(fundId: string) {
     setForm((f) => ({
       ...f,
@@ -257,81 +304,51 @@ export default function AdminLpsPage() {
         }
       />
 
-      {!loading && lps.length > 0 && (
-        <div className="mb-6">
-          <Input
-            placeholder="Search by LP name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+      <DataTable<Lp>
+        label="LPs"
+        noun="LP"
+        rows={lps}
+        rowKey={(lp) => lp.id}
+        columns={lpColumns}
+        defaultSort={{ key: "name", dir: "asc" }}
+        // Part 32, WS86 (D2): an LP has many LpEmail rows (Part 26), so search
+        // matches any of them, not just the primary one shown in the table.
+        searchText={(lp) => [lp.name, ...lp.emails.map((e) => e.email)]}
+        searchPlaceholder="Filter by LP name or email"
+        loading={loading}
+        minWidth={640}
+        actionsLabel="Row actions"
+        rowActions={(lp) => (
+          <>
+            <Button variant="ghost" size="icon" aria-label={`Edit ${lp.name ?? "LP"}`} title="Edit" onClick={() => openEdit(lp)}>
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`Delete ${lp.name ?? "LP"}`}
+              title="Delete"
+              className="hover:text-laterite"
+              onClick={() => handleDelete(lp.id)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        )}
+        empty={
+          <EmptyState
+            icon={<Handshake className="h-8 w-8" />}
+            title="No LPs yet"
+            description="Add an LP to grant them access to fund reports."
+            action={
+              <Button onClick={openNew}>
+                <Plus className="h-4 w-4" />
+                New LP
+              </Button>
+            }
           />
-        </div>
-      )}
-
-      {loading ? (
-        <div className="space-y-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
-          ))}
-        </div>
-      ) : lps.length === 0 ? (
-        <EmptyState icon={<Handshake className="h-8 w-8" />} title="No LPs yet" description="Add an LP to grant them access to fund reports." />
-      ) : filteredLps.length === 0 ? (
-        <EmptyState icon={<Handshake className="h-8 w-8" />} title="No matches" description="Try a different search term." />
-      ) : (
-        <Table tableClassName="min-w-[640px]">
-          <TableHead>
-            <Th>Name</Th>
-            <Th>Email</Th>
-            <Th>Funds</Th>
-            <Th>Added</Th>
-            <Th></Th>
-          </TableHead>
-          <tbody>
-            {filteredLps.map((lp) => {
-              const primary = lp.emails.find((e) => e.isPrimary) ?? lp.emails[0];
-              return (
-                <TableRow key={lp.id}>
-                  <td className="px-4 py-2.5 font-medium">{lp.name ?? "—"}</td>
-                  <td className="px-4 py-2.5 font-mono text-xs">
-                    {!primary ? (
-                      <span className="text-muted-foreground">No address</span>
-                    ) : (
-                      <>
-                        {primary.email}
-                        {lp.emails.length > 1 && <span className="ml-1 text-muted-foreground">+{lp.emails.length - 1}</span>}
-                      </>
-                    )}
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {lp.funds.length === 0 ? (
-                        <span className="text-xs text-muted-foreground">None</span>
-                      ) : (
-                        lp.funds.map((f) => (
-                          <span key={f.id} className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
-                            {f.slug}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{formatDate(lp.createdAt)}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(lp)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleDelete(lp.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </TableRow>
-              );
-            })}
-          </tbody>
-        </Table>
-      )}
+        }
+      />
 
       {editTarget && (
         <Modal title={editTarget === "new" ? "New LP" : `Edit — ${(editTarget as Lp).name ?? (editTarget as Lp).email ?? "LP"}`} onClose={() => setEditTarget(null)}>

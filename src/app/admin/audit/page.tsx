@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { ScrollText } from "lucide-react";
 import Link from "next/link";
+import { relativeTime } from "@/lib/relative-time";
 
 function formatTimestamp(date: Date): string {
   return date.toLocaleString("en-US", {
@@ -95,11 +96,23 @@ export default async function AuditLogPage({
           ? { action: "SIGN_IN_FAILED" }
           : {};
 
-  const logs = await db.auditLog.findMany({
-    where,
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
+  const signinWhere = { action: { startsWith: "SIGN_IN_" } };
+  const [logs, signinCount, failedCount, totalCount] = await Promise.all([
+    db.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    db.auditLog.count({ where: signinWhere }),
+    db.auditLog.count({ where: { action: "SIGN_IN_FAILED" } }),
+    db.auditLog.count(),
+  ]);
+  const counts: Record<string, number> = {
+    all: totalCount,
+    admin: totalCount - signinCount,
+    signin: signinCount,
+    failed: failedCount,
+  };
 
   return (
     <AppShell>
@@ -108,19 +121,28 @@ export default async function AuditLogPage({
         description="The last 100 matching events: admin actions and sign-in attempts."
       />
 
-      <div className="mb-4 flex flex-wrap gap-2 text-sm">
-        {FILTERS.map((f) => (
-          <Link
-            key={f.key}
-            href={f.key === "all" ? "/admin/audit" : `/admin/audit?filter=${f.key}`}
-            className={`rounded-sm border px-3 py-1 ${
-              filter === f.key ? "border-foreground font-medium" : "border-border text-muted-foreground"
-            }`}
-          >
-            {f.label}
-          </Link>
-        ))}
-      </div>
+      <nav aria-label="Filter audit events" className="mb-3 flex flex-wrap gap-1.5">
+        {FILTERS.map((f) => {
+          const pressed = filter === f.key;
+          return (
+            <Link
+              key={f.key}
+              href={f.key === "all" ? "/admin/audit" : `/admin/audit?filter=${f.key}`}
+              aria-current={pressed ? "page" : undefined}
+              className={`inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                pressed
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground"
+              }`}
+            >
+              {f.label}
+              <span className={`font-mono text-[11px] ${pressed ? "opacity-80" : "text-muted-foreground"}`}>
+                {counts[f.key].toLocaleString()}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
 
       {logs.length === 0 ? (
         <EmptyState
@@ -141,7 +163,9 @@ export default async function AuditLogPage({
             {logs.map((log) => (
               <TableRow key={log.id}>
                 <td className="whitespace-nowrap px-4 py-3 text-muted-foreground">
-                  {formatTimestamp(log.createdAt)}
+                  <time dateTime={log.createdAt.toISOString()} title={formatTimestamp(log.createdAt)}>
+                    {relativeTime(log.createdAt)}
+                  </time>
                 </td>
                 <td className="px-4 py-3">{log.actorEmail}</td>
                 <td className="px-4 py-3">

@@ -21,7 +21,7 @@ export function Table({
     <>
       <div
         className={cn(
-          "overflow-x-auto rounded-md border border-border",
+          "overflow-x-auto rounded-md border border-border bg-card",
           // Right-edge fade signalling more content horizontally. Pure CSS via
           // background-attachment: local — the gradient is painted against
           // the scroll container, so it fades out on its own once you reach the
@@ -44,8 +44,9 @@ export function Table({
 
 export function TableHead({ children }: { children: React.ReactNode }) {
   return (
+    // Phase 3: same header as DataTable. Label type on the surface, no grey fill.
     <thead className="sticky top-0 z-10 bg-card">
-      <tr className="border-b bg-muted/40 text-left text-muted-foreground">{children}</tr>
+      <tr className="border-b border-border text-left text-muted-foreground">{children}</tr>
     </thead>
   );
 }
@@ -53,7 +54,14 @@ export function TableHead({ children }: { children: React.ReactNode }) {
 // Plain (non-sortable) header cell — used as-is by files that adopt Table/TableHead
 // later (WS31) without needing sort.
 export function Th({ children, className }: { children?: React.ReactNode; className?: string }) {
-  return <th className={cn("px-4 py-2.5 font-medium", className)}>{children}</th>;
+  return (
+    <th
+      scope="col"
+      className={cn("h-[34px] whitespace-nowrap px-4 font-mono text-label font-semibold uppercase tracking-label", className)}
+    >
+      {children}
+    </th>
+  );
 }
 
 // Sortable header cell — only used where Q38 = A.
@@ -62,21 +70,29 @@ export function SortableTh<K extends string>({
 }: { label: string; sortKey: K; active: boolean; dir: "asc" | "desc"; onSort: (key: K) => void; className?: string }) {
   return (
     <th
-      className={cn("cursor-pointer select-none px-4 py-2.5 font-medium hover:text-foreground", className)}
-      onClick={() => onSort(sortKey)}
+      scope="col"
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      className={cn("h-[34px] whitespace-nowrap px-4 font-mono text-label font-semibold uppercase tracking-label", className)}
     >
-      <span className="inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={cn(
+          "inline-flex items-center gap-1 uppercase tracking-label hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          active && "text-foreground"
+        )}
+      >
         {label}
         {active ? (
-          dir === "asc" ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />
+          dir === "asc" ? <ChevronUp aria-hidden="true" className="h-3 w-3" /> : <ChevronDown aria-hidden="true" className="h-3 w-3" />
         ) : (
-          <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+          <ChevronsUpDown aria-hidden="true" className="h-3 w-3 opacity-40" />
         )}
-      </span>
+      </button>
     </th>
   );
 }
 
 export function TableRow({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <tr className={cn("border-b last:border-0 hover:bg-muted/50", className)}>{children}</tr>;
+  return <tr className={cn("border-b border-row-divider last:border-0 hover:bg-row-hover", className)}>{children}</tr>;
 }

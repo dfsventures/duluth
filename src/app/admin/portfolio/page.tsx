@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { Layers, Building2, Landmark, DollarSign, Search } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Layers } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Table, TableHead, Th, SortableTh, TableRow } from "@/components/ui/table";
 import { Select } from "@/components/ui/select";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { formatDate } from "@/lib/utils";
+import { multipleLabel, multipleValue, summarizeLedger, type LedgerSummary } from "@/lib/ledger";
+import type { FilterChipDef } from "@/lib/data-table";
 
 interface PortfolioDeal {
   id: string;
@@ -29,118 +30,149 @@ interface PortfolioDeal {
   dilutionAware: boolean;
 }
 
-interface Summary {
-  totalInvested: number;
-  dealCount: number;
-  companyCount: number;
-  fundCount: number;
-  blendedImpliedValue: number;
-  anyDilutionAware: boolean;
-}
+const money = (n: number) => `$${n.toLocaleString()}`;
 
-// F103 follow-up — this used to be a bare current/entry ratio, ignoring the
-// `positionValue`/`dilutionAware` fields the API already computes (and that
-// the neighboring "Position Value" column already uses). Deriving the
-// multiple from positionValue/amountUsd instead means this column agrees
-// with "Position Value" once a deal's ownershipPct is known, rather than
-// showing an outsized raw ratio right next to the correct dollar figure.
-function multipleValue(d: Pick<PortfolioDeal, "amountUsd" | "positionValue">): number | null {
-  if (d.positionValue === null || d.amountUsd <= 0) return null;
-  return d.positionValue / d.amountUsd;
-}
+const CHIPS: FilterChipDef<PortfolioDeal>[] = [
+  { key: "initial", label: "Initial", test: (d) => d.investmentType === "INITIAL" },
+  { key: "follow-on", label: "Follow-on", test: (d) => d.investmentType === "FOLLOW_ON" },
+];
 
-function multipleLabel(d: Pick<PortfolioDeal, "amountUsd" | "positionValue">): string {
-  const m = multipleValue(d);
-  if (m === null) return "n/a";
-  if (d.positionValue === 0) return "Written off";
-  return `${m.toFixed(1)}×`;
-}
+const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
+  {
+    key: "company",
+    header: "Company",
+    sortValue: (d) => d.portfolioCompany.name,
+    sticky: true,
+    cell: (d) => d.portfolioCompany.name,
+  },
+  {
+    key: "fund",
+    header: "Fund",
+    sortValue: (d) => d.fund.name,
+    mobile: "meta",
+    cell: (d) => (
+      <Link href={`/admin/funds/${d.fund.id}`} className="text-muted-foreground hover:text-foreground hover:underline">
+        {d.fund.name}
+      </Link>
+    ),
+  },
+  {
+    key: "type",
+    header: "Type",
+    cell: (d) => (
+      <span className={d.investmentType === "INITIAL" ? "badge-info" : "badge-neutral"}>
+        {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
+      </span>
+    ),
+  },
+  {
+    key: "date",
+    header: "Date",
+    sortValue: (d) => new Date(d.dealDate).getTime(),
+    firstDir: "desc",
+    mobile: "meta",
+    className: "whitespace-nowrap",
+    cell: (d) => formatDate(d.dealDate),
+  },
+  {
+    key: "amount",
+    header: "Amount",
+    align: "num",
+    sortValue: (d) => d.amountUsd,
+    firstDir: "desc",
+    mobile: "meta",
+    cell: (d) => money(d.amountUsd),
+  },
+  { key: "instrument", header: "Instrument", cell: (d) => d.instrument ?? "—" },
+  {
+    key: "currentVal",
+    header: "Current val.",
+    align: "num",
+    sortValue: (d) => d.currentValuation,
+    firstDir: "desc",
+    cell: (d) => (d.currentValuation !== null ? money(d.currentValuation) : "—"),
+  },
+  {
+    key: "multiple",
+    header: "Multiple",
+    align: "num",
+    sortValue: (d) => multipleValue(d),
+    firstDir: "desc",
+    cell: (d) => multipleLabel(d),
+  },
+  {
+    key: "ownership",
+    header: "Ownership",
+    align: "num",
+    cell: (d) => (d.ownershipPct !== null ? `${d.ownershipPct}%` : "—"),
+  },
+  {
+    key: "positionValue",
+    header: "Position value",
+    align: "num",
+    sortValue: (d) => d.positionValue,
+    firstDir: "desc",
+    mobile: "badge",
+    cell: (d) => (
+      <span className="inline-flex items-center justify-end gap-1.5">
+        {!d.dilutionAware && d.positionValue !== null && (
+          <span
+            role="img"
+            aria-label="No dilution data, zero-dilution assumption"
+            className="h-[7px] w-[7px] shrink-0 bg-ochre"
+            title="No dilution data: zero-dilution assumption (amount x multiple)"
+          />
+        )}
+        {d.positionValue !== null ? money(Math.round(d.positionValue)) : "—"}
+      </span>
+    ),
+  },
+];
 
-type SortKey = "company" | "fund" | "date" | "amount" | "currentVal" | "multiple" | "positionValue";
-interface SortState {
-  key: SortKey;
-  dir: "asc" | "desc";
-}
-
-// Column defaults: text columns sort A→Z first, numeric/date columns sort
-// largest/most-recent first — matches the app's one existing sort default
-// (dealDate desc).
-const DEFAULT_SORT_DIR: Record<SortKey, "asc" | "desc"> = {
-  company: "asc",
-  fund: "asc",
-  date: "desc",
-  amount: "desc",
-  currentVal: "desc",
-  multiple: "desc",
-  positionValue: "desc",
-};
-
-function sortValue(d: PortfolioDeal, key: SortKey): number | string | null {
-  switch (key) {
-    case "company":
-      return d.portfolioCompany.name;
-    case "fund":
-      return d.fund.name;
-    case "date":
-      return new Date(d.dealDate).getTime();
-    case "amount":
-      return d.amountUsd;
-    case "currentVal":
-      return d.currentValuation;
-    case "multiple":
-      return multipleValue(d);
-    case "positionValue":
-      return d.positionValue;
-  }
-}
-
-// Nulls always sort last regardless of direction, so toggling asc/desc
-// doesn't make blank cells jump to the top.
-function compareSortValues(a: number | string | null, b: number | string | null, dir: "asc" | "desc"): number {
-  if (a === null && b === null) return 0;
-  if (a === null) return 1;
-  if (b === null) return -1;
-  const result = typeof a === "string" && typeof b === "string" ? a.localeCompare(b) : (a as number) - (b as number);
-  return dir === "asc" ? result : -result;
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 font-display text-xl font-semibold text-foreground">{value}</dd>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
 }
 
 export default function AdminPortfolioPage() {
+  return (
+    <Suspense fallback={null}>
+      <LedgerPage />
+    </Suspense>
+  );
+}
+
+function LedgerPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const fundId = searchParams.get("fund") ?? "";
+
   const [deals, setDeals] = useState<PortfolioDeal[]>([]);
-  const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [funds, setFunds] = useState<{ id: string; name: string }[]>([]);
-  const [fundId, setFundId] = useState("");
-  const [investmentType, setInvestmentType] = useState("");
-  const [q, setQ] = useState("");
-  // Default matches the API's existing order (dealDate desc) so nothing
-  // visually shifts until a header is clicked (Q38-A acceptance criterion).
-  const [sort, setSort] = useState<SortState>({ key: "date", dir: "desc" });
-
-  const handleSort = useCallback((key: SortKey) => {
-    setSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: DEFAULT_SORT_DIR[key] }));
-  }, []);
-
-  const sortedDeals = useMemo(() => {
-    return [...deals].sort((a, b) => compareSortValues(sortValue(a, sort.key), sortValue(b, sort.key), sort.dir));
-  }, [deals, sort]);
+  const [shown, setShown] = useState<PortfolioDeal[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (fundId) params.set("fundId", fundId);
-      if (investmentType) params.set("investmentType", investmentType);
-      if (q.trim()) params.set("q", q.trim());
-      const res = await fetch(`/api/admin/portfolio?${params.toString()}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDeals(data.deals);
-        setSummary(data.summary);
-      }
+      const res = await fetch("/api/admin/portfolio");
+      if (!res.ok) throw new Error("Couldn't load the deal ledger.");
+      const data = await res.json();
+      setDeals(data.deals);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load the deal ledger.");
     } finally {
       setLoading(false);
     }
-  }, [fundId, investmentType, q]);
+  }, []);
 
   useEffect(() => {
     load();
@@ -153,156 +185,89 @@ export default function AdminPortfolioPage() {
       .catch(() => {});
   }, []);
 
+  function setFundParam(value: string) {
+    const p = new URLSearchParams(searchParams.toString());
+    if (value) p.set("fund", value);
+    else p.delete("fund");
+    const qs = p.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  const rows = useMemo(() => (fundId ? deals.filter((d) => d.fund.id === fundId) : deals), [deals, fundId]);
+  // The strip follows whatever the table is showing (fund, type chip and search).
+  const summary: LedgerSummary = useMemo(() => summarizeLedger(shown), [shown]);
+  const onVisible = useCallback((r: PortfolioDeal[]) => setShown(r), []);
+
   return (
     <AppShell>
       <PageHeader
-        title="Portfolio"
+        title="Deal Ledger"
         description="Every deal across every fund — the cross-fund view the per-fund pages don't give you."
       />
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <DollarSign className="h-4 w-4" />
-              Total Invested
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{summary ? `$${summary.totalInvested.toLocaleString()}` : "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <DollarSign className="h-4 w-4" />
-              Implied Value{summary && !summary.anyDilutionAware ? " *" : ""}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{summary ? `$${Math.round(summary.blendedImpliedValue).toLocaleString()}` : "—"}</p>
-            <p className="text-xs text-muted-foreground">Admin-only estimate</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Layers className="h-4 w-4" />
-              Deals
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{summary?.dealCount ?? "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Building2 className="h-4 w-4" />
-              Companies
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{summary?.companyCount ?? "—"}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Landmark className="h-4 w-4" />
-              Funds
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{summary?.fundCount ?? "—"}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <dl
+        aria-label="Totals for the deals shown"
+        className="mb-5 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 sm:grid-cols-3 lg:grid-cols-5"
+      >
+        <Stat label="Total invested" value={`$${summary.totalInvested.toLocaleString()}`} />
+        <Stat
+          label={`Implied value${!summary.anyDilutionAware && summary.dealCount > 0 ? " *" : ""}`}
+          value={`$${Math.round(summary.blendedImpliedValue).toLocaleString()}`}
+          hint="Admin-only estimate"
+        />
+        <Stat label="Deals" value={String(summary.dealCount)} />
+        <Stat label="Companies" value={String(summary.companyCount)} />
+        <Stat label="Funds" value={String(summary.fundCount)} />
+      </dl>
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Select value={fundId} onChange={(e) => setFundId(e.target.value)} className="w-auto">
-          <option value="">All funds</option>
-          {funds.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </Select>
-        <Select value={investmentType} onChange={(e) => setInvestmentType(e.target.value)} className="w-auto">
-          <option value="">All types</option>
-          <option value="INITIAL">Initial</option>
-          <option value="FOLLOW_ON">Follow-on</option>
-        </Select>
-        <div className="relative min-w-[200px] flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search company or instrument..."
-            className="w-full rounded-sm border border-input bg-card py-1.5 pl-8 pr-3 text-sm"
+      <DataTable<PortfolioDeal>
+        label="Deals"
+        noun="deal"
+        rows={rows}
+        rowKey={(d) => d.id}
+        rowHref={(d) => `/admin/portfolio/${d.portfolioCompany.id}`}
+        columns={COLUMNS}
+        defaultSort={{ key: "date", dir: "desc" }}
+        searchText={(d) => [d.portfolioCompany.name, d.instrument, d.fund.name]}
+        searchPlaceholder="Filter company, instrument or fund"
+        chips={CHIPS}
+        toolbarExtra={
+          <>
+            <label htmlFor="ledger-fund" className="sr-only">
+              Fund
+            </label>
+            <Select
+              id="ledger-fund"
+              value={fundId}
+              onChange={(e) => setFundParam(e.target.value)}
+              className="h-8 w-auto py-0 text-[13px]"
+            >
+              <option value="">All funds</option>
+              {funds.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </Select>
+          </>
+        }
+        loading={loading}
+        error={error}
+        onRetry={load}
+        onVisibleRowsChange={onVisible}
+        minWidth={1040}
+        empty={
+          <EmptyState
+            icon={<Layers className="h-8 w-8" />}
+            title={fundId ? "No deals in this fund" : "No deals yet"}
+            description={
+              fundId
+                ? "Pick another fund, or show all funds."
+                : "Deals appear here once they are added to a fund or synced from the sheet."
+            }
           />
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="space-y-3">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
-          ))}
-        </div>
-      ) : deals.length === 0 ? (
-        <EmptyState icon={<Layers className="h-8 w-8" />} title="No deals match" description="Try clearing the filters." />
-      ) : (
-        <Table tableClassName="min-w-[960px]">
-          <TableHead>
-            <SortableTh label="Company" sortKey="company" active={sort.key === "company"} dir={sort.dir} onSort={handleSort} />
-            <SortableTh label="Fund" sortKey="fund" active={sort.key === "fund"} dir={sort.dir} onSort={handleSort} />
-            <Th>Type</Th>
-            <SortableTh label="Date" sortKey="date" active={sort.key === "date"} dir={sort.dir} onSort={handleSort} />
-            <SortableTh label="Amount" sortKey="amount" active={sort.key === "amount"} dir={sort.dir} onSort={handleSort} />
-            <Th>Instrument</Th>
-            <SortableTh label="Current Val." sortKey="currentVal" active={sort.key === "currentVal"} dir={sort.dir} onSort={handleSort} />
-            <SortableTh label="Multiple" sortKey="multiple" active={sort.key === "multiple"} dir={sort.dir} onSort={handleSort} />
-            <Th>Ownership</Th>
-            <SortableTh label="Position Value" sortKey="positionValue" active={sort.key === "positionValue"} dir={sort.dir} onSort={handleSort} />
-          </TableHead>
-          <tbody>
-            {sortedDeals.map((d) => (
-              <TableRow key={d.id}>
-                <td className="px-4 py-2.5 font-medium">
-                  <Link href={`/admin/portfolio/${d.portfolioCompany.id}`} className="hover:underline">
-                    {d.portfolioCompany.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-2.5">
-                  <Link href={`/admin/funds/${d.fund.id}`} className="text-muted-foreground hover:underline">
-                    {d.fund.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-2.5">
-                  <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
-                    {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
-                  </Badge>
-                </td>
-                <td className="px-4 py-2.5 whitespace-nowrap">{formatDate(d.dealDate)}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
-                <td className="px-4 py-2.5">{d.instrument ?? "—"}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap">{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</td>
-                <td className="px-4 py-2.5">{multipleLabel(d)}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{d.ownershipPct !== null ? `${d.ownershipPct}%` : "—"}</td>
-                <td className="px-4 py-2.5 whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1.5">
-                    {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
-                    {!d.dilutionAware && d.positionValue !== null && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data — zero-dilution assumption (amount x multiple)" />
-                    )}
-                  </span>
-                </td>
-              </TableRow>
-            ))}
-          </tbody>
-        </Table>
-      )}
+        }
+      />
     </AppShell>
   );
 }

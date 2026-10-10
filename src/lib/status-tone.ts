@@ -75,3 +75,17 @@ export function statusTone(status: string | null | undefined): Tone {
 export function toneColors(status: string | null | undefined): ToneColors {
   return TONES[statusTone(status)];
 }
+
+const TILE_TONES: Tone[] = ["sand", "sky", "sage", "clay"];
+
+/**
+ * Stable tint for a name tile (spec 11.1: "company tiles rotate through
+ * Sand/Sky/Sage/Clay by a stable hash of the name so a company keeps its colour").
+ * Decorative only: it never carries meaning, and clay here is not a warning.
+ */
+export function tileTone(name: string | null | undefined): Tone {
+  const s = (name ?? "").trim().toLowerCase();
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return TILE_TONES[h % TILE_TONES.length];
+}

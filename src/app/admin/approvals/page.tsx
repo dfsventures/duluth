@@ -21,6 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { toast } from "@/lib/toast";
 import { formatDate } from "@/lib/utils";
 import { addPortcoContact } from "@/lib/portco-link-contact";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -96,7 +99,7 @@ export default function ApprovalsPage() {
   const [dismissStates, setDismissStates] = useState<
     Record<string, { loading: boolean; error?: string }>
   >({});
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirm = useConfirm();
   const [deleteStates, setDeleteStates] = useState<
     Record<string, { loading: boolean; error?: string }>
   >({});
@@ -234,6 +237,13 @@ export default function ApprovalsPage() {
         )
       );
       setDismissStates((prev) => ({ ...prev, [id]: { loading: false } }));
+      if (dismiss) {
+        // Reversible, so no confirm: say what happened and offer Undo (spec 6.5).
+        const who = awaitingUsers.find((u) => u.id === id);
+        toast.undo(`Dismissed ${who?.name ?? who?.email ?? "account"}.`, () => {
+          void handleDismissToggle(id, false);
+        });
+      }
     } catch (err) {
       setDismissStates((prev) => ({
         ...prev,
@@ -243,6 +253,15 @@ export default function ApprovalsPage() {
         },
       }));
     }
+  }
+
+  async function requestDelete(u: AwaitingUser) {
+    const ok = await confirm({
+      title: `Delete the account for ${u.name ?? u.email}`,
+      description: "This removes the unfinished account and its setup link. It cannot be undone.",
+      confirmLabel: "Delete account",
+    });
+    if (ok) await handleDelete(u.id);
   }
 
   async function handleDelete(id: string) {
@@ -257,7 +276,6 @@ export default function ApprovalsPage() {
       }
 
       setAwaitingUsers((prev) => prev.filter((u) => u.id !== id));
-      setConfirmDeleteId(null);
       setDeleteStates((prev) => {
         const next = { ...prev };
         delete next[id];
@@ -606,185 +624,185 @@ export default function ApprovalsPage() {
           (u) => u.setupQueueDismissedAt || isStale(u)
         );
 
+        // Shared first columns for both tables.
+        const personColumn: DataTableColumn<AwaitingUser> = {
+          key: "person",
+          header: "Person",
+          sortValue: (u) => u.name ?? u.email,
+          cell: (u) => {
+            const errors = [resendStates[u.id]?.error, dismissStates[u.id]?.error, deleteStates[u.id]?.error].filter(Boolean);
+            return (
+              <span className="flex flex-col py-0.5">
+                <span>{u.name ?? u.email}</span>
+                {u.name && <span className="text-xs font-normal text-muted-foreground">{u.email}</span>}
+                {errors.map((e, i) => (
+                  <span key={i} role="alert" className="text-xs font-normal text-destructive">
+                    {e}
+                  </span>
+                ))}
+              </span>
+            );
+          },
+        };
+        const companyColumn: DataTableColumn<AwaitingUser> = {
+          key: "company",
+          header: "Company",
+          sortValue: (u) => u.memberships?.[0]?.company?.name,
+          mobile: "meta",
+          cell: (u) => u.memberships?.[0]?.company?.name ?? <span className="text-muted-foreground">—</span>,
+        };
+        const resendButton = (u: AwaitingUser) => {
+          const state = resendStates[u.id];
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              loading={state?.loading}
+              disabled={state?.result === "sent"}
+              onClick={() => handleResend(u.id)}
+            >
+              <Send className="h-3.5 w-3.5" />
+              {state?.result === "sent" ? "Sent" : "Resend link"}
+              <span className="sr-only"> to {u.name ?? u.email}</span>
+            </Button>
+          );
+        };
+
+        const activeColumns: DataTableColumn<AwaitingUser>[] = [
+          personColumn,
+          companyColumn,
+          {
+            key: "link",
+            header: "Setup link",
+            sortValue: (u) => (u.tokenExpiresAt ? new Date(u.tokenExpiresAt).getTime() : null),
+            mobile: "meta",
+            cell: (u) => {
+              const expired = !u.tokenExpiresAt || new Date(u.tokenExpiresAt) < new Date();
+              const isCompanyCreator = u.memberships.some((m) => m.company.createdById === u.id);
+              return (
+                <span className="flex flex-col py-0.5 font-normal">
+                  <span className={`font-mono text-xs ${expired ? "text-tone-clay-ink" : "text-muted-foreground"}`}>
+                    {u.tokenExpiresAt
+                      ? expired
+                        ? `expired ${formatDate(u.tokenExpiresAt)}`
+                        : `expires ${formatDate(u.tokenExpiresAt)}`
+                      : "no active link"}
+                  </span>
+                  {isCompanyCreator && (
+                    <span className="text-xs text-muted-foreground">Created a company: use Dismiss</span>
+                  )}
+                </span>
+              );
+            },
+          },
+        ];
+
+        const dismissedColumns: DataTableColumn<AwaitingUser>[] = [
+          personColumn,
+          companyColumn,
+          {
+            key: "state",
+            header: "State",
+            mobile: "meta",
+            cell: (u) => (u.setupQueueDismissedAt ? "Dismissed" : "Link stale"),
+          },
+        ];
+
         return (
           <div className="mt-8 space-y-8">
             {activeAwaiting.length > 0 && (
-              <div className="space-y-4">
+              <section aria-labelledby="awaiting-heading" className="space-y-3">
                 <div>
-                  <h2 className="text-sm font-semibold text-foreground">
+                  <h2 id="awaiting-heading" className="text-sm font-semibold text-foreground">
                     Awaiting password setup
                   </h2>
                   <p className="text-sm text-muted-foreground">
                     Approved accounts that haven&apos;t finished setup. Resend replaces the old link.
                   </p>
                 </div>
-                {activeAwaiting.map((u) => {
-                  const state = resendStates[u.id];
-                  const dState = dismissStates[u.id];
-                  const delState = deleteStates[u.id];
-                  const companyName = u.memberships?.[0]?.company?.name ?? null;
-                  const expired = !u.tokenExpiresAt || new Date(u.tokenExpiresAt) < new Date();
-                  const ownedCompanies = u.memberships
-                    .map((m) => m.company)
-                    .filter((c) => c.createdById === u.id);
-                  const isCompanyCreator = ownedCompanies.length > 0;
-                  return (
-                    <Card key={u.id}>
-                      <CardContent className="flex flex-wrap items-center gap-2 py-4">
-                        <div className="min-w-48 flex-1">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-muted-foreground" />
-                            <p className="font-medium">{u.name ?? u.email}</p>
-                          </div>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {u.email}
-                            {companyName && <> &middot; {companyName}</>}
-                          </p>
-                          <p
-                            className={`font-mono text-xs ${expired ? "text-laterite" : "text-muted-foreground"}`}
-                          >
-                            {u.tokenExpiresAt
-                              ? expired
-                                ? `link expired ${formatDate(u.tokenExpiresAt)}`
-                                : `expires ${formatDate(u.tokenExpiresAt)}`
-                              : "no active link"}
-                          </p>
-                          {state?.error && (
-                            <p className="mt-1 text-xs text-destructive">{state.error}</p>
-                          )}
-                          {dState?.error && (
-                            <p className="mt-1 text-xs text-destructive">{dState.error}</p>
-                          )}
-                          {delState?.error && (
-                            <p className="mt-1 text-xs text-destructive">{delState.error}</p>
-                          )}
-                          {isCompanyCreator && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Created a company — use Dismiss
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <DataTable<AwaitingUser>
+                  label="Accounts awaiting password setup"
+                  noun="account"
+                  rows={activeAwaiting}
+                  rowKey={(u) => u.id}
+                  columns={activeColumns}
+                  defaultSort={{ key: "person", dir: "asc" }}
+                  searchText={(u) => [u.name, u.email, u.memberships?.[0]?.company?.name]}
+                  searchPlaceholder="Filter accounts"
+                  urlState={false}
+                  minWidth={680}
+                  actionsLabel="Row actions"
+                  empty={null}
+                  rowActions={(u) => {
+                    const isCompanyCreator = u.memberships.some((m) => m.company.createdById === u.id);
+                    return (
+                      <>
+                        {resendButton(u)}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={dismissStates[u.id]?.loading}
+                          onClick={() => handleDismissToggle(u.id, true)}
+                        >
+                          <EyeOff className="h-3.5 w-3.5" />
+                          Dismiss
+                          <span className="sr-only"> {u.name ?? u.email}</span>
+                        </Button>
+                        {!isCompanyCreator && (
                           <Button
-                            variant="secondary"
+                            variant="ghost"
                             size="sm"
-                            disabled={state?.loading || state?.result === "sent"}
-                            onClick={() => handleResend(u.id)}
+                            loading={deleteStates[u.id]?.loading}
+                            className="hover:text-laterite"
+                            onClick={() => requestDelete(u)}
                           >
-                            <Send className="mr-1 h-3.5 w-3.5" />
-                            {state?.loading
-                              ? "Sending..."
-                              : state?.result === "sent"
-                                ? "Sent ✓"
-                                : "Resend link"}
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Delete
+                            <span className="sr-only"> account for {u.name ?? u.email}</span>
                           </Button>
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={dState?.loading}
-                            onClick={() => handleDismissToggle(u.id, true)}
-                          >
-                            <EyeOff className="mr-1 h-3.5 w-3.5" />
-                            {dState?.loading ? "..." : "Dismiss"}
-                          </Button>
-                          {!isCompanyCreator && (
-                            confirmDeleteId === u.id ? (
-                              <>
-                                <span className="text-sm text-muted-foreground">
-                                  Delete this account?
-                                </span>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  disabled={delState?.loading}
-                                  onClick={() => handleDelete(u.id)}
-                                >
-                                  {delState?.loading ? "Deleting..." : "Confirm Delete"}
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  disabled={delState?.loading}
-                                  onClick={() => setConfirmDeleteId(null)}
-                                >
-                                  Cancel
-                                </Button>
-                              </>
-                            ) : (
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                onClick={() => setConfirmDeleteId(u.id)}
-                              >
-                                <Trash2 className="mr-1 h-3.5 w-3.5" />
-                                Delete account
-                              </Button>
-                            )
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                        )}
+                      </>
+                    );
+                  }}
+                />
+              </section>
             )}
 
             {dismissedOrStale.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground">
+              <section aria-labelledby="dismissed-heading" className="space-y-2">
+                <h3 id="dismissed-heading" className="text-sm font-medium text-muted-foreground">
                   Dismissed / stale ({dismissedOrStale.length})
                 </h3>
-                {dismissedOrStale.map((u) => {
-                  const state = resendStates[u.id];
-                  const dState = dismissStates[u.id];
-                  const companyName = u.memberships?.[0]?.company?.name ?? null;
-                  return (
-                    <Card key={u.id} className="opacity-60">
-                      <CardContent className="flex flex-wrap items-center gap-2 py-3">
-                        <div className="min-w-48 flex-1">
-                          <p className="font-medium">{u.name ?? u.email}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {u.email}
-                            {companyName && <> &middot; {companyName}</>}
-                          </p>
-                          {state?.error && (
-                            <p className="mt-1 text-xs text-destructive">{state.error}</p>
-                          )}
-                          {dState?.error && (
-                            <p className="mt-1 text-xs text-destructive">{dState.error}</p>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            disabled={state?.loading || state?.result === "sent"}
-                            onClick={() => handleResend(u.id)}
-                          >
-                            <Send className="mr-1 h-3.5 w-3.5" />
-                            {state?.loading
-                              ? "Sending..."
-                              : state?.result === "sent"
-                                ? "Sent ✓"
-                                : "Resend link"}
-                          </Button>
-                          {u.setupQueueDismissedAt && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              disabled={dState?.loading}
-                              onClick={() => handleDismissToggle(u.id, false)}
-                            >
-                              <Eye className="mr-1 h-3.5 w-3.5" />
-                              {dState?.loading ? "..." : "Undismiss"}
-                            </Button>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                <DataTable<AwaitingUser>
+                  label="Dismissed or stale accounts"
+                  noun="account"
+                  rows={dismissedOrStale}
+                  rowKey={(u) => u.id}
+                  columns={dismissedColumns}
+                  defaultSort={{ key: "person", dir: "asc" }}
+                  urlState={false}
+                  minWidth={560}
+                  actionsLabel="Row actions"
+                  empty={null}
+                  rowActions={(u) => (
+                    <>
+                      {resendButton(u)}
+                      {u.setupQueueDismissedAt && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={dismissStates[u.id]?.loading}
+                          onClick={() => handleDismissToggle(u.id, false)}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Undismiss
+                          <span className="sr-only"> {u.name ?? u.email}</span>
+                        </Button>
+                      )}
+                    </>
+                  )}
+                />
+              </section>
             )}
           </div>
         );

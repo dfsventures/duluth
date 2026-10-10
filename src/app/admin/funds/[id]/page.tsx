@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { FundPerformanceCard } from "@/components/fund-performance-card";
 import { positionValue } from "@/lib/portfolio-metrics";
@@ -128,6 +128,12 @@ function multipleLabel(d: { amountUsd: number; entryValuation: number | null; cu
   if (pv.value === null || d.amountUsd <= 0) return "n/a";
   if (pv.value === 0) return "Written off";
   return `${(pv.value / d.amountUsd).toFixed(1)}×`;
+}
+
+function multipleNumber(d: { amountUsd: number; entryValuation: number | null; currentValuation: number | null; ownershipPct: number | null }): number | null {
+  const pv = positionValue({ amountUsd: d.amountUsd, entryValuation: d.entryValuation, currentValuation: d.currentValuation, ownershipPct: d.ownershipPct }, d.currentValuation);
+  if (pv.value === null || d.amountUsd <= 0) return null;
+  return pv.value / d.amountUsd;
 }
 
 export default function AdminFundDetailPage() {
@@ -488,6 +494,147 @@ export default function AdminFundDetailPage() {
     { key: "cashflows", label: `Cashflows (${fund.cashflows.length})`, icon: <DollarSign className="h-4 w-4" /> },
   ];
 
+  // Part 10, WS27.5: both conditions, mirroring the API's own enforcement. A fork
+  // with sync disabled, or a manually-created deal (no sheetRowId), is unaffected.
+  const isSyncedDeal = (d: Deal) => Boolean(fund?.sheetsSyncEnabled) && Boolean(d.sheetRowId);
+
+  const dealColumns: DataTableColumn<Deal>[] = [
+    { key: "company", header: "Company", sortValue: (d) => d.portfolioCompanyName, cell: (d) => d.portfolioCompanyName },
+    {
+      key: "type",
+      header: "Type",
+      cell: (d) => (
+        <span className={d.investmentType === "INITIAL" ? "badge-info" : "badge-neutral"}>
+          {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
+        </span>
+      ),
+    },
+    {
+      key: "date",
+      header: "Date",
+      sortValue: (d) => new Date(d.dealDate).getTime(),
+      firstDir: "desc",
+      className: "whitespace-nowrap",
+      mobile: "meta",
+      cell: (d) => formatDate(d.dealDate),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "num",
+      sortValue: (d) => d.amountUsd,
+      firstDir: "desc",
+      mobile: "badge",
+      cell: (d) => `$${d.amountUsd.toLocaleString()}`,
+    },
+    { key: "instrument", header: "Instrument", mobile: "meta", cell: (d) => d.instrument ?? "—" },
+    {
+      key: "entry",
+      header: "Entry val.",
+      align: "num",
+      sortValue: (d) => d.entryValuation,
+      firstDir: "desc",
+      cell: (d) => (d.entryValuation !== null ? `$${d.entryValuation.toLocaleString()}` : "—"),
+    },
+    {
+      key: "current",
+      header: "Current val.",
+      align: "num",
+      sortValue: (d) => d.currentValuation,
+      firstDir: "desc",
+      cell: (d) =>
+        isSyncedDeal(d) ? (
+          <span>{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</span>
+        ) : editingDealId === d.id ? (
+          <div className="flex items-center justify-end gap-1">
+            <input
+              type="number"
+              autoFocus
+              aria-label={`Current valuation for ${d.portfolioCompanyName}`}
+              value={editDealValuation}
+              onChange={(e) => setEditDealValuation(e.target.value)}
+              className="w-28 rounded-sm border border-input bg-card px-2 py-1 text-sm"
+            />
+            <button onClick={() => saveEditValuation(d.id)} className="rounded p-1 text-acacia hover:bg-muted" title="Save" aria-label="Save valuation">
+              <Check className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={() => setEditingDealId(null)} className="rounded p-1 text-muted-foreground hover:bg-muted" title="Cancel" aria-label="Cancel editing">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button className="hover:underline" onClick={() => startEditValuation(d)} title="Edit valuation">
+            {d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}
+          </button>
+        ),
+    },
+    {
+      key: "multiple",
+      header: "Multiple",
+      align: "num",
+      sortValue: (d) => multipleNumber(d),
+      firstDir: "desc",
+      cell: (d) => multipleLabel(d),
+    },
+    {
+      key: "asOf",
+      header: "As of",
+      sortValue: (d) => (d.valuationAsOf ? new Date(d.valuationAsOf).getTime() : null),
+      firstDir: "desc",
+      className: "whitespace-nowrap text-xs text-muted-foreground",
+      cell: (d) => (d.valuationAsOf ? formatDate(d.valuationAsOf) : "—"),
+    },
+    {
+      key: "source",
+      header: "Source",
+      cell: (d) =>
+        isSyncedDeal(d) ? (
+          <span className="badge-neutral" title="Sheet-owned fields are read-only while sync is enabled">
+            Synced from sheet
+          </span>
+        ) : null,
+    },
+  ];
+
+  const cashflowColumns: DataTableColumn<Cashflow>[] = [
+    {
+      key: "kind",
+      header: "Kind",
+      sortValue: (c) => CASHFLOW_LABELS[c.kind],
+      cell: (c) => (
+        <Badge variant={c.kind === "DISTRIBUTION" ? "success" : c.kind === "CAPITAL_CALL" ? "info" : "neutral"}>
+          {CASHFLOW_LABELS[c.kind]}
+        </Badge>
+      ),
+    },
+    {
+      key: "date",
+      header: "Date",
+      sortValue: (c) => new Date(c.date).getTime(),
+      firstDir: "desc",
+      className: "whitespace-nowrap",
+      mobile: "meta",
+      cell: (c) => formatDate(c.date),
+    },
+    {
+      key: "amount",
+      header: "Amount",
+      align: "num",
+      sortValue: (c) => c.amountUsd,
+      firstDir: "desc",
+      mobile: "badge",
+      cell: (c) => `$${c.amountUsd.toLocaleString()}`,
+    },
+    {
+      key: "company",
+      header: "Company",
+      sortValue: (c) => c.portfolioCompanyName,
+      mobile: "meta",
+      cell: (c) => c.portfolioCompanyName ?? <span className="text-muted-foreground">—</span>,
+    },
+    { key: "notes", header: "Notes", mobile: "meta", cell: (c) => c.notes ?? <span className="text-muted-foreground">—</span> },
+  ];
+
   return (
     <AppShell>
       <button
@@ -658,84 +805,34 @@ export default function AdminFundDetailPage() {
               Add Deal
             </Button>
           </div>
-          {fund.deals.length === 0 ? (
-            <EmptyState icon={<Layers className="h-8 w-8" />} title="No deals yet" description="Add the fund's first deal." />
-          ) : (
-            <Table tableClassName="min-w-[900px]">
-              <TableHead>
-                <Th>Company</Th>
-                <Th>Type</Th>
-                <Th>Date</Th>
-                <Th>Amount</Th>
-                <Th>Instrument</Th>
-                <Th>Entry Val.</Th>
-                <Th>Current Val.</Th>
-                <Th>Multiple</Th>
-                <Th>As of</Th>
-                <Th></Th>
-              </TableHead>
-              <tbody>
-                {fund.deals.map((d) => {
-                  // Part 10, WS27.5 — both conditions, mirroring the API's
-                  // own enforcement: a fork with sync disabled, or a
-                  // manually-created deal (no sheetRowId), is unaffected.
-                  const isSynced = fund.sheetsSyncEnabled && Boolean(d.sheetRowId);
-                  return (
-                  <TableRow key={d.id}>
-                    <td className="px-4 py-2.5 font-medium">{d.portfolioCompanyName}</td>
-                    <td className="px-4 py-2.5">
-                      <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
-                        {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{formatDate(d.dealDate)}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
-                    <td className="px-4 py-2.5">{d.instrument ?? "—"}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">{d.entryValuation !== null ? `$${d.entryValuation.toLocaleString()}` : "—"}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap">
-                      {isSynced ? (
-                        <span>{d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}</span>
-                      ) : editingDealId === d.id ? (
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            autoFocus
-                            value={editDealValuation}
-                            onChange={(e) => setEditDealValuation(e.target.value)}
-                            className="w-28 rounded-sm border border-input bg-card px-2 py-1 text-sm"
-                          />
-                          <button onClick={() => saveEditValuation(d.id)} className="rounded p-1 text-acacia hover:bg-muted" title="Save">
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                          <button onClick={() => setEditingDealId(null)} className="rounded p-1 text-muted-foreground hover:bg-muted" title="Cancel">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button className="hover:underline" onClick={() => startEditValuation(d)} title="Edit valuation">
-                          {d.currentValuation !== null ? `$${d.currentValuation.toLocaleString()}` : "—"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">{multipleLabel(d)}</td>
-                    <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{d.valuationAsOf ? formatDate(d.valuationAsOf) : "—"}</td>
-                    <td className="px-4 py-2.5">
-                      {isSynced ? (
-                        <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground" title="Sheet-owned fields are read-only while sync is enabled">
-                          synced from sheet
-                        </span>
-                      ) : (
-                        <button onClick={() => handleDeleteDeal(d.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </td>
-                  </TableRow>
-                  );
-                })}
-              </tbody>
-            </Table>
-          )}
+          <DataTable<Deal>
+            label="Deals"
+            noun="deal"
+            rows={fund.deals}
+            rowKey={(d) => d.id}
+            columns={dealColumns}
+            defaultSort={{ key: "date", dir: "desc" }}
+            searchText={(d) => [d.portfolioCompanyName, d.instrument]}
+            searchPlaceholder="Filter by company or instrument"
+            urlState={false}
+            minWidth={900}
+            actionsLabel="Row actions"
+            rowActions={(d) =>
+              fund.sheetsSyncEnabled && Boolean(d.sheetRowId) ? null : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Delete deal with ${d.portfolioCompanyName}`}
+                  title="Delete"
+                  className="hover:text-laterite"
+                  onClick={() => handleDeleteDeal(d.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )
+            }
+            empty={<EmptyState icon={<Layers className="h-8 w-8" />} title="No deals yet" description="Add the fund's first deal." />}
+          />
         </div>
       )}
 
@@ -855,26 +952,32 @@ export default function AdminFundDetailPage() {
             </div>
           </form>
 
-          {fund.cashflows.length === 0 ? (
-            <EmptyState icon={<DollarSign className="h-8 w-8" />} title="No cashflows recorded" description="Capital calls, distributions, and fees show up here." />
-          ) : (
-            <div className="space-y-2">
-              {fund.cashflows.map((c) => (
-                <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <Badge variant={c.kind === "DISTRIBUTION" ? "success" : c.kind === "CAPITAL_CALL" ? "info" : "neutral"}>{CASHFLOW_LABELS[c.kind]}</Badge>
-                    <span className="text-sm font-medium">${c.amountUsd.toLocaleString()}</span>
-                    <span className="text-xs text-muted-foreground">{formatDate(c.date)}</span>
-                    {c.portfolioCompanyName && <span className="text-xs text-muted-foreground">{c.portfolioCompanyName}</span>}
-                    {c.notes && <span className="text-xs text-muted-foreground">{c.notes}</span>}
-                  </div>
-                  <button onClick={() => handleDeleteCashflow(c.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          <DataTable<Cashflow>
+            label="Cashflows"
+            noun="cashflow"
+            rows={fund.cashflows}
+            rowKey={(c) => c.id}
+            columns={cashflowColumns}
+            defaultSort={{ key: "date", dir: "desc" }}
+            searchText={(c) => [CASHFLOW_LABELS[c.kind], c.portfolioCompanyName, c.notes]}
+            searchPlaceholder="Filter cashflows"
+            urlState={false}
+            minWidth={640}
+            actionsLabel="Row actions"
+            rowActions={(c) => (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete ${CASHFLOW_LABELS[c.kind].toLowerCase()} of $${c.amountUsd.toLocaleString()}`}
+                title="Delete"
+                className="hover:text-laterite"
+                onClick={() => handleDeleteCashflow(c.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            empty={<EmptyState icon={<DollarSign className="h-8 w-8" />} title="No cashflows recorded" description="Capital calls, distributions, and fees show up here." />}
+          />
         </div>
       )}
 
