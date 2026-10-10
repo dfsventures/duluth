@@ -19,16 +19,20 @@ export async function PATCH(
     }
 
     const body = await request.json();
-    if (body.resolved !== true) {
-      return NextResponse.json({ error: "Only { resolved: true } is supported" }, { status: 400 });
+    if (body.resolved !== true && body.resolved !== false) {
+      return NextResponse.json({ error: "Expected { resolved: true } or { resolved: false }" }, { status: 400 });
     }
 
+    // { resolved: false } is the Undo for a dismiss (UI overhaul phase 7). It only
+    // clears the dismissal; the dedupeKey is unchanged, so the evaluator still
+    // will not fire a duplicate.
+    const restoring = body.resolved === false;
     const alert = await db.metricAlert.update({
       where: { id },
-      data: { resolvedAt: new Date(), resolvedById: user!.id },
+      data: restoring ? { resolvedAt: null, resolvedById: null } : { resolvedAt: new Date(), resolvedById: user!.id },
     });
 
-    await logAdminAction(user!, "ALERT_DISMISSED", {
+    await logAdminAction(user!, restoring ? "ALERT_RESTORED" : "ALERT_DISMISSED", {
       targetType: "MetricAlert",
       targetId: id,
       metadata: { rule: existing.rule, companyId: existing.companyId },

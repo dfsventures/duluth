@@ -66,6 +66,8 @@ export interface DataTableProps<T> {
   rowActions?: (row: T) => React.ReactNode;
   /** Accessible name for the actions column header. */
   actionsLabel?: string;
+  /** Extra classes per row, e.g. the row-removal animation. Applied to the table row and the mobile list item. */
+  rowClassName?: (row: T) => string | undefined;
 
   searchText?: (row: T) => (string | null | undefined)[];
   searchPlaceholder?: string;
@@ -118,6 +120,7 @@ function DataTableInner<T>({
   pluralNoun,
   rowHref,
   rowActions,
+  rowClassName,
   actionsLabel = "Actions",
   searchText,
   searchPlaceholder,
@@ -450,7 +453,8 @@ function DataTableInner<T>({
                       onClick={href ? (e) => openRow(e, href) : undefined}
                       className={cn(
                         "group h-11 border-b border-row-divider outline-none transition-colors last:border-0 hover:bg-row-hover focus-within:bg-row-hover focus-visible:bg-row-hover focus-visible:shadow-[inset_2px_0_0_var(--color-accent)]",
-                        href && "cursor-pointer"
+                        href && "cursor-pointer",
+                        rowClassName?.(row)
                       )}
                     >
                       {columns.map((c, i) => (
@@ -512,7 +516,7 @@ function DataTableInner<T>({
                 </>
               );
               return (
-                <li key={rowKey(row)} className="relative px-4 py-3 text-sm">
+                <li key={rowKey(row)} className={cn("relative px-4 py-3 text-sm", rowClassName?.(row))}>
                   {href ? (
                     <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       {body}

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import useSWR from "swr";
+import { fetcher, NAV_COUNTS_KEY } from "@/lib/fetcher";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -140,19 +142,18 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const useAdminNav = isAdminPath || (isAdmin && !isFounder);
 
   // Sidebar markers (admin nav only). Silent on failure: the nav works without them.
-  const [counts, setCounts] = useState<NavCounts | null>(null);
+  // SWR key shared with the admin dashboard, so one fetch feeds both and an
+  // approve / dismiss elsewhere can refresh it via mutate(NAV_COUNTS_KEY).
+  const wantsCounts = useAdminNav && isAdmin;
+  const { data: countsData, mutate: refreshCounts } = useSWR<NavCounts>(wantsCounts ? NAV_COUNTS_KEY : null, fetcher, {
+    keepPreviousData: true,
+    shouldRetryOnError: false,
+  });
+  const counts = countsData ?? null;
   useEffect(() => {
-    if (!useAdminNav || !isAdmin) return;
-    let cancelled = false;
-    fetch("/api/admin/nav-counts")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => !cancelled && d && setCounts(d))
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
     // Refetch on navigation so a number drops after you clear the queue.
-  }, [useAdminNav, isAdmin, pathname]);
+    if (wantsCounts) void refreshCounts();
+  }, [wantsCounts, pathname, refreshCounts]);
 
   // Collapsed groups are remembered per browser. Storage can throw (private
   // windows, blocked site data), so every access is guarded.

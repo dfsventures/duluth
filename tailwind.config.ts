@@ -161,6 +161,12 @@ const config: Config = {
           "0%": { backgroundColor: "rgb(91 141 197 / 0.28)", transform: "translateY(-3px)" },
           "100%": { backgroundColor: "var(--color-surface)", transform: "none" },
         },
+        // Row removed: height collapses (--row-h is set from the row's measured height).
+        "row-out": {
+          from: { maxHeight: "var(--row-h, 96px)", opacity: "1" },
+          to: { maxHeight: "0", opacity: "0", paddingTop: "0", paddingBottom: "0", borderWidth: "0" },
+        },
+        "row-fade": { from: { opacity: "1" }, to: { opacity: "0" } },
         "overlay-out": { from: { opacity: "1" }, to: { opacity: "0" } },
         "dialog-out": {
           from: { opacity: "1", transform: "none" },
@@ -179,6 +185,8 @@ const config: Config = {
         "toast-in": "toast-in 200ms var(--ease-out)",
         "toast-out": "toast-out 120ms var(--ease-in) forwards",
         land: "land 1.4s var(--ease-out)",
+        "row-out": "row-out 200ms var(--ease-in) forwards",
+        "row-fade": "row-fade 200ms var(--ease-in) forwards",
         "overlay-out": "overlay-out 120ms var(--ease-in) forwards",
         "dialog-out": "dialog-out 120ms var(--ease-in) forwards",
         "sheet-out": "sheet-out 160ms var(--ease-in) forwards",

@@ -27,6 +27,9 @@ import { toast } from "@/lib/toast";
 import { formatDate } from "@/lib/utils";
 import { addPortcoContact } from "@/lib/portco-link-contact";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { mutate as globalMutate } from "swr";
+import { NAV_COUNTS_KEY } from "@/lib/fetcher";
+import { useRowCollapse } from "@/lib/use-row-collapse";
 
 // WS48 — awaiting-setup rows this stale (past their own token's expiry)
 // auto-group with dismissed rows. Deliberately longer than the 7-day
@@ -100,6 +103,7 @@ export default function ApprovalsPage() {
     Record<string, { loading: boolean; error?: string }>
   >({});
   const confirm = useConfirm();
+  const rowCollapse = useRowCollapse();
   const [deleteStates, setDeleteStates] = useState<
     Record<string, { loading: boolean; error?: string }>
   >({});
@@ -231,11 +235,15 @@ export default function ApprovalsPage() {
       }
 
       const updated = await res.json();
-      setAwaitingUsers((prev) =>
-        prev.map((u) =>
-          u.id === id ? { ...u, setupQueueDismissedAt: updated.setupQueueDismissedAt } : u
-        )
-      );
+      const applyDismissal = () =>
+        setAwaitingUsers((prev) =>
+          prev.map((u) =>
+            u.id === id ? { ...u, setupQueueDismissedAt: updated.setupQueueDismissedAt } : u
+          )
+        );
+      // Dismissing removes the row from the active list: fade it out first.
+      if (dismiss) rowCollapse.run(id, null, applyDismissal);
+      else applyDismissal();
       setDismissStates((prev) => ({ ...prev, [id]: { loading: false } }));
       if (dismiss) {
         // Reversible, so no confirm: say what happened and offer Undo (spec 6.5).
@@ -275,7 +283,7 @@ export default function ApprovalsPage() {
         throw new Error(errData?.error ?? "Failed to delete account");
       }
 
-      setAwaitingUsers((prev) => prev.filter((u) => u.id !== id));
+      rowCollapse.run(id, null, () => setAwaitingUsers((prev) => prev.filter((u) => u.id !== id)));
       setDeleteStates((prev) => {
         const next = { ...prev };
         delete next[id];
@@ -315,6 +323,8 @@ export default function ApprovalsPage() {
           result: action === "approve" ? "approved" : "rejected",
         },
       }));
+      // The sidebar's Approvals count is a shared SWR key: refresh it now rather than on the next navigation.
+      void globalMutate(NAV_COUNTS_KEY);
     } catch (err) {
       setActionStates((prev) => ({
         ...prev,
@@ -733,6 +743,7 @@ export default function ApprovalsPage() {
                   minWidth={680}
                   actionsLabel="Row actions"
                   empty={null}
+                  rowClassName={(u) => rowCollapse.className(u.id, "fade")}
                   rowActions={(u) => {
                     const isCompanyCreator = u.memberships.some((m) => m.company.createdById === u.id);
                     return (

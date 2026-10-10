@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useMemo, useState, useRef } from "react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
+import { RefreshIndicator, StaleRegion } from "@/components/ui/stale";
 import { useRouter } from "next/navigation";
 import { Building2, Plus, Upload, Bell } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -81,9 +84,20 @@ export default function AdminCompaniesPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // SWR: the list stays on screen (dimmed) while it refetches, and an import or
+  // a revisit refreshes it without a blank flash.
+  const {
+    data: companiesData,
+    error: loadError,
+    isValidating,
+    mutate: refetchCompanies,
+  } = useSWR<{ data?: Company[] } | Company[]>("/api/admin/companies", fetcher, { keepPreviousData: true });
+  const companies = useMemo<Company[]>(
+    () => (Array.isArray(companiesData) ? companiesData : (companiesData?.data ?? [])),
+    [companiesData]
+  );
+  const loading = !companiesData && !loadError;
+  const error = !companiesData && loadError ? loadError.message : null;
   const [reminding, setReminding] = useState<Record<string, boolean>>({});
 
   // Import: pick a file, preview the parsed rows, then commit. Nothing is sent
@@ -91,24 +105,6 @@ export default function AdminCompaniesPage() {
   const [preview, setPreview] = useState<{ fileName: string; rows: CompanyCsvRow[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-
-  const fetchCompanies = useCallback(async () => {
-    try {
-      const res = await fetch("/api/admin/companies");
-      if (!res.ok) throw new Error("Failed to load companies");
-      const data = await res.json();
-      setCompanies(data.data ?? data ?? []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchCompanies();
-  }, [fetchCompanies]);
 
   const rows = useMemo(() => companies.map(toRow), [companies]);
   const existingNames = useMemo(() => new Set(companies.map((c) => c.name.trim().toLowerCase())), [companies]);
@@ -155,7 +151,7 @@ export default function AdminCompaniesPage() {
           (result.skipped > 0 ? `, ${result.skipped} skipped (already exist)` : "") +
           "."
       );
-      if (result.created > 0) await fetchCompanies();
+      if (result.created > 0) await refetchCompanies();
     } catch (err) {
       // Not idempotent-safe to auto-retry blindly, but the import skips existing
       // names, so Retry is safe here.
@@ -250,6 +246,7 @@ export default function AdminCompaniesPage() {
   return (
     <AppShell>
       <PageHeader
+        indicator={<RefreshIndicator active={isValidating && !!companiesData} />}
         title="Companies"
         description="Manage all portfolio companies."
         action={
@@ -287,6 +284,7 @@ export default function AdminCompaniesPage() {
         </ComposerDisclosure>
       </div>
 
+      <StaleRegion refreshing={isValidating && !!companiesData}>
       <DataTable<Row>
         label="Companies"
         noun="company"
@@ -301,10 +299,7 @@ export default function AdminCompaniesPage() {
         chips={CHIPS}
         loading={loading}
         error={error}
-        onRetry={() => {
-          setLoading(true);
-          fetchCompanies();
-        }}
+        onRetry={() => void refetchCompanies()}
         minWidth={820}
         actionsLabel="Row actions"
         rowActions={(r) =>
@@ -339,6 +334,7 @@ export default function AdminCompaniesPage() {
           />
         }
       />
+      </StaleRegion>
 
       <Dialog open={preview !== null} onOpenChange={(o) => !o && !importing && closePreview()}>
         {preview && (

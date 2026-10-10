@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { AlertCircle, Bell, CheckCircle2 } from "lucide-react";
@@ -21,6 +22,10 @@ import { Badge } from "@/components/ui/badge";
 import { StatusDot } from "@/components/ui/status-dot";
 import { buildAttention } from "@/lib/attention";
 import { toast } from "@/lib/toast";
+import { fetcher, NAV_COUNTS_KEY } from "@/lib/fetcher";
+import { useRowCollapse } from "@/lib/use-row-collapse";
+import { RefreshIndicator, StaleRegion } from "@/components/ui/stale";
+import { cn } from "@/lib/utils";
 import { Skeleton, KpiSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 
 interface OverdueCompany {
@@ -56,15 +61,35 @@ const OVERDUE_VISIBLE = 5;
 
 export default function AdminDashboardPage() {
   const { data: session, status: sessionStatus } = useSession();
-  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const authed = sessionStatus === "authenticated";
   const [showAllOverdue, setShowAllOverdue] = useState(false);
-  const [queues, setQueues] = useState<{ diligence: number; boardReview: number }>({ diligence: 0, boardReview: 0 });
   const [reminding, setReminding] = useState<Record<string, boolean>>({});
   const [remindedAt, setRemindedAt] = useState<Record<string, string>>({});
-  const [alerts, setAlerts] = useState<MetricAlert[]>([]);
-  const [dismissing, setDismissing] = useState<Record<string, boolean>>({});
+  const rowCollapse = useRowCollapse();
+
+  // SWR keeps the last data on screen during a refetch (spec 6.6) and shares the
+  // nav-counts key with the sidebar, so one fetch feeds both.
+  const {
+    data: dashboard,
+    error: dashboardError,
+    isValidating: dashboardValidating,
+  } = useSWR<DashboardData>(authed ? "/api/admin/dashboard" : null, fetcher, { keepPreviousData: true });
+  // Alerts and queue counts never block the dashboard: failures just hide them.
+  const {
+    data: alertsData,
+    isValidating: alertsValidating,
+    mutate: mutateAlerts,
+  } = useSWR<MetricAlert[]>(authed ? "/api/admin/alerts" : null, fetcher, { keepPreviousData: true });
+  const { data: counts, isValidating: countsValidating } = useSWR<{ diligence?: number; boardReview?: number }>(
+    authed ? NAV_COUNTS_KEY : null,
+    fetcher,
+    { keepPreviousData: true }
+  );
+  const alerts = useMemo(() => alertsData ?? [], [alertsData]);
+  const queues = { diligence: counts?.diligence ?? 0, boardReview: counts?.boardReview ?? 0 };
+  const refreshing = dashboardValidating || alertsValidating || countsValidating;
+  const loading = !dashboard && !dashboardError;
+  const error = !dashboard && dashboardError ? dashboardError.message : null;
 
   const attention = useMemo(
     () =>
@@ -75,75 +100,41 @@ export default function AdminDashboardPage() {
         alerts,
         overdue: dashboard?.overdueCompanies ?? [],
       }),
-    [dashboard, queues, alerts]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dashboard, queues.diligence, queues.boardReview, alerts]
   );
 
-  useEffect(() => {
-    if (sessionStatus !== "authenticated") return;
+  // Dismiss is reversible, so it is optimistic with an Undo toast (spec 6.5):
+  // the row collapses and leaves at once, PATCH { resolved: true } runs behind
+  // it, and a failure puts the row back with a Retry. Undo sends { resolved: false }.
+  async function setAlertResolved(id: string, resolved: boolean) {
+    const res = await fetch(`/api/admin/alerts/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolved }),
+    });
+    if (!res.ok) throw new Error("request failed");
+  }
 
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/admin/dashboard");
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(body?.error ?? `Server error (${res.status})`);
-        }
-        const data = await res.json();
-        setDashboard(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    async function fetchAlerts() {
-      try {
-        const res = await fetch("/api/admin/alerts");
-        if (!res.ok) return; // never block the dashboard on the alerts feed
-        const data = await res.json();
-        setAlerts(data);
-      } catch {
-        // non-fatal — dashboard renders without the alerts section
-      }
-    }
-
-    async function fetchQueues() {
-      try {
-        const res = await fetch("/api/admin/nav-counts");
-        if (!res.ok) return; // the worklist still shows everything else
-        const data = await res.json();
-        setQueues({ diligence: data.diligence ?? 0, boardReview: data.boardReview ?? 0 });
-      } catch {
-        // non-fatal
-      }
-    }
-
-    fetchData();
-    fetchAlerts();
-    fetchQueues();
-  }, [sessionStatus]);
-
-  async function dismissAlert(id: string) {
-    setDismissing((prev) => ({ ...prev, [id]: true }));
+  async function dismissAlert(id: string, row: Element | null) {
+    const before = alerts;
+    const removeFromList = () =>
+      mutateAlerts((prev) => (prev ?? []).filter((a) => a.id !== id), { revalidate: false });
+    await new Promise<void>((resolve) => rowCollapse.run(`alert:${id}`, row, () => resolve()));
+    await removeFromList();
     try {
-      const res = await fetch(`/api/admin/alerts/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resolved: true }),
+      await setAlertResolved(id, true);
+      toast.undo("Alert dismissed.", async () => {
+        try {
+          await setAlertResolved(id, false);
+          await mutateAlerts();
+        } catch {
+          toast.error("Couldn't undo the dismissal.");
+        }
       });
-      if (res.ok) {
-        setAlerts((prev) => prev.filter((a) => a.id !== id));
-        // No Undo: the alerts API only supports { resolved: true } (spec 6.5 asks
-        // for Undo here; it needs an API change, so this is a plain confirmation).
-        toast.success("Alert dismissed.");
-      } else {
-        toast.error("Couldn't dismiss the alert.", { retry: () => dismissAlert(id) });
-      }
     } catch {
-      toast.error("Couldn't dismiss the alert.", { retry: () => dismissAlert(id) });
-    } finally {
-      setDismissing((prev) => ({ ...prev, [id]: false }));
+      await mutateAlerts(before, { revalidate: true });
+      toast.error("Couldn't dismiss the alert.", { retry: () => dismissAlert(id, null) });
     }
   }
 
@@ -218,7 +209,10 @@ export default function AdminDashboardPage() {
       <PageHeader
         title="Dashboard"
         description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}. Here is what needs you today.`}
+        indicator={<RefreshIndicator active={refreshing} />}
       />
+
+      <StaleRegion refreshing={refreshing}>
 
       {/* Quiet stat strip: numbers and mono labels, no icons or boxes. */}
       <dl
@@ -266,7 +260,7 @@ export default function AdminDashboardPage() {
                   const company = item.kind === "overdue" ? d.overdueCompanies.find((c) => c.id === item.companyId) : null;
                   const remindedTs = company ? (remindedAt[company.id] ?? company.lastReminderSentAt) : null;
                   return (
-                    <li key={item.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                    <li key={item.id} className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3", rowCollapse.className(item.id))}>
                       <div className="min-w-0 flex-1 basis-64">
                         <StatusDot tone={item.tone} className="items-start font-medium">
                           <span>
@@ -304,8 +298,7 @@ export default function AdminDashboardPage() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            loading={dismissing[item.id.replace("alert:", "")]}
-                            onClick={() => dismissAlert(item.id.replace("alert:", ""))}
+                            onClick={(e) => dismissAlert(item.id.replace("alert:", ""), e.currentTarget.closest("li"))}
                           >
                             Dismiss
                             <span className="sr-only">: {item.title}</span>
@@ -405,7 +398,7 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
-
+      </StaleRegion>
     </AppShell>
   );
 }
