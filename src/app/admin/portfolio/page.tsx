@@ -8,9 +8,9 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
-import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { DataTable, type DataTableColumn, type DataTableGroupBy } from "@/components/ui/data-table";
 import { formatDate } from "@/lib/utils";
-import { multipleLabel, multipleValue, summarizeLedger, type LedgerSummary } from "@/lib/ledger";
+import { blendedMultiple, multipleLabel, multipleValue, summarizeLedger, type LedgerSummary } from "@/lib/ledger";
 import type { FilterChipDef } from "@/lib/data-table";
 
 interface PortfolioDeal {
@@ -59,6 +59,7 @@ const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
   {
     key: "type",
     header: "Type",
+    exportValue: (d) => (d.investmentType === "INITIAL" ? "Initial" : "Follow-on"),
     cell: (d) => (
       <span className={d.investmentType === "INITIAL" ? "badge-info" : "badge-neutral"}>
         {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
@@ -69,6 +70,7 @@ const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
     key: "date",
     header: "Date",
     sortValue: (d) => new Date(d.dealDate).getTime(),
+    exportValue: (d) => d.dealDate.slice(0, 10),
     firstDir: "desc",
     mobile: "meta",
     className: "whitespace-nowrap",
@@ -83,7 +85,7 @@ const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
     mobile: "meta",
     cell: (d) => money(d.amountUsd),
   },
-  { key: "instrument", header: "Instrument", cell: (d) => d.instrument ?? "—" },
+  { key: "instrument", header: "Instrument", exportValue: (d) => d.instrument, cell: (d) => d.instrument ?? "—" },
   {
     key: "currentVal",
     header: "Current val.",
@@ -97,6 +99,10 @@ const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
     header: "Multiple",
     align: "num",
     sortValue: (d) => multipleValue(d),
+    exportValue: (d) => {
+      const m = multipleValue(d);
+      return m === null ? null : Math.round(m * 100) / 100;
+    },
     firstDir: "desc",
     cell: (d) => multipleLabel(d),
   },
@@ -104,6 +110,7 @@ const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
     key: "ownership",
     header: "Ownership",
     align: "num",
+    exportValue: (d) => d.ownershipPct,
     cell: (d) => (d.ownershipPct !== null ? `${d.ownershipPct}%` : "—"),
   },
   {
@@ -111,6 +118,7 @@ const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
     header: "Position value",
     align: "num",
     sortValue: (d) => d.positionValue,
+    exportValue: (d) => (d.positionValue !== null ? Math.round(d.positionValue) : null),
     firstDir: "desc",
     mobile: "badge",
     cell: (d) => (
@@ -128,6 +136,24 @@ const COLUMNS: DataTableColumn<PortfolioDeal>[] = [
     ),
   },
 ];
+
+// Group by fund with a subtotal per fund: what was invested, what it is worth now
+// (the same dilution-aware position value as everywhere else), and the blended
+// multiple over the deals that have a value.
+const GROUP_BY: DataTableGroupBy<PortfolioDeal> = {
+  options: [{ key: "fund", label: "Fund", getGroup: (d) => ({ id: d.fund.id, label: d.fund.name }) }],
+  subtotalLabel: "Subtotal",
+  subtotal: (deals) => {
+    const s = summarizeLedger(deals);
+    const m = blendedMultiple(deals);
+    return {
+      company: `Subtotal · ${s.dealCount} ${s.dealCount === 1 ? "deal" : "deals"}`,
+      amount: money(s.totalInvested),
+      multiple: m === null ? "n/a" : `${m.toFixed(1)}×`,
+      positionValue: money(Math.round(s.blendedImpliedValue)),
+    };
+  },
+};
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
@@ -231,6 +257,9 @@ function LedgerPage() {
         searchText={(d) => [d.portfolioCompany.name, d.instrument, d.fund.name]}
         searchPlaceholder="Filter company, instrument or fund"
         chips={CHIPS}
+        tableId="deal-ledger"
+        exportCsv={{ filename: "Deal ledger" }}
+        groupBy={GROUP_BY}
         toolbarExtra={
           <>
             <label htmlFor="ledger-fund" className="sr-only">

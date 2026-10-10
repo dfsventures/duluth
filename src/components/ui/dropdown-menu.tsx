@@ -1,6 +1,7 @@
 "use client";
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -67,4 +68,28 @@ export function DropdownMenuSeparator({
   ...props
 }: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Separator>) {
   return <DropdownMenuPrimitive.Separator className={cn("my-1 h-px bg-border", className)} {...props} />;
+}
+
+/** A menu item that toggles a boolean (column visibility). The menu stays open so several can be flipped at once. */
+export function DropdownMenuCheckboxItem({
+  className,
+  children,
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      onSelect={(e) => e.preventDefault()}
+      className={cn(
+        "relative flex cursor-pointer select-none items-center gap-2 py-2 pl-8 pr-3 outline-none",
+        "data-[highlighted]:bg-wash data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
+        className
+      )}
+      {...props}
+    >
+      <DropdownMenuPrimitive.ItemIndicator className="absolute left-2.5 inline-flex items-center">
+        <Check aria-hidden="true" className="h-3.5 w-3.5" />
+      </DropdownMenuPrimitive.ItemIndicator>
+      {children}
+    </DropdownMenuPrimitive.CheckboxItem>
+  );
 }

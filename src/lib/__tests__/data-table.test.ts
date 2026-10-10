@@ -113,3 +113,36 @@ describe("chipCounts / resultSummary", () => {
     expect(resultSummary(1, 1, "deal")).toBe("1 deal");
   });
 });
+
+import { groupRows, parseHiddenColumns, toggleHidden } from "@/lib/data-table";
+
+describe("groupRows", () => {
+  const rows = [
+    { n: "b1", f: "Fund B" },
+    { n: "a1", f: "Fund A" },
+    { n: "b2", f: "Fund B" },
+    { n: "a2", f: "Fund A" },
+  ];
+  it("orders groups by label and keeps incoming row order inside each", () => {
+    const g = groupRows(rows, (r) => ({ id: r.f, label: r.f }));
+    expect(g.map((x) => x.label)).toEqual(["Fund A", "Fund B"]);
+    expect(g[0].rows.map((r) => r.n)).toEqual(["a1", "a2"]);
+    expect(g[1].rows.map((r) => r.n)).toEqual(["b1", "b2"]);
+  });
+  it("returns no groups for no rows", () => {
+    expect(groupRows([], () => ({ id: "x", label: "x" }))).toEqual([]);
+  });
+});
+
+describe("hidden columns", () => {
+  it("parses only known keys and survives garbage", () => {
+    expect(parseHiddenColumns('["a","zzz"]', ["a", "b"])).toEqual(["a"]);
+    expect(parseHiddenColumns("not json", ["a"])).toEqual([]);
+    expect(parseHiddenColumns('{"a":1}', ["a"])).toEqual([]);
+    expect(parseHiddenColumns(null, ["a"])).toEqual([]);
+  });
+  it("toggles", () => {
+    expect(toggleHidden([], "a")).toEqual(["a"]);
+    expect(toggleHidden(["a", "b"], "a")).toEqual(["b"]);
+  });
+});

@@ -130,3 +130,45 @@ export function resultSummary(shown: number, total: number, noun: string, plural
   const word = shown === 1 && total === 1 ? noun : (pluralNoun ?? `${noun}s`);
   return shown === total ? `${total} ${word}` : `${shown} of ${total} ${pluralNoun ?? `${noun}s`}`;
 }
+
+// ── Group-by and column visibility (UI overhaul phase 8) ─────────────────
+
+export interface RowGroup<T> {
+  id: string;
+  label: string;
+  rows: T[];
+}
+
+/**
+ * Splits already-sorted rows into groups. Groups are ordered by label (A to Z,
+ * numbers natural); rows inside a group keep the incoming order, so the table's
+ * own sort still applies within each group.
+ */
+export function groupRows<T>(rows: readonly T[], getGroup: (row: T) => { id: string; label: string }): RowGroup<T>[] {
+  const byId = new Map<string, RowGroup<T>>();
+  for (const row of rows) {
+    const g = getGroup(row);
+    const existing = byId.get(g.id);
+    if (existing) existing.rows.push(row);
+    else byId.set(g.id, { id: g.id, label: g.label, rows: [row] });
+  }
+  return [...byId.values()].sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true })
+  );
+}
+
+/** Hidden-column keys from storage: JSON string array, filtered to columns that exist. Garbage becomes []. */
+export function parseHiddenColumns(raw: string | null | undefined, validKeys: readonly string[]): string[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((k): k is string => typeof k === "string" && validKeys.includes(k));
+  } catch {
+    return [];
+  }
+}
+
+export function toggleHidden(hidden: readonly string[], key: string): string[] {
+  return hidden.includes(key) ? hidden.filter((k) => k !== key) : [...hidden, key];
+}

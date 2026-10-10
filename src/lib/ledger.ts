@@ -57,3 +57,19 @@ export function summarizeLedger(deals: readonly LedgerDeal[]): LedgerSummary {
     anyDilutionAware,
   };
 }
+
+/**
+ * Blended multiple for a group of deals: implied value over the amount invested
+ * in the deals that have an implied value (deals without one would drag the
+ * ratio down for no reason). Null when nothing can be valued.
+ */
+export function blendedMultiple(deals: readonly Pick<LedgerDeal, "amountUsd" | "positionValue">[]): number | null {
+  let invested = 0;
+  let implied = 0;
+  for (const d of deals) {
+    if (d.positionValue === null) continue;
+    invested += d.amountUsd;
+    implied += d.positionValue;
+  }
+  return invested > 0 ? implied / invested : null;
+}

@@ -50,3 +50,24 @@ describe("summarizeLedger", () => {
     });
   });
 });
+
+import { blendedMultiple } from "../ledger";
+
+describe("blendedMultiple", () => {
+  it("is implied value over the amount invested in valued deals only", () => {
+    expect(
+      blendedMultiple([
+        { amountUsd: 100, positionValue: 300 },
+        { amountUsd: 100, positionValue: 100 },
+        { amountUsd: 1000, positionValue: null }, // unvalued: left out of both sides
+      ])
+    ).toBe(2);
+  });
+  it("is null when nothing can be valued", () => {
+    expect(blendedMultiple([])).toBeNull();
+    expect(blendedMultiple([{ amountUsd: 50, positionValue: null }])).toBeNull();
+  });
+  it("treats a written-off deal (0) as a real zero", () => {
+    expect(blendedMultiple([{ amountUsd: 100, positionValue: 0 }])).toBe(0);
+  });
+});

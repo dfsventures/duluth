@@ -10,23 +10,28 @@
 // visible on touch), loading / error / empty / filtered-empty states, and a
 // two-line list layout below md.
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronDown, ChevronUp, ChevronsUpDown, Search } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Download, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { isTypingTarget } from "@/lib/shortcuts";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { csvFilename, downloadCsv, toCsv, type CsvCell } from "@/lib/csv-export";
 import {
   ariaSort,
   buildTableQuery,
   chipCounts,
+  groupRows,
   matchesQuery,
   nextSort,
+  parseHiddenColumns,
   parseTableState,
   resultSummary,
   sortRows,
+  toggleHidden,
   type FilterChipDef,
   type SortDir,
   type SortValue,
@@ -48,6 +53,19 @@ export interface DataTableColumn<T> {
   sticky?: boolean;
   /** Below md the row becomes a list item: the first column is the title. */
   mobile?: "badge" | "meta";
+  /** Value written to the CSV export. Falls back to `sortValue`; columns with neither are left out. */
+  exportValue?: (row: T) => CsvCell;
+  /** Set false to keep the column out of the Columns menu. The first column is never hideable. */
+  hideable?: boolean;
+}
+
+/** Group-by (spec 7, Deal Ledger): rows are grouped under a heading, with an optional subtotal row. */
+export interface DataTableGroupBy<T> {
+  options: { key: string; label: string; getGroup: (row: T) => { id: string; label: string } }[];
+  /** Cells for the subtotal row, by column key. Columns left out are blank. */
+  subtotal?: (rows: T[]) => Record<string, React.ReactNode>;
+  /** Label in the first cell of the subtotal row. Default "Subtotal". */
+  subtotalLabel?: string;
 }
 
 export interface DataTableProps<T> {
@@ -89,6 +107,14 @@ export interface DataTableProps<T> {
   urlState?: boolean;
   /** Called with the rows currently shown (after search/filter/sort). */
   onVisibleRowsChange?: (rows: T[]) => void;
+  /**
+   * Turns on the Columns menu and remembers the choice in this browser under
+   * this id. Without it the menu is not shown.
+   */
+  tableId?: string;
+  /** Adds an Export CSV button: the rows shown (search, filter, sort) and the columns shown. */
+  exportCsv?: { filename: string };
+  groupBy?: DataTableGroupBy<T>;
   className?: string;
 }
 
@@ -134,6 +160,9 @@ function DataTableInner<T>({
   minWidth,
   urlState = true,
   onVisibleRowsChange,
+  tableId,
+  exportCsv,
+  groupBy,
   className,
 }: DataTableProps<T>) {
   const router = useRouter();
@@ -156,6 +185,50 @@ function DataTableInner<T>({
   });
   const urlParsed = useMemo(() => parseTableState(searchParams, stateOpts), [searchParams, stateOpts]);
   const state = urlState ? urlParsed : localState;
+
+  // Group-by: ?group=<option key> (local state when the URL is not used).
+  const [localGroup, setLocalGroup] = useState("");
+  const groupParam = urlState ? (searchParams.get("group") ?? "") : localGroup;
+  const activeGroup = groupBy?.options.find((o) => o.key === groupParam) ?? null;
+  function setGroupKey(key: string) {
+    if (!urlState) {
+      setLocalGroup(key);
+      return;
+    }
+    const params = new URLSearchParams(searchParams.toString());
+    if (key) params.set("group", key);
+    else params.delete("group");
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
+
+  // Column visibility, remembered per browser. Storage can throw (private
+  // windows, blocked site data), so every access is guarded and the default is
+  // "all columns".
+  const storageKey = tableId ? `molly.table.${tableId}.hidden` : null;
+  const [hidden, setHidden] = useState<string[]>([]);
+  useEffect(() => {
+    if (!storageKey) return;
+    try {
+      setHidden(parseHiddenColumns(localStorage.getItem(storageKey), columns.slice(1).map((c) => c.key)));
+    } catch {
+      /* default: all visible */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
+  function toggleColumn(key: string) {
+    setHidden((prev) => {
+      const next = toggleHidden(prev, key);
+      try {
+        if (storageKey) localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {
+        /* not persisted */
+      }
+      return next;
+    });
+  }
+  const cols = useMemo(() => columns.filter((c, i) => i === 0 || !hidden.includes(c.key)), [columns, hidden]);
+  const hideableCols = useMemo(() => columns.filter((c, i) => i > 0 && c.hideable !== false), [columns]);
 
   const writeState = useCallback(
     (next: TableState) => {
@@ -256,6 +329,19 @@ function DataTableInner<T>({
     return col?.sortValue ? sortRows(filtered, col.sortValue, state.dir) : filtered;
   }, [searched, chips, state.filter, state.sort, state.dir, columns]);
 
+  const groups = useMemo(() => (activeGroup ? groupRows(visible, activeGroup.getGroup) : null), [visible, activeGroup]);
+
+  // Rows shown in the order they appear (grouped order when grouped), for the export.
+  const orderedForExport = useMemo(() => (groups ? groups.flatMap((g) => g.rows) : visible), [groups, visible]);
+  function exportRows() {
+    const exportable = cols.filter((c) => c.exportValue || c.sortValue);
+    const csv = toCsv(
+      exportable.map((c) => c.header),
+      orderedForExport.map((row) => exportable.map((c) => (c.exportValue ? c.exportValue(row) : (c.sortValue!(row) as CsvCell))))
+    );
+    downloadCsv(csvFilename(exportCsv?.filename ?? label), csv);
+  }
+
   // Only report real changes, so a parent that re-creates `columns` every render
   // cannot loop (visible gets a new identity each time, with identical contents).
   const lastReported = useRef<T[] | null>(null);
@@ -266,7 +352,9 @@ function DataTableInner<T>({
     onVisibleRowsChange?.(visible);
   }, [visible, onVisibleRowsChange]);
 
-  const hasToolbar = Boolean(searchText || (chips && chips.length > 0) || toolbarExtra);
+  const hasToolbar = Boolean(
+    searchText || (chips && chips.length > 0) || toolbarExtra || groupBy || exportCsv || (tableId && hideableCols.length > 0)
+  );
   const filtersActive = state.q.trim() !== "" || state.filter !== "all";
 
   if (loading) {
@@ -301,8 +389,8 @@ function DataTableInner<T>({
   }
 
   const titleCol = columns[0];
-  const badgeCols = columns.filter((c) => c.mobile === "badge");
-  const metaCols = columns.filter((c) => c.mobile === "meta");
+  const badgeCols = cols.filter((c) => c.mobile === "badge");
+  const metaCols = cols.filter((c) => c.mobile === "meta");
 
   function openRow(e: React.MouseEvent, href: string) {
     if (e.defaultPrevented || e.button !== 0) return;
@@ -312,6 +400,89 @@ function DataTableInner<T>({
       return;
     }
     router.push(href);
+  }
+
+  function renderRow(row: T) {
+        const href = rowHref?.(row);
+        return (
+          <tr
+            key={rowKey(row)}
+            data-row=""
+            tabIndex={-1}
+            onClick={href ? (e) => openRow(e, href) : undefined}
+            className={cn(
+              "group h-11 border-b border-row-divider outline-none transition-colors last:border-0 hover:bg-row-hover focus-within:bg-row-hover focus-visible:bg-row-hover focus-visible:shadow-[inset_2px_0_0_var(--color-accent)]",
+              href && "cursor-pointer",
+              rowClassName?.(row)
+            )}
+          >
+            {cols.map((c, i) => (
+              <td
+                key={c.key}
+                className={cn(
+                  "px-3 py-1",
+                  c.align === "num" ? "num whitespace-nowrap" : "",
+                  i === 0 && "font-medium",
+                  c.sticky && i === 0 && "sticky left-0 z-[1] bg-card group-hover:bg-row-hover",
+                  c.className
+                )}
+              >
+                {i === 0 && href ? (
+                  <Link
+                    href={href}
+                    className="inline-flex items-center hover:underline focus-visible:underline focus-visible:outline-none"
+                  >
+                    {c.cell(row)}
+                  </Link>
+                ) : (
+                  c.cell(row)
+                )}
+              </td>
+            ))}
+            {rowActions && (
+              <td className="px-3 py-1 text-right">
+                <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+                  {rowActions(row)}
+                </div>
+              </td>
+            )}
+          </tr>
+        );
+
+  }
+
+  function renderMobileRow(row: T) {
+    const href = rowHref?.(row);
+    const body = (
+      <>
+        <div className="flex items-start justify-between gap-3">
+          <span className="min-w-0 font-medium">{titleCol.cell(row)}</span>
+          {badgeCols.length > 0 && (
+            <span className="num shrink-0 text-[13px]">{badgeCols.map((c) => c.cell(row))}</span>
+          )}
+        </div>
+        {metaCols.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+            {metaCols.map((c) => (
+              <span key={c.key}>{c.cell(row)}</span>
+            ))}
+          </div>
+        )}
+      </>
+    );
+    return (
+      <li key={rowKey(row)} className={cn("relative px-4 py-3 text-sm", rowClassName?.(row))}>
+        {href ? (
+          <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {body}
+          </Link>
+        ) : (
+          body
+        )}
+        {rowActions && <div className="mt-2 flex items-center gap-1">{rowActions(row)}</div>}
+      </li>
+    );
+
   }
 
   return (
@@ -377,6 +548,59 @@ function DataTableInner<T>({
             </div>
           )}
           {toolbarExtra}
+          {groupBy && (
+            <>
+              <label htmlFor={`dt-group-${label}`} className="sr-only">
+                Group {label.toLowerCase()} by
+              </label>
+              <select
+                id={`dt-group-${label}`}
+                value={activeGroup?.key ?? ""}
+                onChange={(e) => setGroupKey(e.target.value)}
+                className="h-8 w-auto rounded-sm border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="">No grouping</option>
+                {groupBy.options.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    Group by {o.label.toLowerCase()}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+          {(exportCsv || (tableId && hideableCols.length > 0)) && (
+            <div className="ml-auto flex items-center gap-1.5">
+              {tableId && hideableCols.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="secondary" size="sm">
+                      <Columns3 aria-hidden="true" className="h-3.5 w-3.5" />
+                      Columns
+                      {hidden.length > 0 && <span className="num font-mono text-[11px] text-muted-foreground">{cols.length}/{columns.length}</span>}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+                    {hideableCols.map((c) => (
+                      <DropdownMenuCheckboxItem
+                        key={c.key}
+                        checked={!hidden.includes(c.key)}
+                        onCheckedChange={() => toggleColumn(c.key)}
+                      >
+                        {c.header}
+                      </DropdownMenuCheckboxItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              {exportCsv && (
+                <Button variant="secondary" size="sm" onClick={exportRows} disabled={visible.length === 0}>
+                  <Download aria-hidden="true" className="h-3.5 w-3.5" />
+                  Export CSV
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -401,7 +625,7 @@ function DataTableInner<T>({
               <caption className="sr-only">{label}</caption>
               <thead>
                 <tr className="border-b border-border text-left">
-                  {columns.map((c, i) => {
+                  {cols.map((c, i) => {
                     const sortable = Boolean(c.sortValue);
                     const active = state.sort === c.key;
                     return (
@@ -443,91 +667,55 @@ function DataTableInner<T>({
                 </tr>
               </thead>
               <tbody>
-                {visible.map((row) => {
-                  const href = rowHref?.(row);
-                  return (
-                    <tr
-                      key={rowKey(row)}
-                      data-row=""
-                      tabIndex={-1}
-                      onClick={href ? (e) => openRow(e, href) : undefined}
-                      className={cn(
-                        "group h-11 border-b border-row-divider outline-none transition-colors last:border-0 hover:bg-row-hover focus-within:bg-row-hover focus-visible:bg-row-hover focus-visible:shadow-[inset_2px_0_0_var(--color-accent)]",
-                        href && "cursor-pointer",
-                        rowClassName?.(row)
-                      )}
-                    >
-                      {columns.map((c, i) => (
-                        <td
-                          key={c.key}
-                          className={cn(
-                            "px-3 py-1",
-                            c.align === "num" ? "num whitespace-nowrap" : "",
-                            i === 0 && "font-medium",
-                            c.sticky && i === 0 && "sticky left-0 z-[1] bg-card group-hover:bg-row-hover",
-                            c.className
-                          )}
+                {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => (
+                  <Fragment key={g.id || "all"}>
+                    {groups && (
+                      <tr data-group="" className="border-b border-border bg-well">
+                        <th
+                          scope="rowgroup"
+                          colSpan={cols.length + (rowActions ? 1 : 0)}
+                          className={cn("h-8 px-3 text-left font-semibold text-foreground", cols[0].sticky && "sticky left-0")}
                         >
-                          {i === 0 && href ? (
-                            <Link
-                              href={href}
-                              className="inline-flex items-center hover:underline focus-visible:underline focus-visible:outline-none"
-                            >
-                              {c.cell(row)}
-                            </Link>
-                          ) : (
-                            c.cell(row)
-                          )}
-                        </td>
-                      ))}
-                      {rowActions && (
-                        <td className="px-3 py-1 text-right">
-                          <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
-                            {rowActions(row)}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
+                          {g.label}
+                          <span className="num ml-2 font-mono text-[11px] font-normal text-muted-foreground">
+                            {g.rows.length} {g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}
+                          </span>
+                        </th>
+                      </tr>
+                    )}
+                    {g.rows.map((row) => renderRow(row))}
+                    {groups && groupBy?.subtotal && (
+                      <tr data-subtotal="" className="h-10 border-b border-border bg-well/60 font-medium">
+                        {(() => {
+                          const cells = groupBy.subtotal!(g.rows);
+                          return cols.map((c, i) => (
+                            <td key={c.key} className={cn("px-3 py-1", c.align === "num" ? "num whitespace-nowrap text-right" : "", c.sticky && i === 0 && "sticky left-0 z-[1] bg-well")}>
+                              {i === 0 ? (cells[c.key] ?? groupBy.subtotalLabel ?? "Subtotal") : (cells[c.key] ?? null)}
+                            </td>
+                          ));
+                        })()}
+                        {rowActions && <td />}
+                      </tr>
+                    )}
+                  </Fragment>
+                ))}
               </tbody>
             </table>
           </div>
 
           {/* Mobile list: title + badge, then the key facts. */}
           <ul aria-label={label} className="divide-y divide-row-divider border border-border bg-card md:hidden">
-            {visible.map((row) => {
-              const href = rowHref?.(row);
-              const body = (
-                <>
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="min-w-0 font-medium">{titleCol.cell(row)}</span>
-                    {badgeCols.length > 0 && (
-                      <span className="num shrink-0 text-[13px]">{badgeCols.map((c) => c.cell(row))}</span>
-                    )}
-                  </div>
-                  {metaCols.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                      {metaCols.map((c) => (
-                        <span key={c.key}>{c.cell(row)}</span>
-                      ))}
-                    </div>
-                  )}
-                </>
-              );
-              return (
-                <li key={rowKey(row)} className={cn("relative px-4 py-3 text-sm", rowClassName?.(row))}>
-                  {href ? (
-                    <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {body}
-                    </Link>
-                  ) : (
-                    body
-                  )}
-                  {rowActions && <div className="mt-2 flex items-center gap-1">{rowActions(row)}</div>}
-                </li>
-              );
-            })}
+            {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => (
+              <Fragment key={g.id || "all"}>
+                {groups && (
+                  <li className="flex items-baseline justify-between bg-well px-4 py-2 text-sm font-semibold text-foreground">
+                    {g.label}
+                    <span className="num font-mono text-[11px] font-normal text-muted-foreground">{g.rows.length}</span>
+                  </li>
+                )}
+                {g.rows.map((row) => renderMobileRow(row))}
+              </Fragment>
+            ))}
           </ul>
         </>
       )}
