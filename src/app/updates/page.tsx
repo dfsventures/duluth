@@ -99,7 +99,7 @@ export default function UpdatesPage() {
       />
 
       {updates.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Updates"
           icon={<FileText className="h-10 w-10" />}
           title="No updates yet"
           description="Share your first update to keep your investors in the loop."

@@ -184,7 +184,7 @@ function AdminFundsPageInner() {
           ))}
         </div>
       ) : funds.length === 0 ? (
-        <EmptyState icon={<Landmark className="h-8 w-8" />} title="No funds yet" description="Create a fund to start recording deals." />
+        <EmptyState eyebrow="Funds" icon={<Landmark className="h-8 w-8" />} title="No funds yet" description="Create a fund to start recording deals." />
       ) : (
         <>
           <div className="mb-6">
@@ -195,7 +195,7 @@ function AdminFundsPageInner() {
             />
           </div>
           {filteredFunds.length === 0 ? (
-            <EmptyState icon={<Landmark className="h-8 w-8" />} title="No matches" description="Try a different search term." />
+            <EmptyState icon={<Landmark className="h-8 w-8" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
           ) : (
             <div className="space-y-4">
               {filteredFunds.map((f) => (

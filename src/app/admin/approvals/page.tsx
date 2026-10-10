@@ -413,7 +413,7 @@ export default function ApprovalsPage() {
       />
 
       {approvals.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Approvals"
           icon={<Inbox className="h-10 w-10" />}
           title="No pending approvals"
           description="All sign-up requests have been reviewed. New requests will appear here."

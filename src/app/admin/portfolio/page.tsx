@@ -257,7 +257,7 @@ function LedgerPage() {
         onVisibleRowsChange={onVisible}
         minWidth={1040}
         empty={
-          <EmptyState
+          <EmptyState eyebrow="Deal Ledger"
             icon={<Layers className="h-8 w-8" />}
             title={fundId ? "No deals in this fund" : "No deals yet"}
             description={

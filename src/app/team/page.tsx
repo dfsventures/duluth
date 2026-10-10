@@ -229,7 +229,7 @@ export default function TeamPage() {
       {loading ? (
         <TableSkeleton rows={4} cols={3} />
       ) : members.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Team"
           icon={<Users className="h-8 w-8" />}
           title="No team members"
           description="Invite teammates to collaborate on your company updates."

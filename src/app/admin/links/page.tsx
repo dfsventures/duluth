@@ -412,7 +412,7 @@ export default function AdminLinksPage() {
       )}
 
       {links.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Investor Links"
           icon={<Link2 className="h-10 w-10" />}
           title="No investor links yet"
           description="Create a shareable link to give LPs read-only access to portfolio updates and metrics."
@@ -428,7 +428,7 @@ export default function AdminLinksPage() {
             />
           </div>
           {filteredLinks.length === 0 ? (
-            <EmptyState icon={<Link2 className="h-10 w-10" />} title="No matches" description="Try a different search term." />
+            <EmptyState icon={<Link2 className="h-10 w-10" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
           ) : (
         <div className="space-y-4">
           {filteredLinks.map((link) => {

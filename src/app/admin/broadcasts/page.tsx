@@ -131,7 +131,7 @@ export default function AdminBroadcastsPage() {
           ))}
         </div>
       ) : broadcasts.length === 0 ? (
-        <EmptyState icon={<Megaphone className="h-8 w-8" />} title="No broadcasts yet" description="Write the first email to your portfolio companies." />
+        <EmptyState eyebrow="Broadcasts" icon={<Megaphone className="h-8 w-8" />} title="No broadcasts yet" description="Write the first email to your portfolio companies." />
       ) : (
         <>
           <div className="mb-6">
@@ -142,7 +142,7 @@ export default function AdminBroadcastsPage() {
             />
           </div>
           {filteredBroadcasts.length === 0 ? (
-            <EmptyState icon={<Megaphone className="h-8 w-8" />} title="No matches" description="Try a different search term." />
+            <EmptyState icon={<Megaphone className="h-8 w-8" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
           ) : (
         <div className="space-y-2">
           {filteredBroadcasts.map((b) => (

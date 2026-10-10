@@ -134,7 +134,7 @@ export default function PlannerListPage() {
       {error && <p className="mb-6 text-sm text-laterite">{error}</p>}
 
       {scenarios.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Dilution Planner"
           icon={<Calculator className="h-10 w-10" />}
           title="No scenarios yet"
           description="Create a scenario to start modeling founder equity dilution."

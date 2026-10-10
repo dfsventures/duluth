@@ -284,7 +284,7 @@ export default function AdminDiligencePage() {
       )}
 
       {items.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Diligence"
           icon={<Inbox className="h-10 w-10" />}
           title="No companies in due diligence"
           description="Nothing is waiting on you right now. Turn on due diligence when you add a company to route it into this queue."

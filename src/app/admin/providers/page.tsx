@@ -233,7 +233,7 @@ export default function AdminProvidersPage() {
           {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-md bg-muted animate-pulse" />)}
         </div>
       ) : providers.length === 0 ? (
-        <EmptyState icon={<Building2 className="h-8 w-8" />} title="No providers found" description="Adjust filters or wait for submissions." />
+        <EmptyState eyebrow="Service Providers" icon={<Building2 className="h-8 w-8" />} title="No providers found" description="Adjust filters or wait for submissions." />
       ) : (
         <div className="space-y-6">
           {/* Pending queue */}

@@ -248,7 +248,7 @@ export default function MetricsPage() {
         <h2 className="mb-4 text-lg font-semibold">Your Metrics</h2>
 
         {metrics.length === 0 ? (
-          <EmptyState
+          <EmptyState eyebrow="Metrics"
             icon={<BarChart3 className="h-8 w-8" />}
             title="No metrics defined"
             description="Add your first metric above to start tracking key indicators."

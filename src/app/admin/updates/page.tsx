@@ -181,7 +181,7 @@ function AdminUpdatesPageInner() {
           onRetry={loadData}
           minWidth={720}
           empty={
-            <EmptyState
+            <EmptyState eyebrow="Updates"
               icon={<FileText className="h-8 w-8" />}
               title="No published updates yet"
               description="Once founders publish updates, they'll show up here across the whole portfolio."

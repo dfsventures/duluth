@@ -4,21 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Building2,
-  FileText,
-  Clock,
-  AlertCircle,
-  Eye,
-} from "lucide-react";
+import { Building2, FileText, AlertCircle, Eye } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { useCompany } from "@/context/company-context";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, daysSince } from "@/lib/utils";
+import { nextFounderAction } from "@/lib/next-action";
 import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface Company {
@@ -184,6 +178,16 @@ export default function DashboardPage() {
     ? daysSince(lastUpdateDate)
     : null;
 
+  // One next action, leading the page. The old diligence banner is folded into it.
+  const next = nextFounderAction({
+    stage: company.stage,
+    diligence: diligence
+      ? { done: diligence.progress.done, total: diligence.progress.total, completed: Boolean(diligence.completedAt) }
+      : null,
+    updates,
+    daysSinceLastUpdate,
+  });
+
   return (
     <AppShell>
       <PageHeader
@@ -191,105 +195,125 @@ export default function DashboardPage() {
         description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}.`}
       />
 
-      {/* Part 16, WS40 (Q55) — persistent, non-blocking DD banner.
-          Every section below renders completely unchanged regardless. */}
-      {company.stage === "DILIGENCE" && (
-        <Card className="mb-6">
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
-            <div>
-              <p className="font-medium">
-                {diligence?.completedAt ? "All done!" : "Due diligence — a few more steps"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {diligence?.completedAt
-                  ? "We are reviewing your documents and will be in touch soon."
-                  : diligence
-                    ? `${diligence.progress.done} of ${diligence.progress.total} required items done`
-                    : "Documents and a couple of quick questions before we close."}
-              </p>
-            </div>
-            <Button onClick={() => router.push("/diligence")}>
-              {diligence?.completedAt ? "View" : "Continue"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Next action: the one thing to do, with one button. */}
+      <section
+        aria-labelledby="next-action-heading"
+        className={`card mb-8 flex flex-wrap items-center justify-between gap-4 ${
+          next.tone === "act" ? "border-l-2 border-l-sky" : ""
+        }`}
+      >
+        <div className="min-w-0 flex-1 basis-64">
+          <p className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+            {next.tone === "act" ? "Next step" : "All clear"}
+          </p>
+          <h2 id="next-action-heading" className="mt-1 font-display text-title text-foreground">
+            {next.headline}
+          </h2>
+          {next.detail && <p className="mt-1 text-body text-secondary">{next.detail}</p>}
+        </div>
+        {next.tone === "act" ? (
+          <Button size="lg" onClick={() => router.push(next.href)}>
+            {next.cta}
+          </Button>
+        ) : (
+          <Button size="lg" variant="secondary" onClick={() => router.push(next.href)}>
+            {next.cta}
+          </Button>
+        )}
+      </section>
 
-      {/* Summary cards */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Building2 className="h-4 w-4" />
-              Company
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">{company.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {company.sector ?? "No sector set"}
-              {company.geography ? ` \u00B7 ${company.geography}` : ""}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Quiet stat strip: company, updates, last update, investor views */}
+      <dl
+        aria-label="Company at a glance"
+        className="mb-10 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-border py-4 lg:grid-cols-4"
+      >
+        <div className="min-w-0">
+          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Company</dt>
+          <dd className="mt-0.5 truncate font-display text-lg font-semibold">{company.name}</dd>
+          <p className="truncate text-sm text-muted-foreground">
+            {company.sector ?? "No sector set"}
+            {company.geography ? ` \u00B7 ${company.geography}` : ""}
+          </p>
+        </div>
+        <div>
+          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Updates</dt>
+          <dd className="mt-0.5 font-display text-lg font-semibold">{updates.length}</dd>
+          <p className="text-sm text-muted-foreground">{updates.length === 1 ? "update" : "updates"} submitted</p>
+        </div>
+        <div>
+          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Last update</dt>
+          <dd className="mt-0.5 font-display text-lg font-semibold">
+            {lastUpdateDate ? formatDate(lastUpdateDate) : "None yet"}
+          </dd>
+          <p className="text-sm text-muted-foreground">
+            {daysSinceLastUpdate !== null
+              ? `${daysSinceLastUpdate} day${daysSinceLastUpdate === 1 ? "" : "s"} ago`
+              : "No updates sent"}
+          </p>
+        </div>
+        <div>
+          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Investor views</dt>
+          <dd className="mt-0.5 font-display text-lg font-semibold">{engagement.totalViews}</dd>
+          <p className="text-sm text-muted-foreground">
+            {engagement.recentViews[0]
+              ? `Last viewed ${formatDate(engagement.recentViews[0].viewedAt)}`
+              : "No views yet"}
+          </p>
+        </div>
+      </dl>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <FileText className="h-4 w-4" />
-              Updates
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">{updates.length}</p>
-            <p className="text-sm text-muted-foreground">
-              {updates.length === 1 ? "update" : "updates"} submitted
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              Last Update
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">
-              {lastUpdateDate ? formatDate(lastUpdateDate) : "None yet"}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {daysSinceLastUpdate !== null
-                ? `${daysSinceLastUpdate} day${daysSinceLastUpdate === 1 ? "" : "s"} ago`
-                : "No updates sent"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Eye className="h-4 w-4" />
-              Investor Views
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-lg font-semibold">{engagement.totalViews}</p>
-            <p className="text-sm text-muted-foreground">
-              {engagement.recentViews[0]
-                ? `Last viewed ${formatDate(engagement.recentViews[0].viewedAt)}`
-                : "No views yet"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Recent updates */}
+      <section aria-labelledby="recent-updates-heading" className="mb-10">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 id="recent-updates-heading" className="font-display text-heading text-foreground">
+            Recent updates
+          </h2>
+          {updates.length > 0 && (
+            <Link href="/updates" className="text-sm text-primary underline-offset-4 hover:underline">
+              All updates
+            </Link>
+          )}
+        </div>
+        {updates.length === 0 ? (
+          <EmptyState
+            eyebrow="Updates"
+            icon={<FileText className="h-8 w-8" />}
+            title="No updates yet"
+            description="Your investors see what you write here. Start with a short note on the quarter."
+            action={<Button onClick={() => router.push("/updates/new")}>Write an update</Button>}
+          />
+        ) : (
+          <ul className="divide-y divide-row-divider border border-border bg-card">
+            {updates.map((update) => (
+              <li key={update.id}>
+                <Link
+                  href={`/updates/${update.id}`}
+                  className="flex min-h-[56px] items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{update.title}</span>
+                    <span className="block text-sm text-muted-foreground">
+                      {update.period} &middot; {formatDate(update.createdAt)}
+                    </span>
+                  </span>
+                  <Badge variant={update.status === "SENT" ? "success" : "warning"}>
+                    {update.status === "SENT" ? "Sent" : "Draft"}
+                  </Badge>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Recent investor activity */}
-      <div className="mb-8">
-        <h2 className="mb-4 text-lg font-semibold">Recent Investor Activity</h2>
+      <section aria-labelledby="investor-activity-heading">
+        <h2 id="investor-activity-heading" className="mb-3 font-display text-heading text-foreground">
+          Recent investor activity
+        </h2>
         {engagement.recentViews.length === 0 ? (
           <EmptyState
+            eyebrow="Investor links"
             icon={<Eye className="h-8 w-8" />}
             title="No investor views yet"
             description="Create a link on the Investor Links page to share your updates."
@@ -300,65 +324,19 @@ export default function DashboardPage() {
             }
           />
         ) : (
-          <div className="space-y-2">
+          <ul className="divide-y divide-row-divider border border-border bg-card">
             {engagement.recentViews.map((view) => (
-              <Card key={view.id}>
-                <CardContent className="flex items-center justify-between py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{view.email}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {view.link.label ?? "Investor link"}
-                    </p>
-                  </div>
-                  <p className="shrink-0 text-sm text-muted-foreground">
-                    {formatDate(view.viewedAt)}
-                  </p>
-                </CardContent>
-              </Card>
+              <li key={view.id} className="flex min-h-[56px] items-center justify-between gap-4 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium">{view.email}</p>
+                  <p className="text-sm text-muted-foreground">{view.link.label ?? "Investor link"}</p>
+                </div>
+                <p className="shrink-0 text-sm text-muted-foreground">{formatDate(view.viewedAt)}</p>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
-      </div>
-
-      {/* Recent updates */}
-      <div>
-        <h2 className="mb-4 text-lg font-semibold">Recent Updates</h2>
-        {updates.length === 0 ? (
-          <EmptyState
-            icon={<FileText className="h-8 w-8" />}
-            title="No updates yet"
-            description="Head to Updates in the sidebar to create your first update."
-          />
-        ) : (
-          <div className="space-y-2">
-            {updates.map((update) => (
-              <Link
-                key={update.id}
-                href={`/updates/${update.id}`}
-                className="block"
-              >
-                <Card className="transition-colors hover:bg-muted/50">
-                  <CardContent className="flex items-center justify-between py-4">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{update.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {update.period} &middot; {formatDate(update.createdAt)}
-                      </p>
-                    </div>
-                    <Badge
-                      variant={
-                        update.status === "SENT" ? "success" : "warning"
-                      }
-                    >
-                      {update.status === "SENT" ? "Sent" : "Draft"}
-                    </Badge>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+      </section>
     </AppShell>
   );
 }

@@ -336,7 +336,7 @@ export default function AdminLpsPage() {
           </>
         )}
         empty={
-          <EmptyState
+          <EmptyState eyebrow="LPs"
             icon={<Handshake className="h-8 w-8" />}
             title="No LPs yet"
             description="Add an LP to grant them access to fund reports."

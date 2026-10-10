@@ -237,7 +237,7 @@ export default function ProvidersPage() {
           ))}
         </div>
       ) : displayed.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Service Providers"
           icon={<Building2 className="h-8 w-8" />}
           title="No providers found"
           description="Try adjusting your filters, or be the first to submit one."

@@ -341,7 +341,7 @@ function AdminPortfolioContactsPageInner() {
               </div>
 
               {filteredCompanies.length === 0 ? (
-                <EmptyState title="No matches" description="Try a different search term." />
+                <EmptyState title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
               ) : (
                 <Table tableClassName="min-w-[720px]">
                   <TableHead>

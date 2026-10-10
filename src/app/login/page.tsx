@@ -6,12 +6,11 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LogoMark } from "@/components/ui/logo-mark";
+import { AuthLayout, AuthAlert, AuthSkeleton } from "@/components/auth/auth-layout";
 import { ORG_NAME, ADMIN_EMAIL_DOMAINS_LABEL } from "@/lib/org";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const GoogleIcon = () => (
-  <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+  <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -43,94 +42,76 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
-      {/* Back to home */}
-      <div className="mb-6 w-full max-w-md">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <LogoMark />
-        </Link>
+    <AuthLayout
+      eyebrow="Molly"
+      title="Sign in to Molly."
+      description={`Portfolio updates and reports for ${ORG_NAME} companies and team.`}
+      footer={
+        <p>
+          Don&apos;t have access yet?{" "}
+          <Link href="/signup" className="font-medium text-primary underline-offset-4 hover:underline">
+            Apply for access
+          </Link>
+        </p>
+      }
+    >
+      {displayError && <AuthAlert>{displayError}</AuthAlert>}
+
+      <section aria-labelledby="team-signin">
+        <h2 id="team-signin" className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+          {ORG_NAME} team
+        </h2>
+        <Button
+          type="button"
+          variant="secondary"
+          size="lg"
+          className="mt-3 w-full"
+          onClick={() => signIn("google", { callbackUrl: callbackUrl.startsWith("/admin") ? callbackUrl : "/admin" })}
+        >
+          <GoogleIcon />
+          Sign in with Google
+        </Button>
+        <p className="mt-2 text-xs text-muted-foreground">For {ADMIN_EMAIL_DOMAINS_LABEL} accounts only.</p>
+      </section>
+
+      <div className="my-8 flex items-center gap-3" aria-hidden="true">
+        <div className="h-px flex-1 bg-border" />
+        <span className="font-mono text-label uppercase tracking-label text-muted-foreground">or with email</span>
+        <div className="h-px flex-1 bg-border" />
       </div>
 
-      <div className="w-full max-w-md">
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="px-8 py-8">
-            <h1 className="mb-1 text-xl font-semibold text-foreground">Welcome back</h1>
-            <p className="mb-6 text-sm text-muted-foreground">
-              Sign in to your Molly account.
-            </p>
-
-            {displayError && (
-              <div className="mb-4 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
-                {displayError}
-              </div>
-            )}
-
-            <form onSubmit={handleCredentialsLogin} className="space-y-4">
-              <Input
-                id="email"
-                label="Email"
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-              <Input
-                id="password"
-                label="Password"
-                type="password"
-                placeholder="Your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign In"}
-              </Button>
-            </form>
-
-            <p className="mt-5 text-center text-sm text-muted-foreground">
-              Don&apos;t have access yet?{" "}
-              <Link href="/signup" className="font-medium text-primary hover:text-primary-600">
-                Apply for access →
-              </Link>
-            </p>
-
-            {/* Divider */}
-            <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">{ORG_NAME} team?</span>
-              <div className="h-px flex-1 bg-border" />
-            </div>
-
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full"
-              onClick={() => signIn("google", { callbackUrl: callbackUrl.startsWith("/admin") ? callbackUrl : "/admin" })}
-            >
-              <GoogleIcon />
-              Sign in with Google
-            </Button>
-            <p className="mt-2 text-center text-xs text-muted-foreground">
-              For {ADMIN_EMAIL_DOMAINS_LABEL} accounts only
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
+      <form onSubmit={handleCredentialsLogin} className="space-y-4" aria-label="Sign in with email and password">
+        <Input
+          id="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <Input
+          id="password"
+          label="Password"
+          type="password"
+          autoComplete="current-password"
+          placeholder="Your password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <Button type="submit" size="lg" className="w-full" loading={loading}>
+          Sign in
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-background">
-          <div className="w-full max-w-md space-y-4 border border-border bg-card p-8"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-9 w-28" /></div>
-        </div>
-      }
-    >
+    <Suspense fallback={<AuthSkeleton />}>
       <LoginForm />
     </Suspense>
   );

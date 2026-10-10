@@ -6,68 +6,33 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LogoMark } from "@/components/ui/logo-mark";
-import { Skeleton } from "@/components/ui/skeleton";
+import { AuthLayout, AuthAlert, AuthSteps, AuthSkeleton } from "@/components/auth/auth-layout";
 
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
 
 type TokenState = "checking" | "valid" | "expired" | "invalid";
 type ResendState = "idle" | "sending" | "sent";
 
-function CenteredLoading() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="w-full max-w-md space-y-4 border border-border bg-card p-8"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-9 w-28" /></div>
-    </div>
-  );
-}
-
 function InvalidCard() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="flex justify-center">
-          <LogoMark className="text-4xl" />
-        </div>
-        <div className="card text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-laterite/10">
-            <svg
-              className="h-6 w-6 text-destructive"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-              />
-            </svg>
-          </div>
-          <h2 className="mb-2 text-lg font-semibold text-foreground">
-            Invalid Link
-          </h2>
-          <p className="mb-4 text-sm text-muted-foreground">
-            This password setup link is missing or no longer valid. Please
-            use the link from your approval email, or contact{" "}
-            <a
-              href={`mailto:${SUPPORT_EMAIL}`}
-              className="text-primary hover:text-primary-500"
-            >
-              {SUPPORT_EMAIL}
-            </a>
-            .
-          </p>
-          <Link
-            href="/login"
-            className="text-sm font-medium text-primary hover:text-primary-500"
-          >
-            Back to login
-          </Link>
-        </div>
-      </div>
-    </div>
+    <AuthLayout
+      eyebrow="Account setup"
+      title="This link isn't valid."
+      description="The password setup link is missing or no longer works."
+      footer={
+        <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+          Back to sign in
+        </Link>
+      }
+    >
+      <p className="text-sm text-secondary">
+        Please use the link from your approval email, or contact{" "}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-primary underline-offset-4 hover:underline">
+          {SUPPORT_EMAIL}
+        </a>
+        .
+      </p>
+    </AuthLayout>
   );
 }
 
@@ -100,79 +65,39 @@ function ExpiredCard({ token }: { token: string }) {
     }
   }
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="flex justify-center">
-          <LogoMark className="text-4xl" />
-        </div>
-        <div className="card text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-laterite/10">
-            <svg
-              className="h-6 w-6 text-destructive"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={2}
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
-              />
-            </svg>
-          </div>
+  if (resendState === "sent") {
+    return (
+      <AuthLayout
+        eyebrow="Account setup"
+        title="Check your inbox."
+        description="If this link was eligible for renewal, a fresh one is on its way."
+        footer={
+          <span className="flex flex-col gap-1">
+            <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+              Back to sign in
+            </Link>
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-foreground">
+              Contact support
+            </a>
+          </span>
+        }
+      >
+        <AuthAlert tone="info">Sent. The new link works for 7 days.</AuthAlert>
+      </AuthLayout>
+    );
+  }
 
-          {resendState === "sent" ? (
-            <>
-              <h2 className="mb-2 text-lg font-semibold text-foreground">
-                Check your inbox
-              </h2>
-              <p className="mb-4 text-sm text-muted-foreground">
-                If this link was eligible for renewal, a fresh one is on its
-                way — check your inbox.
-              </p>
-              <div className="flex flex-col items-center gap-1 text-sm">
-                <Link
-                  href="/login"
-                  className="font-medium text-primary hover:text-primary-500"
-                >
-                  Back to login
-                </Link>
-                <a
-                  href={`mailto:${SUPPORT_EMAIL}`}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Contact support
-                </a>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 className="mb-2 text-lg font-semibold text-foreground">
-                This link has expired
-              </h2>
-              <p className="mb-4 text-sm text-muted-foreground">
-                Setup links expire after 7 days. We can email you a fresh
-                one — it goes to the address this link was issued for.
-              </p>
-              {resendError && (
-                <div className="mb-4 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
-                  {resendError}
-                </div>
-              )}
-              <Button
-                className="w-full"
-                disabled={resendState === "sending"}
-                onClick={handleResend}
-              >
-                {resendState === "sending" ? "Sending..." : "Email me a new link"}
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+  return (
+    <AuthLayout
+      eyebrow="Account setup"
+      title="This link has expired."
+      description="Setup links expire after 7 days. We can email you a fresh one, sent to the address this link was issued for."
+    >
+      {resendError && <AuthAlert>{resendError}</AuthAlert>}
+      <Button size="lg" className="w-full" loading={resendState === "sending"} onClick={handleResend}>
+        Email me a new link
+      </Button>
+    </AuthLayout>
   );
 }
 
@@ -285,7 +210,7 @@ function SetPasswordForm() {
   }
 
   if (tokenState === "checking") {
-    return <CenteredLoading />;
+    return <AuthSkeleton />;
   }
 
   if (tokenState === "invalid") {
@@ -297,65 +222,48 @@ function SetPasswordForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md space-y-8">
-        {/* Logo */}
-        <div className="flex justify-center">
-          <LogoMark className="text-4xl" />
-        </div>
+    <AuthLayout
+      eyebrow="Account setup"
+      title="Set your password."
+      description="Create a password for your Molly account. You will be signed in straight after."
+      progress={<AuthSteps steps={["Approved", "Set password", "Sign in"]} current={1} />}
+    >
+      {error && <AuthAlert>{error}</AuthAlert>}
 
-        <div className="card">
-          <h2 className="mb-2 text-lg font-semibold text-foreground">
-            Set Your Password
-          </h2>
-          <p className="mb-6 text-sm text-muted-foreground">
-            Create a password for your Molly account.
-          </p>
-
-          {error && (
-            <div className="mb-4 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              id="password"
-              label="Password"
-              type="password"
-              placeholder="At least 8 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-            <Input
-              id="confirmPassword"
-              label="Confirm Password"
-              type="password"
-              placeholder="Confirm your password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? "Setting password..." : "Set Password"}
-            </Button>
-          </form>
-        </div>
-      </div>
-    </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          id="password"
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="At least 8 characters"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+        />
+        <Input
+          id="confirmPassword"
+          label="Confirm password"
+          type="password"
+          autoComplete="new-password"
+          placeholder="Confirm your password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          minLength={8}
+        />
+        <Button type="submit" size="lg" className="w-full" loading={loading}>
+          Set password
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
 
 export default function SetPasswordPage() {
   return (
-    <Suspense fallback={<CenteredLoading />}>
+    <Suspense fallback={<AuthSkeleton />}>
       <SetPasswordForm />
     </Suspense>
   );

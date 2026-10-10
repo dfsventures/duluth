@@ -1,18 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import {
-  Building2,
-  Clock,
-  FileText,
-  AlertTriangle,
-  AlertCircle,
-  ChevronDown,
-  ChevronUp,
-  Bell,
-} from "lucide-react";
+import { AlertCircle, Bell, CheckCircle2 } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -27,6 +18,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StatusDot } from "@/components/ui/status-dot";
+import { buildAttention } from "@/lib/attention";
 import { toast } from "@/lib/toast";
 import { Skeleton, KpiSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 
@@ -58,16 +51,32 @@ interface MetricAlert {
   metricDefinition: { name: string; unit: string | null } | null;
 }
 
+// Rows of "behind on updates" shown before the toggle; queues and alerts always show.
+const OVERDUE_VISIBLE = 5;
+
 export default function AdminDashboardPage() {
   const { data: session, status: sessionStatus } = useSession();
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showOverdue, setShowOverdue] = useState(false);
+  const [showAllOverdue, setShowAllOverdue] = useState(false);
+  const [queues, setQueues] = useState<{ diligence: number; boardReview: number }>({ diligence: 0, boardReview: 0 });
   const [reminding, setReminding] = useState<Record<string, boolean>>({});
   const [remindedAt, setRemindedAt] = useState<Record<string, string>>({});
   const [alerts, setAlerts] = useState<MetricAlert[]>([]);
   const [dismissing, setDismissing] = useState<Record<string, boolean>>({});
+
+  const attention = useMemo(
+    () =>
+      buildAttention({
+        pendingApprovals: dashboard?.pendingApprovals ?? 0,
+        diligenceReady: queues.diligence,
+        boardReview: queues.boardReview,
+        alerts,
+        overdue: dashboard?.overdueCompanies ?? [],
+      }),
+    [dashboard, queues, alerts]
+  );
 
   useEffect(() => {
     if (sessionStatus !== "authenticated") return;
@@ -99,8 +108,20 @@ export default function AdminDashboardPage() {
       }
     }
 
+    async function fetchQueues() {
+      try {
+        const res = await fetch("/api/admin/nav-counts");
+        if (!res.ok) return; // the worklist still shows everything else
+        const data = await res.json();
+        setQueues({ diligence: data.diligence ?? 0, boardReview: data.boardReview ?? 0 });
+      } catch {
+        // non-fatal
+      }
+    }
+
     fetchData();
     fetchAlerts();
+    fetchQueues();
   }, [sessionStatus]);
 
   async function dismissAlert(id: string) {
@@ -196,120 +217,129 @@ export default function AdminDashboardPage() {
     <AppShell>
       <PageHeader
         title="Dashboard"
-        description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}. Here's your portfolio overview.`}
+        description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}. Here is what needs you today.`}
       />
 
-      {/* KPI cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Building2 className="h-4 w-4" />
-              Total Companies
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{d.totalCompanies}</p>
-          </CardContent>
-        </Card>
+      {/* Quiet stat strip: numbers and mono labels, no icons or boxes. */}
+      <dl
+        aria-label="Portfolio totals"
+        className="mb-8 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 lg:grid-cols-4"
+      >
+        {[
+          { label: "Companies", value: d.totalCompanies, hint: undefined as string | undefined },
+          { label: "Updates this month", value: d.updatesThisMonth, hint: undefined },
+          { label: "Behind on updates", value: d.companiesOverdue, hint: undefined },
+          { label: "Awaiting approval", value: d.pendingApprovals, hint: undefined },
+        ].map((k) => (
+          <div key={k.label}>
+            <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">{k.label}</dt>
+            <dd className="mt-0.5 font-display text-xl font-semibold text-foreground">{k.value}</dd>
+          </div>
+        ))}
+      </dl>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              Pending Approvals
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{d.pendingApprovals}</p>
-            {d.pendingApprovals > 0 && (
-              <Link href="/admin/approvals" className="text-sm text-primary hover:underline">
-                Review now
-              </Link>
-            )}
-          </CardContent>
-        </Card>
+      {/* Needs attention: the job of this page is "what needs me today". */}
+      <section aria-labelledby="attention-heading" className="mb-10">
+        <div className="mb-3 flex items-baseline gap-3">
+          <h2 id="attention-heading" className="font-display text-heading text-foreground">
+            Needs attention
+          </h2>
+          {attention.length > 0 && <Badge variant="neutral">{attention.length}</Badge>}
+        </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <FileText className="h-4 w-4" />
-              Updates This Month
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{d.updatesThisMonth}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <AlertTriangle className="h-4 w-4" />
-              Companies Overdue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-semibold ${d.companiesOverdue > 0 ? "text-destructive" : ""}`}>
-              {d.companiesOverdue}
-            </p>
-            <p className="text-xs text-muted-foreground">Behind on updates</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Metric Alerts — only rendered when alerts exist, zero visual change otherwise */}
-      {alerts.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <AlertTriangle className="h-4 w-4 text-laterite" />
-              Metric Alerts
-              <Badge variant="danger">{alerts.length}</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground">
-                  <th className="pb-2 font-medium">Company</th>
-                  <th className="pb-2 font-medium">Alert</th>
-                  <th className="pb-2 font-medium">Fired</th>
-                  <th className="pb-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {alerts.map((a) => (
-                  <tr key={a.id} className="border-b last:border-0">
-                    <td className="py-2">
-                      <Link
-                        href={`/admin/companies/${a.company.id}`}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        {a.company.name}
-                      </Link>
-                    </td>
-                    <td className="py-2">{a.message}</td>
-                    <td className="py-2 text-muted-foreground text-xs">{alertAgo(a.firedAt)}</td>
-                    <td className="py-2">
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={dismissing[a.id]}
-                        onClick={() => dismissAlert(a.id)}
-                      >
-                        {dismissing[a.id] ? "Dismissing…" : "Dismiss"}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {attention.length === 0 ? (
+          <div className="flex items-center gap-3 border border-border bg-card px-4 py-5 text-sm">
+            <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0 text-acacia" />
+            <div>
+              <p className="font-medium text-foreground">Nothing needs you right now.</p>
+              <p className="text-muted-foreground">Approvals, diligence, alerts and company updates are all clear.</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          </div>
+        ) : (
+          <ul className="divide-y divide-row-divider border border-border bg-card">
+            {(() => {
+              const overdueItems = attention.filter((i) => i.kind === "overdue");
+              const hiddenOverdue = new Set(showAllOverdue ? [] : overdueItems.slice(OVERDUE_VISIBLE).map((i) => i.id));
+              return attention
+                .filter((i) => !hiddenOverdue.has(i.id))
+                .map((item) => {
+                  const company = item.kind === "overdue" ? d.overdueCompanies.find((c) => c.id === item.companyId) : null;
+                  const remindedTs = company ? (remindedAt[company.id] ?? company.lastReminderSentAt) : null;
+                  return (
+                    <li key={item.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+                      <div className="min-w-0 flex-1 basis-64">
+                        <StatusDot tone={item.tone} className="items-start font-medium">
+                          <span>
+                            {item.kind === "overdue" || item.kind === "alert" ? (
+                              <Link href={item.href} className="hover:underline">
+                                {item.title}
+                              </Link>
+                            ) : (
+                              item.title
+                            )}
+                          </span>
+                        </StatusDot>
+                        {(item.detail || remindedTs) && (
+                          <p className="ml-[15px] text-xs text-muted-foreground">
+                            {item.detail}
+                            {item.detail && remindedTs ? " · " : ""}
+                            {remindedTs ? `Reminded ${timeAgo(remindedTs).toLowerCase()}` : ""}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {item.action === "remind" && company && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            loading={reminding[company.id]}
+                            onClick={() => sendReminder(company.id)}
+                          >
+                            <Bell className="h-3.5 w-3.5" />
+                            Remind
+                            <span className="sr-only"> {company.name}</span>
+                          </Button>
+                        )}
+                        {item.action === "dismiss" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            loading={dismissing[item.id.replace("alert:", "")]}
+                            onClick={() => dismissAlert(item.id.replace("alert:", ""))}
+                          >
+                            Dismiss
+                            <span className="sr-only">: {item.title}</span>
+                          </Button>
+                        )}
+                        {!item.action && (
+                          <Link
+                            href={item.href}
+                            className="inline-flex h-8 items-center border border-border px-3 text-[13px] font-medium text-foreground transition-colors hover:border-[var(--color-border-hover)] hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            Review
+                            <span className="sr-only">: {item.title}</span>
+                          </Link>
+                        )}
+                      </div>
+                    </li>
+                  );
+                });
+            })()}
+          </ul>
+        )}
+
+        {attention.filter((i) => i.kind === "overdue").length > OVERDUE_VISIBLE && (
+          <button
+            type="button"
+            onClick={() => setShowAllOverdue((v) => !v)}
+            className="mt-2 text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {showAllOverdue
+              ? "Show fewer companies"
+              : `Show all ${attention.filter((i) => i.kind === "overdue").length} companies behind on updates`}
+          </button>
+        )}
+      </section>
 
       {/* Second row: chart + sector breakdown */}
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
@@ -376,87 +406,6 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      {/* Overdue companies */}
-      {d.overdueCompanies.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader>
-            <button
-              className="flex w-full items-center justify-between text-left"
-              onClick={() => setShowOverdue((v) => !v)}
-            >
-              <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <AlertTriangle className="h-4 w-4 text-ochre" />
-                Companies Needing Attention
-                <Badge variant="warning">{d.overdueCompanies.length}</Badge>
-              </CardTitle>
-              {showOverdue ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              )}
-            </button>
-          </CardHeader>
-          {showOverdue && (
-            <CardContent>
-              <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
-                    <th className="pb-2 font-medium">Company</th>
-                    <th className="pb-2 font-medium">Sector</th>
-                    <th className="pb-2 font-medium">Days Since Update</th>
-                    <th className="pb-2 font-medium">Last Reminded</th>
-                    <th className="pb-2 font-medium"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.overdueCompanies.map((c) => (
-                    <tr key={c.id} className="border-b last:border-0">
-                      <td className="py-2">
-                        <Link
-                          href={`/admin/companies/${c.id}`}
-                          className="font-medium text-primary hover:underline"
-                        >
-                          {c.name}
-                        </Link>
-                      </td>
-                      <td className="py-2 text-muted-foreground">{c.sector ?? "—"}</td>
-                      <td className="py-2">
-                        {c.daysSinceUpdate !== null ? (
-                          <span className={c.daysSinceUpdate > 60 ? "font-semibold text-destructive" : "text-ochre"}>
-                            {c.daysSinceUpdate}d
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Never</span>
-                        )}
-                      </td>
-                      <td className="py-2 text-muted-foreground text-xs">
-                        {(() => {
-                          const ts = remindedAt[c.id] ?? c.lastReminderSentAt;
-                          return ts ? timeAgo(ts) : "—";
-                        })()}
-                      </td>
-                      <td className="py-2">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          disabled={reminding[c.id]}
-                          onClick={() => sendReminder(c.id)}
-                          className="flex items-center gap-1"
-                        >
-                          <Bell className="h-3 w-3" />
-                          {reminding[c.id] ? "Sending…" : "Remind"}
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              </div>
-            </CardContent>
-          )}
-        </Card>
-      )}
     </AppShell>
   );
 }

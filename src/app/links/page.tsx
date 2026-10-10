@@ -304,7 +304,7 @@ export default function FounderLinksPage() {
       )}
 
       {links.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Investor Links"
           icon={<Link2 className="h-10 w-10" />}
           title="No investor links yet"
           description="Create a shareable link to give investors read-only access to your updates and metrics."

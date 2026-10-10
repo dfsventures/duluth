@@ -246,7 +246,7 @@ export default function CompanyDocumentsPage() {
       </div>
 
       {documents.length === 0 ? (
-        <EmptyState
+        <EmptyState eyebrow="Documents"
           icon={<FolderOpen className="h-8 w-8" />}
           title="No documents"
           description="No documents have been uploaded for this company yet."

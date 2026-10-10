@@ -171,9 +171,9 @@ function AdminReportsPageInner() {
           ))}
         </div>
       ) : reports.length === 0 ? (
-        <EmptyState icon={<FileText className="h-8 w-8" />} title="No reports yet" description="Create the first fund report." />
+        <EmptyState eyebrow="Fund Reports" icon={<FileText className="h-8 w-8" />} title="No reports yet" description="Create the first fund report." />
       ) : filteredReports.length === 0 ? (
-        <EmptyState icon={<FileText className="h-8 w-8" />} title="No matches" description="Try a different search term." />
+        <EmptyState icon={<FileText className="h-8 w-8" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
       ) : (
         <div className="space-y-2">
           {filteredReports.map((r) => (

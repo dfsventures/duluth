@@ -317,21 +317,24 @@ export default function AdminCompaniesPage() {
           ) : null
         }
         empty={
-          <EmptyState
+          <EmptyState eyebrow="Companies"
             icon={<Building2 className="h-10 w-10" />}
             title="No companies yet"
-            description="Add your first portfolio company manually, or import a list from a CSV (a name column, optionally a url column)."
+            description="Add your first portfolio company by hand, or import a list. A CSV needs a name column; url is optional."
+            example={
+              <pre className="whitespace-pre">{"name,url\nAcmeHQ,https://acme.example\nTidewater Health,https://tidewater.example"}</pre>
+            }
             action={
-              <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-4 w-4" />
-                  Import CSV
-                </Button>
-                <Button onClick={() => router.push("/admin/companies/new")}>
-                  <Plus className="h-4 w-4" />
-                  Add Company
-                </Button>
-              </div>
+              <Button onClick={() => router.push("/admin/companies/new")}>
+                <Plus className="h-4 w-4" />
+                Add Company
+              </Button>
+            }
+            secondaryAction={
+              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
+                Import CSV
+              </Button>
             }
           />
         }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LogoMark } from "@/components/ui/logo-mark";
+import { AuthLayout, AuthAlert } from "@/components/auth/auth-layout";
 import { ORG_NAME } from "@/lib/org";
 
 export default function SignupPage() {
@@ -43,97 +43,77 @@ export default function SignupPage() {
     }
   }
 
-  return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
-      {/* Back to home */}
-      <div className="mb-6 w-full max-w-md">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-          <LogoMark />
-        </Link>
-      </div>
-
-      <div className="w-full max-w-md">
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="px-8 py-8">
-            {submitted ? (
-              <div className="space-y-4 py-4 text-center">
-                <div className="flex justify-center">
-                  <CheckCircle2 className="h-12 w-12 text-primary" />
-                </div>
-                <h2 className="text-xl font-semibold text-foreground">
-                  Application received
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Thanks for applying. The {ORG_NAME} team will review your request
-                  and email you within a few days once your account is approved.
-                </p>
-                <Link
-                  href="/login"
-                  className="inline-block text-sm font-medium text-primary hover:text-primary-600"
-                >
-                  Back to Sign In →
-                </Link>
-              </div>
-            ) : (
-              <>
-                <h1 className="mb-1 text-xl font-semibold text-foreground">
-                  Apply for Access
-                </h1>
-                <p className="mb-6 text-sm text-muted-foreground">
-                  Tell us about yourself and your company. We&apos;ll review your
-                  application and be in touch within a few days.
-                </p>
-
-                {error && (
-                  <div className="mb-4 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
-                    {error}
-                  </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <Input
-                    id="name"
-                    label="Full Name"
-                    type="text"
-                    placeholder="Jane Doe"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                  />
-                  <Input
-                    id="email"
-                    label="Email"
-                    type="email"
-                    placeholder="you@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                  <Input
-                    id="companyName"
-                    label="Company Name"
-                    type="text"
-                    placeholder="Your startup"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    required
-                  />
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Submitting..." : "Submit Application"}
-                  </Button>
-                </form>
-
-                <p className="mt-5 text-center text-sm text-muted-foreground">
-                  Already have an account?{" "}
-                  <Link href="/login" className="font-medium text-primary hover:text-primary-600">
-                    Sign in →
-                  </Link>
-                </p>
-              </>
-            )}
-          </div>
+  if (submitted) {
+    return (
+      <AuthLayout
+        eyebrow="Application received"
+        title="Thanks. We have it."
+        description={`The ${ORG_NAME} team will review your request and email you within a few days once your account is approved.`}
+        footer={
+          <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+            Back to sign in
+          </Link>
+        }
+      >
+        <div role="status" className="flex items-center gap-3 border-l-2 border-acacia bg-tone-sage px-3 py-2.5 text-sm text-tone-sage-ink">
+          <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+          Your application is in the queue.
         </div>
-      </div>
-    </div>
+      </AuthLayout>
+    );
+  }
+
+  return (
+    <AuthLayout
+      eyebrow="Apply for access"
+      title="Tell us who you are."
+      description="Share your name and your company. We review every application and are in touch within a few days."
+      footer={
+        <p>
+          Already have an account?{" "}
+          <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+            Sign in
+          </Link>
+        </p>
+      }
+    >
+      {error && <AuthAlert>{error}</AuthAlert>}
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          id="name"
+          label="Full name"
+          type="text"
+          autoComplete="name"
+          placeholder="Jane Doe"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+        <Input
+          id="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <Input
+          id="companyName"
+          label="Company name"
+          type="text"
+          autoComplete="organization"
+          placeholder="Your startup"
+          value={companyName}
+          onChange={(e) => setCompanyName(e.target.value)}
+          required
+        />
+        <Button type="submit" size="lg" className="w-full" loading={loading}>
+          Submit application
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }

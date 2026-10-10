@@ -53,6 +53,7 @@ export default async function LpPortalPage() {
 
       {reports.length === 0 ? (
         <EmptyState
+          eyebrow="Fund reports"
           className="mt-10"
           icon={<BookOpen className="h-8 w-8" />}
           title="No reports yet."
