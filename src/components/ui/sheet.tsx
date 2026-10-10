@@ -3,6 +3,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ignoreToastInteraction } from "@/lib/toast-guard";
 
 /**
  * UI overhaul phase 2: right-hand Sheet (440px) for record preview/edit without
@@ -24,6 +25,7 @@ export function SheetContent({ title, description, className, children, ...props
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex justify-end bg-obsidian/35 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
         <DialogPrimitive.Content
           {...(description ? {} : { "aria-describedby": undefined })}
+          onInteractOutside={ignoreToastInteraction}
           className={cn(
             "flex h-full w-full flex-col border-l border-border bg-card shadow-float sm:max-w-[440px]",
             "data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",

@@ -4,6 +4,7 @@ import * as ToastPrimitive from "@radix-ui/react-toast";
 import { useCallback, useState, useSyncExternalStore } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { TOAST_VIEWPORT_ATTR } from "@/lib/toast-guard";
 import { dismissToast, getServerToasts, getToasts, subscribe, type ToastKind } from "@/lib/toast";
 
 const MARKER: Record<ToastKind, string> = {
@@ -80,7 +81,7 @@ export function Toaster() {
           </ToastPrimitive.Close>
         </ToastPrimitive.Root>
       ))}
-      <ToastPrimitive.Viewport className="fixed bottom-4 left-1/2 z-[100] m-0 flex w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 list-none flex-col gap-2 p-0 outline-none" />
+      <ToastPrimitive.Viewport {...{ [TOAST_VIEWPORT_ATTR]: "" }} className="pointer-events-auto fixed bottom-4 left-1/2 z-[100] m-0 flex w-[min(440px,calc(100vw-2rem))] -translate-x-1/2 list-none flex-col gap-2 p-0 outline-none" />
     </ToastPrimitive.Provider>
   );
 }

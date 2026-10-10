@@ -3,6 +3,7 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ignoreToastInteraction } from "@/lib/toast-guard";
 
 /**
  * UI overhaul phase 2: the one Dialog (focused task, 480 / 640px). Radix gives
@@ -41,6 +42,7 @@ export function DialogContent({
       <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-obsidian/35 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out sm:items-center sm:p-4">
         <DialogPrimitive.Content
           {...(description ? {} : { "aria-describedby": undefined })}
+          onInteractOutside={ignoreToastInteraction}
           className={cn(
             "relative w-full border border-border bg-card shadow-float",
             "max-h-[92dvh] overflow-y-auto rounded-t-sm sm:rounded-sm",

@@ -17,7 +17,14 @@ import { CardDialog } from "@/components/admin/board/card-dialog";
 import { ResolveDialog } from "@/components/admin/board/resolve-dialog";
 import { PeopleProjectsPanel } from "@/components/admin/board/people-projects-panel";
 import { IntakePanel } from "@/components/admin/board/intake-panel";
-import { applyCardToPayload, createSequencer } from "@/lib/board-client";
+import {
+  applyCardToPayload,
+  createSequencer,
+  isNoopMove,
+  neighboursForIndex,
+  undoTarget,
+} from "@/lib/board-client";
+import { toast } from "@/lib/toast";
 import { localPosition, type BoardCardData, type BoardPayload } from "@/components/admin/board/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -38,7 +45,8 @@ export default function BoardPage({ granolaIntake = false }: { granolaIntake?: b
   );
 }
 
-type DropTarget = { status: BoardStatus; cardId: string | null; pos: "above" | "below" | "end" } | null;
+// Where a drag would land: the column, and the index among that column's other cards.
+type DropTarget = { status: BoardStatus; index: number } | null;
 
 function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const router = useRouter();
@@ -49,7 +57,6 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const [data, setData] = useState<BoardPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [moveError, setMoveError] = useState("");
   const [tab, setTab] = useState<string>(() =>
     granolaIntake && searchParams.get("tab") === "intake" ? "intake" : "board"
   );
@@ -59,7 +66,17 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const [resolving, setResolving] = useState<BoardCardData | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
+  // Card that just landed (Sky wash), a polite announcement for screen readers,
+  // and a card to put keyboard focus back on after it re-renders in a new place.
+  const [landedId, setLandedId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const pendingFocus = useRef<string | null>(null);
+  const landedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const snapshot = useRef<BoardPayload | null>(null);
+  // Undo and Retry run later, from callbacks created during an earlier render.
+  // They read the board through these refs so they never act on a stale copy.
+  const dataRef = useRef<BoardPayload | null>(null);
+  const columnsRef = useRef<Record<BoardStatus, BoardCardData[]> | null>(null);
   const loadSeq = useRef(createSequencer());
 
   const projectFilter = searchParams.get("project") ?? "";
@@ -119,6 +136,9 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
     return out;
   }, [data]);
 
+  dataRef.current = data;
+  columnsRef.current = columns;
+
   const matches = useCallback(
     (c: BoardCardData) => {
       if (projectFilter === "none" ? c.projectId : projectFilter && c.projectId !== projectFilter) return false;
@@ -141,13 +161,43 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
     return out;
   }, [columns, matches]);
 
-  async function move(cardId: string, status: BoardStatus, beforeId?: string, afterId?: string) {
-    if (!data) return;
+  function flashLanded(id: string) {
+    setLandedId(id);
+    if (landedTimer.current) clearTimeout(landedTimer.current);
+    landedTimer.current = setTimeout(() => setLandedId(null), 1500);
+  }
+
+  // After a keyboard move the card may have re-mounted in another column;
+  // give focus back to its title so the user can keep going.
+  useEffect(() => {
+    const id = pendingFocus.current;
+    if (!id) return;
+    pendingFocus.current = null;
+    (document.querySelector(`[data-card-id="${id}"] [data-card-title]`) as HTMLElement | null)?.focus();
+  }, [data]);
+
+  /**
+   * Optimistic move (spec 6.5: reversible, so act now and offer Undo). The
+   * contract is unchanged: beforeId = the card directly above, afterId = the
+   * card directly below, neither = the end of the column.
+   */
+  async function move(
+    cardId: string,
+    status: BoardStatus,
+    beforeId?: string,
+    afterId?: string,
+    opts: { undo?: boolean; refocus?: boolean } = {}
+  ) {
+    const data = dataRef.current;
+    const columns = columnsRef.current;
+    if (!data || !columns) return;
     const card = data.cards.find((c) => c.id === cardId);
     if (!card) return;
-    setMoveError("");
     snapshot.current = data;
     loadSeq.current.invalidate(); // an older in-flight load must not clobber the optimistic move
+    // Where it was, for Undo: computed from the full columns before anything changes.
+    const back = undoTarget(columns, cardId);
+    const fromStatus = card.status;
 
     const target = columns[status].filter((c) => c.id !== cardId);
     const position = localPosition(target, beforeId, afterId);
@@ -166,6 +216,10 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           : c
       ),
     });
+    flashLanded(cardId);
+    if (opts.refocus) pendingFocus.current = cardId;
+    const where = status === fromStatus ? "within " : "to ";
+    setAnnouncement(`Moved "${card.title}" ${where}${BOARD_STATUS_LABELS[status]}.`);
 
     try {
       const res = await fetch(`/api/admin/board/cards/${cardId}/move`, {
@@ -179,52 +233,72 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
       }
       const saved: BoardCardData = await res.json();
       setData((cur) => (cur ? { ...cur, cards: cur.cards.map((c) => (c.id === saved.id ? { ...c, ...saved } : c)) } : cur));
+      if (!opts.undo && back) {
+        toast.undo(
+          status === fromStatus
+            ? `Reordered "${card.title}".`
+            : `Moved "${card.title}" to ${BOARD_STATUS_LABELS[status]}.`,
+          () => {
+            const { status: toStatus, beforeId: b, afterId: a } = back;
+            void move(cardId, toStatus, b, a, { undo: true, refocus: opts.refocus });
+          }
+        );
+      }
     } catch (e) {
       setData(snapshot.current);
-      setMoveError(e instanceof Error ? e.message : "Couldn't move that item.");
+      // A move is idempotent, so Retry is safe (spec 6.5).
+      toast.error(e instanceof Error ? e.message : "Couldn't move that item.", {
+        retry: () => void move(cardId, status, beforeId, afterId, opts),
+      });
     }
   }
 
-  function nudge(card: BoardCardData, dir: "up" | "down") {
+  function nudge(card: BoardCardData, dir: "up" | "down", refocus = false) {
     const list = visible[card.status];
     const i = list.findIndex((c) => c.id === card.id);
-    if (dir === "up" && i > 0) move(card.id, card.status, undefined, list[i - 1].id);
-    if (dir === "down" && i >= 0 && i < list.length - 1) move(card.id, card.status, list[i + 1].id, undefined);
+    if (dir === "up" && i > 0) move(card.id, card.status, undefined, list[i - 1].id, { refocus });
+    if (dir === "down" && i >= 0 && i < list.length - 1) move(card.id, card.status, list[i + 1].id, undefined, { refocus });
   }
 
   // ── native drag and drop (desktop) ──
-  function cardDragOver(e: React.DragEvent, card: BoardCardData) {
-    if (!draggingId) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const pos = e.clientY < rect.top + rect.height / 2 ? "above" : "below";
-    setDropTarget({ status: card.status, cardId: card.id, pos });
-  }
-  function dropOnCard(e: React.DragEvent, card: BoardCardData) {
-    e.preventDefault();
-    e.stopPropagation();
-    const id = draggingId;
-    const t = dropTarget;
-    endDrag();
-    if (!id || id === card.id || !t) return;
-    if (t.pos === "above") move(id, card.status, undefined, card.id);
-    else move(id, card.status, card.id, undefined);
-  }
-  function columnDragOver(e: React.DragEvent, status: BoardStatus) {
-    if (!draggingId) return;
-    e.preventDefault();
-    setDropTarget({ status, cardId: null, pos: "end" });
-  }
-  function dropOnColumn(e: React.DragEvent, status: BoardStatus) {
-    e.preventDefault();
+  // The column works out the insertion index from the pointer; here we turn it
+  // into the move contract and skip a drop back into the same slot.
+  function dropAt(status: BoardStatus, index: number) {
     const id = draggingId;
     endDrag();
-    if (id) move(id, status);
+    if (!id) return;
+    const card = data?.cards.find((c) => c.id === id);
+    if (!card) return;
+    if (isNoopMove(visible[status], id, status, card.status, index)) return;
+    const others = visible[status].filter((c) => c.id !== id).map((c) => c.id);
+    const n = neighboursForIndex(others, index);
+    move(id, status, n.beforeId, n.afterId);
   }
   function endDrag() {
     setDraggingId(null);
     setDropTarget(null);
+  }
+
+  async function quickAdd(status: BoardStatus, title: string): Promise<boolean> {
+    try {
+      const res = await fetch("/api/admin/board/cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, status, ownerId: myPersonId }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        throw new Error(d?.error ?? "Couldn't add that item.");
+      }
+      const saved: BoardCardData = await res.json();
+      applyCard(saved);
+      flashLanded(saved.id);
+      setAnnouncement(`Added "${saved.title}" to ${BOARD_STATUS_LABELS[status]}.`);
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't add that item.");
+      return false;
+    }
   }
 
   function renderCard(card: BoardCardData, list: BoardCardData[], desktop: boolean) {
@@ -239,19 +313,13 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
         movedBy={mover?.label ?? null}
         isFirst={i === 0}
         isLast={i === list.length - 1}
-        draggable={desktop}
+        desktop={desktop}
         dragging={draggingId === card.id}
-        dropIndicator={
-          desktop && dropTarget?.cardId === card.id && draggingId !== card.id
-            ? dropTarget.pos === "above"
-              ? "above"
-              : "below"
-            : null
-        }
+        landed={landedId === card.id}
         onOpen={() => setEditing(card)}
         onResolve={() => setResolving(card)}
-        onMoveTo={(s) => move(card.id, s)}
-        onNudge={(dir) => nudge(card, dir)}
+        onMoveTo={(s) => move(card.id, s, undefined, undefined, { refocus: true })}
+        onNudge={(dir) => nudge(card, dir, true)}
         onDragStart={
           desktop
             ? (e) => {
@@ -262,8 +330,6 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
             : undefined
         }
         onDragEnd={desktop ? endDrag : undefined}
-        onDragOver={desktop ? (e) => cardDragOver(e, card) : undefined}
-        onDrop={desktop ? (e) => dropOnCard(e, card) : undefined}
       />
     );
   }
@@ -300,6 +366,11 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           ) : undefined
         }
       />
+
+      {/* Announces moves for screen readers (the card changes place silently). */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
 
       <Tabs.Root value={tab} onValueChange={setTab}>
         <Tabs.List className="mb-6 flex gap-6 overflow-x-auto border-b border-border [scrollbar-width:none]" aria-label="Team board sections">
@@ -400,26 +471,20 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                 </div>
               )}
 
-              {moveError && (
-                <p role="alert" className="mb-4 text-xs text-laterite">
-                  {moveError}
-                </p>
-              )}
-
               {/* Desktop: four columns */}
               <div className="hidden gap-4 md:grid md:grid-cols-4">
                 {BOARD_STATUSES.map((s) => (
                   <BoardColumn
                     key={s}
                     status={s}
-                    count={visible[s].length}
+                    cards={visible[s].map((c) => ({ id: c.id, node: renderCard(c, visible[s], true) }))}
                     droppable
-                    isDropTarget={dropTarget?.status === s && dropTarget.pos === "end"}
-                    onDragOver={(e) => columnDragOver(e, s)}
-                    onDrop={(e) => dropOnColumn(e, s)}
-                  >
-                    {visible[s].map((c) => renderCard(c, visible[s], true))}
-                  </BoardColumn>
+                    draggingId={draggingId}
+                    dropIndex={dropTarget?.status === s ? dropTarget.index : null}
+                    onDropIndexChange={(status, index) => setDropTarget(index === null ? null : { status, index })}
+                    onDropAt={dropAt}
+                    onQuickAdd={quickAdd}
+                  />
                 ))}
               </div>
 
@@ -436,7 +501,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                       <span className="ml-auto text-muted-foreground">{visible[s].length}</span>
                       <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
                     </summary>
-                    <div className="space-y-2 bg-muted/40 p-2">
+                    <div className="space-y-2 bg-well p-2">
                       {visible[s].map((c) => renderCard(c, visible[s], false))}
                       {visible[s].length === 0 && <p className="py-3 text-center font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Empty</p>}
                     </div>
@@ -469,7 +534,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
             setEditing(null);
             applyCard(c ?? null);
           }}
-          onPartialFailure={(msg) => setMoveError(msg)}
+          onPartialFailure={(msg) => toast.error(msg)}
         />
       )}
       {resolving && data && (

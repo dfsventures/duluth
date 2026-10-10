@@ -6,6 +6,7 @@
 //   ?  shortcut cheat sheet
 //   /  focus the table filter (DataTable)
 //   j / k / Enter  move through and open table rows (DataTable)
+//   m / e / Alt+arrows  Team Board card menu, edit, move (BoardCard)
 //
 // Shortcuts never fire while typing in a field or when a modifier is held.
 
@@ -83,4 +84,9 @@ export const SHORTCUT_HELP: { keys: string[]; label: string }[] = [
   { keys: ["j"], label: "Next table row" },
   { keys: ["k"], label: "Previous table row" },
   { keys: ["Enter"], label: "Open the focused row" },
+  // Team Board: these act on the card that has focus.
+  { keys: ["m"], label: "Team Board: open the card's menu" },
+  { keys: ["e"], label: "Team Board: edit the card" },
+  { keys: ["Alt", "↑", "↓"], label: "Team Board: move the card up or down its column" },
+  { keys: ["Alt", "←", "→"], label: "Team Board: move the card to the next column" },
 ];

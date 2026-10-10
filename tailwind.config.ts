@@ -153,6 +153,11 @@ const config: Config = {
           to: { transform: "none", opacity: "1" },
         },
         "toast-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+        // A card that just moved or arrived: a Sky wash that fades to the surface.
+        land: {
+          "0%": { backgroundColor: "rgb(91 141 197 / 0.28)", transform: "translateY(-3px)" },
+          "100%": { backgroundColor: "var(--color-surface)", transform: "none" },
+        },
         "overlay-out": { from: { opacity: "1" }, to: { opacity: "0" } },
         "dialog-out": {
           from: { opacity: "1", transform: "none" },
@@ -170,6 +175,7 @@ const config: Config = {
         "sheet-in": "sheet-in 280ms var(--ease-out)",
         "toast-in": "toast-in 200ms var(--ease-out)",
         "toast-out": "toast-out 120ms var(--ease-in) forwards",
+        land: "land 1.4s var(--ease-out)",
         "overlay-out": "overlay-out 120ms var(--ease-in) forwards",
         "dialog-out": "dialog-out 120ms var(--ease-in) forwards",
         "sheet-out": "sheet-out 160ms var(--ease-in) forwards",
