@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ADMIN_EMAIL_DOMAIN } from "@/lib/org";
+import { ADMIN_EMAIL_DOMAINS_LABEL } from "@/lib/org";
 import type { BoardPersonData, BoardProjectData } from "./types";
 
 async function readError(res: Response, fallback: string) {
@@ -134,7 +134,7 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
         <section>
           <h3 className="mb-3 font-mono text-xs font-semibold uppercase tracking-widest text-foreground">People</h3>
           <p className="mb-3 text-xs text-muted-foreground">
-            Molly admins appear automatically the first time they sign in with their @{ADMIN_EMAIL_DOMAIN} Google
+            Molly admins appear automatically the first time they sign in with their {ADMIN_EMAIL_DOMAINS_LABEL} Google
             account. To assign work to someone without a Molly login, add their name below; they can own cards but
             don&apos;t get a login or emails.
           </p>

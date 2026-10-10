@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { authorizeCredentials } from "@/lib/credentials-authorize";
 import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
-import { ADMIN_EMAIL_DOMAIN } from "@/lib/org";
+import { isAdminEmailDomain } from "@/lib/org";
 import { currentRequestInfo, logSignInFailed, logSignInSucceeded } from "@/lib/signin-audit";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -25,7 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         const email = user.email;
-        if (!email || !email.endsWith(`@${ADMIN_EMAIL_DOMAIN}`)) {
+        if (!email || !isAdminEmailDomain(email)) {
           await logSignInFailed(email, undefined, "google", "google_domain_refused", await currentRequestInfo());
           return false;
         }
