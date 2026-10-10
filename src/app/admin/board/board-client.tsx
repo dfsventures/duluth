@@ -393,7 +393,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
             <div className="grid gap-4 py-4 sm:grid-cols-2 lg:grid-cols-4"><Skeleton className="h-64" /><Skeleton className="h-64" /><Skeleton className="h-64" /><Skeleton className="h-64" /></div>
           ) : loadError || !data ? (
             <div className="flex flex-wrap items-center gap-3 py-10">
-              <p className="text-sm text-laterite">{loadError || "Failed to load the board."}</p>
+              <p className="text-sm text-tone-clay-ink">{loadError || "Failed to load the board."}</p>
               <Button size="sm" variant="secondary" onClick={() => { setLoading(true); load(); }}>
                 Try again
               </Button>
@@ -454,7 +454,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                   role="status"
                   className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm border border-ochre bg-ochre/10 px-3 py-2"
                 >
-                  <AlertCircle className="h-4 w-4 shrink-0 text-ochre" aria-hidden />
+                  <AlertCircle className="h-4 w-4 shrink-0 text-tone-amber-ink" aria-hidden />
                   <p className="min-w-0 flex-1 basis-48 text-sm text-foreground">
                     {reviewOnly
                       ? `Showing ${needsReviewCount} item${needsReviewCount === 1 ? "" : "s"} that need review`

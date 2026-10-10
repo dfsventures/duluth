@@ -21,7 +21,7 @@ export default async function LpPortalPage() {
   if (!ctx) {
     return (
       <div className="mx-auto max-w-2xl">
-        <p className="font-mono text-xs uppercase tracking-[0.12em] text-sky">LP Portal</p>
+        <p className="font-mono text-xs uppercase tracking-[0.12em] text-accent">LP Portal</p>
         <h1 className="mt-3 font-display text-3xl tracking-tight text-obsidian sm:text-4xl">
           Fund reports for our limited partners.
         </h1>
@@ -48,7 +48,7 @@ export default async function LpPortalPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <p className="font-mono text-xs uppercase tracking-[0.12em] text-sky">LP Portal</p>
+      <p className="font-mono text-xs uppercase tracking-[0.12em] text-accent">LP Portal</p>
       <h1 className="mt-3 font-display text-3xl tracking-tight text-obsidian sm:text-4xl">Your fund reports.</h1>
 
       {reports.length === 0 ? (
@@ -71,7 +71,7 @@ export default async function LpPortalPage() {
                   <li key={r.id}>
                     <Link
                       href={`/lp/reports/${r.id}`}
-                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-4 hover:text-sky"
+                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-4 hover:text-accent"
                     >
                       <span>
                         <span className="font-display text-lg tracking-tight">{r.title}</span>

@@ -13,6 +13,7 @@ import { SyncPanel } from "@/components/admin/sync-panel";
 import { FundMetricsSyncPanel } from "@/components/admin/fund-metrics-sync-panel";
 import { formatDate } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
+import { ModalDialog as Modal } from "@/components/ui/dialog";
 
 type FundsTab = "funds" | "sync";
 
@@ -256,7 +257,7 @@ function AdminFundsPageInner() {
               <label className="label mb-1.5 block">Display name *</label>
               <Input required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={`e.g. ${ORG_NAME} SPV I`} />
             </div>
-            {saveError && <p className="text-sm text-laterite">{saveError}</p>}
+            {saveError && <p className="text-sm text-tone-clay-ink">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowNew(false)}>
                 Cancel
@@ -269,22 +270,5 @@ function AdminFundsPageInner() {
         </Modal>
       )}
     </AppShell>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
   );
 }

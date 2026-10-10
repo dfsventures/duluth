@@ -211,8 +211,8 @@ export default function DiligencePage() {
       <div className="mb-6 flex items-center gap-2 text-sm">
         {diligence.completedAt ? (
           <>
-            <CheckCircle2 className="h-4 w-4 text-acacia" />
-            <span className="text-acacia">All done! We are reviewing your documents and will be in touch soon.</span>
+            <CheckCircle2 className="h-4 w-4 text-tone-sage-ink" />
+            <span className="text-tone-sage-ink">All done! We are reviewing your documents and will be in touch soon.</span>
           </>
         ) : (
           <>
@@ -361,7 +361,7 @@ export default function DiligencePage() {
                 {/* Part 35, WS94.3 (D3=B) — persists across reloads-within-session,
                     unlike the transient `message` banner above (F86). */}
                 {failed && (
-                  <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-laterite/30 bg-laterite/10 px-3 py-2 text-sm text-laterite">
+                  <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-laterite/30 bg-laterite/10 px-3 py-2 text-sm text-tone-clay-ink">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span className="flex-1">
                       <span className="font-medium">{failed.file.name}</span> — {failed.message}

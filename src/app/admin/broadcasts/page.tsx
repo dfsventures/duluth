@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ModalDialog as Modal } from "@/components/ui/dialog";
 
 interface Broadcast {
   id: string;
@@ -223,7 +224,7 @@ export default function AdminBroadcastsPage() {
                         className="h-4 w-4 rounded border-border accent-primary"
                       />
                       <span className="flex-1 min-w-0 text-sm font-medium">{c.name}</span>
-                      <span className={`shrink-0 text-xs ${c.contactCount === 0 ? "text-ochre" : "text-muted-foreground"}`}>
+                      <span className={`shrink-0 text-xs ${c.contactCount === 0 ? "text-tone-amber-ink" : "text-muted-foreground"}`}>
                         {c.contactCount} contact{c.contactCount === 1 ? "" : "s"}
                       </span>
                     </label>
@@ -234,7 +235,7 @@ export default function AdminBroadcastsPage() {
                 <p className="text-xs text-muted-foreground">{newCompanyIds.length} compan{newCompanyIds.length === 1 ? "y" : "ies"} selected</p>
               )}
             </div>
-            {saveError && <p className="text-sm text-laterite">{saveError}</p>}
+            {saveError && <p className="text-sm text-tone-clay-ink">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowNew(false)}>
                 Cancel
@@ -247,22 +248,5 @@ export default function AdminBroadcastsPage() {
         </Modal>
       )}
     </AppShell>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
   );
 }

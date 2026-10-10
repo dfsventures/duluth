@@ -351,7 +351,7 @@ export function SyncPanel() {
                 </button>
                 {isExpanded && (
                   <div className="border-t border-border p-3 text-xs">
-                    {r.error && <p className="text-laterite">{r.error}</p>}
+                    {r.error && <p className="text-tone-clay-ink">{r.error}</p>}
                     {r.summary?.diff && (
                       <div className="space-y-2">
                         {r.summary.diff.newCompanies.length > 0 && (
@@ -372,7 +372,7 @@ export function SyncPanel() {
                           </div>
                         )}
                         {errCount > 0 && (
-                          <div className="text-ochre">
+                          <div className="text-tone-amber-ink">
                             {r.summary.errors.duplicateIds.length > 0 && <p>Duplicate IDs: {r.summary.errors.duplicateIds.join(", ")}</p>}
                             {r.summary.errors.missingIds.length > 0 && <p>Missing IDs on sheet rows: {r.summary.errors.missingIds.join(", ")}</p>}
                             {r.summary.errors.unknownVehicles.length > 0 && (

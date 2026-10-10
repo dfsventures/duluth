@@ -34,13 +34,13 @@ export function SlackTestPanel({ configured }: { configured: boolean }) {
         {status === "sending" ? "Posting..." : "Send test post"}
       </Button>
       {status === "success" && (
-        <span className="flex items-center gap-1.5 text-sm text-acacia">
+        <span className="flex items-center gap-1.5 text-sm text-tone-sage-ink">
           <CheckCircle2 className="h-4 w-4" />
           {message}
         </span>
       )}
       {status === "error" && (
-        <span className="flex items-center gap-1.5 text-sm text-laterite">
+        <span className="flex items-center gap-1.5 text-sm text-tone-clay-ink">
           <XCircle className="h-4 w-4" />
           {message}
         </span>

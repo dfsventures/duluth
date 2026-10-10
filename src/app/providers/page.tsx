@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ORG_NAME } from "@/lib/org";
+import { ModalDialog as Modal } from "@/components/ui/dialog";
 
 interface Category {
   id: string;
@@ -339,7 +340,7 @@ export default function ProvidersPage() {
               <p className="mt-1 text-xs text-muted-foreground">This becomes your endorsement, shown alongside the listing.</p>
             </Field>
 
-            {submitError && <p className="text-sm text-laterite">{submitError}</p>}
+            {submitError && <p className="text-sm text-tone-clay-ink">{submitError}</p>}
 
             <p className="text-xs text-muted-foreground">
               New submissions appear in the community tier and are marked Vetted once reviewed by the {ORG_NAME} team.
@@ -374,7 +375,7 @@ export default function ProvidersPage() {
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
             </Field>
-            {endorseError && <p className="text-sm text-laterite">{endorseError}</p>}
+            {endorseError && <p className="text-sm text-tone-clay-ink">{endorseError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => { setEndorseTarget(null); setEndorseNote(""); }}>Cancel</Button>
               <Button type="submit" disabled={endorsing}>{endorsing ? "Saving..." : "Save Endorsement"}</Button>
@@ -468,7 +469,7 @@ function ProviderCard({
           {hasEndorsed ? (
             <div className="flex items-center gap-2">
               <button onClick={onEndorse} className="text-xs text-muted-foreground hover:text-foreground underline">Edit</button>
-              <button onClick={onRemoveEndorsement} className="text-xs text-laterite hover:text-laterite underline">Remove</button>
+              <button onClick={onRemoveEndorsement} className="text-xs text-tone-clay-ink hover:text-tone-clay-ink underline">Remove</button>
             </div>
           ) : (
             <Button size="sm" variant="secondary" onClick={onEndorse}>
@@ -516,23 +517,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="label mb-1.5 block">{label}</label>
       {children}
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
     </div>
   );
 }

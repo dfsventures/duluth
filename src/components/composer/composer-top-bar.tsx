@@ -92,7 +92,7 @@ export function ComposerTopBar({
                     }}
                     className={cn(
                       "block w-full px-3 py-2 text-left text-sm transition-colors disabled:opacity-40",
-                      item.danger ? "text-laterite hover:bg-laterite/10" : "text-foreground hover:bg-muted"
+                      item.danger ? "text-tone-clay-ink hover:bg-laterite/10" : "text-foreground hover:bg-muted"
                     )}
                   >
                     {item.label}

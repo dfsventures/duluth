@@ -133,7 +133,7 @@ export function IntakePanel({ onBoardChanged }: { onBoardChanged: () => void }) 
       {loading ? (
         <TableSkeleton rows={3} cols={3} className="my-6" />
       ) : error ? (
-        <p className="py-6 text-sm text-laterite">{error}</p>
+        <p className="py-6 text-sm text-tone-clay-ink">{error}</p>
       ) : rows.length === 0 ? (
         <p className="py-6 text-sm text-muted-foreground">Nothing has come in yet.</p>
       ) : (

@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { ignoreToastInteraction } from "@/lib/toast-guard";
-import { X } from "lucide-react";
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -143,20 +141,12 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
   }
 
   return (
-    <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-obsidian/35" />
-        <Dialog.Content onInteractOutside={ignoreToastInteraction} className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm border border-border bg-card shadow-float">
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
-            <Dialog.Title className="font-semibold text-foreground">
-              {card ? "Edit item" : "Add item"}
-            </Dialog.Title>
-            <Dialog.Close className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
-              <X className="h-4 w-4" />
-            </Dialog.Close>
-          </div>
-          <Dialog.Description className="sr-only">Team board item details</Dialog.Description>
-          <div className="space-y-4 px-6 py-5">
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent
+        title={card ? "Edit item" : "Add item"}
+        size="md"
+      >
+          <DialogBody className="space-y-4">
             <Input
               id="bc-title"
               label="Title"
@@ -198,9 +188,9 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
                 ))}
               </Select>
             </div>
-            {error && <p className="text-xs text-laterite">{error}</p>}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-6 py-4">
+            {error && <p className="text-xs text-tone-clay-ink">{error}</p>}
+          </DialogBody>
+          <DialogFooter className="sm:justify-between">
             <div>
               {card && (
                 <Button variant="destructive" size="sm" onClick={archive} disabled={busy}>
@@ -216,9 +206,8 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
                 {busy ? "Saving..." : card ? "Save" : "Add item"}
               </Button>
             </div>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

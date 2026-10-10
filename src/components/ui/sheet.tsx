@@ -63,3 +63,26 @@ export function SheetBody({ className, ...props }: React.HTMLAttributes<HTMLDivE
 export function SheetFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn("flex justify-end gap-2 border-t border-border px-6 py-4", className)} {...props} />;
 }
+
+/** Sheet counterpart of `ModalDialog`: always open while mounted, closes via `onClose`. */
+export function ModalSheet({
+  title,
+  description,
+  onClose,
+  className,
+  children,
+}: {
+  title: string;
+  description?: string;
+  onClose: () => void;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Sheet open onOpenChange={(o) => !o && onClose()}>
+      <SheetContent title={title} description={description} className={className}>
+        <SheetBody>{children}</SheetBody>
+      </SheetContent>
+    </Sheet>
+  );
+}

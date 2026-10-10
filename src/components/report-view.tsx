@@ -32,7 +32,7 @@ export function ReportView({ title, periodLabel, publishedAt, fundName, bodyHtml
   return (
     <article className="mx-auto max-w-2xl">
       {previewBanner && (
-        <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-2 text-center font-mono text-xs uppercase tracking-[0.08em] text-ochre">
+        <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-2 text-center font-mono text-xs uppercase tracking-[0.08em] text-tone-amber-ink">
           Preview — draft, numbers not frozen
         </div>
       )}

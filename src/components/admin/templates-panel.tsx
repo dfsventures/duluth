@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { formatDate } from "@/lib/utils";
+import { ModalDialog } from "@/components/ui/dialog";
 
 interface Template {
   id: string;
@@ -149,7 +150,7 @@ export function TemplatesPanel() {
       )}
 
       {editTarget && (
-        <Modal title={editTarget === "new" ? "New Template" : `Edit — ${(editTarget as Template).name}`} onClose={() => setEditTarget(null)}>
+        <ModalDialog size="lg" title={editTarget === "new" ? "New Template" : `Edit — ${(editTarget as Template).name}`} onClose={() => setEditTarget(null)}>
           <form onSubmit={handleSave} className="space-y-4">
             <div>
               <label className="label mb-1.5 block">Name *</label>
@@ -167,7 +168,7 @@ export function TemplatesPanel() {
               <label className="label mb-1.5 block">Content *</label>
               <RichEditor value={formBody} onChange={setFormBody} placeholder="Highlights / Lowlights / Metrics commentary / Asks..." />
             </div>
-            {saveError && <p className="text-sm text-laterite">{saveError}</p>}
+            {saveError && <p className="text-sm text-tone-clay-ink">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setEditTarget(null)}>
                 Cancel
@@ -177,7 +178,7 @@ export function TemplatesPanel() {
               </Button>
             </div>
           </form>
-        </Modal>
+        </ModalDialog>
       )}
     </div>
   );
@@ -218,23 +219,6 @@ function TemplateRow({
             {t.archivedAt ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
           </button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
       </div>
     </div>
   );

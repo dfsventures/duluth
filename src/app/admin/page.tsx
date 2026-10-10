@@ -249,7 +249,7 @@ export default function AdminDashboardPage() {
 
         {attention.length === 0 ? (
           <div className="flex items-center gap-3 border border-border bg-card px-4 py-5 text-sm">
-            <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0 text-acacia" />
+            <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0 text-tone-sage-ink" />
             <div>
               <p className="font-medium text-foreground">Nothing needs you right now.</p>
               <p className="text-muted-foreground">Approvals, diligence, alerts and company updates are all clear.</p>

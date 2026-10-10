@@ -62,7 +62,7 @@ export function StorageSettingsPanel({ uploadFailureCount = 0 }: StorageSettings
           href="/admin/audit"
           className="mb-3 flex items-center gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground hover:bg-ochre/20"
         >
-          <AlertTriangle className="h-4 w-4 shrink-0 text-ochre" />
+          <AlertTriangle className="h-4 w-4 shrink-0 text-tone-amber-ink" />
           {uploadFailureCount} upload failure{uploadFailureCount === 1 ? "" : "s"} reported in the last 7 days —
           run the test upload below, and check your bucket&apos;s CORS policy.
         </a>
@@ -73,13 +73,13 @@ export function StorageSettingsPanel({ uploadFailureCount = 0 }: StorageSettings
           {status === "uploading" ? "Uploading..." : status === "verifying" ? "Verifying..." : "Send Test Upload"}
         </Button>
         {status === "success" && (
-          <span className="flex items-center gap-1.5 text-sm text-acacia">
+          <span className="flex items-center gap-1.5 text-sm text-tone-sage-ink">
             <CheckCircle2 className="h-4 w-4" />
             {message}
           </span>
         )}
         {status === "error" && (
-          <span className="flex items-center gap-1.5 text-sm text-laterite">
+          <span className="flex items-center gap-1.5 text-sm text-tone-clay-ink">
             <XCircle className="h-4 w-4" />
             {message}
           </span>

@@ -214,7 +214,7 @@ export default function FounderLinksPage() {
 
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
           <AlertCircle className="h-4 w-4" />{error}
         </div>
       )}
@@ -340,7 +340,7 @@ export default function FounderLinksPage() {
 
                       <Button variant="secondary" size="sm" onClick={() => copyLink(link.token, link.id)}>
                         {copiedId === link.id ? (
-                          <><CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-acacia" />Copied</>
+                          <><CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-tone-sage-ink" />Copied</>
                         ) : (
                           <><Copy className="mr-1.5 h-3.5 w-3.5" />Copy Link</>
                         )}

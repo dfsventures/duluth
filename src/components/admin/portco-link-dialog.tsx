@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ModalDialog } from "@/components/ui/dialog";
 import { addPortcoContact } from "@/lib/portco-link-contact";
 
 export interface PortcoLinkSuggestion {
@@ -117,19 +117,8 @@ export function PortcoLinkDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">Link {portfolioCompanyName} to a Molly account</h2>
-          <button
-            onClick={onClose}
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="space-y-4 px-6 py-5">
+    <ModalDialog title={`Link ${portfolioCompanyName} to a Molly account`} onClose={onClose}>
+        <div className="space-y-4">
           {suggestions.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Suggested matches</p>
@@ -175,14 +164,14 @@ export function PortcoLinkDialog({
                         onChange={() => setSelectedId(c.id)}
                       />
                       <span className="flex-1">{c.name}</span>
-                      {linkedElsewhere && <span className="text-xs text-laterite">already linked</span>}
+                      {linkedElsewhere && <span className="text-xs text-tone-clay-ink">already linked</span>}
                     </label>
                   );
                 })}
             </div>
           </div>
           {alreadyLinkedElsewhere && (
-            <p className="text-xs text-laterite">
+            <p className="text-xs text-tone-clay-ink">
               {selected?.name} is already linked to a different portfolio company — unlink it there first.
             </p>
           )}
@@ -197,7 +186,7 @@ export function PortcoLinkDialog({
               Also add {selected.ownerEmail} as a contact on {portfolioCompanyName}
             </label>
           )}
-          {error && <p className="text-xs text-laterite">{error}</p>}
+          {error && <p className="text-xs text-tone-clay-ink">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" size="sm" onClick={onClose} disabled={linking}>
               Cancel
@@ -212,7 +201,6 @@ export function PortcoLinkDialog({
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalDialog>
   );
 }

@@ -32,6 +32,7 @@ import { PageSkeleton } from "@/components/ui/skeleton";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { TabBar } from "@/components/ui/tab-bar";
 import { parseTab } from "@/lib/url-tab";
+import { ModalDialog as Modal } from "@/components/ui/dialog";
 
 type Tab = "deals" | "lps" | "reports" | "cashflows";
 
@@ -570,7 +571,7 @@ function AdminFundDetailPageInner() {
               onChange={(e) => setEditDealValuation(e.target.value)}
               className="w-28 rounded-sm border border-input bg-card px-2 py-1 text-sm"
             />
-            <button onClick={() => saveEditValuation(d.id)} className="rounded p-1 text-acacia hover:bg-muted" title="Save" aria-label="Save valuation">
+            <button onClick={() => saveEditValuation(d.id)} className="rounded p-1 text-tone-sage-ink hover:bg-muted" title="Save" aria-label="Save valuation">
               <Check className="h-3.5 w-3.5" />
             </button>
             <button onClick={() => setEditingDealId(null)} className="rounded p-1 text-muted-foreground hover:bg-muted" title="Cancel" aria-label="Cancel editing">
@@ -818,7 +819,7 @@ function AdminFundDetailPageInner() {
                   size="icon"
                   aria-label={`Delete deal with ${d.portfolioCompanyName}`}
                   title="Delete"
-                  className="hover:text-laterite"
+                  className="hover:text-tone-clay-ink"
                   onClick={() => handleDeleteDeal(d.id)}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -861,7 +862,7 @@ function AdminFundDetailPageInner() {
                     <span className="text-sm font-medium">{m.lp.name ?? m.lp.email}</span>
                     {m.lp.name && <span className="ml-2 text-xs text-muted-foreground">{m.lp.email}</span>}
                   </div>
-                  <button onClick={() => handleUnassignLp(m.lp.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Remove">
+                  <button onClick={() => handleUnassignLp(m.lp.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Remove">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -938,7 +939,7 @@ function AdminFundDetailPageInner() {
             <div className="mt-3">
               <Input label="Notes" value={cashflowForm.notes} onChange={(e) => setCashflowForm((f) => ({ ...f, notes: e.target.value }))} />
             </div>
-            {cashflowError && <p className="mt-2 text-sm text-laterite">{cashflowError}</p>}
+            {cashflowError && <p className="mt-2 text-sm text-tone-clay-ink">{cashflowError}</p>}
             <div className="mt-3 flex justify-end">
               <Button type="submit" size="sm" disabled={savingCashflow}>
                 {savingCashflow ? "Adding..." : "Add Cashflow"}
@@ -964,7 +965,7 @@ function AdminFundDetailPageInner() {
                 size="icon"
                 aria-label={`Delete ${CASHFLOW_LABELS[c.kind].toLowerCase()} of $${c.amountUsd.toLocaleString()}`}
                 title="Delete"
-                className="hover:text-laterite"
+                className="hover:text-tone-clay-ink"
                 onClick={() => handleDeleteCashflow(c.id)}
               >
                 <Trash2 className="h-4 w-4" />
@@ -1048,7 +1049,7 @@ function AdminFundDetailPageInner() {
               />
             </div>
 
-            {dealError && <p className="text-sm text-laterite">{dealError}</p>}
+            {dealError && <p className="text-sm text-tone-clay-ink">{dealError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowAddDeal(false)}>
                 Cancel
@@ -1061,22 +1062,5 @@ function AdminFundDetailPageInner() {
         </Modal>
       )}
     </AppShell>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
   );
 }

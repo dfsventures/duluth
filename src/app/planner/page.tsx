@@ -131,7 +131,7 @@ export default function PlannerListPage() {
         }
       />
 
-      {error && <p className="mb-6 text-sm text-laterite">{error}</p>}
+      {error && <p className="mb-6 text-sm text-tone-clay-ink">{error}</p>}
 
       {scenarios.length === 0 ? (
         <EmptyState eyebrow="Dilution Planner"

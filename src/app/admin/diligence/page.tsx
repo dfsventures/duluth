@@ -21,6 +21,7 @@ import { DD_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import DiligenceAnswers from "@/components/admin/diligence-answers";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // Part 16, WS41 (Q54, JC-DD-G) — admin DD review queue. Its own page,
 // not a third section on /admin/approvals: this reviews Company/
@@ -49,7 +50,7 @@ export default function AdminDiligencePage() {
   const [items, setItems] = useState<DiligenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [confirmDeclineId, setConfirmDeclineId] = useState<string | null>(null);
+  const confirm = useConfirm();
   const [actionStates, setActionStates] = useState<
     Record<string, { loading: boolean; error?: string }>
   >({});
@@ -94,6 +95,18 @@ export default function AdminDiligencePage() {
     }
   }
 
+  async function askDecline(item: DiligenceItem) {
+    const ok = await confirm({
+      title: `Delete ${item.name}`,
+      description: `This deal didn't close. Deleting will permanently remove ${item.name}${
+        item.founder ? ` and ${item.founder.name ?? item.founder.email}'s account` : ""
+      } from Molly. This cannot be undone.`,
+      confirmLabel: "Delete company",
+      typeToConfirm: item.name,
+    });
+    if (ok) await handleDecline(item.id);
+  }
+
   async function handleDecline(id: string) {
     setActionStates((prev) => ({ ...prev, [id]: { loading: true } }));
     setNotice(null);
@@ -110,7 +123,6 @@ export default function AdminDiligencePage() {
         );
       }
       setItems((prev) => prev.filter((item) => item.id !== id));
-      setConfirmDeclineId(null);
     } catch (err) {
       setActionStates((prev) => ({
         ...prev,
@@ -146,7 +158,6 @@ export default function AdminDiligencePage() {
 
   function ItemCard({ item, ready }: { item: DiligenceItem; ready: boolean }) {
     const state = actionStates[item.id];
-    const confirming = confirmDeclineId === item.id;
 
     return (
       <Card>
@@ -214,43 +225,12 @@ export default function AdminDiligencePage() {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            {confirming ? (
-              <>
-                {/* Part 16, WS43 (Q57, corrected) — every company on this
-                    page is DILIGENCE-stage, and DELETE now really does
-                    remove the founder's account too (when they have no
-                    other company), so this copy states that plainly —
-                    unlike admin/companies/[id]'s generic delete confirm,
-                    which is untouched and still company-only. */}
-                <span className="max-w-xs text-sm text-muted-foreground">
-                  This deal didn&apos;t close. Deleting will permanently remove {item.name}
-                  {item.founder ? ` and ${item.founder.name ?? item.founder.email}'s account` : ""} from
-                  Molly — this cannot be undone.
-                </span>
+            <>
                 <Button
                   variant="destructive"
                   size="sm"
                   disabled={state?.loading}
-                  onClick={() => handleDecline(item.id)}
-                >
-                  {state?.loading ? "..." : "Confirm Delete"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={state?.loading}
-                  onClick={() => setConfirmDeclineId(null)}
-                >
-                  Cancel
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={state?.loading}
-                  onClick={() => setConfirmDeclineId(item.id)}
+                  onClick={() => askDecline(item)}
                 >
                   <XCircle className="mr-1 h-3.5 w-3.5" />
                   Decline
@@ -261,8 +241,7 @@ export default function AdminDiligencePage() {
                     {state?.loading ? "..." : "Promote"}
                   </Button>
                 )}
-              </>
-            )}
+            </>
           </div>
         </CardContent>
       </Card>
@@ -278,7 +257,7 @@ export default function AdminDiligencePage() {
 
       {notice && (
         <div className="mb-6 flex items-start gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-ochre" />
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-tone-amber-ink" />
           <span>{notice}</span>
         </div>
       )}

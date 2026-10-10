@@ -435,7 +435,7 @@ export default function AdminBroadcastEditorPage() {
                         className="h-4 w-4 rounded border-border accent-primary"
                       />
                       <span className="flex-1 min-w-0 text-sm font-medium">{c.name}</span>
-                      <span className={`shrink-0 text-xs ${c.contactCount === 0 ? "text-ochre" : "text-muted-foreground"}`}>
+                      <span className={`shrink-0 text-xs ${c.contactCount === 0 ? "text-tone-amber-ink" : "text-muted-foreground"}`}>
                         {c.contactCount} contact{c.contactCount === 1 ? "" : "s"}
                       </span>
                     </label>
@@ -511,7 +511,7 @@ export default function AdminBroadcastEditorPage() {
                       </td>
                       <td className="px-4 py-2.5">
                         <Badge variant={r.status === "SENT" ? "success" : r.status === "FAILED" ? "danger" : "warning"}>{r.status}</Badge>
-                        {r.error && <span className="ml-2 text-xs text-laterite">{r.error}</span>}
+                        {r.error && <span className="ml-2 text-xs text-tone-clay-ink">{r.error}</span>}
                       </td>
                       <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{r.sentAt ? formatDate(r.sentAt) : "—"}</td>
                     </TableRow>

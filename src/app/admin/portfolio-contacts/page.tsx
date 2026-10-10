@@ -269,7 +269,7 @@ function AdminPortfolioContactsPageInner() {
       {activeTab === "contacts" ? (
         <>
           {importResult && (
-            <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-acacia">
+            <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-tone-sage-ink">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="flex-1">
                 <span className="font-medium">Import complete.</span> {importResult.created} created, {importResult.updated} updated
@@ -278,7 +278,7 @@ function AdminPortfolioContactsPageInner() {
                   <p className="mt-1">Unmatched companies: {importResult.unmatchedCompanies.join(", ")}</p>
                 )}
                 {importResult.errors.length > 0 && (
-                  <ul className="mt-1 list-disc pl-4 text-laterite">
+                  <ul className="mt-1 list-disc pl-4 text-tone-clay-ink">
                     {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
                   </ul>
                 )}
@@ -289,7 +289,7 @@ function AdminPortfolioContactsPageInner() {
             </div>
           )}
           {importError && (
-            <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+            <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1">{importError}</span>
               <button onClick={() => setImportError(null)}>
@@ -358,7 +358,7 @@ function AdminPortfolioContactsPageInner() {
                             {c.name}
                           </Link>
                         </td>
-                        <td className={`px-4 py-2.5 text-sm ${c.contactCount === 0 ? "text-ochre" : "text-muted-foreground"}`}>
+                        <td className={`px-4 py-2.5 text-sm ${c.contactCount === 0 ? "text-tone-amber-ink" : "text-muted-foreground"}`}>
                           {c.contactCount}
                         </td>
                         <td className="px-4 py-2.5 text-sm">

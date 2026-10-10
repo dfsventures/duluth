@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
@@ -182,16 +183,21 @@ export default function SharePage() {
     <div className="min-h-screen bg-background">
       {/* Email gate modal */}
       {emailGate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/35 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-float">
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-primary-100">
-              <Mail className="h-5 w-5 text-primary-700" />
-            </div>
-            <h2 className="text-lg font-semibold">Enter your email to continue</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Your email helps the sender know who viewed this update.
-            </p>
-            <form onSubmit={handleEmailSubmit} className="mt-4 space-y-3">
+        <Dialog open>
+          <DialogContent
+            title="Enter your email to continue"
+            description="Your email helps the sender know who viewed this update."
+            size="sm"
+            hideClose
+            onEscapeKeyDown={(e) => e.preventDefault()}
+            onInteractOutside={(e) => e.preventDefault()}
+            onOpenAutoFocus={(e) => {
+              e.preventDefault();
+              document.getElementById("email")?.focus();
+            }}
+          >
+            <DialogBody>
+            <form onSubmit={handleEmailSubmit} className="space-y-3">
               <Input
                 id="email"
                 type="email"
@@ -205,8 +211,9 @@ export default function SharePage() {
                 {submittingEmail ? "..." : "View Update"}
               </Button>
             </form>
-          </div>
-        </div>
+            </DialogBody>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Page content */}

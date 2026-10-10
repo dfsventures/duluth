@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ModalDialog as Modal } from "@/components/ui/dialog";
 
 interface FundOption {
   id: string;
@@ -229,7 +230,7 @@ function AdminReportsPageInner() {
             </Select>
             <Input label="Title *" required value={newTitle} onChange={(e) => setNewTitle(e.target.value)} placeholder="e.g. FUND1 — H1 2026 Report" />
             <Input label="Period label" value={newPeriodLabel} onChange={(e) => setNewPeriodLabel(e.target.value)} placeholder="e.g. H1 2026" />
-            {saveError && <p className="text-sm text-laterite">{saveError}</p>}
+            {saveError && <p className="text-sm text-tone-clay-ink">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowNew(false)}>
                 Cancel
@@ -242,22 +243,5 @@ function AdminReportsPageInner() {
         </Modal>
       )}
     </AppShell>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
   );
 }

@@ -93,3 +93,28 @@ export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLD
     />
   );
 }
+
+/**
+ * Drop-in for the hand-built `Modal({ title, onClose, children })` that lived in a
+ * dozen pages: always open while mounted, closes via `onClose` (Escape, scrim,
+ * X). Use `<Dialog>` directly when the exit animation matters.
+ */
+export function ModalDialog({
+  title,
+  onClose,
+  size = "md",
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  size?: keyof typeof SIZES;
+  children: React.ReactNode;
+}) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent title={title} size={size}>
+        <DialogBody>{children}</DialogBody>
+      </DialogContent>
+    </Dialog>
+  );
+}

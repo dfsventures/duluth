@@ -24,6 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { ModalDialog as Modal } from "@/components/ui/dialog";
+import { ModalSheet } from "@/components/ui/sheet";
 
 interface Category {
   id: string;
@@ -298,7 +300,7 @@ export default function AdminProvidersPage() {
                 placeholder="e.g. Accounting & Tax"
               />
             </div>
-            {addCategoryError && <p className="text-sm text-laterite">{addCategoryError}</p>}
+            {addCategoryError && <p className="text-sm text-tone-clay-ink">{addCategoryError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowAddCategory(false)}>Cancel</Button>
               <Button type="submit" disabled={addingCategory}>{addingCategory ? "Adding..." : "Add Category"}</Button>
@@ -309,7 +311,7 @@ export default function AdminProvidersPage() {
 
       {/* Add / edit modal */}
       {editTarget && (
-        <Modal title={editTarget === "new" ? "Add Provider" : `Edit — ${(editTarget as Provider).name}`} onClose={() => setEditTarget(null)}>
+        <ModalSheet className="sm:max-w-[520px]" title={editTarget === "new" ? "Add Provider" : `Edit — ${(editTarget as Provider).name}`} onClose={() => setEditTarget(null)}>
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Name *">
@@ -375,7 +377,7 @@ export default function AdminProvidersPage() {
               </Select>
             </Field>
 
-            {saveError && <p className="text-sm text-laterite">{saveError}</p>}
+            {saveError && <p className="text-sm text-tone-clay-ink">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setEditTarget(null)}>Cancel</Button>
               <Button type="submit" disabled={saving}>
@@ -383,7 +385,7 @@ export default function AdminProvidersPage() {
               </Button>
             </div>
           </form>
-        </Modal>
+        </ModalSheet>
       )}
     </AppShell>
   );
@@ -455,7 +457,7 @@ function ProviderRow({
           <button onClick={onEdit} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Edit">
             <Pencil className="h-4 w-4" />
           </button>
-          <button onClick={onDelete} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite transition-colors" title="Delete">
+          <button onClick={onDelete} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink transition-colors" title="Delete">
             <Trash2 className="h-4 w-4" />
           </button>
           {onApprove && (
@@ -465,7 +467,7 @@ function ProviderRow({
             </Button>
           )}
           {onReject && (
-            <Button size="sm" variant="secondary" onClick={onReject} disabled={loading} className="text-laterite border-laterite/30 hover:bg-laterite/10">
+            <Button size="sm" variant="secondary" onClick={onReject} disabled={loading} className="text-tone-clay-ink border-laterite/30 hover:bg-laterite/10">
               <XCircle className="h-3.5 w-3.5" />
               Reject
             </Button>
@@ -505,23 +507,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="label mb-1.5 block">{label}</label>
       {children}
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-obsidian/35" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-semibold text-foreground">{title}</h2>
-          <button onClick={onClose} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
     </div>
   );
 }

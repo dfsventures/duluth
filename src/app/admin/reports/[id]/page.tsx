@@ -297,7 +297,7 @@ export default function AdminReportEditorPage() {
           {/* Part 10, WS27.6 (Q27) — absent entirely when sync is disabled. */}
           {syncEnabled && (
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-ochre/20 pb-2">
-              <span className={`text-sm ${daysSinceSync(lastSyncedAt) === null || daysSinceSync(lastSyncedAt)! > 7 ? "text-ochre font-medium" : "text-muted-foreground"}`}>
+              <span className={`text-sm ${daysSinceSync(lastSyncedAt) === null || daysSinceSync(lastSyncedAt)! > 7 ? "text-tone-amber-ink font-medium" : "text-muted-foreground"}`}>
                 Portfolio data last synced{" "}
                 {lastSyncedAt ? `${formatSyncDate(lastSyncedAt)} (${daysSinceSync(lastSyncedAt)} day${daysSinceSync(lastSyncedAt) === 1 ? "" : "s"} ago)` : "never"}
               </span>
@@ -387,7 +387,7 @@ export default function AdminReportEditorPage() {
                   ) : (
                     <span
                       key={mid}
-                      className="rounded-sm border border-laterite/30 bg-laterite/10 px-2 py-0.5 font-mono text-xs text-laterite"
+                      className="rounded-sm border border-laterite/30 bg-laterite/10 px-2 py-0.5 font-mono text-xs text-tone-clay-ink"
                     >
                       unknown company — remove this mention from the text
                     </span>

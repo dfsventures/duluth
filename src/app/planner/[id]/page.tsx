@@ -655,8 +655,8 @@ export default function ScenarioEditorPage() {
                     className={cn(
                       "flex items-start gap-2 rounded-md border px-4 py-3 text-sm",
                       issue.level === "error"
-                        ? "border-laterite/30 bg-laterite/10 text-laterite"
-                        : "border-ochre/30 bg-ochre/10 text-ochre"
+                        ? "border-laterite/30 bg-laterite/10 text-tone-clay-ink"
+                        : "border-ochre/30 bg-ochre/10 text-tone-amber-ink"
                     )}
                   >
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />

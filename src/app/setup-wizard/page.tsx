@@ -268,7 +268,7 @@ export default function SetupWizardPage() {
       </div>
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
           <AlertCircle className="h-4 w-4" />
           {error}
         </div>
@@ -422,7 +422,7 @@ export default function SetupWizardPage() {
             {uploadErrors.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {uploadErrors.map((e, i) => (
-                  <li key={`${e.name}-${i}`} className="flex items-start gap-1.5 text-sm text-laterite">
+                  <li key={`${e.name}-${i}`} className="flex items-start gap-1.5 text-sm text-tone-clay-ink">
                     <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>
                       <span className="font-medium">{e.name}</span> — {e.message}
@@ -436,7 +436,7 @@ export default function SetupWizardPage() {
               <ul className="mt-3 space-y-1 text-sm text-muted-foreground">
                 {uploadedFileNames.map((name, i) => (
                   <li key={`${name}-${i}`} className="flex items-center gap-1.5">
-                    <Check className="h-3.5 w-3.5 text-acacia" />
+                    <Check className="h-3.5 w-3.5 text-tone-sage-ink" />
                     {name}
                   </li>
                 ))}

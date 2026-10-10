@@ -273,7 +273,7 @@ function DataTableInner<T>({
   if (error) {
     return (
       <div role="alert" className="flex flex-col items-center justify-center border border-border bg-card py-12 text-center">
-        <AlertCircle aria-hidden="true" className="mb-2 h-7 w-7 text-laterite" />
+        <AlertCircle aria-hidden="true" className="mb-2 h-7 w-7 text-tone-clay-ink" />
         <p className="text-sm text-foreground">{error}</p>
         {onRetry && (
           <Button variant="secondary" size="sm" className="mt-4" onClick={onRetry}>

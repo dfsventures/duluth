@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { ignoreToastInteraction } from "@/lib/toast-guard";
-import { X } from "lucide-react";
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import type { BoardCardData, BoardPersonData, BoardProjectData } from "./types";
@@ -63,20 +61,11 @@ export function ResolveDialog({ card, people, projects, onClose, onApplied, onRe
   }
 
   return (
-    <Dialog.Root open onOpenChange={(o) => !o && (fixed !== null ? onResolved() : onClose())}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-obsidian/35" />
-        <Dialog.Content onInteractOutside={ignoreToastInteraction} className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm border border-border bg-card shadow-float">
-          <div className="flex items-center justify-between border-b border-border px-6 py-4">
-            <Dialog.Title className="font-semibold text-foreground">Resolve names</Dialog.Title>
-            <Dialog.Close className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Close">
-              <X className="h-4 w-4" />
-            </Dialog.Close>
-          </div>
-          <Dialog.Description className="sr-only">Match unrecognised names to the board</Dialog.Description>
+    <Dialog open onOpenChange={(o) => !o && (fixed !== null ? onResolved() : onClose())}>
+      <DialogContent title="Resolve names" description="Match unrecognised names to the board" size="sm">
           {fixed === null ? (
             <>
-              <div className="space-y-4 px-6 py-5">
+              <DialogBody className="space-y-4">
                 <p className="text-sm text-foreground break-words">{card.title}</p>
                 {rawOwner && (
                   <Select
@@ -119,29 +108,28 @@ export function ResolveDialog({ card, people, projects, onClose, onApplied, onRe
                   />
                   Remember {[rawOwner, rawProject].filter(Boolean).map((s) => `'${s}'`).join(" and ")} next time
                 </label>
-                {error && <p className="text-xs text-laterite">{error}</p>}
-              </div>
-              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+                {error && <p className="text-xs text-tone-clay-ink">{error}</p>}
+              </DialogBody>
+              <DialogFooter>
                 <Button variant="secondary" onClick={onClose} disabled={busy}>
                   Cancel
                 </Button>
                 <Button onClick={submit} disabled={busy || !ready}>
                   {busy ? "Saving..." : "Resolve"}
                 </Button>
-              </div>
+              </DialogFooter>
             </>
           ) : (
             <>
-              <div className="px-6 py-5 text-sm text-foreground">
+              <DialogBody className="text-sm text-foreground">
                 Resolved.{fixed > 0 && ` Also fixed ${fixed} other item${fixed === 1 ? "" : "s"}.`}
-              </div>
-              <div className="flex justify-end border-t border-border px-6 py-4">
+              </DialogBody>
+              <DialogFooter>
                 <Button onClick={onResolved}>Done</Button>
-              </div>
+              </DialogFooter>
             </>
           )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+      </DialogContent>
+    </Dialog>
   );
 }

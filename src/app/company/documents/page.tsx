@@ -193,7 +193,7 @@ export default function CompanyDocumentsPage() {
           {failedUploads.map((f) => (
             <div
               key={f.key}
-              className="flex flex-wrap items-center gap-3 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite"
+              className="flex flex-wrap items-center gap-3 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink"
             >
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1">

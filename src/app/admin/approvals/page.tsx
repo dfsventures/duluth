@@ -500,7 +500,7 @@ export default function ApprovalsPage() {
                                 {topReasonCopy}.
                               </p>
                               {selected.alreadyLinked && (
-                                <p className="mt-1 text-xs text-laterite">
+                                <p className="mt-1 text-xs text-tone-clay-ink">
                                   Already linked to another company — pick a different match, or just Approve.
                                 </p>
                               )}
@@ -586,13 +586,13 @@ export default function ApprovalsPage() {
                       <div className="flex items-center gap-2 text-sm">
                         {state?.result === "approved" ? (
                           <>
-                            <CheckCircle2 className="h-4 w-4 text-acacia" />
-                            <span className="text-acacia">Approved</span>
+                            <CheckCircle2 className="h-4 w-4 text-tone-sage-ink" />
+                            <span className="text-tone-sage-ink">Approved</span>
                           </>
                         ) : (
                           <>
-                            <XCircle className="h-4 w-4 text-laterite" />
-                            <span className="text-laterite">Rejected</span>
+                            <XCircle className="h-4 w-4 text-tone-clay-ink" />
+                            <span className="text-tone-clay-ink">Rejected</span>
                           </>
                         )}
                       </div>
@@ -753,7 +753,7 @@ export default function ApprovalsPage() {
                             variant="ghost"
                             size="sm"
                             loading={deleteStates[u.id]?.loading}
-                            className="hover:text-laterite"
+                            className="hover:text-tone-clay-ink"
                             onClick={() => requestDelete(u)}
                           >
                             <Trash2 className="h-3.5 w-3.5" />

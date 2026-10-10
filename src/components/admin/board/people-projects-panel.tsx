@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import { ignoreToastInteraction } from "@/lib/toast-guard";
 import { X } from "lucide-react";
+import { Dialog, DialogBody, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -130,7 +129,7 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
 
   return (
     <div className="space-y-8">
-      {error && <p className="text-xs text-laterite">{error}</p>}
+      {error && <p className="text-xs text-tone-clay-ink">{error}</p>}
 
       <div className="grid gap-8 md:grid-cols-2">
         <section>
@@ -260,39 +259,30 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
       </div>
 
       {deleting && (
-        <Dialog.Root open onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
-          <Dialog.Portal>
-            <Dialog.Overlay className="fixed inset-0 z-50 bg-obsidian/35" />
-            <Dialog.Content onInteractOutside={ignoreToastInteraction} className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm border border-border bg-card shadow-float">
-              <div className="flex items-center justify-between border-b border-border px-6 py-4">
-                <Dialog.Title className="break-words font-semibold text-foreground">Delete {deleting.name}?</Dialog.Title>
-                <Dialog.Close className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Close">
-                  <X className="h-4 w-4" />
-                </Dialog.Close>
-              </div>
-              <Dialog.Description className="space-y-2 px-6 py-5 text-sm text-foreground">
-                <span className="block">
-                  {deleting.cards === 0
-                    ? "No cards use this " + (deleting.kind === "person" ? "person" : "project") + "."
-                    : `${deleting.cards} card${deleting.cards === 1 ? "" : "s"} will become ${
-                        deleting.kind === "person" ? "unassigned" : "unassigned from this project"
-                      }.`}
-                </span>
-                <span className="block">
-                  Saved name corrections for {deleting.name} will be removed. This can&apos;t be undone.
-                </span>
-              </Dialog.Description>
-              <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
-                <Button variant="secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
-                  Cancel
-                </Button>
-                <Button variant="destructive" onClick={confirmDelete} disabled={deleteBusy}>
-                  {deleteBusy ? "Deleting..." : "Delete"}
-                </Button>
-              </div>
-            </Dialog.Content>
-          </Dialog.Portal>
-        </Dialog.Root>
+        <Dialog open onOpenChange={(o) => !o && !deleteBusy && setDeleting(null)}>
+          <DialogContent title={`Delete ${deleting.name}?`} size="sm">
+            <DialogBody className="space-y-2 text-sm text-foreground">
+              <span className="block">
+                {deleting.cards === 0
+                  ? "No cards use this " + (deleting.kind === "person" ? "person" : "project") + "."
+                  : `${deleting.cards} card${deleting.cards === 1 ? "" : "s"} will become ${
+                      deleting.kind === "person" ? "unassigned" : "unassigned from this project"
+                    }.`}
+              </span>
+              <span className="block">
+                Saved name corrections for {deleting.name} will be removed. This can&apos;t be undone.
+              </span>
+            </DialogBody>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setDeleting(null)} disabled={deleteBusy}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete} disabled={deleteBusy}>
+                {deleteBusy ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

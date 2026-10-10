@@ -209,7 +209,7 @@ export function FundMetricsSyncPanel() {
                       signal an admin gets of a real divergence. Mandatory
                       on the collapsed row, never buried in a disclosure. */}
                   {s && (
-                    <p className={`text-xs ${s.crosscheck.sheetOnlyIds.length + s.crosscheck.mollyOnlyIds.length > 0 ? "text-ochre" : "text-muted-foreground"}`}>
+                    <p className={`text-xs ${s.crosscheck.sheetOnlyIds.length + s.crosscheck.mollyOnlyIds.length > 0 ? "text-tone-amber-ink" : "text-muted-foreground"}`}>
                       {crosscheckLine(s.crosscheck)}
                       {s.crosscheck.duplicateSheetIds.length > 0 && ` ${s.crosscheck.duplicateSheetIds.length} duplicate ID(s) in the sheet.`}
                     </p>
@@ -217,7 +217,7 @@ export function FundMetricsSyncPanel() {
                 </button>
                 {isExpanded && s && (
                   <div className="border-t border-border p-3 text-xs">
-                    {r.error && <p className="text-laterite">{r.error}</p>}
+                    {r.error && <p className="text-tone-clay-ink">{r.error}</p>}
 
                     {s.diff && s.diff.updates.length > 0 && (
                       <div className="mb-3">
@@ -239,21 +239,21 @@ export function FundMetricsSyncPanel() {
                       </p>
                     )}
                     {s.errors.missingRows.length > 0 && (
-                      <p className="mb-1 text-ochre">Metric row(s) not found in the sheet: {s.errors.missingRows.join(", ")}</p>
+                      <p className="mb-1 text-tone-amber-ink">Metric row(s) not found in the sheet: {s.errors.missingRows.join(", ")}</p>
                     )}
                     {s.errors.badCells.length > 0 && (
-                      <p className="mb-1 text-ochre">
+                      <p className="mb-1 text-tone-amber-ink">
                         Unparseable cells: {s.errors.badCells.map((b) => `${b.fundSlug} ${b.metric}`).join(", ")}
                       </p>
                     )}
                     {s.crosscheck.sheetOnlyIds.length > 0 && (
-                      <p className="mb-1 text-ochre">In the sheet, not in Molly: {s.crosscheck.sheetOnlyIds.join(", ")}</p>
+                      <p className="mb-1 text-tone-amber-ink">In the sheet, not in Molly: {s.crosscheck.sheetOnlyIds.join(", ")}</p>
                     )}
                     {s.crosscheck.mollyOnlyIds.length > 0 && (
-                      <p className="mb-1 text-ochre">In Molly, not in the sheet: {s.crosscheck.mollyOnlyIds.join(", ")}</p>
+                      <p className="mb-1 text-tone-amber-ink">In Molly, not in the sheet: {s.crosscheck.mollyOnlyIds.join(", ")}</p>
                     )}
                     {s.crosscheck.duplicateSheetIds.length > 0 && (
-                      <p className="mb-1 text-ochre">Duplicate IDs in the sheet: {s.crosscheck.duplicateSheetIds.join(", ")}</p>
+                      <p className="mb-1 text-tone-amber-ink">Duplicate IDs in the sheet: {s.crosscheck.duplicateSheetIds.join(", ")}</p>
                     )}
                   </div>
                 )}

@@ -18,6 +18,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
+import { ModalDialog } from "@/components/ui/dialog";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
 
@@ -429,7 +430,7 @@ export default function AdminPortfolioCompanyPage() {
                   <button
                     type="button"
                     onClick={() => setShowUnlinkConfirm(true)}
-                    className="text-laterite hover:underline"
+                    className="text-tone-clay-ink hover:underline"
                   >
                     Unlink
                   </button>
@@ -468,7 +469,7 @@ export default function AdminPortfolioCompanyPage() {
         </h3>
 
         {importResult && (
-          <div className="mb-3 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-acacia">
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-tone-sage-ink">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="flex-1">
               <span className="font-medium">Import complete.</span> {importResult.created} created, {importResult.updated} updated
@@ -477,7 +478,7 @@ export default function AdminPortfolioCompanyPage() {
                 <p className="mt-1">Unmatched companies: {importResult.unmatchedCompanies.join(", ")}</p>
               )}
               {importResult.errors.length > 0 && (
-                <ul className="mt-1 list-disc pl-4 text-laterite">
+                <ul className="mt-1 list-disc pl-4 text-tone-clay-ink">
                   {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
                 </ul>
               )}
@@ -488,7 +489,7 @@ export default function AdminPortfolioCompanyPage() {
           </div>
         )}
         {importError && (
-          <div className="mb-3 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-laterite">
+          <div className="mb-3 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span className="flex-1">{importError}</span>
             <button onClick={() => setImportError(null)}>
@@ -512,7 +513,7 @@ export default function AdminPortfolioCompanyPage() {
                   <button onClick={() => startEditContact(c)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => handleDeleteContact(c.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-laterite" title="Remove">
+                  <button onClick={() => handleDeleteContact(c.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Remove">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -574,7 +575,7 @@ export default function AdminPortfolioCompanyPage() {
               }}
             />
           </div>
-          {contactError && <p className="mt-2 text-xs text-laterite">{contactError}</p>}
+          {contactError && <p className="mt-2 text-xs text-tone-clay-ink">{contactError}</p>}
           <p className="mt-2 text-xs text-muted-foreground">
             CSV columns: <code className="rounded bg-muted px-1">name</code>,{" "}
             <code className="rounded bg-muted px-1">email</code>, optional{" "}
@@ -726,7 +727,7 @@ export default function AdminPortfolioCompanyPage() {
                   <button onClick={() => openEditRound(r)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => handleDeleteRound(r.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete">
+                  <button onClick={() => handleDeleteRound(r.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Delete">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -754,7 +755,7 @@ export default function AdminPortfolioCompanyPage() {
                   {m.source === "BACKFILL" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">backfilled</span>}
                   {m.source === "SHEET" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">from sheet</span>}
                 </div>
-                <button onClick={() => handleDeleteMark(m.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-laterite" title="Delete (history only)">
+                <button onClick={() => handleDeleteMark(m.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Delete (history only)">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -787,21 +788,13 @@ export default function AdminPortfolioCompanyPage() {
               {savingMark ? "Recording..." : "Record mark"}
             </Button>
           </div>
-          {markError && <p className="mt-2 text-xs text-laterite">{markError}</p>}
+          {markError && <p className="mt-2 text-xs text-tone-clay-ink">{markError}</p>}
         </form>
       </div>
 
       {showRoundModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-obsidian/35" onClick={() => setShowRoundModal(false)} />
-          <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-border px-6 py-4">
-              <h2 className="font-semibold text-foreground">{editingRound ? "Edit Round" : "New Round"}</h2>
-              <button onClick={() => setShowRoundModal(false)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <form onSubmit={handleSaveRound} className="space-y-3 px-6 py-5">
+        <ModalDialog title={editingRound ? "Edit Round" : "New Round"} onClose={() => setShowRoundModal(false)}>
+            <form onSubmit={handleSaveRound} className="space-y-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <Input label="Label" value={roundForm.label} onChange={(e) => setRoundForm({ ...roundForm, label: e.target.value })} placeholder="Seed, Series A, SAFE (2024)..." />
                 <Select id="roundKind" label="Kind" value={roundForm.kind} onChange={(e) => setRoundForm({ ...roundForm, kind: e.target.value })}>
@@ -819,7 +812,7 @@ export default function AdminPortfolioCompanyPage() {
                 <Input label="Post-money (USD)" type="number" value={roundForm.postMoneyUsd} onChange={(e) => setRoundForm({ ...roundForm, postMoneyUsd: e.target.value })} />
               </div>
               <Input label="Notes" value={roundForm.notes} onChange={(e) => setRoundForm({ ...roundForm, notes: e.target.value })} />
-              {roundError && <p className="text-xs text-laterite">{roundError}</p>}
+              {roundError && <p className="text-xs text-tone-clay-ink">{roundError}</p>}
               <div className="flex justify-end gap-2 pt-2">
                 <Button type="button" variant="secondary" size="sm" onClick={() => setShowRoundModal(false)} disabled={savingRound}>
                   Cancel
@@ -829,8 +822,7 @@ export default function AdminPortfolioCompanyPage() {
                 </Button>
               </div>
             </form>
-          </div>
-        </div>
+        </ModalDialog>
       )}
 
       {showLinkModal && (

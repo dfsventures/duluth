@@ -86,7 +86,7 @@ export function LpLoginForm() {
           placeholder="000000"
           className="w-full border border-bone bg-white px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-obsidian placeholder:text-muted-foreground focus:border-sky focus:outline-none"
         />
-        {error && <p className="mt-2 text-sm text-laterite">{error}</p>}
+        {error && <p className="mt-2 text-sm text-tone-clay-ink">{error}</p>}
         <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">
           {loading ? "Verifying…" : "Verify and continue"}
         </Button>
@@ -121,7 +121,7 @@ export function LpLoginForm() {
         placeholder="you@example.com"
         className="w-full border border-bone bg-white px-4 py-3 text-sm text-obsidian placeholder:text-muted-foreground focus:border-sky focus:outline-none"
       />
-      {error && <p className="mt-2 text-sm text-laterite">{error}</p>}
+      {error && <p className="mt-2 text-sm text-tone-clay-ink">{error}</p>}
       <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">
         {loading ? "Sending…" : "Send access code"}
       </Button>

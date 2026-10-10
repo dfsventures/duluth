@@ -17,9 +17,9 @@ import { EmailsSentList } from "./emails-sent-list";
 
 function Status({ on }: { on: boolean }) {
   return on ? (
-    <span className="text-acacia font-medium">Configured</span>
+    <span className="text-tone-sage-ink font-medium">Configured</span>
   ) : (
-    <span className="text-ochre font-medium">Not set</span>
+    <span className="text-tone-amber-ink font-medium">Not set</span>
   );
 }
 
