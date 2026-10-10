@@ -183,7 +183,7 @@ select:not([multiple]):not([size]):disabled {
   }
 
   .btn-primary {
-    @apply btn-base bg-primary text-primary-foreground hover:bg-primary-hover px-6 py-3 font-mono text-label font-semibold uppercase tracking-label;
+    @apply btn-base bg-primary text-primary-foreground hover:bg-primary-hover px-6 py-3 font-mono text-cta font-semibold uppercase tracking-cta;
   }
 
   .btn-secondary {

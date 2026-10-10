@@ -68,7 +68,7 @@ export default async function HomePage() {
 
         <Link
           href="/signup"
-          className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-mono text-xs font-semibold uppercase tracking-widest text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
+          className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-mono text-cta font-semibold uppercase tracking-cta text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
         >
           Apply for Access
         </Link>

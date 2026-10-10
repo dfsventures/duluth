@@ -32,7 +32,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           // Hierarchy (decision 9): ONLY the primary button is mono caps.
           "relative inline-flex items-center justify-center gap-2 rounded-sm transition-[color,background-color,border-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:translate-y-px disabled:pointer-events-none disabled:opacity-50",
           variant === "primary"
-            ? "font-mono text-label font-semibold uppercase tracking-label"
+            ? "font-mono text-cta font-semibold uppercase tracking-cta"
             : "font-sans text-[13px] font-medium",
           {
             "bg-primary text-primary-foreground hover:bg-primary-hover": variant === "primary",

@@ -95,11 +95,14 @@ const config: Config = {
         body: ["14px", { lineHeight: "22px" }],
         "body-sm": ["13px", { lineHeight: "20px" }],
         label: ["11px", { lineHeight: "16px" }],
+        // Primary CTA text: smaller and tighter than label, since mono caps read large.
+        cta: ["10px", { lineHeight: "14px" }],
         caption: ["12px", { lineHeight: "16px" }],
       },
 
       letterSpacing: {
         label: "0.08em",
+        cta: "0.06em",
       },
 
       boxShadow: {
