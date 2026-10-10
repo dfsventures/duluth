@@ -41,14 +41,63 @@
   /* Destructive — Laterite, deepened for weight */
   --color-destructive-rgb: 143 74 48;
   --color-destructive-foreground: #FFFFFF;
+
+  /* ── UI overhaul phase 1 (docs/design/app-ui-overhaul.md, Direction A+) ──
+     Surface tiers. Depth comes from tone, not shadow. */
+  --color-well: #E6E3D8;        /* container wells (board columns, grouped inputs). Spec said #E2DFD4;
+                                   muted text on that only reaches 4.45:1, so it is one step lighter (4.62:1). */
+  --color-row-hover: #F6F4EE;   /* table row hover on white */
+  --color-row-divider: #EFEDE5; /* lighter intra-table dividers */
+  --color-wash: rgb(91 141 197 / 0.10); /* selected row, drop target, "just changed" */
+  --color-attention: #C9963A;   /* Ochre: border and marker ONLY, never text */
+  --color-attention-bg: rgb(201 150 58 / 0.10);
+
+  /* Tinted status / stage / column pairs (spec 11.1): soft fill + deep ink.
+     Tinted fills with deep ink carry all coloured text; solid brand hues are for
+     dots, markers and chart series. Every pair is >= 4.5:1 (guarded by
+     src/lib/__tests__/design-tokens.test.ts, which also checks these values match
+     src/lib/status-tone.ts). */
+  --tone-stone-fill: #E7E4DA; --tone-stone-ink: #46443C; /* neutral, To do */
+  --tone-sky-fill:   #DCE7F3; --tone-sky-ink:   #2C4459; /* informational, In progress, Seed */
+  --tone-sage-fill:  #E3E8D0; --tone-sage-ink:  #4A5524; /* current, Done, Series A */
+  --tone-clay-fill:  #F4E0D6; --tone-clay-ink:  #8F4A30; /* behind, Blocked, overdue */
+  --tone-sand-fill:  #F1E4C8; --tone-sand-ink:  #6B4A0E; /* Pre-seed, warm accent */
+  --tone-amber-fill: #F8EBC9; --tone-amber-ink: #6B4A0E; /* aging, attention strips */
+
+  /* Elevation: flat by default; ONE soft shadow for floating layers only
+     (dialogs, menus, toasts, palette). Tinted Obsidian, not black. */
+  --shadow-float: 0 12px 32px -12px rgb(20 20 15 / 0.28), 0 0 0 1px var(--color-border);
+  --scrim: rgb(20 20 15 / 0.35);
+
+  /* Motion tokens (spec 5.6) */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --dur-fast: 120ms;  /* hover, press, focus */
+  --dur-base: 200ms;  /* appear/disappear, toasts, popovers */
+  --dur-slow: 280ms;  /* sheets, panel slides, list reflow */
 }
 
 /* ── Base ─────────────────────────────────────────────────── */
 @layer base {
   * {
     border-color: theme("colors.border");
-    transition-duration: 180ms;
-    transition-timing-function: ease;
+  }
+
+  /* Scoped motion (spec 5.6, replaces the old global `* { transition: 180ms }`).
+     Only interactive elements, only properties that carry meaning, never `all`
+     and never layout properties. Tailwind transition utilities still override. */
+  a,
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  input,
+  select,
+  textarea,
+  summary {
+    transition-property: color, background-color, border-color, opacity, transform, box-shadow;
+    transition-duration: var(--dur-fast);
+    transition-timing-function: var(--ease-out);
   }
 
   html {
@@ -60,6 +109,14 @@
     color: var(--color-text-primary);
     background: var(--color-bg);
     font-family: var(--font-sans), system-ui, sans-serif;
+    /* Numbers are first-class (spec principle 6): this is a finance product, so
+       every figure uses tabular digits. Prose opts back out below. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  .prose,
+  .report-body {
+    font-variant-numeric: normal;
   }
 
   :focus-visible {
@@ -119,21 +176,22 @@ select:not([multiple]):not([size]):disabled {
     background-attachment: local;
   }
 
-  /* Buttons */
+  /* Buttons. Only the PRIMARY button is mono caps (decision 9); secondary and
+     destructive are sentence-case Plex so a view has exactly one loud action. */
   .btn-base {
-    @apply inline-flex items-center justify-center gap-2 rounded-sm font-mono text-xs font-semibold uppercase tracking-widest transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-sm transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50;
   }
 
   .btn-primary {
-    @apply btn-base bg-primary text-primary-foreground hover:bg-primary-hover px-6 py-3;
+    @apply btn-base bg-primary text-primary-foreground hover:bg-primary-hover px-6 py-3 font-mono text-label font-semibold uppercase tracking-label;
   }
 
   .btn-secondary {
-    @apply btn-base border border-border bg-transparent text-foreground hover:border-[var(--color-border-hover)] hover:bg-muted px-6 py-3;
+    @apply btn-base border border-border bg-transparent text-foreground hover:border-[var(--color-border-hover)] hover:bg-muted px-6 py-3 font-sans text-[13px] font-medium;
   }
 
   .btn-destructive {
-    @apply btn-base bg-destructive text-destructive-foreground hover:bg-destructive/90 px-6 py-3;
+    @apply btn-base bg-destructive text-destructive-foreground hover:bg-destructive/90 px-6 py-3 font-sans text-[13px] font-semibold;
   }
 
   /* Inputs */
@@ -143,37 +201,65 @@ select:not([multiple]):not([size]):disabled {
 
   /* Label */
   .label {
-    @apply text-xs font-semibold uppercase tracking-widest text-muted-foreground font-mono;
+    @apply text-label font-semibold uppercase tracking-label text-muted-foreground font-mono;
   }
 
-  /* Card */
+  /* Card. Admin stays square; founder- and LP-facing surfaces get a one-step
+     radius bump to 4px (Direction A+), keyed off data-surface on the shell. */
   .card {
     @apply rounded-md border border-border bg-card text-card-foreground p-6;
   }
 
-  /* Badges / tags */
+  [data-surface="founder"] .card {
+    border-radius: 4px;
+  }
+
+  /* Badges / tags: tinted fill + deep ink pairs (spec 11.1), square corners.
+     Replaces the old coloured-text-on-10%-tint badges, whose text failed AA
+     (ochre 2.2:1, acacia 3.8:1, laterite 4.1:1 on Paper). */
   .badge {
-    @apply inline-flex items-center gap-1 rounded-sm border px-3 py-0.5 font-mono text-xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-sm px-2 py-0.5 font-mono text-xs font-medium;
   }
 
   .badge-success {
-    @apply badge border-acacia/30 bg-acacia/10 text-acacia;
+    @apply badge;
+    background: var(--tone-sage-fill);
+    color: var(--tone-sage-ink);
   }
 
   .badge-warning {
-    @apply badge border-ochre/30 bg-ochre/10 text-ochre;
+    @apply badge;
+    background: var(--tone-amber-fill);
+    color: var(--tone-amber-ink);
   }
 
   .badge-danger {
-    @apply badge border-laterite/30 bg-laterite/10 text-laterite;
+    @apply badge;
+    background: var(--tone-clay-fill);
+    color: var(--tone-clay-ink);
   }
 
   .badge-info {
-    @apply badge bg-primary-50 border-primary/20 text-primary-600;
+    @apply badge;
+    background: var(--tone-sky-fill);
+    color: var(--tone-sky-ink);
   }
 
   .badge-neutral {
-    @apply badge bg-muted/50 border-border text-muted-foreground;
+    @apply badge;
+    background: var(--tone-stone-fill);
+    color: var(--tone-stone-ink);
+  }
+
+  /* Numeric column / figure: right-aligned, tabular. */
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Floating layers only. */
+  .float-layer {
+    box-shadow: var(--shadow-float);
   }
 
   /* Fund-report portfolio-company mentions (Part 7, WS17/WS18) — styles the
@@ -224,5 +310,25 @@ select:not([multiple]):not([size]):disabled {
   .lp-print-scope .report-body .portco-mention {
     text-decoration: none !important;
     color: inherit !important;
+  }
+}
+
+/* ── Reduced motion ──────────────────────────────────────────
+   Durations to ~0 for everything (transitions, entrance animations, skeleton
+   pulse). Unlayered and !important so it beats Tailwind utilities. The spinner
+   keeps turning, slowly, because a frozen spinner reads as a hung page. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-spin {
+    animation-duration: 1.6s !important;
+    animation-iteration-count: infinite !important;
   }
 }

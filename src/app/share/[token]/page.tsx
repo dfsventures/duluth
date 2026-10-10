@@ -181,8 +181,8 @@ export default function SharePage() {
     <div className="min-h-screen bg-background">
       {/* Email gate modal */}
       {emailGate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/35 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border bg-card p-6 shadow-float">
             <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-primary-100">
               <Mail className="h-5 w-5 text-primary-700" />
             </div>

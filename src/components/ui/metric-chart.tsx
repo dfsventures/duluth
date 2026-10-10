@@ -64,7 +64,7 @@ export function MetricChart({ name, unit, values }: MetricChartProps) {
           labelFormatter={(label) => (typeof label === "string" ? formatTooltipDate(label) : String(label))}
           contentStyle={{
             fontSize: 12,
-            borderRadius: "6px",
+            borderRadius: "4px",
             border: "1px solid var(--color-border)",
             background: "var(--color-surface)",
             color: "var(--color-text-primary)",

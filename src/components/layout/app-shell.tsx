@@ -2,19 +2,22 @@
 
 import { useState } from "react";
 import { Menu } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "./sidebar";
 import { LogoMark } from "@/components/ui/logo-mark";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Direction A+: admin stays square, founder-facing surfaces get a 4px card radius.
+  const surface = usePathname()?.startsWith("/admin") ? "admin" : "founder";
 
   return (
     // h-dvh, not h-screen — see the note in sidebar.tsx
-    <div className="flex h-dvh overflow-hidden">
+    <div className="flex h-dvh overflow-hidden" data-surface={surface}>
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          className="fixed inset-0 z-30 bg-obsidian/35 md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

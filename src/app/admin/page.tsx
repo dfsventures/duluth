@@ -332,7 +332,7 @@ export default function AdminDashboardPage() {
                       color: "var(--color-text-primary)",
                     }}
                   />
-                  <Bar dataKey="count" fill="var(--color-accent)" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="count" fill="var(--color-accent)" radius={0} />
                 </BarChart>
               </ResponsiveContainer>
             )}

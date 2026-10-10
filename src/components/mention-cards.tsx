@@ -56,7 +56,7 @@ export function MentionCards({ mentions }: MentionCardsProps) {
       closeCard();
       card = document.createElement("div");
       card.className =
-        "fixed z-50 w-72 rounded-md border border-border bg-card p-4 text-sm shadow-lg";
+        "fixed z-50 w-72 rounded-md border border-border bg-card p-4 text-sm shadow-float";
       card.setAttribute("role", "dialog");
 
       const rect = span.getBoundingClientRect();

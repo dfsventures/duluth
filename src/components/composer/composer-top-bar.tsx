@@ -80,7 +80,7 @@ export function ComposerTopBar({
               <MoreHorizontal className="h-4 w-4" />
             </button>
             {overflowOpen && (
-              <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-border bg-card py-1 shadow-lg">
+              <div className="absolute right-0 z-20 mt-1 w-48 rounded-md border border-border bg-card py-1 shadow-float">
                 {overflowItems.map((item) => (
                   <button
                     key={item.label}

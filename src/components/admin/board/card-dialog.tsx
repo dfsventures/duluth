@@ -124,8 +124,8 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
   return (
     <Dialog.Root open onOpenChange={(o) => !o && onClose()}>
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm border border-border bg-card shadow-xl">
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-obsidian/35" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[90dvh] w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-sm border border-border bg-card shadow-float">
           <div className="flex items-center justify-between border-b border-border px-6 py-4">
             <Dialog.Title className="font-semibold text-foreground">
               {card ? "Edit item" : "Add item"}

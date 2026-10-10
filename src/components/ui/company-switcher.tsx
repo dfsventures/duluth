@@ -32,7 +32,7 @@ export function CompanySwitcher() {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-3 right-3 z-20 mt-1 overflow-hidden rounded-sm border border-border bg-card shadow-md">
+          <div className="absolute left-3 right-3 z-20 mt-1 overflow-hidden rounded-sm border border-border bg-card shadow-float">
             {companies.map((c) => (
               <button
                 key={c.id}

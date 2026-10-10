@@ -19,7 +19,7 @@ export default async function LpLayout({ children }: { children: React.ReactNode
   const ctx = await getLp();
 
   return (
-    <div className="lp-print-scope flex min-h-screen flex-col bg-paper text-obsidian">
+    <div data-surface="founder" className="lp-print-scope flex min-h-screen flex-col bg-paper text-obsidian">
       <header className="flex items-center justify-between border-b border-bone px-6 py-5 print:hidden sm:px-10">
         <Link href="/lp" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -97,7 +97,7 @@ function createSuggestionRenderer() {
       selectedIndex = 0;
       command = props.command;
       el = document.createElement("div");
-      el.className = "z-50 max-h-56 w-56 overflow-y-auto rounded-md border border-border bg-card py-1 shadow-lg";
+      el.className = "z-50 max-h-56 w-56 overflow-y-auto rounded-md border border-border bg-card py-1 shadow-float";
       document.body.appendChild(el);
       positionAt(props.clientRect?.() ?? null);
       renderList();

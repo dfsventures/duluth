@@ -805,8 +805,8 @@ export default function AdminPortfolioCompanyPage() {
 
       {showRoundModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowRoundModal(false)} />
-          <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-xl max-h-[90vh] overflow-y-auto">
+          <div className="absolute inset-0 bg-obsidian/35" onClick={() => setShowRoundModal(false)} />
+          <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-card shadow-float max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border px-6 py-4">
               <h2 className="font-semibold text-foreground">{editingRound ? "Edit Round" : "New Round"}</h2>
               <button onClick={() => setShowRoundModal(false)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground">

@@ -1706,8 +1706,8 @@ function AdminCompanyDetailPageInner() {
 
           {/* History modal */}
           {historyNote && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-              <div className="flex w-full max-w-3xl flex-col rounded-xl bg-white shadow-xl" style={{ maxHeight: "90vh" }}>
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-obsidian/35 p-4">
+              <div className="flex w-full max-w-3xl flex-col rounded-xl bg-white shadow-float" style={{ maxHeight: "90vh" }}>
                 <div className="flex items-center justify-between border-b px-6 py-4">
                   <div>
                     <p className="font-semibold">{historyNote.title}</p>

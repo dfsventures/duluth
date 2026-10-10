@@ -170,7 +170,7 @@ export function SectorCombobox({ value, onChange, isAdmin, id, label }: SectorCo
 
         {/* Dropdown */}
         {open && !loading && (
-          <div className="absolute z-50 mt-1 w-full rounded-md border bg-white shadow-lg">
+          <div className="absolute z-50 mt-1 w-full rounded-md border bg-white shadow-float">
             <ul className="max-h-52 overflow-y-auto py-1">
               {/* Clear option */}
               {value && (
