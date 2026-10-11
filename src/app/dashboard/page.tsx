@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate, daysSince } from "@/lib/utils";
 import { nextFounderAction } from "@/lib/next-action";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { ORG_NAME } from "@/lib/org";
 
 interface Company {
   id: string;
@@ -42,6 +43,12 @@ interface Update {
   createdAt: string;
 }
 
+interface DfsMessage {
+  id: string;
+  subject: string;
+  publishedAt: string | null;
+}
+
 interface EngagementView {
   id: string;
   email: string;
@@ -62,6 +69,7 @@ export default function DashboardPage() {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [engagement, setEngagement] = useState<Engagement>({ totalViews: 0, recentViews: [] });
   const [diligence, setDiligence] = useState<DiligenceSummary | null>(null);
+  const [latestDfs, setLatestDfs] = useState<DfsMessage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +104,19 @@ export default function DashboardPage() {
           }
         } catch {
           // leave engagement at its zero default
+        }
+
+        // Latest DFS broadcast for this company — optional, never blocks the page.
+        try {
+          const dfsRes = await fetch(`/api/companies/${selectedCompany.id}/dfs-messages?limit=1`);
+          if (dfsRes.ok) {
+            const dfsData = await dfsRes.json();
+            setLatestDfs(dfsData.data?.[0] ?? null);
+          } else {
+            setLatestDfs(null);
+          }
+        } catch {
+          setLatestDfs(null);
         }
 
         // Part 16, WS40 (Q55) — non-blocking DD banner. Only fetched for
@@ -259,6 +280,29 @@ export default function DashboardPage() {
           </p>
         </div>
       </dl>
+
+      {/* Latest message from DFS: quiet, only when one exists */}
+      {latestDfs && (
+        <section aria-labelledby="from-dfs-heading" className="mb-10">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 id="from-dfs-heading" className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+              From {ORG_NAME}
+            </h2>
+            <Link href="/from-dfs" className="text-sm text-primary underline-offset-4 hover:underline">
+              All messages
+            </Link>
+          </div>
+          <Link
+            href={`/from-dfs/${latestDfs.id}`}
+            className="flex min-h-[56px] items-center justify-between gap-4 border border-border bg-card px-4 py-3 transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <span className="min-w-0 flex-1 truncate font-medium">{latestDfs.subject}</span>
+            {latestDfs.publishedAt && (
+              <span className="shrink-0 text-sm text-muted-foreground">{formatDate(latestDfs.publishedAt)}</span>
+            )}
+          </Link>
+        </section>
+      )}
 
       {/* Recent updates */}
       <section aria-labelledby="recent-updates-heading" className="mb-10">

@@ -43,6 +43,8 @@ import { openCommandPalette } from "./command-palette";
 const founderNav = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Updates", href: "/updates", icon: FileText },
+  // Read-only view of DFS broadcasts targeted at the selected company.
+  { label: "From DFS", href: "/from-dfs", icon: Megaphone },
   { label: "Metrics", href: "/company/metrics", icon: BarChart3 },
   // Part 29, WS68 (JC-CT-C) — sits with Metrics in the analytical/modeling
   // cluster, not the "manage your records" cluster below. Deliberately
