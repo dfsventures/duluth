@@ -210,13 +210,19 @@ export function RichEditor({
       {/* Toolbar — chromeless: borderless, slim, and persistent (always in the
           DOM, never a selection/bubble popup) but dims to a quiet baseline
           until the editor is focused, matching "slim persistent toolbar,
-          appearing on focus" (Part 8, Q18 = B). */}
+          appearing on focus" (Part 8, Q18 = B). Sticky in both variants so it
+          stays reachable while formatting text far down a long document; the
+          dimming is on the buttons, not the bar, so the bar's solid background
+          hides the text scrolling under it. */}
       <div
         className={cn(
-          "flex flex-wrap items-center gap-0.5 transition-opacity",
+          "sticky top-0 z-10 flex flex-wrap items-center gap-0.5 bg-background",
           chromeless
-            ? cn("mb-3 gap-1", focused ? "opacity-100" : "opacity-50 hover:opacity-90")
-            : "border-b p-2"
+            ? cn(
+                "mb-3 gap-1 py-1.5 [&>*]:transition-opacity",
+                focused ? "" : "[&>*]:opacity-50 hover:[&>*]:opacity-90"
+              )
+            : "rounded-t-md border-b p-2"
         )}
       >
         {/* Undo / Redo */}
