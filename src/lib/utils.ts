@@ -1,5 +1,18 @@
 import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { extendTailwindMerge } from "tailwind-merge";
+
+// tailwind-merge only knows Tailwind's default scale, so it mistook our named
+// type roles (text-label, text-cta, ...) for text colours and dropped them
+// whenever a colour class followed — e.g. the primary Button lost its size and
+// rendered at 16px. Register them (keep in sync with tailwind.config.ts).
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      "font-size": [{ text: ["display", "title", "heading", "body", "body-sm", "label", "cta", "caption"] }],
+      tracking: [{ tracking: ["label", "cta"] }],
+    },
+  },
+});
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

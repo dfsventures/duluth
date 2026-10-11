@@ -198,9 +198,7 @@ export default function DashboardPage() {
       {/* Next action: the one thing to do, with one button. */}
       <section
         aria-labelledby="next-action-heading"
-        className={`card mb-8 flex flex-wrap items-center justify-between gap-4 ${
-          next.tone === "act" ? "border-l-2 border-l-sky" : ""
-        }`}
+        className="card mb-8 flex flex-wrap items-center justify-between gap-4"
       >
         <div className="min-w-0 flex-1 basis-64">
           <p className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
