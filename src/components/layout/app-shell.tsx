@@ -8,11 +8,13 @@ import { Sidebar } from "./sidebar";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { CommandPalette, openCommandPalette } from "./command-palette";
 import { Shortcuts } from "./shortcuts";
+import { SurfaceSync } from "./surface-sync";
+import { surfaceForPath } from "@/lib/surface";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  // Direction A+: admin stays square, founder-facing surfaces get a 4px card radius.
-  const surface = usePathname()?.startsWith("/admin") ? "admin" : "founder";
+  // Direction B applies to founder-facing surfaces only; admin keeps Direction A+.
+  const surface = surfaceForPath(usePathname());
   // The palette and shortcuts are admin only in v1 (spec decision 3).
   const { data: session } = useSession();
   const isAdmin = session?.user?.roles?.includes("ADMIN") ?? false;
@@ -20,6 +22,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     // h-dvh, not h-screen — see the note in sidebar.tsx
     <div className="flex h-dvh overflow-hidden" data-surface={surface}>
+      <SurfaceSync surface={surface} />
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div

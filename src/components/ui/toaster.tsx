@@ -48,7 +48,7 @@ export function Toaster() {
             if (!open) close(t.id);
           }}
           className={cn(
-            "flex items-start gap-3 rounded-sm bg-obsidian px-4 py-3 text-[13px] text-paper shadow-float",
+            "flex items-start gap-3 rounded-float bg-obsidian px-4 py-3 text-[13px] text-paper shadow-float",
             "data-[state=open]:animate-toast-in data-[state=closed]:animate-toast-out",
             "data-[swipe=move]:translate-y-[var(--radix-toast-swipe-move-y)]",
             "data-[swipe=cancel]:translate-y-0 data-[swipe=cancel]:transition-transform",

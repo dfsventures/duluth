@@ -200,7 +200,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           aria-current={active ? "page" : undefined}
           className={cn(
             // Active: a white tab with a 2px Sky rule on its left edge.
-            "relative flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
+            "nav-item relative flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
             active
               ? "bg-card text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:bg-sky"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -230,7 +230,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         // h-dvh, not h-screen: 100vh includes the area behind mobile browser
         // bars, which clipped the bottom-pinned user/logout row under
         // Chrome's address bar. dvh tracks the actual visible viewport.
-        "flex h-dvh w-60 shrink-0 flex-col border-r border-border bg-background",
+        "app-sidebar flex h-dvh w-60 shrink-0 flex-col border-r border-border bg-background",
         // Mobile: fixed overlay, toggled via open prop
         "fixed inset-y-0 left-0 z-40 transition-transform duration-200",
         open ? "translate-x-0" : "-translate-x-full",

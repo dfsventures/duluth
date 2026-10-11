@@ -27,7 +27,7 @@ export function SheetContent({ title, description, className, children, ...props
           {...(description ? {} : { "aria-describedby": undefined })}
           onInteractOutside={ignoreToastInteraction}
           className={cn(
-            "flex h-full w-full flex-col border-l border-border bg-card shadow-float sm:max-w-[440px]",
+            "flex h-full w-full flex-col rounded-l-sheet border-l border-edge bg-card shadow-float sm:max-w-[440px]",
             "data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",
             className
           )}
@@ -44,7 +44,7 @@ export function SheetContent({ title, description, className, children, ...props
             </div>
             <DialogPrimitive.Close
               aria-label="Close"
-              className="-mr-2 -mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="-mr-2 -mt-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-ctl text-muted-foreground hover:bg-muted hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </DialogPrimitive.Close>

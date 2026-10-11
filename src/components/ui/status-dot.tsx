@@ -17,7 +17,7 @@ interface StatusDotProps {
 export function StatusDot({ status, tone, children, className }: StatusDotProps) {
   const t = tone ?? statusTone(status);
   return (
-    <span className={cn("inline-flex items-center gap-2 text-sm text-foreground", className)}>
+    <span data-tone={t} className={cn("status-dot inline-flex items-center gap-2 text-sm text-foreground", className)}>
       <span aria-hidden="true" className={cn("inline-block h-[7px] w-[7px] shrink-0", TONE_CLASSES[t].dot)} />
       {children ?? status}
     </span>

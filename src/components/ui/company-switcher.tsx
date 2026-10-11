@@ -15,7 +15,7 @@ export function CompanySwitcher() {
     <div className="relative px-3 pb-2">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-muted transition-colors"
+        className="flex w-full items-center gap-2 rounded-ctl px-2 py-1.5 text-sm hover:bg-muted transition-colors"
       >
         <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
         <span className="flex-1 truncate text-left font-medium text-foreground">
@@ -32,7 +32,7 @@ export function CompanySwitcher() {
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute left-3 right-3 z-20 mt-1 overflow-hidden rounded-sm border border-border bg-card shadow-float">
+          <div className="absolute left-3 right-3 z-20 mt-1 overflow-hidden rounded-float border border-edge bg-card shadow-float">
             {companies.map((c) => (
               <button
                 key={c.id}

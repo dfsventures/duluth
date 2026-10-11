@@ -21,7 +21,7 @@ export function Table({
     <>
       <div
         className={cn(
-          "overflow-x-auto rounded-md border border-border bg-card",
+          "overflow-x-auto rounded-md border border-edge bg-card shadow-soft",
           // Right-edge fade signalling more content horizontally. Pure CSS via
           // background-attachment: local — the gradient is painted against
           // the scroll container, so it fades out on its own once you reach the

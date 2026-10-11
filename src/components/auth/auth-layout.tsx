@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SurfaceSync } from "@/components/layout/surface-sync";
 
 /**
  * First-impression layout for login, signup and set-password (UI overhaul
@@ -28,6 +29,7 @@ export function AuthLayout({
 }) {
   return (
     <div data-surface="founder" className="flex min-h-screen flex-col bg-background">
+      <SurfaceSync surface="founder" />
       <header className="px-6 py-5 sm:px-10">
         <Link href="/" aria-label="Molly home" className="inline-flex items-center">
           <LogoMark />
@@ -47,16 +49,14 @@ export function AuthLayout({
   );
 }
 
-/** Persistent error or notice: a left rule and the tinted pair, not a boxed banner. */
+/** Persistent error or notice: the tinted fill and deep ink pair, no accent stripe. */
 export function AuthAlert({ children, tone = "error" }: { children: React.ReactNode; tone?: "error" | "info" }) {
   return (
     <div
       role={tone === "error" ? "alert" : "status"}
       className={cn(
-        "mb-5 border-l-2 px-3 py-2.5 text-sm",
-        tone === "error"
-          ? "border-laterite bg-tone-clay text-tone-clay-ink"
-          : "border-sky bg-tone-sky text-tone-sky-ink"
+        "mb-5 rounded-md px-3 py-2.5 text-sm",
+        tone === "error" ? "bg-tone-clay text-tone-clay-ink" : "bg-tone-sky text-tone-sky-ink"
       )}
     >
       {children}

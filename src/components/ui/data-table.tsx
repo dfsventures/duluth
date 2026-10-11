@@ -511,7 +511,7 @@ function DataTableInner<T>({
                 }}
                 placeholder={searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
                 autoComplete="off"
-                className="h-8 w-full rounded-sm border border-input bg-card pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-8 w-full rounded-ctl border border-input bg-card pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
               <kbd
                 aria-hidden="true"
@@ -532,7 +532,7 @@ function DataTableInner<T>({
                     aria-pressed={pressed}
                     onClick={() => writeState({ ...state, filter: c.key })}
                     className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-sm border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "inline-flex h-8 items-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       pressed
                         ? "border-foreground bg-foreground text-background"
                         : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground"
@@ -557,7 +557,7 @@ function DataTableInner<T>({
                 id={`dt-group-${label}`}
                 value={activeGroup?.key ?? ""}
                 onChange={(e) => setGroupKey(e.target.value)}
-                className="h-8 w-auto rounded-sm border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-8 w-auto rounded-ctl border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">No grouping</option>
                 {groupBy.options.map((o) => (

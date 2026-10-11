@@ -68,6 +68,37 @@ describe("design tokens", () => {
   });
 });
 
+describe("Direction B (founder + LP) pairs", () => {
+  const B_WELL = "#E4E1D6";
+  const B_THEAD = "#FAF8F3";
+  const B_ROW_HOVER = "#FBF9F4";
+  const B_SIDEBAR = "#E6E3D8";
+
+  it("CSS carries the same values the test checks", () => {
+    expect(css).toContain(`--color-well: ${B_WELL}`);
+    expect(css).toContain(`--color-thead: ${B_THEAD}`);
+    expect(css).toContain(`--color-row-hover: ${B_ROW_HOVER}`);
+    expect(css).toContain(`--color-sidebar: ${B_SIDEBAR}`);
+  });
+
+  it("muted text passes AA on the B well, table header, row hover and sidebar", () => {
+    for (const bg of [B_WELL, B_THEAD, B_ROW_HOVER, B_SIDEBAR]) {
+      expect(contrast(bg, MUTED)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("Obsidian text passes AA on every tint (sand nav pill, amber strips, tinted notices)", () => {
+    for (const tone of Object.keys(TONES) as Tone[]) {
+      expect(contrast(TONES[tone].fill, OBSIDIAN)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("active tab (white on the well) and ink on a raised tab pass AA", () => {
+    expect(contrast(WHITE, OBSIDIAN)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(B_WELL, MUTED)).toBeGreaterThanOrEqual(4.5); // inactive tab label on the well
+  });
+});
+
 describe("statusTone", () => {
   it("maps cadence statuses, never marking never-happened as clay", () => {
     expect(statusTone("BEHIND")).toBe("clay");

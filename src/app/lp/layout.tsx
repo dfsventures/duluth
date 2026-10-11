@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getLp } from "@/lib/lp-auth";
 import { LpSignOutButton } from "@/components/lp/lp-sign-out-button";
 import { ORG_NAME, ORG_LOGO_PATH } from "@/lib/org";
+import { SurfaceSync } from "@/components/layout/surface-sync";
 
 // Confidential LP surface on an otherwise public (MIT) app — never index it.
 export const metadata: Metadata = {
@@ -20,6 +21,7 @@ export default async function LpLayout({ children }: { children: React.ReactNode
 
   return (
     <div data-surface="founder" className="lp-print-scope flex min-h-screen flex-col bg-paper text-obsidian">
+      <SurfaceSync surface="founder" />
       <header className="flex items-center justify-between border-b border-bone px-6 py-5 print:hidden sm:px-10">
         <Link href="/lp" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}

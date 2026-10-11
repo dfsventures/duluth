@@ -67,6 +67,9 @@ const config: Config = {
 
         /* UI overhaul phase 1 (Direction A+). Surface tiers... */
         well: "var(--color-well)",
+        edge: "var(--color-edge)",
+        btn2: "var(--color-btn2-bg)",
+        thead: "var(--color-thead)",
         "row-hover": "var(--color-row-hover)",
         "row-divider": "var(--color-row-divider)",
         wash: "var(--color-wash)",
@@ -101,12 +104,14 @@ const config: Config = {
       },
 
       letterSpacing: {
-        label: "0.08em",
+        label: "var(--tracking-label)",
         cta: "0.06em",
       },
 
       boxShadow: {
         float: "var(--shadow-float)",
+        soft: "var(--shadow-soft)",
+        lift: "var(--shadow-lift)",
       },
 
       transitionTimingFunction: {
@@ -116,11 +121,18 @@ const config: Config = {
       },
 
       borderRadius: {
-        sm: "1px",
-        md: "2px",
-        lg: "2px",
-        xl: "2px",
-        "2xl": "2px",
+        // Direction B: radii are tokens. Admin values are the old 1/2px scale
+        // (globals.css :root); founder/LP override them under [data-surface="founder"].
+        DEFAULT: "var(--r-def)",
+        sm: "var(--r-sm)",
+        md: "var(--r-md)",
+        lg: "var(--r-lg)",
+        xl: "var(--r-lg)",
+        "2xl": "var(--r-lg)",
+        ctl: "var(--r-ctl)",
+        chip: "var(--r-chip)",
+        float: "var(--r-float)",
+        sheet: "var(--r-sheet)",
         full: "9999px",
       },
 

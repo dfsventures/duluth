@@ -51,6 +51,8 @@
   --color-wash: rgb(91 141 197 / 0.10); /* selected row, drop target, "just changed" */
   --color-attention: #C9963A;   /* Ochre: border and marker ONLY, never text */
   --color-attention-bg: rgb(201 150 58 / 0.10);
+  --color-thead: #FFFFFF;       /* table header fill (white on admin; founder/LP warm off-white) */
+  --color-sidebar: var(--color-bg);
 
   /* Tinted status / stage / column pairs (spec 11.1): soft fill + deep ink.
      Tinted fills with deep ink carry all coloured text; solid brand hues are for
@@ -69,12 +71,59 @@
   --shadow-float: 0 12px 32px -12px rgb(20 20 15 / 0.28), 0 0 0 1px var(--color-border);
   --scrim: rgb(20 20 15 / 0.35);
 
+  /* ── Direction B skin tokens (spec section 11), founder + LP surfaces only ──
+     Defaults here reproduce the admin (Direction A+) look EXACTLY: square 1-2px
+     corners, no resting shadows, Bone edges. The founder/LP values live in the
+     [data-surface="founder"] block below, which is the ONLY place the B radius
+     and shadow tokens may be set (guarded by design-tokens.test.ts). */
+  --r-sm: 1px;     /* chips, tags, tiles, kbd */
+  --r-md: 2px;     /* cards, inputs, tables, wells */
+  --r-lg: 2px;
+  --r-def: 0.25rem;/* bare `rounded` */
+  --r-ctl: 1px;    /* buttons and controls */
+  --r-chip: 1px;   /* filter chips (pill on founder/LP) */
+  --r-float: 1px;  /* dialogs, toasts, popovers */
+  --r-sheet: 0px;  /* full-height sheets */
+  --shadow-soft: none;
+  --shadow-lift: none;
+  --color-edge: var(--color-border); /* border on surfaces a shadow defines on founder/LP */
+  --color-btn2-bg: transparent;      /* secondary button fill */
+  --tracking-label: 0.08em;
+
   /* Motion tokens (spec 5.6) */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --dur-fast: 120ms;  /* hover, press, focus */
   --dur-base: 200ms;  /* appear/disappear, toasts, popovers */
   --dur-slow: 280ms;  /* sheets, panel slides, list reflow */
+}
+
+
+/* ── Direction B: founder + LP surfaces (spec section 11) ──────────
+   `data-surface="founder"` is set by AppShell (any non-/admin path), AuthLayout
+   and the LP layout, and mirrored onto <body> by <SurfaceSync> so dialogs,
+   sheets, menus and toasts (which portal to body) pick the same tokens up.
+   /admin never matches, so it renders exactly as before. */
+[data-surface="founder"] {
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 10px;
+  --r-def: 6px;
+  --r-ctl: 10px;
+  --r-chip: 9999px;
+  --r-float: 14px;
+  --r-sheet: 14px;
+  --shadow-soft: 0 1px 0 rgb(20 20 15 / 0.04), 0 1px 3px rgb(20 20 15 / 0.07);
+  --shadow-lift: 0 6px 16px -8px rgb(20 20 15 / 0.28);
+  --shadow-float: 0 18px 44px -14px rgb(20 20 15 / 0.35), 0 0 0 1px rgb(20 20 15 / 0.05);
+  --color-edge: transparent;
+  --color-btn2-bg: #FFFFFF;
+  --color-well: #E4E1D6;          /* muted text on it: 4.54:1 */
+  --color-row-hover: #FBF9F4;
+  --color-row-divider: #F1EFE8;
+  --color-thead: #FAF8F3;
+  --color-sidebar: #E6E3D8;       /* muted text on it: 4.62:1 */
+  --tracking-label: 0.06em;
 }
 
 /* ── Base ─────────────────────────────────────────────────── */
@@ -179,7 +228,7 @@ select:not([multiple]):not([size]):disabled {
   /* Buttons. Only the PRIMARY button is mono caps (decision 9); secondary and
      destructive are sentence-case Plex so a view has exactly one loud action. */
   .btn-base {
-    @apply inline-flex items-center justify-center gap-2 rounded-sm transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-ctl transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50;
   }
 
   .btn-primary {
@@ -187,7 +236,7 @@ select:not([multiple]):not([size]):disabled {
   }
 
   .btn-secondary {
-    @apply btn-base border border-border bg-transparent text-foreground hover:border-[var(--color-border-hover)] hover:bg-muted px-6 py-3 font-sans text-[13px] font-medium;
+    @apply btn-base border border-edge bg-btn2 shadow-soft text-foreground hover:border-[var(--color-border-hover)] hover:bg-muted px-6 py-3 font-sans text-[13px] font-medium;
   }
 
   .btn-destructive {
@@ -196,7 +245,7 @@ select:not([multiple]):not([size]):disabled {
 
   /* Inputs */
   .input-field {
-    @apply flex h-10 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex h-10 w-full rounded-md border border-input bg-card shadow-soft px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   /* Label */
@@ -204,14 +253,17 @@ select:not([multiple]):not([size]):disabled {
     @apply text-label font-semibold uppercase tracking-label text-muted-foreground font-mono;
   }
 
-  /* Card. Admin stays square; founder- and LP-facing surfaces get a one-step
-     radius bump to 4px (Direction A+), keyed off data-surface on the shell. */
+  /* Card. Radius, edge and resting shadow all come from the surface tokens:
+     admin stays square and bordered; founder/LP get 10px, a soft shadow and a
+     quieter edge (Direction B). */
   .card {
-    @apply rounded-md border border-border bg-card text-card-foreground p-6;
+    @apply rounded-md border border-edge bg-card text-card-foreground p-6 shadow-soft;
   }
 
-  [data-surface="founder"] .card {
-    border-radius: 4px;
+  /* Interactive cards (links, clickable tiles): lift on hover. No-op on admin
+     because --shadow-lift is `none` there. */
+  .card-lift {
+    @apply transition-[box-shadow,transform] duration-base hover:-translate-y-px hover:shadow-lift;
   }
 
   /* Badges / tags: tinted fill + deep ink pairs (spec 11.1), square corners.
@@ -297,12 +349,87 @@ select:not([multiple]):not([size]):disabled {
   }
 }
 
+/* ── Direction B component skins (founder + LP only) ─────────
+   Multi-property treatments that are awkward as utilities. Every selector is
+   scoped under [data-surface="founder"], so admin is untouched. Placed after the
+   utilities, with an attribute selector, so these win over single-class utilities. */
+[data-surface="founder"] .status-dot {
+  border-radius: 9999px;
+  padding: 2px 10px 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--tone-fill, var(--tone-stone-fill));
+  color: var(--tone-ink, var(--tone-stone-ink));
+}
+[data-surface="founder"] .status-dot > [aria-hidden="true"] {
+  border-radius: 9999px;
+  width: 6px;
+  height: 6px;
+}
+[data-surface="founder"] .status-dot[data-tone="stone"] { --tone-fill: var(--tone-stone-fill); --tone-ink: var(--tone-stone-ink); }
+[data-surface="founder"] .status-dot[data-tone="sky"]   { --tone-fill: var(--tone-sky-fill);   --tone-ink: var(--tone-sky-ink); }
+[data-surface="founder"] .status-dot[data-tone="sage"]  { --tone-fill: var(--tone-sage-fill);  --tone-ink: var(--tone-sage-ink); }
+[data-surface="founder"] .status-dot[data-tone="clay"]  { --tone-fill: var(--tone-clay-fill);  --tone-ink: var(--tone-clay-ink); }
+[data-surface="founder"] .status-dot[data-tone="sand"]  { --tone-fill: var(--tone-sand-fill);  --tone-ink: var(--tone-sand-ink); }
+[data-surface="founder"] .status-dot[data-tone="amber"] { --tone-fill: var(--tone-amber-fill); --tone-ink: var(--tone-amber-ink); }
+
+/* Tabs: a segmented control in a well; the active tab is a white raised pill. */
+[data-surface="founder"] .tab-bar {
+  background: var(--color-well);
+  border-bottom-color: transparent;
+  border-radius: 10px;
+  padding: 4px;
+  width: fit-content;
+  max-width: 100%;
+}
+[data-surface="founder"] .tab-bar > div { gap: 2px; }
+[data-surface="founder"] .tab-bar .tab-link {
+  padding: 6px 12px;
+  border-radius: 7px;
+}
+[data-surface="founder"] .tab-bar .tab-link[aria-current="page"] {
+  background: #FFFFFF;
+  box-shadow: var(--shadow-soft);
+}
+[data-surface="founder"] .tab-bar .tab-indicator { display: none; }
+
+/* Sidebar: darker Paper, no hairline; active item is a Sand pill. */
+[data-surface="founder"] .app-sidebar {
+  background: var(--color-sidebar);
+  border-right-color: transparent;
+}
+[data-surface="founder"] .app-sidebar .nav-item {
+  border-radius: 10px;
+}
+[data-surface="founder"] .app-sidebar .nav-item[aria-current="page"] {
+  background: var(--tone-sand-fill);
+  color: var(--color-text-primary);
+}
+[data-surface="founder"] .app-sidebar .nav-item[aria-current="page"]::before { display: none; }
+
+/* Table header fill (warm off-white) */
+[data-surface="founder"] thead th,
+[data-surface="founder"] thead { background-color: var(--color-thead); }
+
 /* ── LP portal print stylesheet (Part 7, WS19, Q11) ──────────
    The interim paper escape hatch for LPs who want the old PDF format:
    the browser's Print-to-PDF does the rest. Scoped to `.lp-print-scope`
    (src/app/lp/layout.tsx) so it never touches any other page. */
 @media print {
   .lp-print-scope {
+    background: #ffffff !important;
+    color: #14140f !important;
+  }
+
+  /* Direction B shadows and tints must not reach paper: flat, bordered, ink on white. */
+  .lp-print-scope,
+  .lp-print-scope * {
+    box-shadow: none !important;
+  }
+
+  .lp-print-scope .card,
+  .lp-print-scope .badge {
+    border: 1px solid var(--color-border) !important;
     background: #ffffff !important;
     color: #14140f !important;
   }

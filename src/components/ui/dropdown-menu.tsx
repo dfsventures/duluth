@@ -22,7 +22,7 @@ export function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          "z-50 min-w-[11rem] border border-border bg-card p-1 text-[13px] text-foreground shadow-float",
+          "z-50 min-w-[11rem] rounded-float border border-edge bg-card p-1 text-[13px] text-foreground shadow-float",
           "data-[state=open]:animate-dialog-in",
           className
         )}
@@ -39,7 +39,7 @@ export function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        "flex cursor-pointer select-none items-center gap-2 px-3 py-2 outline-none",
+        "flex cursor-pointer select-none items-center gap-2 rounded-sm px-3 py-2 outline-none",
         "data-[highlighted]:bg-wash data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
         className
       )}
@@ -80,7 +80,7 @@ export function DropdownMenuCheckboxItem({
     <DropdownMenuPrimitive.CheckboxItem
       onSelect={(e) => e.preventDefault()}
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 py-2 pl-8 pr-3 outline-none",
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-2 pl-8 pr-3 outline-none",
         "data-[highlighted]:bg-wash data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
         className
       )}

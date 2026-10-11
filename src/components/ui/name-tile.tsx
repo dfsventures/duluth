@@ -7,7 +7,7 @@ export function NameTile({ name, className }: { name: string; className?: string
     <span
       aria-hidden="true"
       className={cn(
-        "mr-2.5 inline-grid h-[22px] w-[22px] shrink-0 place-items-center font-display text-[11px] font-semibold",
+        "mr-2.5 inline-grid h-[22px] rounded-sm w-[22px] shrink-0 place-items-center font-display text-[11px] font-semibold",
         TONE_CLASSES[tileTone(name)].chip,
         className
       )}
@@ -21,7 +21,7 @@ export function NameTile({ name, className }: { name: string; className?: string
 export function StageChip({ stage, className }: { stage: string | null | undefined; className?: string }) {
   if (!stage) return <span className="text-muted-foreground">—</span>;
   return (
-    <span className={cn("inline-block px-2 py-0.5 text-xs font-medium", TONE_CLASSES[statusTone(stage)].chip, className)}>
+    <span className={cn("inline-block rounded-sm px-2 py-0.5 text-xs font-medium", TONE_CLASSES[statusTone(stage)].chip, className)}>
       {stage}
     </span>
   );

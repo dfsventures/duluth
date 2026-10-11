@@ -30,13 +30,13 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={loading || undefined}
         className={cn(
           // Hierarchy (decision 9): ONLY the primary button is mono caps.
-          "relative inline-flex items-center justify-center gap-2 rounded-sm transition-[color,background-color,border-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:translate-y-px disabled:pointer-events-none disabled:opacity-50",
+          "relative inline-flex items-center justify-center gap-2 rounded-ctl transition-[color,background-color,border-color,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background active:translate-y-px disabled:pointer-events-none disabled:opacity-50",
           variant === "primary"
             ? "font-mono text-cta font-semibold uppercase tracking-cta"
             : "font-sans text-[13px] font-medium",
           {
-            "bg-primary text-primary-foreground hover:bg-primary-hover": variant === "primary",
-            "border border-border bg-transparent text-foreground hover:border-[var(--color-border-hover)] hover:bg-muted":
+            "bg-primary text-primary-foreground shadow-soft hover:bg-primary-hover hover:shadow-lift": variant === "primary",
+            "border border-edge bg-btn2 text-foreground shadow-soft hover:border-[var(--color-border-hover)] hover:bg-muted":
               variant === "secondary",
             "bg-destructive text-destructive-foreground font-semibold hover:bg-destructive/90":
               variant === "destructive",
