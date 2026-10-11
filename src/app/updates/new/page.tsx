@@ -230,7 +230,7 @@ export default function NewUpdatePage() {
 
       {/* Publish confirm — slim banner under the top bar */}
       {confirmPublish && (
-        <div className="mb-6 flex flex-wrap items-center justify-end gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
+        <div className="mb-6 flex flex-wrap items-center justify-end gap-3 rounded-md bg-tone-amber px-4 py-3">
           <span className="text-sm text-foreground">Publish and notify the {ORG_NAME} team?</span>
           <Button variant="secondary" size="sm" disabled={submitting} onClick={() => setConfirmPublish(false)}>
             Cancel
@@ -243,7 +243,7 @@ export default function NewUpdatePage() {
 
       {/* Schedule for later — slim panel under the top bar, opened from the overflow menu */}
       {showSchedule && !confirmPublish && (
-        <div className="mb-6 flex flex-wrap items-end gap-3 rounded-md border border-border bg-card px-4 py-3">
+        <div className="mb-6 flex flex-wrap items-end gap-3 rounded-md border border-edge bg-card px-4 py-3 shadow-soft">
           <Input
             id="schedule-date"
             label="Publish date"

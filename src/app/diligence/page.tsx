@@ -361,7 +361,7 @@ export default function DiligencePage() {
                 {/* Part 35, WS94.3 (D3=B) — persists across reloads-within-session,
                     unlike the transient `message` banner above (F86). */}
                 {failed && (
-                  <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-laterite/30 bg-laterite/10 px-3 py-2 text-sm text-tone-clay-ink">
+                  <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md bg-tone-clay px-3 py-2 text-sm text-tone-clay-ink">
                     <AlertCircle className="h-4 w-4 shrink-0" />
                     <span className="flex-1">
                       <span className="font-medium">{failed.file.name}</span> — {failed.message}

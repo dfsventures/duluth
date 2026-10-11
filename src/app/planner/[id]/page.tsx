@@ -336,7 +336,7 @@ export default function ScenarioEditorPage() {
                 type="checkbox"
                 checked={row.mfn}
                 onChange={(e) => updateSafeRow(setter, i, { mfn: e.target.checked })}
-                className="h-4 w-4 rounded-sm border-border accent-primary"
+                className="h-4 w-4 rounded-[4px] border-border accent-primary"
               />
               MFN
             </label>
@@ -497,7 +497,7 @@ export default function ScenarioEditorPage() {
                   setAcceleratorEnabled(e.target.checked);
                   markDirty();
                 }}
-                className="h-4 w-4 rounded-sm border-border accent-primary"
+                className="h-4 w-4 rounded-[4px] border-border accent-primary"
               />
               Include an accelerator investment
             </label>
@@ -559,7 +559,7 @@ export default function ScenarioEditorPage() {
                   setSeedEnabled(e.target.checked);
                   markDirty();
                 }}
-                className="h-4 w-4 rounded-sm border-border accent-primary"
+                className="h-4 w-4 rounded-[4px] border-border accent-primary"
               />
               Include a seed round
             </label>
@@ -607,7 +607,7 @@ export default function ScenarioEditorPage() {
                   setSeriesAEnabled(e.target.checked);
                   markDirty();
                 }}
-                className="h-4 w-4 rounded-sm border-border accent-primary"
+                className="h-4 w-4 rounded-[4px] border-border accent-primary"
               />
               Include a Series A round
             </label>
@@ -653,10 +653,10 @@ export default function ScenarioEditorPage() {
                   <div
                     key={i}
                     className={cn(
-                      "flex items-start gap-2 rounded-md border px-4 py-3 text-sm",
+                      "flex items-start gap-2 rounded-md px-4 py-3 text-sm",
                       issue.level === "error"
-                        ? "border-laterite/30 bg-laterite/10 text-tone-clay-ink"
-                        : "border-ochre/30 bg-ochre/10 text-tone-amber-ink"
+                        ? "bg-tone-clay text-tone-clay-ink"
+                        : "bg-tone-amber text-tone-amber-ink"
                     )}
                   >
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />

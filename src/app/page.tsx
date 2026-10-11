@@ -22,6 +22,8 @@ const steps = [
   },
 ];
 
+const STEP_TONES = ["bg-tone-sand text-tone-sand-ink", "bg-tone-sky text-tone-sky-ink", "bg-tone-sage text-tone-sage-ink"];
+
 export default async function HomePage() {
   const session = await auth();
 
@@ -31,7 +33,7 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
+    <div data-surface="founder" className="flex min-h-screen flex-col bg-background">
       {/* Nav */}
       <header className="flex items-center justify-between px-6 py-4 sm:px-10">
         <LogoMark className="text-lg" />
@@ -68,22 +70,22 @@ export default async function HomePage() {
 
         <Link
           href="/signup"
-          className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-mono text-cta font-semibold uppercase tracking-cta text-primary-foreground shadow-sm hover:bg-primary-600 transition-colors"
+          className="inline-flex h-11 items-center rounded-ctl bg-primary px-6 font-mono text-cta font-semibold uppercase tracking-cta text-primary-foreground shadow-soft transition-[background-color,box-shadow] hover:bg-primary-600 hover:shadow-lift"
         >
           Apply for Access
         </Link>
       </main>
 
       {/* How it works */}
-      <section className="mx-auto mb-20 mt-24 w-full max-w-2xl px-6">
+      <section className="mx-auto mb-20 mt-24 w-full max-w-2xl space-y-3 px-6">
         {steps.map((step, i) => (
           <div
             key={step.num}
-            className={`flex flex-col gap-1 py-6 sm:flex-row sm:gap-8 ${
-              i > 0 ? "border-t border-border" : ""
-            }`}
+            className="flex flex-col gap-1 rounded-md bg-card p-5 shadow-soft sm:flex-row sm:gap-6"
           >
-            <span className="font-mono text-sm font-semibold text-primary sm:w-12 sm:shrink-0">
+            <span
+              className={`inline-flex h-7 w-10 shrink-0 items-center justify-center rounded-sm font-mono text-xs font-semibold sm:mt-0.5 ${STEP_TONES[i % STEP_TONES.length]}`}
+            >
               {step.num}
             </span>
             <div>

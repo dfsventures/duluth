@@ -60,7 +60,7 @@ export default function FromDfsPage() {
           description={`Messages from the ${ORG_NAME} team will appear here.`}
         />
       ) : (
-        <ul className="divide-y divide-row-divider border border-border bg-card">
+        <ul className="divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft">
           {messages.map((m) => (
             <li key={m.id}>
               <Link

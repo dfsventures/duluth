@@ -214,7 +214,7 @@ export default function FounderLinksPage() {
 
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
+        <div className="mb-6 flex items-center gap-2 rounded-md bg-tone-clay px-4 py-3 text-sm text-tone-clay-ink">
           <AlertCircle className="h-4 w-4" />{error}
         </div>
       )}

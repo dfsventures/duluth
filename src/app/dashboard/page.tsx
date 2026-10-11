@@ -294,7 +294,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href={`/from-dfs/${latestDfs.id}`}
-            className="flex min-h-[56px] items-center justify-between gap-4 border border-border bg-card px-4 py-3 transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className="flex min-h-[56px] items-center justify-between gap-4 rounded-md border border-edge bg-card px-4 py-3 shadow-soft transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-row-hover hover:shadow-lift focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           >
             <span className="min-w-0 flex-1 truncate font-medium">{latestDfs.subject}</span>
             {latestDfs.publishedAt && (
@@ -325,7 +325,7 @@ export default function DashboardPage() {
             action={<Button onClick={() => router.push("/updates/new")}>Write an update</Button>}
           />
         ) : (
-          <ul className="divide-y divide-row-divider border border-border bg-card">
+          <ul className="divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft">
             {updates.map((update) => (
               <li key={update.id}>
                 <Link
@@ -366,7 +366,7 @@ export default function DashboardPage() {
             }
           />
         ) : (
-          <ul className="divide-y divide-row-divider border border-border bg-card">
+          <ul className="divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft">
             {engagement.recentViews.map((view) => (
               <li key={view.id} className="flex min-h-[56px] items-center justify-between gap-4 px-4 py-3">
                 <div className="min-w-0 flex-1">

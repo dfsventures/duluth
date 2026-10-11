@@ -113,7 +113,7 @@ export default function UpdatesPage() {
       ) : (
         <div className="space-y-2">
           {updates.map((update) => (
-            <Card key={update.id} className="transition-colors hover:bg-muted/50">
+            <Card key={update.id} className="card-lift transition-colors hover:bg-muted/50">
               <CardContent className="flex items-center justify-between py-3">
                 <Link href={`/updates/${update.id}`} className="min-w-0 flex-1">
                   <p className="truncate font-medium">{update.title}</p>

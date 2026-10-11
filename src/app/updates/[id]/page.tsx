@@ -450,7 +450,7 @@ export default function UpdateDetailPage() {
 
       {/* Scheduled banner (view mode only) */}
       {!editing && update.status === "DRAFT" && update.scheduledFor && (
-        <div className="mb-3 flex flex-col gap-3 rounded-md border border-primary/20 bg-primary-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-3 flex flex-col gap-3 rounded-md bg-tone-sky px-4 py-3 text-tone-sky-ink sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-primary-600">
             Scheduled to publish on {formatDate(update.scheduledFor)}.
           </p>
@@ -462,7 +462,7 @@ export default function UpdateDetailPage() {
 
       {/* Publish banner (view mode only) */}
       {!editing && update.status === "DRAFT" && (
-        <div className="mb-6 flex flex-col gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-6 flex flex-col gap-3 rounded-md bg-tone-amber px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-foreground">
             This update is still a draft. Publish it when ready.
           </p>

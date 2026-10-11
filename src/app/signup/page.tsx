@@ -55,7 +55,7 @@ export default function SignupPage() {
           </Link>
         }
       >
-        <div role="status" className="flex items-center gap-3 border-l-2 border-acacia bg-tone-sage px-3 py-2.5 text-sm text-tone-sage-ink">
+        <div role="status" className="flex items-center gap-3 rounded-md bg-tone-sage px-3 py-2.5 text-sm text-tone-sage-ink">
           <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0" />
           Your application is in the queue.
         </div>

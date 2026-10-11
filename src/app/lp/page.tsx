@@ -21,7 +21,7 @@ export default async function LpPortalPage() {
   if (!ctx) {
     return (
       <div className="mx-auto max-w-2xl">
-        <p className="font-mono text-xs uppercase tracking-[0.12em] text-accent">LP Portal</p>
+        <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">LP Portal</p>
         <h1 className="mt-3 font-display text-3xl tracking-tight text-obsidian sm:text-4xl">
           Fund reports for our limited partners.
         </h1>
@@ -48,7 +48,7 @@ export default async function LpPortalPage() {
 
   return (
     <div className="mx-auto max-w-2xl">
-      <p className="font-mono text-xs uppercase tracking-[0.12em] text-accent">LP Portal</p>
+      <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">LP Portal</p>
       <h1 className="mt-3 font-display text-3xl tracking-tight text-obsidian sm:text-4xl">Your fund reports.</h1>
 
       {reports.length === 0 ? (
@@ -66,12 +66,12 @@ export default async function LpPortalPage() {
               <h2 className="border-b border-bone pb-2 font-mono text-xs uppercase tracking-[0.1em] text-muted-foreground">
                 {bucket.fundName}
               </h2>
-              <ul className="mt-3 divide-y divide-bone">
+              <ul className="mt-3 divide-y divide-row-divider overflow-hidden rounded-md bg-card shadow-soft">
                 {bucket.reports.map((r) => (
                   <li key={r.id}>
                     <Link
                       href={`/lp/reports/${r.id}`}
-                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-4 hover:text-accent"
+                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-4 transition-colors hover:bg-row-hover"
                     >
                       <span>
                         <span className="font-display text-lg tracking-tight">{r.title}</span>

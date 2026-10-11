@@ -148,7 +148,7 @@ export default function PlannerListPage() {
       ) : (
         <div className="space-y-2">
           {scenarios.map((scenario) => (
-            <Card key={scenario.id} className="transition-colors hover:bg-muted/50">
+            <Card key={scenario.id} className="card-lift transition-colors hover:bg-muted/50">
               <CardContent className="flex items-center justify-between py-3">
                 <Link href={`/planner/${scenario.id}`} className="min-w-0 flex-1">
                   <p className="truncate font-medium">{scenario.name}</p>

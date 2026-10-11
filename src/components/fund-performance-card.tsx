@@ -79,7 +79,7 @@ export function FundPerformanceCard({ performance, deals, fundName, showCaveat =
   // `overrides.netIrr !== null` here or anywhere else in this file.
   const overrideActive = hasOverrideValue(overrides);
   return (
-    <div className="mb-6 rounded-md border border-border bg-card p-4">
+    <div className="mb-6 rounded-md border border-edge bg-card p-4 shadow-soft">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-semibold">{fundName ? `${fundName} — Performance` : "Performance"}</h3>
         <span className="text-xs text-muted-foreground">As of {formatDate(performance.asOf)}</span>

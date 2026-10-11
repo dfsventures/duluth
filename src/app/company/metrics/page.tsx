@@ -194,10 +194,10 @@ export default function MetricsPage() {
 
       {message && (
         <div
-          className={`mb-6 flex items-center gap-2 rounded-md border px-4 py-3 text-sm ${
+          className={`mb-6 flex items-center gap-2 rounded-md px-4 py-3 text-sm ${
             message.type === "success"
-              ? "border-acacia/30 bg-acacia/10 text-tone-sage-ink"
-              : "border-laterite/30 bg-laterite/10 text-tone-clay-ink"
+              ? "bg-tone-sage text-tone-sage-ink"
+              : "bg-tone-clay text-tone-clay-ink"
           }`}
         >
           {message.type === "success" ? (
