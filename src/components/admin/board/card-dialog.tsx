@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { OwnerPicker } from "./owner-picker";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, MAX_NOTES_LENGTH, MAX_TITLE_LENGTH, type BoardStatus } from "@/lib/board";
 import type { BoardCardData, BoardPersonData, BoardProjectData } from "./types";
 import { toast } from "@/lib/toast";
@@ -13,7 +14,10 @@ import { toast } from "@/lib/toast";
 interface Props {
   /** null = create mode. */
   card: BoardCardData | null;
+  /** People that can be added (archived people already filtered out). */
   people: BoardPersonData[];
+  /** Everyone, for labelling chips of archived owners. */
+  allPeople?: BoardPersonData[];
   projects: BoardProjectData[];
   defaultOwnerId?: string | null;
   onClose: () => void;
@@ -28,11 +32,15 @@ async function readError(res: Response, fallback: string) {
   return d?.error ?? fallback;
 }
 
+function sameIds(a: string[], b: string[]): boolean {
+  return a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
+}
+
 // Notes are plain text: a <textarea> value, never rendered as HTML.
-export function CardDialog({ card, people, projects, defaultOwnerId, onClose, onSaved, onPartialFailure }: Props) {
+export function CardDialog({ card, people, allPeople, projects, defaultOwnerId, onClose, onSaved, onPartialFailure }: Props) {
   const [title, setTitle] = useState(card?.title ?? "");
   const [notes, setNotes] = useState(card?.notes ?? "");
-  const [ownerId, setOwnerId] = useState(card?.ownerId ?? defaultOwnerId ?? "");
+  const [ownerIds, setOwnerIds] = useState<string[]>(card?.ownerIds ?? (defaultOwnerId ? [defaultOwnerId] : []));
   const [projectId, setProjectId] = useState(card?.projectId ?? "");
   const [dueDate, setDueDate] = useState(card?.dueDate ? card.dueDate.slice(0, 10) : "");
   const [status, setStatus] = useState<BoardStatus>(card?.status ?? "TODO");
@@ -56,7 +64,7 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
             title,
             notes: notes || null,
             status,
-            ownerId: ownerId || null,
+            ownerIds,
             projectId: projectId || null,
             ...(dueDate ? { dueDate } : {}),
           }),
@@ -70,7 +78,8 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
           body: JSON.stringify({
             title,
             notes: notes || null,
-            ownerId: ownerId || null,
+            // Only sent when changed: an owner write also clears names still waiting to be matched.
+            ...(sameIds(ownerIds, card.ownerIds) ? {} : { ownerIds }),
             projectId: projectId || null,
             dueDate: dueDate || null,
           }),
@@ -162,15 +171,16 @@ export function CardDialog({ card, people, projects, defaultOwnerId, onClose, on
               onChange={(e) => setNotes(e.target.value)}
               className="whitespace-pre-wrap"
             />
+            <div>
+              <OwnerPicker id="bc-owner" people={people} allPeople={allPeople} value={ownerIds} onChange={setOwnerIds} />
+              {card && card.unmatchedOwnerNames.length > 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Still waiting to be matched: {card.unmatchedOwnerNames.map((n) => `'${n}'`).join(", ")}. Changing the
+                  owners here clears them; use Resolve names to match them instead.
+                </p>
+              )}
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Select id="bc-owner" label="Owner" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
-                <option value="">Unassigned</option>
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </Select>
               <Select id="bc-project" label="Project" value={projectId} onChange={(e) => setProjectId(e.target.value)}>
                 <option value="">No project</option>
                 {projects.map((p) => (

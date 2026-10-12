@@ -19,6 +19,7 @@ import { PeopleProjectsPanel } from "@/components/admin/board/people-projects-pa
 import { IntakePanel } from "@/components/admin/board/intake-panel";
 import {
   applyCardToPayload,
+  cardMatchesOwner,
   createSequencer,
   isNoopMove,
   neighboursForIndex,
@@ -120,7 +121,10 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
     () => data?.people.find((p) => p.userId && p.userId === session?.user?.id)?.id ?? null,
     [data, session]
   );
+  // Tiles look labels up in the full list (archived owners included, F116);
+  // pickers and the filter list only people who are not archived (JC-MO-K).
   const personById = useMemo(() => new Map((data?.people ?? []).map((p) => [p.id, p])), [data]);
+  const activePeople = useMemo(() => (data?.people ?? []).filter((p) => !p.archivedAt), [data]);
   const personByUserId = useMemo(
     () => new Map((data?.people ?? []).filter((p) => p.userId).map((p) => [p.userId as string, p])),
     [data]
@@ -142,13 +146,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const matches = useCallback(
     (c: BoardCardData) => {
       if (projectFilter === "none" ? c.projectId : projectFilter && c.projectId !== projectFilter) return false;
-      if (ownerFilter) {
-        if (ownerFilter === "me") {
-          if (!myPersonId || c.ownerId !== myPersonId) return false;
-        } else if (ownerFilter === "none") {
-          if (c.ownerId) return false;
-        } else if (c.ownerId !== ownerFilter) return false;
-      }
+      if (!cardMatchesOwner(c, ownerFilter, myPersonId)) return false;
       if (reviewOnly && !c.needsReview) return false;
       if (search.trim() && !c.title.toLowerCase().includes(search.trim().toLowerCase())) return false;
       return true;
@@ -284,7 +282,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
       const res = await fetch("/api/admin/board/cards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, status, ownerId: myPersonId }),
+        body: JSON.stringify({ title, status, ownerIds: myPersonId ? [myPersonId] : [] }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => null);
@@ -308,7 +306,10 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
       <BoardCard
         key={card.id}
         card={card}
-        ownerLabel={card.ownerId ? (personById.get(card.ownerId)?.label ?? null) : null}
+        ownerLabels={card.ownerIds
+          .map((id) => personById.get(id)?.label)
+          .filter((l): l is string => !!l)
+          .sort((a, b) => a.localeCompare(b))}
         projectName={card.projectId ? (projectById.get(card.projectId)?.name ?? null) : null}
         movedBy={mover?.label ?? null}
         isFirst={i === 0}
@@ -430,7 +431,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                     <option value="">All owners</option>
                     {myPersonId && <option value="me">Me</option>}
                     <option value="none">Unassigned</option>
-                    {data.people.map((p) => (
+                    {activePeople.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.label}
                       </option>
@@ -526,7 +527,8 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
       {editing && data && (
         <CardDialog
           card={editing === "new" ? null : editing}
-          people={data.people}
+          people={activePeople}
+          allPeople={data.people}
           projects={data.projects}
           defaultOwnerId={myPersonId}
           onClose={() => setEditing(null)}
@@ -540,7 +542,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
       {resolving && data && (
         <ResolveDialog
           card={resolving}
-          people={data.people}
+          people={activePeople}
           projects={data.projects}
           onClose={() => setResolving(null)}
           onApplied={(c) => applyCard(c)}

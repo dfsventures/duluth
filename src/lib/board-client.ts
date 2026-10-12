@@ -119,6 +119,29 @@ export function adjacentStatus(status: BoardStatus, dir: "left" | "right"): Boar
   return BOARD_STATUSES[next] ?? null;
 }
 
+/**
+ * Part 38: how many owner tiles a card shows. `labels` are already sorted
+ * (alphabetically, so no owner reads as the lead). Up to `max` tiles, then "+N".
+ */
+export function ownerTileModel(labels: string[], max = 3): { shown: string[]; extra: number } {
+  return { shown: labels.slice(0, max), extra: Math.max(0, labels.length - max) };
+}
+
+/**
+ * Part 38: the owner filter matches a card when ANY of its owners matches.
+ * `filter` is "" (all), "me", "none" (no owners) or a person id.
+ */
+export function cardMatchesOwner(
+  card: { ownerIds: string[] },
+  filter: string,
+  myPersonId: string | null
+): boolean {
+  if (!filter) return true;
+  if (filter === "me") return !!myPersonId && card.ownerIds.includes(myPersonId);
+  if (filter === "none") return card.ownerIds.length === 0;
+  return card.ownerIds.includes(filter);
+}
+
 /** Initials for an owner tile: first letters of up to two words. */
 export function initials(label: string | null | undefined): string {
   const words = (label ?? "").trim().split(/\s+/).filter(Boolean);

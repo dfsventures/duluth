@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   adjacentStatus,
   applyCardToPayload,
+  cardMatchesOwner,
+  ownerTileModel,
   countNeedsReview,
   createSequencer,
   initials,
@@ -171,5 +173,48 @@ describe("adjacentStatus / initials", () => {
     expect(initials("A B C")).toBe("AB");
     expect(initials(null)).toBe("?");
     expect(initials("  ")).toBe("?");
+  });
+});
+
+describe("ownerTileModel (Part 38)", () => {
+  it("shows up to 3 tiles and counts the rest", () => {
+    expect(ownerTileModel([])).toEqual({ shown: [], extra: 0 });
+    expect(ownerTileModel(["Jane Founder"])).toEqual({ shown: ["Jane Founder"], extra: 0 });
+    expect(ownerTileModel(["A", "B", "C"])).toEqual({ shown: ["A", "B", "C"], extra: 0 });
+    expect(ownerTileModel(["A", "B", "C", "D", "E"])).toEqual({ shown: ["A", "B", "C"], extra: 2 });
+  });
+});
+
+describe("cardMatchesOwner (Part 38)", () => {
+  const shared = { ownerIds: ["p1", "p2"] };
+  it("no filter matches everything", () => {
+    expect(cardMatchesOwner(shared, "", null)).toBe(true);
+    expect(cardMatchesOwner({ ownerIds: [] }, "", null)).toBe(true);
+  });
+  it("me matches cards I share, and nothing when I have no person", () => {
+    expect(cardMatchesOwner(shared, "me", "p2")).toBe(true);
+    expect(cardMatchesOwner(shared, "me", "p9")).toBe(false);
+    expect(cardMatchesOwner(shared, "me", null)).toBe(false);
+  });
+  it("none matches only cards with no owners", () => {
+    expect(cardMatchesOwner({ ownerIds: [] }, "none", null)).toBe(true);
+    expect(cardMatchesOwner(shared, "none", null)).toBe(false);
+  });
+  it("an id matches a shared card for each of its owners", () => {
+    expect(cardMatchesOwner(shared, "p1", null)).toBe(true);
+    expect(cardMatchesOwner(shared, "p2", null)).toBe(true);
+    expect(cardMatchesOwner(shared, "p3", null)).toBe(false);
+  });
+});
+
+describe("applyCardToPayload and ownerIds (Part 38)", () => {
+  it("keeps ownerIds when merging a move response that lacks the key", () => {
+    const cur = payload([card({ id: "a", ownerIds: ["p1", "p2"] })]);
+    // The move route returns the raw row: no ownerIds key at all.
+    const moved = { ...card({ id: "a", status: "DONE" }) } as Partial<BoardCardData>;
+    delete moved.ownerIds;
+    const next = applyCardToPayload(cur, moved as BoardCardData);
+    expect(next.cards[0].status).toBe("DONE");
+    expect(next.cards[0].ownerIds).toEqual(["p1", "p2"]);
   });
 });

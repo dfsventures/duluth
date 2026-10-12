@@ -12,6 +12,7 @@ export function OwnerPicker({
   id,
   label = "Owners",
   people,
+  allPeople,
   value,
   onChange,
   compact,
@@ -22,13 +23,15 @@ export function OwnerPicker({
   label?: string;
   /** People that can be added (archived people already filtered out by the caller). */
   people: { id: string; label: string }[];
+  /** Used only to label chips of people who are not in `people` (archived owners). */
+  allPeople?: { id: string; label: string }[];
   value: string[];
   onChange: (ids: string[]) => void;
   compact?: boolean;
   reservedSlots?: number;
   hideHint?: boolean;
 }) {
-  const labelOf = (pid: string) => people.find((p) => p.id === pid)?.label ?? "Former member";
+  const labelOf = (pid: string) => (allPeople ?? people).find((p) => p.id === pid)?.label ?? "Former member";
   const available = people.filter((p) => !value.includes(p.id));
   const full = value.length + reservedSlots >= MAX_OWNERS_PER_CARD;
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArrowDown, ArrowUp, MoreHorizontal, Pencil, SearchCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/board";
-import { adjacentStatus, initials } from "@/lib/board-client";
+import { adjacentStatus, initials, ownerTileModel } from "@/lib/board-client";
 import { statusTone, tileTone, TONE_CLASSES } from "@/lib/status-tone";
 import {
   DropdownMenu,
@@ -18,7 +18,8 @@ import { dueLabel, isOverdue, timeAgo, type BoardCardData } from "./types";
 
 interface Props {
   card: BoardCardData;
-  ownerLabel: string | null;
+  /** Part 38: owner labels, already sorted alphabetically (no owner reads as the lead). */
+  ownerLabels: string[];
   projectName: string | null;
   movedBy: string | null;
   isFirst: boolean;
@@ -42,7 +43,7 @@ interface Props {
 // since there is no drag on touch and they are the accessible path there.
 export function BoardCard({
   card,
-  ownerLabel,
+  ownerLabels,
   projectName,
   movedBy,
   isFirst,
@@ -59,8 +60,8 @@ export function BoardCard({
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const overdue = isOverdue(card.dueDate, card.status);
-  const heard = [card.rawOwnerName, card.rawProjectName].filter(Boolean).map((s) => `'${s}'`);
-  const ownerTone = TONE_CLASSES[tileTone(ownerLabel)].chip;
+  const heard = [...card.unmatchedOwnerNames, card.rawProjectName].filter(Boolean).map((s) => `'${s}'`);
+  const tiles = ownerTileModel(ownerLabels);
   const tooltip = [
     card.notes ? card.notes.slice(0, 160) : null,
     movedBy ? `Moved by ${movedBy}, ${timeAgo(card.updatedAt)}` : null,
@@ -186,16 +187,7 @@ export function BoardCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground">
-        {ownerLabel ? (
-          <span
-            title={ownerLabel}
-            aria-label={`Owner: ${ownerLabel}`}
-            role="img"
-            className={cn("inline-grid h-5 w-5 shrink-0 place-items-center font-display text-[10px] font-semibold", ownerTone)}
-          >
-            {initials(ownerLabel)}
-          </span>
-        ) : (
+        {ownerLabels.length === 0 ? (
           <span
             title="Unassigned"
             aria-label="Unassigned"
@@ -203,6 +195,46 @@ export function BoardCard({
             className="inline-grid h-5 w-5 shrink-0 place-items-center border border-dashed border-border font-display text-[10px] text-muted-foreground"
           >
             ?
+          </span>
+        ) : ownerLabels.length === 1 ? (
+          <span
+            title={ownerLabels[0]}
+            aria-label={`Owner: ${ownerLabels[0]}`}
+            role="img"
+            className={cn(
+              "inline-grid h-5 w-5 shrink-0 place-items-center font-display text-[10px] font-semibold",
+              TONE_CLASSES[tileTone(ownerLabels[0])].chip
+            )}
+          >
+            {initials(ownerLabels[0])}
+          </span>
+        ) : (
+          <span
+            role="img"
+            aria-label={`Owners: ${ownerLabels.join(", ")}`}
+            title={ownerLabels.join(", ")}
+            className="inline-flex shrink-0 items-center"
+          >
+            {tiles.shown.map((label) => (
+              <span
+                key={label}
+                aria-hidden="true"
+                className={cn(
+                  "-ml-1.5 inline-grid h-5 w-5 place-items-center font-display text-[10px] font-semibold ring-1 ring-card first:ml-0",
+                  TONE_CLASSES[tileTone(label)].chip
+                )}
+              >
+                {initials(label)}
+              </span>
+            ))}
+            {tiles.extra > 0 && (
+              <span
+                aria-hidden="true"
+                className="-ml-1.5 inline-grid h-5 min-w-5 place-items-center bg-muted px-1 font-display text-[10px] font-semibold text-foreground ring-1 ring-card"
+              >
+                +{tiles.extra}
+              </span>
+            )}
           </span>
         )}
         {projectName && (

@@ -265,9 +265,9 @@ export function PeopleProjectsPanel({ onChanged }: { onChanged: () => void }) {
               <span className="block">
                 {deleting.cards === 0
                   ? "No cards use this " + (deleting.kind === "person" ? "person" : "project") + "."
-                  : `${deleting.cards} card${deleting.cards === 1 ? "" : "s"} will become ${
-                      deleting.kind === "person" ? "unassigned" : "unassigned from this project"
-                    }.`}
+                  : deleting.kind === "person"
+                    ? `${deleting.cards} card${deleting.cards === 1 ? "" : "s"} list${deleting.cards === 1 ? "s" : ""} this person. Cards with no other owner become unassigned.`
+                    : `${deleting.cards} card${deleting.cards === 1 ? "" : "s"} will become unassigned from this project.`}
               </span>
               <span className="block">
                 Saved name corrections for {deleting.name} will be removed. This can&apos;t be undone.

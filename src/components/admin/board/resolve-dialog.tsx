@@ -17,27 +17,37 @@ interface Props {
 }
 
 const NEW = "__new__";
+const IGNORE = "__ignore__";
 
-// Route contract (WS106): POST …/cards/[id]/resolve -> { card, fixed }.
+// Route contract (WS114.4): POST …/cards/[id]/resolve { owners: [{ raw, personId | newPerson | ignore }], projectId?, newProjectName?, rememberAlias } -> { card, fixed }.
 export function ResolveDialog({ card, people, projects, onClose, onApplied, onResolved }: Props) {
-  const [ownerChoice, setOwnerChoice] = useState("");
+  const [ownerChoices, setOwnerChoices] = useState<Record<string, string>>({});
   const [projectChoice, setProjectChoice] = useState("");
   const [remember, setRemember] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [fixed, setFixed] = useState<number | null>(null);
 
-  const rawOwner = card.rawOwnerName;
-  const rawProject = card.rawProjectName;
-  const ready = (rawOwner ? !!ownerChoice : true) && (rawProject ? !!projectChoice : true) && (!!rawOwner || !!rawProject);
+  const rawOwners = card.unmatchedOwnerNames;
+  // An alias-matched project keeps its heard text but needs no decision (F117).
+  const rawProject = card.projectId ? null : card.rawProjectName;
+  const ready =
+    rawOwners.every((n) => !!ownerChoices[n]) &&
+    (rawProject ? !!projectChoice : true) &&
+    (rawOwners.length > 0 || !!rawProject);
+  const remembered = [...rawOwners.filter((n) => ownerChoices[n] !== IGNORE), ...(rawProject ? [rawProject] : [])];
 
   async function submit() {
     setBusy(true);
     setError("");
     const body: Record<string, unknown> = { rememberAlias: remember };
-    if (rawOwner) {
-      if (ownerChoice === NEW) body.newPersonName = rawOwner;
-      else body.ownerId = ownerChoice;
+    if (rawOwners.length) {
+      body.owners = rawOwners.map((raw) => {
+        const choice = ownerChoices[raw];
+        if (choice === NEW) return { raw, newPerson: true };
+        if (choice === IGNORE) return { raw, ignore: true };
+        return { raw, personId: choice };
+      });
     }
     if (rawProject) {
       if (projectChoice === NEW) body.newProjectName = rawProject;
@@ -67,12 +77,13 @@ export function ResolveDialog({ card, people, projects, onClose, onApplied, onRe
             <>
               <DialogBody className="space-y-4">
                 <p className="text-sm text-foreground break-words">{card.title}</p>
-                {rawOwner && (
+                {rawOwners.map((name, i) => (
                   <Select
-                    id="rs-owner"
-                    label={`Molly heard '${rawOwner}' as owner`}
-                    value={ownerChoice}
-                    onChange={(e) => setOwnerChoice(e.target.value)}
+                    key={name}
+                    id={`rs-owner-${i}`}
+                    label={`Molly heard '${name}' as an owner`}
+                    value={ownerChoices[name] ?? ""}
+                    onChange={(e) => setOwnerChoices((c) => ({ ...c, [name]: e.target.value }))}
                   >
                     <option value="">Choose a person…</option>
                     {people.map((p) => (
@@ -80,9 +91,10 @@ export function ResolveDialog({ card, people, projects, onClose, onApplied, onRe
                         {p.label}
                       </option>
                     ))}
-                    <option value={NEW}>{`Add '${rawOwner}' as a new person`}</option>
+                    <option value={NEW}>{`Add '${name}' as a new person`}</option>
+                    <option value={IGNORE}>Not an owner — ignore</option>
                   </Select>
-                )}
+                ))}
                 {rawProject && (
                   <Select
                     id="rs-project"
@@ -102,11 +114,14 @@ export function ResolveDialog({ card, people, projects, onClose, onApplied, onRe
                 <label className="flex items-center gap-2 text-xs text-muted-foreground">
                   <input
                     type="checkbox"
-                    checked={remember}
+                    checked={remember && remembered.length > 0}
+                    disabled={remembered.length === 0}
                     onChange={(e) => setRemember(e.target.checked)}
                     className="h-3.5 w-3.5 rounded-sm border-input"
                   />
-                  Remember {[rawOwner, rawProject].filter(Boolean).map((s) => `'${s}'`).join(" and ")} next time
+                  {remembered.length > 0
+                    ? `Remember ${remembered.map((s) => `'${s}'`).join(" and ")} next time`
+                    : "Nothing to remember"}
                 </label>
                 {error && <p className="text-xs text-tone-clay-ink">{error}</p>}
               </DialogBody>
