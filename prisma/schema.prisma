@@ -98,6 +98,18 @@ model Company {
 
   stage String @default("ACTIVE") // "DILIGENCE" | "ACTIVE" — Part 16, Q53. Existing rows default to ACTIVE, zero backfill needed.
 
+  // Company update theming (docs/design/company-update-theming.md, section 8).
+  // All additive: nullable or defaulted, so `prisma db push` needs no
+  // --accept-data-loss. Only the founder's picked hex is stored; every derived
+  // colour is computed on read by src/lib/brand-theme.ts.
+  brandColor    String? // lowercase #rrggbb; null = Molly default blue
+  logoPlate     String  @default("LIGHT") // "LIGHT" | "BRAND" — what the logo sits on
+  logoWebKey    String? // S3 key of the web derivative (fit in 480x160 PNG); `logo` holds the trimmed source PNG key
+  logoEmailKey  String? // S3 key of the email derivative (flattened onto the plate colour)
+  logoLuminance Float? // mean luminance (0..1) of opaque logo pixels, for the "mostly white" warning
+  logoWidth     Int? // pixel size of the web derivative
+  logoHeight    Int?
+
   createdById String
   createdBy   User   @relation("CreatedCompanies", fields: [createdById], references: [id])
 
