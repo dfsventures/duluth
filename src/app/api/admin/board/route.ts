@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
-import { ensureAdminPeople } from "@/lib/board-server";
+import { ensureAdminPeople, CARD_OWNER_INCLUDE, toCardData } from "@/lib/board-server";
 import { doneCutoff } from "@/lib/board";
 
 export async function GET(request: Request) {
@@ -23,6 +23,7 @@ export async function GET(request: Request) {
     const [cards, projects, people, needsReviewCount] = await Promise.all([
       db.boardCard.findMany({
         where: cardWhere,
+        include: CARD_OWNER_INCLUDE,
         orderBy: [{ status: "asc" }, { position: "asc" }],
       }),
       db.boardProject.findMany({
@@ -30,7 +31,10 @@ export async function GET(request: Request) {
         orderBy: { name: "asc" },
       }),
       db.boardPerson.findMany({
-        where: includeArchived ? {} : { archivedAt: null },
+        // JC-MO-K (F116): archived people who own a visible card still come back, for labels.
+        where: includeArchived
+          ? {}
+          : { OR: [{ archivedAt: null }, { cardOwnerships: { some: { card: cardWhere } } }] },
         include: { user: { select: { name: true, email: true } } },
         orderBy: { displayName: "asc" },
       }),
@@ -38,7 +42,7 @@ export async function GET(request: Request) {
     ]);
 
     return NextResponse.json({
-      cards,
+      cards: cards.map(toCardData),
       projects,
       people: people.map(({ user, ...p }) => ({
         ...p,

@@ -64,6 +64,18 @@ export async function loadBoardContext() {
   };
 }
 
+export const CARD_OWNER_INCLUDE = { owners: { select: { personId: true } } } as const;
+
+/**
+ * Part 38: every route that returns a card to the board client goes through
+ * this. Never emits `ownerIds: undefined` (it would wipe the key in the
+ * client's merge); the move route simply does not use it.
+ */
+export function toCardData<T extends { owners: { personId: string }[] }>(c: T) {
+  const { owners, ...rest } = c;
+  return { ...rest, ownerIds: owners.map((o) => o.personId) };
+}
+
 /** Replace a card's owner set (Part 38). Runs inside the caller's transaction. */
 export async function setCardOwnersIn(
   tx: Prisma.TransactionClient,

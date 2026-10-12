@@ -21,6 +21,8 @@ function card(over: Partial<BoardCardData>): BoardCardData {
     position: 1,
     dueDate: null,
     projectId: null,
+    ownerIds: [],
+    unmatchedOwnerNames: [],
     ownerId: null,
     rawOwnerName: null,
     rawProjectName: null,

@@ -20,7 +20,7 @@ vi.mock("@/lib/db", () => ({
     boardPerson: {
       findUnique: vi.fn(async ({ where }: any) => {
         const p = state.people.find((x) => x.id === where.id);
-        return p ? { ...p, _count: { cards: state.cards.filter((c) => c.ownerId === p.id).length } } : null;
+        return p ? { ...p, _count: { cardOwnerships: state.cards.filter((c) => c.ownerId === p.id).length } } : null;
       }),
       delete: vi.fn(async ({ where }: any) => {
         state.people = state.people.filter((x) => x.id !== where.id);

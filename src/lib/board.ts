@@ -62,3 +62,30 @@ export function parseDueDate(v: unknown): Date | null | undefined {
 export const MAX_TITLE_LENGTH = 300;
 export const MAX_NOTES_LENGTH = 5000;
 export const MAX_NAME_LENGTH = 120;
+
+/**
+ * Part 38: owner input for POST/PATCH. `ownerIds` (array) or legacy `ownerId`
+ * (string|null); not both. `ownerIds: undefined` means the field was absent.
+ */
+export function parseOwnerInput(
+  b: Record<string, unknown>
+): { ok: true; ownerIds: string[] | undefined } | { ok: false; error: string } {
+  const hasArr = "ownerIds" in b;
+  const hasOne = "ownerId" in b;
+  if (hasArr && hasOne) return { ok: false, error: "Send ownerIds or ownerId, not both" };
+  if (hasOne) {
+    if (b.ownerId === null || b.ownerId === "") return { ok: true, ownerIds: [] };
+    return typeof b.ownerId === "string"
+      ? { ok: true, ownerIds: [b.ownerId] }
+      : { ok: false, error: "Unknown owner" };
+  }
+  if (!hasArr) return { ok: true, ownerIds: undefined };
+  if (!Array.isArray(b.ownerIds) || b.ownerIds.some((x) => typeof x !== "string" || !x)) {
+    return { ok: false, error: "ownerIds must be an array of ids" };
+  }
+  const ids = [...new Set(b.ownerIds as string[])];
+  if (ids.length > MAX_OWNERS_PER_CARD) {
+    return { ok: false, error: `A card can have at most ${MAX_OWNERS_PER_CARD} owners` };
+  }
+  return { ok: true, ownerIds: ids };
+}

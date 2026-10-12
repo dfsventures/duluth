@@ -8,7 +8,11 @@ export interface BoardCardData {
   position: number;
   dueDate: string | null;
   projectId: string | null;
+  ownerIds: string[];
+  unmatchedOwnerNames: string[];
+  /** @deprecated Part 38: use ownerIds / unmatchedOwnerNames; removed in WS118 */
   ownerId: string | null;
+  /** @deprecated Part 38: use ownerIds / unmatchedOwnerNames; removed in WS118 */
   rawOwnerName: string | null;
   rawProjectName: string | null;
   needsReview: boolean;

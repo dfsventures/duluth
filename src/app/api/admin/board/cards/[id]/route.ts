@@ -3,8 +3,9 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
-import { setCardOwnersIn } from "@/lib/board-server";
-import { parseDueDate, MAX_TITLE_LENGTH, MAX_NOTES_LENGTH } from "@/lib/board";
+import { setCardOwnersIn, CARD_OWNER_INCLUDE, toCardData } from "@/lib/board-server";
+import { computeNeedsReview } from "@/lib/board-reconcile";
+import { parseDueDate, parseOwnerInput, MAX_TITLE_LENGTH, MAX_NOTES_LENGTH } from "@/lib/board";
 
 // Hand-written allowlist (F95 lesson): never spread the body into Prisma.
 export async function PATCH(
@@ -22,7 +23,10 @@ export async function PATCH(
     }
     const b = body as Record<string, unknown>;
 
-    const card = await db.boardCard.findUnique({ where: { id } });
+    const card = await db.boardCard.findUnique({
+      where: { id },
+      include: { owners: { select: { personId: true, rawName: true } } },
+    });
     if (!card) return NextResponse.json({ error: "Card not found" }, { status: 404 });
 
     const data: Record<string, unknown> = {};
@@ -47,18 +51,23 @@ export async function PATCH(
       data.dueDate = parsed;
     }
 
-    let rawOwner = card.rawOwnerName;
-    let rawProject = card.rawProjectName;
-    if ("ownerId" in b) {
-      if (b.ownerId !== null) {
-        if (typeof b.ownerId !== "string" || !(await db.boardPerson.findUnique({ where: { id: b.ownerId }, select: { id: true } }))) {
-          return NextResponse.json({ error: "Unknown owner" }, { status: 400 });
-        }
-      }
-      data.ownerId = b.ownerId;
-      data.rawOwnerName = null;
-      rawOwner = null;
+    // Part 38: `ownerIds` (array) or the legacy `ownerId` (JC-MO-M). An explicit
+    // owner set is the admin's word, so it also clears the unmatched names.
+    const ownerInput = parseOwnerInput(b);
+    if (!ownerInput.ok) {
+      return NextResponse.json({ error: ownerInput.error }, { status: 400 });
     }
+    const newOwnerIds = ownerInput.ownerIds;
+    if (
+      newOwnerIds &&
+      newOwnerIds.length &&
+      (await db.boardPerson.count({ where: { id: { in: newOwnerIds } } })) !== newOwnerIds.length
+    ) {
+      return NextResponse.json({ error: "Unknown owner" }, { status: 400 });
+    }
+
+    let rawProject = card.rawProjectName;
+    let projectIdAfter = card.projectId;
     if ("projectId" in b) {
       if (b.projectId !== null) {
         if (typeof b.projectId !== "string" || !(await db.boardProject.findUnique({ where: { id: b.projectId }, select: { id: true } }))) {
@@ -68,9 +77,15 @@ export async function PATCH(
       data.projectId = b.projectId;
       data.rawProjectName = null;
       rawProject = null;
+      projectIdAfter = b.projectId as string | null;
     }
-    if (("ownerId" in b || "projectId" in b) && card.needsReview && !rawOwner && !rawProject) {
-      data.needsReview = false;
+    // F117: one rule for the review flag, recomputed whenever owners or project change.
+    if (newOwnerIds !== undefined || "projectId" in b) {
+      data.needsReview = computeNeedsReview({
+        unmatchedOwnerNames: newOwnerIds !== undefined ? [] : card.unmatchedOwnerNames,
+        rawProjectName: rawProject,
+        projectId: projectIdAfter,
+      });
     }
 
     let archiving = false;
@@ -82,28 +97,37 @@ export async function PATCH(
       archiving = b.archived;
     }
 
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(data).length === 0 && newOwnerIds === undefined) {
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
     data.humanEditedAt = new Date();
     data.updatedById = user!.id;
 
-    // Part 38 (WS113): dual-write the owner set alongside the legacy columns.
+    const previousOwnerIds = card.owners.map((o) => o.personId);
     const updated = await db.$transaction(async (tx) => {
-      const u = await tx.boardCard.update({ where: { id }, data });
-      if ("ownerId" in b) {
-        // An explicit owner set also clears unmatched names (as it clears rawOwnerName).
-        await setCardOwnersIn(tx, id, typeof b.ownerId === "string" ? [b.ownerId] : [], {}, []);
+      await tx.boardCard.update({ where: { id }, data });
+      if (newOwnerIds !== undefined) {
+        // Owners who stay keep the text they were heard as (Q100-a/c).
+        const keep: Record<string, string | null> = {};
+        for (const o of card.owners) if (newOwnerIds.includes(o.personId)) keep[o.personId] = o.rawName;
+        await setCardOwnersIn(tx, id, newOwnerIds, keep, []);
       }
-      return u;
+      return tx.boardCard.findUniqueOrThrow({ where: { id }, include: CARD_OWNER_INCLUDE });
     });
+    const fields = Object.keys(data).filter((k) => k !== "humanEditedAt" && k !== "updatedById");
+    const metadata: Record<string, unknown> = { fields };
+    if (newOwnerIds !== undefined) {
+      fields.push("owners");
+      metadata.ownersAdded = newOwnerIds.filter((x) => !previousOwnerIds.includes(x));
+      metadata.ownersRemoved = previousOwnerIds.filter((x) => !newOwnerIds.includes(x));
+    }
     await logAdminAction(user!, archiving ? "BOARD_CARD_ARCHIVED" : "BOARD_CARD_UPDATED", {
       targetType: "BoardCard",
       targetId: id,
-      metadata: { fields: Object.keys(data).filter((k) => k !== "humanEditedAt" && k !== "updatedById") },
+      metadata,
     });
-    return NextResponse.json(updated);
+    return NextResponse.json(toCardData(updated));
   } catch (err) {
     console.error("PATCH /api/admin/board/cards/[id] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

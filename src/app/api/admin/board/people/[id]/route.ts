@@ -72,7 +72,7 @@ export async function DELETE(
 
     const person = await db.boardPerson.findUnique({
       where: { id },
-      include: { _count: { select: { cards: true } } },
+      include: { _count: { select: { cardOwnerships: true } } },
     });
     if (!person) return NextResponse.json({ error: "Person not found" }, { status: 404 });
     if (person.userId) {
@@ -86,9 +86,9 @@ export async function DELETE(
     await logAdminAction(user!, "BOARD_PERSON_DELETED", {
       targetType: "BoardPerson",
       targetId: id,
-      metadata: { name: person.displayName, affectedCards: person._count.cards },
+      metadata: { name: person.displayName, affectedCards: person._count.cardOwnerships },
     });
-    return NextResponse.json({ ok: true, affectedCards: person._count.cards });
+    return NextResponse.json({ ok: true, affectedCards: person._count.cardOwnerships });
   } catch (err) {
     console.error("DELETE /api/admin/board/people/[id] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
