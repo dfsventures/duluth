@@ -7,6 +7,17 @@ import { slackDigestEnabled, postToSlack, buildDigestSlackText } from "@/lib/sla
 import { logAdminAction } from "@/lib/audit";
 import { buildDigestActionItems } from "@/lib/board-server";
 
+// Part 38 (F115): owner labels first (all owners), then the legacy single label,
+// then the assignee, so a shared item never prints just one owner's name.
+const labelsOf = (t: {
+  ownerLabels: string[];
+  ownerLabel: string | null;
+  assignee: { name: string | null; email: string } | null;
+}) =>
+  t.ownerLabels.length
+    ? t.ownerLabels
+    : [t.ownerLabel ?? t.assignee?.name ?? t.assignee?.email].filter((s): s is string => !!s);
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -60,7 +71,7 @@ export async function POST(
     const todos = digest.todos.map((t) => ({
       text: t.text,
       completed: t.completed,
-      assigneeName: t.assignee?.name ?? t.assignee?.email ?? t.ownerLabel ?? null,
+      assigneeName: labelsOf(t).join(", ") || null,
       projectLabel: t.projectLabel ?? null,
     }));
 
@@ -92,7 +103,7 @@ export async function POST(
               boardUrl: `${BASE_URL}/admin/board`,
               items: open.map((t) => ({
                 title: t.text,
-                ownerLabel: t.assignee?.name ?? t.assignee?.email ?? t.ownerLabel ?? null,
+                ownerLabels: labelsOf(t),
                 projectLabel: t.projectLabel ?? null,
                 dueDate: t.card?.dueDate ?? null,
               })),

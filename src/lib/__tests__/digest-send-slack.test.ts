@@ -33,8 +33,8 @@ function digest(slackPostedAt: Date | null) {
   return {
     id: "d1", title: "T", sections: [], slackPostedAt, sentAt: null,
     todos: [
-      { text: "open", completed: false, assignee: null, ownerLabel: "Ann", projectLabel: null, card: { dueDate: null } },
-      { text: "done", completed: true, assignee: null, ownerLabel: "Ann", projectLabel: null, card: null },
+      { text: "open", completed: false, assignee: null as { name: string | null; email: string } | null, ownerLabel: "Ann" as string | null, ownerLabels: ["Ann"], projectLabel: null, card: { dueDate: null } },
+      { text: "done", completed: true, assignee: null as { name: string | null; email: string } | null, ownerLabel: "Ann" as string | null, ownerLabels: ["Ann"], projectLabel: null, card: null },
     ],
   };
 }
@@ -68,6 +68,35 @@ describe("digest send + Slack", () => {
     expect(db.weeklyDigest.update).toHaveBeenCalledWith({ where: { id: "d1" }, data: { slackPostedAt: expect.any(Date) } });
     expect(JSON.stringify(mockAudit.mock.calls)).not.toContain("SECRET");
     expect(mockAudit.mock.calls[0][2].metadata.slack).toBe("posted");
+  });
+
+  it("ownerLabels take precedence over the assignee: Slack lists a shared item under each owner and the email names both", async () => {
+    const d = digest(null);
+    d.todos[0] = {
+      ...d.todos[0],
+      assignee: { name: "Only First", email: "f@x.com" },
+      ownerLabel: "Ann, Bo",
+      ownerLabels: ["Ann", "Bo"],
+    };
+    setDigest(d);
+    mockPost.mockResolvedValue({ ok: true });
+    await call();
+    const text = mockPost.mock.calls[0][0] as string;
+    expect(text).toContain("• open — with Bo");
+    expect(text).toContain("• open — with Ann");
+    expect(text).not.toContain("Only First");
+    expect(vi.mocked(sendWeeklyDigestEmail).mock.calls[0][0].todos[0].assigneeName).toBe("Ann, Bo");
+  });
+
+  it("a legacy row (ownerLabels: []) falls back to ownerLabel, then the assignee", async () => {
+    const d = digest(null);
+    d.todos[0] = { ...d.todos[0], ownerLabel: "Legacy Label", ownerLabels: [] };
+    d.todos[1] = { ...d.todos[1], completed: false, ownerLabel: null, ownerLabels: [], assignee: { name: null, email: "who@x.com" } };
+    setDigest(d);
+    mockPost.mockResolvedValue({ ok: true });
+    await call();
+    const todos = vi.mocked(sendWeeklyDigestEmail).mock.calls[0][0].todos;
+    expect(todos.map((t) => t.assigneeName)).toEqual(["Legacy Label", "who@x.com"]);
   });
 
   it("does not re-post when slackPostedAt is set", async () => {

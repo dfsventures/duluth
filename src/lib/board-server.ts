@@ -194,6 +194,10 @@ export function titleKey(title: string): string {
   return crypto.createHash("sha1").update(normalizeName(title)).digest("hex").slice(0, 12);
 }
 
+function sameStrings(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((x, i) => x === b[i]);
+}
+
 /**
  * Part 37 (WS108): builds/refreshes the digest's linked action-item rows from
  * the board. Members: every open card, plus cards completed after the last
@@ -223,23 +227,38 @@ export async function buildDigestActionItems(
     where: { archivedAt: null, OR: or },
     orderBy: [{ status: "asc" }, { position: "asc" }],
     include: {
-      owner: { include: { user: { select: { name: true, email: true } } } },
+      owners: { include: { person: { include: { user: { select: { name: true, email: true } } } } } },
       project: { select: { name: true } },
     },
   });
 
   const rows = await client.digestTodo.findMany({
     where: { digestId, cardId: { not: null } },
-    select: { id: true, cardId: true, text: true, ownerLabel: true, projectLabel: true, completed: true, assigneeId: true },
+    select: {
+      id: true,
+      cardId: true,
+      text: true,
+      ownerLabel: true,
+      ownerLabels: true,
+      projectLabel: true,
+      completed: true,
+      assigneeId: true,
+    },
   });
   const rowByCard = new Map(rows.map((r) => [r.cardId as string, r]));
 
   let created = 0;
   let updated = 0;
   for (const c of cards) {
-    const ownerLabel = c.owner ? (c.owner.user?.name ?? c.owner.user?.email ?? c.owner.displayName) : null;
+    // Part 38: one row per card, never per owner. Labels sort alphabetically so
+    // no owner reads as the lead (JC-MO-A); assignee = first owner with a login (JC-MO-E).
+    const byLabel = c.owners
+      .map(({ person: p }) => ({ label: p.user?.name ?? p.user?.email ?? p.displayName, userId: p.userId }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    const ownerLabels = byLabel.map((o) => o.label);
+    const ownerLabel = ownerLabels.join(", ") || null;
     const projectLabel = c.project?.name ?? null;
-    const assigneeId = c.owner?.userId ?? null;
+    const assigneeId = byLabel.find((o) => o.userId)?.userId ?? null;
     const completed = c.status === "DONE";
     const row = rowByCard.get(c.id);
     if (!row) {
@@ -250,6 +269,7 @@ export async function buildDigestActionItems(
           cardId: c.id,
           text: c.title,
           ownerLabel,
+          ownerLabels,
           projectLabel,
           completed,
           assigneeId,
@@ -259,13 +279,14 @@ export async function buildDigestActionItems(
     } else if (
       row.text !== c.title ||
       row.ownerLabel !== ownerLabel ||
+      !sameStrings(row.ownerLabels, ownerLabels) ||
       row.projectLabel !== projectLabel ||
       row.completed !== completed ||
       row.assigneeId !== assigneeId
     ) {
       await client.digestTodo.update({
         where: { id: row.id },
-        data: { text: c.title, ownerLabel, projectLabel, completed, assigneeId },
+        data: { text: c.title, ownerLabel, ownerLabels, projectLabel, completed, assigneeId },
       });
       updated++;
     }

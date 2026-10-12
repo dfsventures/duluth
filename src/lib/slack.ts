@@ -2,6 +2,7 @@
 // items. SLACK_DIGEST_WEBHOOK_URL is a SECRET (Slack treats the URL as the
 // credential): never log it, never return it to a client, never put it in
 // audit metadata. Error strings returned from here are fixed text only.
+// Part 38: a shared item is listed under each of its owners (a line per owner).
 
 export function slackDigestEnabled(): boolean {
   return Boolean(process.env.SLACK_DIGEST_WEBHOOK_URL);
@@ -14,7 +15,8 @@ export function slackEscape(s: string): string {
 
 export type SlackDigestItem = {
   title: string;
-  ownerLabel: string | null;
+  /** Part 38: every owner (equal). [] = Unassigned. A shared item is listed under each owner (L2). */
+  ownerLabels: string[];
   projectLabel: string | null;
   dueDate: Date | null;
 };
@@ -35,13 +37,17 @@ export function buildDigestSlackText(o: {
   const n = o.items.length;
   const lines: string[] = [`*${slackEscape(o.title)}* — ${n} open item${n === 1 ? "" : "s"}`];
 
-  // Group by owner, first-seen order, Unassigned last.
+  // Group by owner, first-seen order, Unassigned last. A shared item goes into
+  // the group of EACH of its owners; the header above still counts it once.
   const groups = new Map<string, SlackDigestItem[]>();
+  const labelsFor = (it: SlackDigestItem) => [...new Set(it.ownerLabels.map((l) => l.trim()).filter(Boolean))];
   for (const it of o.items) {
-    const key = it.ownerLabel?.trim() || "";
-    const g = groups.get(key);
-    if (g) g.push(it);
-    else groups.set(key, [it]);
+    const labels = labelsFor(it);
+    for (const key of labels.length ? labels : [""]) {
+      const g = groups.get(key);
+      if (g) g.push(it);
+      else groups.set(key, [it]);
+    }
   }
   const keys = [...groups.keys()].filter((k) => k !== "");
   if (groups.has("")) keys.push("");
@@ -63,6 +69,9 @@ export function buildDigestSlackText(o: {
       let line = `• ${slackEscape(it.title)}`;
       if (it.projectLabel) line += ` _(${slackEscape(it.projectLabel)})_`;
       if (it.dueDate) line += ` — due ${formatDue(it.dueDate)}`;
+      // Q104-A: say who else owns it, so a reader scanning one group sees it is shared.
+      const others = labelsFor(it).filter((l) => l !== key);
+      if (key && others.length) line += ` — with ${slackEscape(others.join(", "))}`;
       lines.push(line);
       used++;
     }

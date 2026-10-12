@@ -153,6 +153,17 @@ describe("WS56 email body escaping", () => {
     expect(html).toContain(ESC);
     expect(subject).toBe(EVIL);
   });
+  it("Part 38 WS117: a joined multi-owner assigneeName is escaped (an owner name with < inside)", async () => {
+    await sendWeeklyDigestEmail({
+      toEmail: "x@y.com",
+      title: "T",
+      sections: [],
+      todos: [{ text: "t", completed: false, assigneeName: `Jane Founder, <b>Sam</b> & Co`, projectLabel: null }],
+    });
+    const { html } = sent();
+    expect(html).toContain("Jane Founder, &lt;b&gt;Sam&lt;/b&gt; &amp; Co");
+    expect(html).not.toContain("<b>Sam</b>");
+  });
   it("Part 37 WS108: sendWeeklyDigestEmail escapes the per-todo projectLabel", async () => {
     await sendWeeklyDigestEmail({
       toEmail: "x@y.com",

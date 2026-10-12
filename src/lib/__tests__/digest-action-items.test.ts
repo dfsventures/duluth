@@ -33,7 +33,7 @@ const card = (over: Record<string, unknown> = {}) => ({
   id: "c1",
   title: "Send deck",
   status: "TODO",
-  owner: { displayName: "Jane Founder", userId: null, user: null },
+  owners: [{ person: { displayName: "Jane Founder", userId: null, user: null } }],
   project: { name: "AcmeHQ onboarding" },
   ...over,
 });
@@ -50,12 +50,12 @@ describe("buildDigestActionItems", () => {
   it("creates linked rows for open cards with labels and assignee", async () => {
     m.cardFind.mockResolvedValue([
       card(),
-      card({ id: "c2", title: "Intro", owner: { displayName: "x", userId: "u1", user: { name: "Sam Partner", email: "s@example.com" } }, project: null }),
+      card({ id: "c2", title: "Intro", owners: [{ person: { displayName: "x", userId: "u1", user: { name: "Sam Partner", email: "s@example.com" } } }], project: null }),
     ]);
     const r = await buildDigestActionItems("d1");
     expect(r).toEqual({ created: 2, updated: 0 });
     expect(m.todoCreate.mock.calls[0][0].data).toMatchObject({
-      digestId: "d1", cardId: "c1", text: "Send deck", ownerLabel: "Jane Founder", projectLabel: "AcmeHQ onboarding", completed: false, assigneeId: null,
+      digestId: "d1", cardId: "c1", text: "Send deck", ownerLabel: "Jane Founder", ownerLabels: ["Jane Founder"], projectLabel: "AcmeHQ onboarding", completed: false, assigneeId: null,
     });
     expect(m.todoCreate.mock.calls[1][0].data).toMatchObject({ cardId: "c2", ownerLabel: "Sam Partner", assigneeId: "u1", projectLabel: null });
   });
@@ -87,15 +87,15 @@ describe("buildDigestActionItems", () => {
 
   it("refreshes text, labels, completed and assignee on existing rows, and never deletes", async () => {
     m.todoFind.mockResolvedValue([
-      { id: "r1", cardId: "c1", text: "Old title", ownerLabel: null, projectLabel: null, completed: false, assigneeId: null },
-      { id: "r2", cardId: "gone", text: "Orphan", ownerLabel: null, projectLabel: null, completed: false, assigneeId: null },
+      { id: "r1", cardId: "c1", text: "Old title", ownerLabel: null, ownerLabels: [], projectLabel: null, completed: false, assigneeId: null },
+      { id: "r2", cardId: "gone", text: "Orphan", ownerLabel: null, ownerLabels: [], projectLabel: null, completed: false, assigneeId: null },
     ]);
     m.cardFind.mockResolvedValue([card({ status: "DONE" })]);
     const r = await buildDigestActionItems("d1");
     expect(r).toEqual({ created: 0, updated: 1 });
     expect(m.todoUpdate).toHaveBeenCalledWith({
       where: { id: "r1" },
-      data: { text: "Send deck", ownerLabel: "Jane Founder", projectLabel: "AcmeHQ onboarding", completed: true, assigneeId: null },
+      data: { text: "Send deck", ownerLabel: "Jane Founder", ownerLabels: ["Jane Founder"], projectLabel: "AcmeHQ onboarding", completed: true, assigneeId: null },
     });
     expect(m.todoDelete).not.toHaveBeenCalled();
     expect(m.todoDeleteMany).not.toHaveBeenCalled();
@@ -103,9 +103,50 @@ describe("buildDigestActionItems", () => {
 
   it("does not write when a row is already current", async () => {
     m.todoFind.mockResolvedValue([
-      { id: "r1", cardId: "c1", text: "Send deck", ownerLabel: "Jane Founder", projectLabel: "AcmeHQ onboarding", completed: false, assigneeId: null },
+      { id: "r1", cardId: "c1", text: "Send deck", ownerLabel: "Jane Founder", ownerLabels: ["Jane Founder"], projectLabel: "AcmeHQ onboarding", completed: false, assigneeId: null },
     ]);
     m.cardFind.mockResolvedValue([card()]);
     expect(await buildDigestActionItems("d1")).toEqual({ created: 0, updated: 0 });
+  });
+
+  it("two owners give a joined ownerLabel, sorted ownerLabels and the first linked user as assignee", async () => {
+    m.cardFind.mockResolvedValue([
+      card({
+        owners: [
+          { person: { displayName: "Zed Plain", userId: null, user: null } },
+          { person: { displayName: "x", userId: "u2", user: { name: "Sam Partner", email: "s@example.com" } } },
+          { person: { displayName: "y", userId: "u1", user: { name: "Jane Founder", email: "j@example.com" } } },
+        ],
+      }),
+    ]);
+    await buildDigestActionItems("d1");
+    expect(m.todoCreate).toHaveBeenCalledTimes(1); // one row per card, not per owner
+    expect(m.todoCreate.mock.calls[0][0].data).toMatchObject({
+      ownerLabel: "Jane Founder, Sam Partner, Zed Plain",
+      ownerLabels: ["Jane Founder", "Sam Partner", "Zed Plain"],
+      assigneeId: "u1",
+    });
+  });
+
+  it("an unassigned card gets no labels and no assignee", async () => {
+    m.cardFind.mockResolvedValue([card({ owners: [] })]);
+    await buildDigestActionItems("d1");
+    expect(m.todoCreate.mock.calls[0][0].data).toMatchObject({ ownerLabel: null, ownerLabels: [], assigneeId: null });
+  });
+
+  it("a label-only change triggers an update", async () => {
+    m.todoFind.mockResolvedValue([
+      { id: "r1", cardId: "c1", text: "Send deck", ownerLabel: "Jane Founder", ownerLabels: ["Jane Founder"], projectLabel: "AcmeHQ onboarding", completed: false, assigneeId: null },
+    ]);
+    m.cardFind.mockResolvedValue([
+      card({
+        owners: [
+          { person: { displayName: "Jane Founder", userId: null, user: null } },
+          { person: { displayName: "Sam Partner", userId: null, user: null } },
+        ],
+      }),
+    ]);
+    expect(await buildDigestActionItems("d1")).toEqual({ created: 0, updated: 1 });
+    expect(m.todoUpdate.mock.calls[0][0].data).toMatchObject({ ownerLabel: "Jane Founder, Sam Partner", ownerLabels: ["Jane Founder", "Sam Partner"] });
   });
 });
