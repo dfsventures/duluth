@@ -14,13 +14,15 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { LogoMark } from "@/components/ui/logo-mark";
 import { formatDate, formatPeriod } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import type { BrandTheme, LogoPlate } from "@/lib/brand-theme";
+import { BrandButton, CompanyChip, CompanyLogo, Monogram, ThemeBand, ThemeScope } from "@/components/share/company-brand";
 
 interface MetricSnapshot {
   name: string;
@@ -37,6 +39,11 @@ interface Company {
   geography: string | null;
   fundingStage: string | null;
   website: string | null;
+  /** Derived server-side; null = DFS default look. */
+  theme: BrandTheme | null;
+  logoUrl: string | null;
+  logoPlate: LogoPlate;
+  logoSquare: boolean;
   metrics: MetricSnapshot[];
 }
 
@@ -63,6 +70,8 @@ interface ShareData {
   periodStart: string;
   periodEnd: string;
   expiresAt: string | null;
+  /** Page-level theme: only set when the link covers exactly one company. */
+  theme: BrandTheme | null;
   companies: Company[];
   updates: UpdateItem[];
 }
@@ -179,8 +188,13 @@ export default function SharePage() {
     );
   }
 
+  const pageTheme = data!.theme;
+  const soleCompany = data!.companies.length === 1 ? data!.companies[0] : null;
+  const themeByCompany = new Map(data!.companies.map((c) => [c.id, c.theme]));
+
   return (
-    <div className="min-h-screen bg-background">
+    <ThemeScope theme={pageTheme} className="min-h-screen bg-background">
+      {pageTheme && <ThemeBand themed />}
       {/* Email gate modal */}
       {emailGate && (
         <Dialog open>
@@ -207,9 +221,9 @@ export default function SharePage() {
                 autoFocus
                 error={emailError ?? undefined}
               />
-              <Button type="submit" className="w-full" disabled={submittingEmail}>
+              <BrandButton theme={pageTheme} type="submit" className="w-full" disabled={submittingEmail}>
                 {submittingEmail ? "..." : "View Update"}
-              </Button>
+              </BrandButton>
             </form>
             </DialogBody>
           </DialogContent>
@@ -220,6 +234,16 @@ export default function SharePage() {
       <div className="mx-auto max-w-3xl px-4 py-10">
         {/* Header */}
         <div className="mb-8">
+          {soleCompany && (soleCompany.logoUrl || soleCompany.theme) && (
+            <div className="mb-4">
+              <CompanyLogo
+                name={soleCompany.name}
+                logoUrl={soleCompany.logoUrl}
+                plate={soleCompany.logoPlate}
+                square={soleCompany.logoSquare}
+              />
+            </div>
+          )}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <LogoMark className="text-sm" />
             <span>{ORG_NAME} Portfolio Update</span>
@@ -236,17 +260,30 @@ export default function SharePage() {
 
         {/* Portfolio snapshot strip */}
         <section className="mb-8">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className={cn("mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground", pageTheme && "co-label")}>
             Portfolio Companies
           </h2>
           <div className="grid gap-3 sm:grid-cols-2">
             {data!.companies.map((company) => (
-              <Card key={company.id}>
+              <ThemeScope key={company.id} theme={company.theme}>
+              <Card>
                 <CardContent className="py-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
-                      <Building2 className="h-4 w-4" />
-                    </div>
+                    {company.logoUrl ? (
+                      <CompanyLogo
+                        name={company.name}
+                        logoUrl={company.logoUrl}
+                        plate={company.logoPlate}
+                        size="card"
+                        square={company.logoSquare}
+                      />
+                    ) : company.theme ? (
+                      <Monogram name={company.name} />
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold leading-tight">{company.name}</p>
                       {company.description && (
@@ -268,7 +305,12 @@ export default function SharePage() {
 
                   {/* Latest metrics */}
                   {company.metrics.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-3 border-t pt-3">
+                    <div
+                      className={cn(
+                        "mt-3 flex flex-wrap gap-3",
+                        company.theme ? "co-strip rounded-md px-3 py-2.5" : "border-t pt-3"
+                      )}
+                    >
                       {company.metrics.map((m) => (
                         <div key={m.name}>
                           <p className="text-xs text-muted-foreground">{m.name}</p>
@@ -282,13 +324,14 @@ export default function SharePage() {
                   )}
                 </CardContent>
               </Card>
+              </ThemeScope>
             ))}
           </div>
         </section>
 
         {/* Combined updates feed */}
         <section>
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <h2 className={cn("mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground", pageTheme && "co-label")}>
             Updates ({data!.updates.length})
           </h2>
 
@@ -301,25 +344,31 @@ export default function SharePage() {
               {data!.updates.map((update) => {
                 const isExpanded = expandedUpdates.has(update.id);
                 const date = update.sentAt ?? update.createdAt;
+                const uTheme = themeByCompany.get(update.companyId) ?? null;
                 return (
-                  <Card key={update.id}>
+                  <ThemeScope key={update.id} theme={uTheme}>
+                  <Card>
                     <CardContent className="py-0">
                       {/* Update header — always visible */}
                       <button
                         onClick={() => toggleUpdate(update.id)}
-                        className="flex w-full items-center justify-between py-4 text-left"
+                        className={cn("flex w-full items-center justify-between py-4 text-left", uTheme && "co-focus")}
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-muted-foreground">
                               {new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                             </span>
-                            <Badge variant="neutral" className="text-xs">{update.company.name}</Badge>
+                            {uTheme ? (
+                              <CompanyChip>{update.company.name}</CompanyChip>
+                            ) : (
+                              <Badge variant="neutral" className="text-xs">{update.company.name}</Badge>
+                            )}
                           </div>
                           <p className="mt-0.5 font-semibold">{update.title}</p>
                           <p className="text-xs text-muted-foreground">{formatPeriod(update.period)}</p>
                         </div>
-                        <div className="ml-4 shrink-0 text-muted-foreground">
+                        <div className={cn("ml-4 shrink-0", uTheme ? "co-chevron" : "text-muted-foreground")}>
                           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </div>
                       </button>
@@ -347,13 +396,14 @@ export default function SharePage() {
                           )}
 
                           <div
-                            className="prose prose-sm max-w-none"
+                            className={cn("prose prose-sm max-w-none", uTheme && "co-body")}
                             dangerouslySetInnerHTML={{ __html: update.body }}
                           />
                         </div>
                       )}
                     </CardContent>
                   </Card>
+                  </ThemeScope>
                 );
               })}
             </div>
@@ -370,6 +420,6 @@ export default function SharePage() {
           )}
         </div>
       </div>
-    </div>
+    </ThemeScope>
   );
 }

@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { buildMetricDateFilter, buildMetricSummary, endOfDayUTC } from "@/lib/share-metrics";
 import { rewriteDocumentUrls } from "@/lib/share-docs";
+import { normalizeLogoPlate, themeForStored } from "@/lib/brand-theme";
+import { logoPublicPath } from "@/lib/company-logo";
 
 export async function GET(
   _request: Request,
@@ -26,6 +28,12 @@ export async function GET(
                 geography: true,
                 fundingStage: true,
                 website: true,
+                // Theming inputs only. Everything else about a company stays private.
+                brandColor: true,
+                logoPlate: true,
+                logoWebKey: true,
+                logoWidth: true,
+                logoHeight: true,
               },
             },
           },
@@ -115,16 +123,31 @@ export async function GET(
     // logic in src/lib/share-metrics.ts
     const metricsByCompany = buildMetricSummary(metricValues);
 
+    // Derived server-side from the stored hex only; a bad stored value yields
+    // null (the DFS default) rather than reaching a style attribute.
+    const companyThemes = link.companies.map((c) => themeForStored(c.company.brandColor));
+
     return NextResponse.json({
       id: link.id,
       label: link.label,
       periodStart: link.periodStart,
       periodEnd: link.periodEnd,
       expiresAt: link.expiresAt,
-      companies: link.companies.map((c) => ({
-        ...c.company,
-        metrics: metricsByCompany[c.companyId] ?? [],
-      })),
+      // Page-level theme only when the link covers exactly one company (D1);
+      // multi-company links theme each company's own card instead.
+      theme: companyThemes.length === 1 ? companyThemes[0] : null,
+      companies: link.companies.map((c, i) => {
+        const { brandColor, logoPlate, logoWebKey, logoWidth, logoHeight, ...company } = c.company;
+        void brandColor; // the raw pick is not exposed; the client gets the derived theme
+        return {
+          ...company,
+          theme: companyThemes[i],
+          logoUrl: logoPublicPath(c.companyId, logoWebKey),
+          logoPlate: normalizeLogoPlate(logoPlate) ?? "LIGHT",
+          logoSquare: !!logoWidth && !!logoHeight && logoWidth / logoHeight < 1.15,
+          metrics: metricsByCompany[c.companyId] ?? [],
+        };
+      }),
       // Inline document images are rewritten to the token-scoped proxy so
       // they render for sessionless investors (F16, option b)
       updates: updates.map((u) => ({

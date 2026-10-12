@@ -34,7 +34,7 @@ export function ThemeBand({ themed }: { themed: boolean }) {
   return <div aria-hidden="true" className="co-band h-1.5 w-full" data-themed={themed || undefined} />;
 }
 
-function Monogram({ name, small }: { name: string; small?: boolean }) {
+export function Monogram({ name, small }: { name: string; small?: boolean }) {
   const initial = (name.trim()[0] ?? "?").toUpperCase();
   return (
     <span
