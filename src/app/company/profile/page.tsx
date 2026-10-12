@@ -27,6 +27,9 @@ import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { useCompany } from "@/context/company-context";
 import { ORG_NAME } from "@/lib/org";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { BrandingCard, type BrandingValues } from "@/components/company/branding-card";
+import { logoPublicPath } from "@/lib/company-logo";
+import { normalizeLogoPlate } from "@/lib/brand-theme";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -51,6 +54,12 @@ export default function CompanyProfilePage() {
     geography: "",
     fundingStage: "",
   });
+  const [branding, setBranding] = useState<{
+    values: BrandingValues;
+    logoUrl: string | null;
+    logoLuminance: number | null;
+    logoSquare: boolean;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -84,6 +93,15 @@ export default function CompanyProfilePage() {
           sector: c.sector ?? "",
           geography: c.geography ?? "",
           fundingStage: c.fundingStage ?? "",
+        });
+        setBranding({
+          values: {
+            brandColor: typeof c.brandColor === "string" ? c.brandColor : null,
+            logoPlate: normalizeLogoPlate(c.logoPlate) ?? "LIGHT",
+          },
+          logoUrl: logoPublicPath(selectedCompany.id, c.logoWebKey),
+          logoLuminance: typeof c.logoLuminance === "number" ? c.logoLuminance : null,
+          logoSquare: !!c.logoWidth && !!c.logoHeight && c.logoWidth / c.logoHeight < 1.15,
         });
       } catch {
         setMessage({ type: "error", text: "Failed to load company data." });
@@ -294,6 +312,19 @@ export default function CompanyProfilePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Investor update branding (own save; buttons are type="button") */}
+          {companyId && branding && (
+            <BrandingCard
+              companyId={companyId}
+              companyName={form.name}
+              initial={branding.values}
+              logoUrl={branding.logoUrl}
+              logoLuminance={branding.logoLuminance}
+              logoSquare={branding.logoSquare}
+              onSaved={(values) => setBranding((b) => (b ? { ...b, values } : b))}
+            />
+          )}
 
           {/* Company details */}
           <Card>

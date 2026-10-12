@@ -189,3 +189,110 @@ export function deriveTheme(input: string): BrandTheme {
 
   return { brand, fill, on, hover, ink, tint, mark, band, needsEdge, edge: mark, fillNote };
 }
+
+export type LogoPlate = "LIGHT" | "BRAND";
+
+export function normalizeLogoPlate(input: unknown): LogoPlate | null {
+  return input === "LIGHT" || input === "BRAND" ? input : null;
+}
+
+/** True when saturation is so low the colour reads as grey. */
+export function isNearGrey(hex: string): boolean {
+  const norm = normalizeBrandHex(hex);
+  if (!norm) return false;
+  return rgb2hsl(hex2rgb(norm))[1] < 8;
+}
+
+/** The plate colour a logo sits on for a given theme. */
+export function plateColor(theme: BrandTheme, plate: LogoPlate): string {
+  return plate === "BRAND" ? theme.fill : WHITE;
+}
+
+/**
+ * CSS custom properties for a themed wrapper (or directly on a portalled
+ * element). Components read them as `var(--co-x, <DFS fallback>)`, so an
+ * unthemed company needs no branching in markup. Every value is a validated
+ * #rrggbb produced by deriveTheme, so it is safe in a style attribute.
+ */
+export function themeCssVars(theme: BrandTheme): Record<string, string> {
+  return {
+    "--co-band": theme.band,
+    "--co-ink": theme.ink,
+    "--co-tint": theme.tint,
+    "--co-fill": theme.fill,
+    "--co-on": theme.on,
+    "--co-hover": theme.hover,
+    "--co-edge": theme.edge,
+    "--co-mark": theme.mark,
+  };
+}
+
+/** Theme for a stored value, or null for "use the Molly default". */
+export function themeForStored(stored: string | null | undefined): BrandTheme | null {
+  const norm = normalizeBrandHex(stored);
+  return norm ? deriveTheme(norm) : null;
+}
+
+const ratio = (a: string, b: string) => cr(a, b).toFixed(2);
+
+export interface BrandingRow {
+  label: string;
+  swatch: string;
+  text: string;
+}
+
+/** "How we use it" rows: states exactly what changed and the contrast ratio. */
+export function describeBranding(theme: BrandTheme): BrandingRow[] {
+  const fillAdjusted = theme.fill !== theme.brand;
+  const inkAdjusted = theme.ink !== theme.brand;
+  return [
+    {
+      label: "Buttons",
+      swatch: theme.fill,
+      text: `${theme.fill.toUpperCase()} with ${theme.on === WHITE ? "white" : "dark"} text, ${ratio(theme.on, theme.fill)}:1.${fillAdjusted ? " Adjusted from your colour." : ""}`,
+    },
+    {
+      label: "Links and labels",
+      swatch: theme.ink,
+      text: `${theme.ink.toUpperCase()} on white, ${ratio(theme.ink, WHITE)}:1.${inkAdjusted ? " Adjusted from your colour." : ""}`,
+    },
+    {
+      label: "Top band and highlights",
+      swatch: theme.band,
+      text: `${theme.band.toUpperCase()}${theme.band !== theme.brand ? ", a darker shade so it stays visible" : ", your exact colour"}; panels use a soft tint (${theme.tint.toUpperCase()}).`,
+    },
+  ];
+}
+
+/** Plain, non-blocking notices (sand tone, never red). */
+export function brandingNotices(
+  brandHex: string | null,
+  plate: LogoPlate,
+  logoLuminance: number | null | undefined
+): string[] {
+  const out: string[] = [];
+  const norm = normalizeBrandHex(brandHex);
+  if (norm) {
+    if (lum(norm) > 0.6) {
+      out.push("This is a very light colour. We use a darker shade for text and links so they stay readable.");
+    }
+    if (isNearGrey(norm)) {
+      out.push("This colour is close to grey, so your update will look fairly neutral.");
+    }
+  }
+  if (typeof logoLuminance === "number") {
+    if (plate === "LIGHT" && logoLuminance > 0.85) {
+      out.push('Your logo is mostly white and may disappear on a white background. Try "Your colour".');
+    }
+    if (plate === "BRAND") {
+      const theme = deriveTheme(norm ?? DEFAULT_BRAND_HEX);
+      const g = Math.round(Math.max(0, Math.min(1, logoLuminance)) * 255)
+        .toString(16)
+        .padStart(2, "0");
+      if (cr(`#${g}${g}${g}`, theme.fill) < 3) {
+        out.push("This logo may be hard to see on your colour.");
+      }
+    }
+  }
+  return out;
+}

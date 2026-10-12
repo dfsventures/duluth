@@ -152,3 +152,54 @@ describe("deriveTheme contrast invariants", () => {
     });
   }
 });
+
+import {
+  themeCssVars,
+  themeForStored,
+  describeBranding,
+  brandingNotices,
+  isNearGrey,
+  normalizeLogoPlate,
+  plateColor,
+} from "../brand-theme";
+
+describe("theme UI helpers", () => {
+  it("themeCssVars exposes the eight validated tokens", () => {
+    const vars = themeCssVars(deriveTheme("#12a5b0"));
+    expect(Object.keys(vars).sort()).toEqual(
+      ["--co-band", "--co-edge", "--co-fill", "--co-hover", "--co-ink", "--co-mark", "--co-on", "--co-tint"]
+    );
+    for (const v of Object.values(vars)) expect(v).toMatch(HEX6);
+  });
+  it("themeForStored returns null for empty or garbage, so callers fall back to DFS", () => {
+    expect(themeForStored(null)).toBeNull();
+    expect(themeForStored("")).toBeNull();
+    expect(themeForStored("url(x)")).toBeNull();
+    expect(themeForStored("#12A5B0")?.fill).toBe("#0e828b");
+  });
+  it("describeBranding states the contrast and flags adjustments", () => {
+    const rows = describeBranding(deriveTheme("#12a5b0"));
+    expect(rows[0].text).toContain("#0E828B with white text, 4.58:1");
+    expect(rows[0].text).toContain("Adjusted from your colour");
+    const plain = describeBranding(deriveTheme(DEFAULT_BRAND_HEX));
+    expect(plain[0].text).not.toContain("Adjusted");
+  });
+  it("notices: very light, near grey, white logo, hard-to-see logo", () => {
+    expect(brandingNotices("#ffee8c", "LIGHT", null).join(" ")).toContain("very light");
+    expect(brandingNotices("#808080", "LIGHT", null).join(" ")).toContain("grey");
+    expect(brandingNotices("#12a5b0", "LIGHT", 0.95).join(" ")).toContain("mostly white");
+    expect(brandingNotices("#12a5b0", "LIGHT", 0.4)).toEqual([]);
+    expect(brandingNotices("#12a5b0", "BRAND", 0.5).join(" ")).toContain("hard to see");
+    expect(brandingNotices("#12a5b0", "BRAND", 1)).toEqual([]);
+    expect(brandingNotices(null, "LIGHT", null)).toEqual([]);
+  });
+  it("isNearGrey / plate helpers", () => {
+    expect(isNearGrey("#808080")).toBe(true);
+    expect(isNearGrey("#12a5b0")).toBe(false);
+    expect(normalizeLogoPlate("BRAND")).toBe("BRAND");
+    expect(normalizeLogoPlate("x")).toBeNull();
+    const t = deriveTheme("#12a5b0");
+    expect(plateColor(t, "LIGHT")).toBe("#ffffff");
+    expect(plateColor(t, "BRAND")).toBe(t.fill);
+  });
+});

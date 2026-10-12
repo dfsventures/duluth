@@ -459,3 +459,41 @@ select:not([multiple]):not([size]):disabled {
     animation-iteration-count: infinite !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Company theming (docs/design/company-update-theming.md). The --co-* tokens
+   are set per company by ThemeScope / BrandButton from deriveTheme(); every
+   rule falls back to the DFS tokens, so an unthemed company changes nothing.
+   UNLAYERED on purpose: Tailwind utilities (bg-primary etc.) live in a layer
+   and would otherwise win over these.
+   --------------------------------------------------------------------------- */
+.co-band { background-color: var(--co-band, var(--color-accent)); }
+.co-label { color: var(--co-ink, var(--color-text-muted)); }
+.co-strip { background-color: var(--co-tint, transparent); }
+.co-chip {
+  background-color: var(--co-tint, var(--color-muted, #f0eee6));
+  color: var(--co-ink, var(--color-text-muted));
+}
+.co-monogram {
+  background-color: var(--co-fill, var(--color-accent));
+  color: var(--co-on, var(--color-accent-foreground));
+}
+.co-plate[data-plate="LIGHT"] { background-color: #ffffff; }
+.co-plate[data-plate="BRAND"] { background-color: var(--co-fill, var(--color-accent)); }
+.co-body a {
+  color: var(--co-ink, var(--color-accent));
+  text-decoration: underline;
+}
+.co-btn {
+  background-color: var(--co-fill, var(--color-accent));
+  color: var(--co-on, var(--color-accent-foreground));
+}
+.co-btn:hover:not(:disabled) { background-color: var(--co-hover, var(--color-accent-hover)); }
+.co-btn[data-edge="true"] { border: 1px solid var(--co-edge); }
+.co-btn:focus-visible,
+.co-focus:focus-visible {
+  outline: 2px solid var(--co-ink, var(--color-accent));
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.co-chevron { color: var(--co-ink, currentColor); }
