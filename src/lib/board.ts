@@ -14,6 +14,9 @@ export const BOARD_STATUS_LABELS: Record<BoardStatus, string> = {
 /** Q99-i: Done cards stay visible on the board for this many days. */
 export const DONE_VISIBLE_DAYS = 14;
 
+/** Part 38 (JC-MO-C): most owners (resolved + unmatched) one card may carry. */
+export const MAX_OWNERS_PER_CARD = 5;
+
 /** Gap used when appending to / prepending to a column. */
 export const POSITION_STEP = 1024;
 

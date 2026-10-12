@@ -17,8 +17,8 @@ import {
   type GranolaNote,
 } from "@/lib/granola";
 import { extractDigest, DigestExtractionError } from "@/lib/digest-extraction";
-import { loadBoardContext, buildDigestActionItems, titleKey } from "@/lib/board-server";
-import { planCardWrites, resolveEntity, normalizeName, type ResolvedItem } from "@/lib/board-reconcile";
+import { loadBoardContext, buildDigestActionItems, titleKey, setCardOwnersIn } from "@/lib/board-server";
+import { planCardWrites, resolveEntity, normalizeName, fromSingleOwner, legacyOwnerFields, type ResolvedItem } from "@/lib/board-reconcile";
 import { plainToDigestHtml } from "@/lib/digest-html";
 import { POSITION_STEP, MAX_TITLE_LENGTH, parseDueDate, positionBetween } from "@/lib/board";
 import { sendDigestDraftReadyEmail, BASE_URL } from "@/lib/email";
@@ -162,8 +162,7 @@ async function processNote(
         title,
         sourceKey: `granola:${noteId}:${titleKey(title)}`,
         existingCardId: it.existingCardId,
-        ownerId: owner.id,
-        rawOwnerName: owner.raw,
+        ...fromSingleOwner(owner),
         projectId: project.id,
         rawProjectName: project.raw,
         dueDate: due ?? null,
@@ -173,9 +172,19 @@ async function processNote(
 
     const existing = await db.boardCard.findMany({
       where: { archivedAt: null, status: { not: "DONE" } },
-      select: { id: true, sourceKey: true, humanEditedAt: true, ownerId: true, projectId: true, dueDate: true },
+      select: {
+        id: true,
+        sourceKey: true,
+        humanEditedAt: true,
+        projectId: true,
+        dueDate: true,
+        owners: { select: { personId: true } },
+      },
     });
-    const plans = planCardWrites(items, existing);
+    const plans = planCardWrites(
+      items,
+      existing.map(({ owners, ...c }) => ({ ...c, ownerIds: owners.map((o) => o.personId) }))
+    );
 
     let digestId = "";
     let createdDigest = false;
@@ -199,8 +208,8 @@ async function processNote(
               status: "TODO",
               position,
               dueDate: it.dueDate,
-              ownerId: it.ownerId,
-              rawOwnerName: it.rawOwnerName,
+              ...legacyOwnerFields(it.ownerIds, it.ownerRawNames, it.unmatchedOwnerNames),
+              unmatchedOwnerNames: it.unmatchedOwnerNames,
               projectId: it.projectId,
               rawProjectName: it.rawProjectName,
               needsReview: it.needsReview,
@@ -214,12 +223,30 @@ async function processNote(
             position += POSITION_STEP;
             return d;
           });
-          const res = await tx.boardCard.createMany({ data, skipDuplicates: true });
-          cardsCreated = res.count;
+          const returned = await tx.boardCard.createManyAndReturn({
+            data,
+            skipDuplicates: true,
+            select: { id: true, sourceKey: true },
+          });
+          cardsCreated = returned.length;
+          // Part 38 (WS113): owner rows for the cards that were actually inserted.
+          const itemByKey = new Map(creates.map((p) => [p.item.sourceKey, p.item]));
+          const ownerRows = returned.flatMap((c) => {
+            const it = c.sourceKey ? itemByKey.get(c.sourceKey) : undefined;
+            return (it?.ownerIds ?? []).map((personId) => ({
+              cardId: c.id,
+              personId,
+              rawName: it?.ownerRawNames[personId] ?? null,
+            }));
+          });
+          if (ownerRows.length) await tx.boardCardOwner.createMany({ data: ownerRows, skipDuplicates: true });
         }
         for (const p of plans) {
           if (p.action !== "fill" || Object.keys(p.fill).length === 0) continue;
-          await tx.boardCard.update({ where: { id: p.cardId }, data: p.fill });
+          // p.fill is never spread into the update: ownerIds is not a column.
+          const { ownerIds, ownerRawNames, ...scalars } = p.fill;
+          if (ownerIds) await setCardOwnersIn(tx, p.cardId, ownerIds, ownerRawNames ?? {});
+          if (Object.keys(scalars).length) await tx.boardCard.update({ where: { id: p.cardId }, data: scalars });
         }
 
         const found = await tx.weeklyDigest.findUnique({ where: { granolaNoteId: noteId }, select: { id: true } });

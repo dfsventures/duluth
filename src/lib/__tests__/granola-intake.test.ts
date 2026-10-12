@@ -7,6 +7,8 @@ const m = {
   findUnique: vi.fn(),
   cardFind: vi.fn(),
   cardCreateMany: vi.fn(),
+  ownerCreateMany: vi.fn(),
+  setOwners: vi.fn(),
   cardUpdate: vi.fn(),
   cardFirst: vi.fn(),
   digestFind: vi.fn(),
@@ -32,9 +34,10 @@ vi.mock("@/lib/db", () => {
   const tx = {
     boardCard: {
       findFirst: (...a: unknown[]) => m.cardFirst(...a),
-      createMany: (...a: unknown[]) => m.cardCreateMany(...a),
+      createManyAndReturn: (...a: unknown[]) => m.cardCreateMany(...a),
       update: (...a: unknown[]) => m.cardUpdate(...a),
     },
+    boardCardOwner: { createMany: (...a: unknown[]) => m.ownerCreateMany(...a) },
     weeklyDigest: {
       findUnique: (...a: unknown[]) => m.digestFind(...a),
       create: (...a: unknown[]) => m.digestCreate(...a),
@@ -75,6 +78,7 @@ vi.mock("@/lib/board-server", () => ({
   }),
   buildDigestActionItems: vi.fn().mockResolvedValue({ created: 0, updated: 0 }),
   titleKey: (t: string) => t.toLowerCase().slice(0, 12),
+  setCardOwnersIn: (...a: unknown[]) => m.setOwners(...a),
 }));
 
 import { enqueueGranolaNote, claim, processGranolaIntake, safeErrorText } from "@/lib/granola-intake";
@@ -115,7 +119,9 @@ describe("granola intake", () => {
     m.extract.mockResolvedValue(extracted);
     m.cardFind.mockResolvedValue([]);
     m.cardFirst.mockResolvedValue(null);
-    m.cardCreateMany.mockResolvedValue({ count: 1 });
+    m.cardCreateMany.mockImplementation(async (a: { data: { sourceKey: string }[] }) =>
+      a.data.map((d, i) => ({ id: `new${i}`, sourceKey: d.sourceKey }))
+    );
     m.digestFind.mockResolvedValue(null);
     m.update.mockResolvedValue({});
     m.userFind.mockResolvedValue({ email: "rec@example.test" });
@@ -181,11 +187,16 @@ describe("granola intake", () => {
   it("attendee first-name hint resolves an owner by email", async () => {
     await processGranolaIntake("i1");
     expect(m.cardCreateMany.mock.calls[0][0].data[0].ownerId).toBe("p1");
+    // Part 38: the join row is written for the returned card (dual-write).
+    expect(m.ownerCreateMany).toHaveBeenCalledWith({
+      data: [{ cardId: "new0", personId: "p1", rawName: "Jane" }],
+      skipDuplicates: true,
+    });
   });
 
   it("retry after a crash reuses the existing draft, creates no second one, sends no second email", async () => {
     m.digestFind.mockResolvedValue({ id: "d-existing" });
-    m.cardCreateMany.mockResolvedValue({ count: 0 }); // skipDuplicates swallowed the dup
+    m.cardCreateMany.mockResolvedValue([]); // skipDuplicates swallowed the dup
     const res = await processGranolaIntake("i1");
     expect(res).toMatchObject({ outcome: "done", digestId: "d-existing", cardsCreated: 0 });
     expect(m.digestCreate).not.toHaveBeenCalled();
@@ -194,12 +205,21 @@ describe("granola intake", () => {
 
   it("a human-edited card is untouched on retry (no create, no fill)", async () => {
     m.cardFind.mockResolvedValue([
-      { id: "c1", sourceKey: `granola:${NOTE}:send deck`, humanEditedAt: new Date(), ownerId: null, projectId: null, dueDate: null },
+      { id: "c1", sourceKey: `granola:${NOTE}:send deck`, humanEditedAt: new Date(), owners: [], projectId: null, dueDate: null },
     ]);
     const res = await processGranolaIntake("i1");
     expect(res.cardsCreated).toBe(0);
     expect(m.cardCreateMany).not.toHaveBeenCalled();
     expect(m.cardUpdate).not.toHaveBeenCalled();
+  });
+
+  it("fill of an untouched card sets owners via setCardOwnersIn and never passes ownerIds to boardCard.update", async () => {
+    m.cardFind.mockResolvedValue([
+      { id: "c1", sourceKey: `granola:${NOTE}:send deck`, humanEditedAt: null, owners: [], projectId: null, dueDate: null },
+    ]);
+    await processGranolaIntake("i1");
+    expect(m.setOwners).toHaveBeenCalledWith(expect.anything(), "c1", ["p1"], expect.any(Object));
+    for (const c of m.cardUpdate.mock.calls) expect(c[0].data).not.toHaveProperty("ownerIds");
   });
 
   it("a failed email does not fail the intake", async () => {

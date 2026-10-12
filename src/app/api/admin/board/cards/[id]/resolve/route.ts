@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { normalizeName } from "@/lib/board-reconcile";
+import { setCardOwnersIn } from "@/lib/board-server";
 import { MAX_NAME_LENGTH } from "@/lib/board";
 
 // Resolves a card's unmatched raw owner/project to a canonical one, optionally
@@ -95,7 +96,7 @@ export async function POST(
     // Apply to the target card and every other open card with the same raw value.
     const candidates = await db.boardCard.findMany({
       where: { archivedAt: null, OR: [{ rawOwnerName: { not: null } }, { rawProjectName: { not: null } }] },
-      select: { id: true, rawOwnerName: true, rawProjectName: true },
+      select: { id: true, rawOwnerName: true, rawProjectName: true, ownerId: true },
     });
     const now = new Date();
     let fixed = 0;
@@ -118,7 +119,14 @@ export async function POST(
       data.needsReview = !!(rawO || rawP);
       data.updatedById = user!.id;
       if (isTarget) data.humanEditedAt = now;
-      await db.boardCard.update({ where: { id: c.id }, data });
+      const ownerResolved = "ownerId" in data;
+      await db.$transaction(async (tx) => {
+        await tx.boardCard.update({ where: { id: c.id }, data });
+        // Part 38 (WS113): keep the owner set in step; rawName = the old raw text.
+        if (ownerResolved && personId) {
+          await setCardOwnersIn(tx, c.id, [personId], { [personId]: c.rawOwnerName }, []);
+        }
+      });
       if (!isTarget) fixed++;
     }
     // The target may not have had raw values (nothing in candidates): still apply.
@@ -127,7 +135,10 @@ export async function POST(
       if (personId) { data.ownerId = personId; data.rawOwnerName = null; }
       if (projectId) { data.projectId = projectId; data.rawProjectName = null; }
       data.needsReview = false;
-      await db.boardCard.update({ where: { id }, data });
+      await db.$transaction(async (tx) => {
+        await tx.boardCard.update({ where: { id }, data });
+        if (personId) await setCardOwnersIn(tx, id, [personId], {}, []);
+      });
     }
 
     const updated = await db.boardCard.findUnique({ where: { id } });

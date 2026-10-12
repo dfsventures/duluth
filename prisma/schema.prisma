@@ -406,6 +406,7 @@ model DigestTodo {
   card         BoardCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
   ownerLabel   String?
   projectLabel String?
+  ownerLabels  String[]   @default([]) // Part 38: frozen owner names, label order
 
   @@map("digest_todos")
 }
@@ -484,48 +485,69 @@ model BoardProject {
 }
 
 model BoardPerson {
-  id          String       @id @default(cuid())
-  displayName String // plain-name owners; for linked admins the UI prefers user.name ?? user.email (JC-TB-A)
-  userId      String?      @unique
-  user        User?        @relation("BoardPersonUser", fields: [userId], references: [id], onDelete: SetNull)
-  archivedAt  DateTime?
-  createdAt   DateTime     @default(now())
-  cards       BoardCard[]
-  aliases     BoardAlias[]
+  id             String           @id @default(cuid())
+  displayName    String // plain-name owners; for linked admins the UI prefers user.name ?? user.email (JC-TB-A)
+  userId         String?          @unique
+  user           User?            @relation("BoardPersonUser", fields: [userId], references: [id], onDelete: SetNull)
+  archivedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  cards          BoardCard[] // legacy relation (Part 38): first owner only; dropped in WS118
+  cardOwnerships BoardCardOwner[]
+  aliases        BoardAlias[]
 
   @@map("board_people")
 }
 
 model BoardCard {
-  id             String        @id @default(cuid())
-  title          String
-  notes          String? // plain text, rendered as text (never HTML)
-  status         String        @default("TODO") // "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" (JC-TB-B)
-  position       Float // order within its status column (JC-TB-C)
-  dueDate        DateTime? // date-only semantics, stored at 00:00 UTC
-  projectId      String?
-  project        BoardProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  ownerId        String?
-  owner          BoardPerson?  @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  rawOwnerName   String? // as extracted, when it differed from / failed to match the canonical name (Q100-a/c)
-  rawProjectName String?
-  needsReview    Boolean       @default(false)
-  source         String        @default("MANUAL") // "MANUAL" | "GRANOLA" | "DIGEST_PASTE" | "DIGEST_IMPORT"
-  sourceRef      String? // Granola note id or WeeklyDigest id
-  sourceKey      String?       @unique // idempotency key for automated creates (WS108/WS109); null for MANUAL
-  humanEditedAt  DateTime? // any human PATCH/move stamps this; automation never overwrites a stamped card (Q100-e)
-  completedAt    DateTime?
-  archivedAt     DateTime?
-  createdById    String? // admin user id; null when automated
-  updatedById    String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  digestTodos    DigestTodo[]
+  id                  String           @id @default(cuid())
+  title               String
+  notes               String? // plain text, rendered as text (never HTML)
+  status              String           @default("TODO") // "TODO" | "IN_PROGRESS" | "BLOCKED" | "DONE" (JC-TB-B)
+  position            Float // order within its status column (JC-TB-C)
+  dueDate             DateTime? // date-only semantics, stored at 00:00 UTC
+  projectId           String?
+  project             BoardProject?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  // LEGACY (Part 38): dual-written, first owner only; dropped in WS118
+  ownerId             String?
+  owner               BoardPerson?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  // LEGACY (Part 38): dual-written, first owner only; dropped in WS118
+  rawOwnerName        String? // as extracted, when it differed from / failed to match the canonical name (Q100-a/c)
+  rawProjectName      String?
+  needsReview         Boolean          @default(false)
+  source              String           @default("MANUAL") // "MANUAL" | "GRANOLA" | "DIGEST_PASTE" | "DIGEST_IMPORT"
+  sourceRef           String? // Granola note id or WeeklyDigest id
+  sourceKey           String?          @unique // idempotency key for automated creates (WS108/WS109); null for MANUAL
+  humanEditedAt       DateTime? // any human PATCH/move stamps this; automation never overwrites a stamped card (Q100-e)
+  completedAt         DateTime?
+  archivedAt          DateTime?
+  createdById         String? // admin user id; null when automated
+  updatedById         String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  digestTodos         DigestTodo[]
+  owners              BoardCardOwner[]
+  unmatchedOwnerNames String[]         @default([]) // heard owner names not yet matched to a person (Part 38)
 
   @@index([status, position])
   @@index([ownerId])
   @@index([projectId])
   @@map("board_cards")
+}
+
+// Part 38 (WS112): equal co-owners of a board card (L1). Resolved people only;
+// unmatched heard names live on BoardCard.unmatchedOwnerNames (JC-MO-B).
+model BoardCardOwner {
+  id        String      @id @default(cuid())
+  cardId    String
+  card      BoardCard   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  personId  String
+  person    BoardPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  rawName   String? // as heard, when it differed from the canonical name (Q100-a/c)
+  createdAt DateTime    @default(now())
+
+  @@unique([cardId, personId])
+  @@index([personId])
+  @@map("board_card_owners")
 }
 
 model BoardAlias {

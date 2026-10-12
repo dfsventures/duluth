@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { setCardOwnersIn } from "@/lib/board-server";
 import { parseDueDate, MAX_TITLE_LENGTH, MAX_NOTES_LENGTH } from "@/lib/board";
 
 // Hand-written allowlist (F95 lesson): never spread the body into Prisma.
@@ -88,7 +89,15 @@ export async function PATCH(
     data.humanEditedAt = new Date();
     data.updatedById = user!.id;
 
-    const updated = await db.boardCard.update({ where: { id }, data });
+    // Part 38 (WS113): dual-write the owner set alongside the legacy columns.
+    const updated = await db.$transaction(async (tx) => {
+      const u = await tx.boardCard.update({ where: { id }, data });
+      if ("ownerId" in b) {
+        // An explicit owner set also clears unmatched names (as it clears rawOwnerName).
+        await setCardOwnersIn(tx, id, typeof b.ownerId === "string" ? [b.ownerId] : [], {}, []);
+      }
+      return u;
+    });
     await logAdminAction(user!, archiving ? "BOARD_CARD_ARCHIVED" : "BOARD_CARD_UPDATED", {
       targetType: "BoardCard",
       targetId: id,

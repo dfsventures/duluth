@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import { positionBetween, needsRenormalize, POSITION_STEP, type BoardStatus } from "@/lib/board";
-import { normalizeName, type Canonical } from "@/lib/board-reconcile";
+import { normalizeName, legacyOwnerFields, type Canonical } from "@/lib/board-reconcile";
 
 /** Upserts a BoardPerson for every ADMIN user that lacks one. */
 export async function ensureAdminPeople(): Promise<void> {
@@ -40,6 +40,7 @@ export async function loadBoardContext() {
         sourceKey: true,
         humanEditedAt: true,
         dueDate: true,
+        owners: { select: { personId: true } },
       },
     }),
   ]);
@@ -55,7 +56,40 @@ export async function loadBoardContext() {
     name: p.name,
     aliases: aliases.filter((a) => a.kind === "PROJECT" && a.projectId === p.id).map((a) => a.normalized),
   }));
-  return { people: personCanon, projects: projectCanon, openCards };
+  return {
+    people: personCanon,
+    projects: projectCanon,
+    // ownerId kept (legacy) until WS115 changes the prompt line; ownerIds is the Part 38 set.
+    openCards: openCards.map(({ owners, ...c }) => ({ ...c, ownerIds: owners.map((o) => o.personId) })),
+  };
+}
+
+/** Replace a card's owner set (Part 38). Runs inside the caller's transaction. */
+export async function setCardOwnersIn(
+  tx: Prisma.TransactionClient,
+  cardId: string,
+  ownerIds: string[],
+  raw: Record<string, string | null> = {},
+  unmatchedOwnerNames?: string[] // undefined = leave as is
+) {
+  await tx.boardCardOwner.deleteMany({ where: { cardId, personId: { notIn: ownerIds } } });
+  if (ownerIds.length) {
+    await tx.boardCardOwner.createMany({
+      data: ownerIds.map((personId) => ({ cardId, personId, rawName: raw[personId] ?? null })),
+      skipDuplicates: true,
+    });
+  }
+  const unmatched =
+    unmatchedOwnerNames ??
+    (await tx.boardCard.findUniqueOrThrow({ where: { id: cardId }, select: { unmatchedOwnerNames: true } }))
+      .unmatchedOwnerNames;
+  await tx.boardCard.update({
+    where: { id: cardId },
+    data: {
+      ...legacyOwnerFields(ownerIds, raw, unmatched),
+      ...(unmatchedOwnerNames ? { unmatchedOwnerNames } : {}),
+    },
+  });
 }
 
 export class BoardMoveError extends Error {}

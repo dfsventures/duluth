@@ -3,6 +3,9 @@ import {
   normalizeName,
   resolveEntity,
   planCardWrites,
+  legacyOwnerFields,
+  computeNeedsReview,
+  fromSingleOwner,
   type Canonical,
   type ResolvedItem,
   type ExistingCardLite,
@@ -62,8 +65,9 @@ function item(over: Partial<ResolvedItem> = {}): ResolvedItem {
   return {
     title: "AcmeHQ onboarding",
     sourceKey: "granola:n1:0",
-    ownerId: "p-jane",
-    rawOwnerName: null,
+    ownerIds: ["p-jane"],
+    ownerRawNames: {},
+    unmatchedOwnerNames: [],
     projectId: "proj-acme",
     rawProjectName: null,
     dueDate: new Date("2026-11-01T00:00:00Z"),
@@ -72,7 +76,7 @@ function item(over: Partial<ResolvedItem> = {}): ResolvedItem {
   };
 }
 function card(over: Partial<ExistingCardLite> = {}): ExistingCardLite {
-  return { id: "c1", sourceKey: "granola:n1:0", humanEditedAt: null, ownerId: null, projectId: null, dueDate: null, ...over };
+  return { id: "c1", sourceKey: "granola:n1:0", humanEditedAt: null, ownerIds: [], projectId: null, dueDate: null, ...over };
 }
 
 describe("planCardWrites", () => {
@@ -89,10 +93,10 @@ describe("planCardWrites", () => {
     expect(p.action).toBe("create");
   });
   it("fills only null fields of an untouched card with the same sourceKey", () => {
-    const [p] = planCardWrites([item()], [card({ ownerId: "p-sam" })]);
+    const [p] = planCardWrites([item()], [card({ ownerIds: ["p-sam"] })]);
     expect(p.action).toBe("fill");
     if (p.action === "fill") {
-      expect(p.fill.ownerId).toBeUndefined(); // already set, not overwritten
+      expect(p.fill.ownerIds).toBeUndefined(); // already set, not overwritten
       expect(p.fill.projectId).toBe("proj-acme");
       expect(p.fill.dueDate).toEqual(new Date("2026-11-01T00:00:00Z"));
     }
@@ -108,5 +112,50 @@ describe("planCardWrites", () => {
   it("items without a sourceKey are always created", () => {
     const plans = planCardWrites([item({ sourceKey: null }), item({ sourceKey: null })], []);
     expect(plans.map((p) => p.action)).toEqual(["create", "create"]);
+  });
+});
+
+describe("planCardWrites owner fill (JC-MO-G)", () => {
+  it("fills owners when the untouched card has none", () => {
+    const [p] = planCardWrites([item({ ownerRawNames: { "p-jane": "Janey" } })], [card()]);
+    expect(p.action === "fill" && p.fill.ownerIds).toEqual(["p-jane"]);
+    expect(p.action === "fill" && p.fill.ownerRawNames).toEqual({ "p-jane": "Janey" });
+  });
+  it("never fills owners onto a card that already has some", () => {
+    const [p] = planCardWrites([item()], [card({ ownerIds: ["p-sam"] })]);
+    expect(p.action === "fill" && p.fill.ownerIds).toBeUndefined();
+  });
+});
+
+describe("legacyOwnerFields (JC-MO-D)", () => {
+  it("uses the first owner and its raw name", () => {
+    expect(legacyOwnerFields(["a", "b"], { a: "Janey" }, ["x"])).toEqual({ ownerId: "a", rawOwnerName: "Janey" });
+    expect(legacyOwnerFields(["a"], {}, [])).toEqual({ ownerId: "a", rawOwnerName: null });
+  });
+  it("falls back to the first unmatched name", () => {
+    expect(legacyOwnerFields([], {}, ["Sam", "Ghost"])).toEqual({ ownerId: null, rawOwnerName: "Sam" });
+  });
+  it("is empty with nothing", () => {
+    expect(legacyOwnerFields([], {}, [])).toEqual({ ownerId: null, rawOwnerName: null });
+  });
+});
+
+describe("computeNeedsReview (F117)", () => {
+  it("flags an unmatched owner name", () => {
+    expect(computeNeedsReview({ unmatchedOwnerNames: ["Sam"], rawProjectName: null, projectId: null })).toBe(true);
+  });
+  it("flags a raw project with no project id", () => {
+    expect(computeNeedsReview({ unmatchedOwnerNames: [], rawProjectName: "Acme", projectId: null })).toBe(true);
+  });
+  it("does not flag an alias-matched project (raw kept, id set)", () => {
+    expect(computeNeedsReview({ unmatchedOwnerNames: [], rawProjectName: "Acme", projectId: "pr1" })).toBe(false);
+  });
+});
+
+describe("fromSingleOwner", () => {
+  it("maps resolved, unmatched and empty", () => {
+    expect(fromSingleOwner({ id: "a", raw: "Janey" })).toEqual({ ownerIds: ["a"], ownerRawNames: { a: "Janey" }, unmatchedOwnerNames: [] });
+    expect(fromSingleOwner({ id: null, raw: "Sam" })).toEqual({ ownerIds: [], ownerRawNames: {}, unmatchedOwnerNames: ["Sam"] });
+    expect(fromSingleOwner({ id: null, raw: null })).toEqual({ ownerIds: [], ownerRawNames: {}, unmatchedOwnerNames: [] });
   });
 });

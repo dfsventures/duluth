@@ -51,6 +51,34 @@ export function resolveEntity(
   return { id: null, raw, needsReview: true, via: "none" };
 }
 
+/** JC-MO-D: legacy single-owner columns, dual-written until WS118. */
+export function legacyOwnerFields(
+  ownerIds: string[],
+  raw: Record<string, string | null>,
+  unmatched: string[]
+): { ownerId: string | null; rawOwnerName: string | null } {
+  if (ownerIds.length) return { ownerId: ownerIds[0], rawOwnerName: raw[ownerIds[0]] ?? null };
+  return { ownerId: null, rawOwnerName: unmatched[0] ?? null };
+}
+
+/** F117: the single rule for the review flag. */
+export function computeNeedsReview(c: {
+  unmatchedOwnerNames: string[];
+  rawProjectName: string | null;
+  projectId: string | null;
+}): boolean {
+  return c.unmatchedOwnerNames.length > 0 || (c.rawProjectName != null && c.projectId == null);
+}
+
+/** Single-owner -> arrays, for the WS113 interim and legacy inputs (JC-MO-M). */
+export function fromSingleOwner(r: { id: string | null; raw: string | null }) {
+  return {
+    ownerIds: r.id ? [r.id] : [],
+    ownerRawNames: r.id ? { [r.id]: r.raw } : ({} as Record<string, string | null>),
+    unmatchedOwnerNames: !r.id && r.raw ? [r.raw] : [],
+  };
+}
+
 /** An extracted item after owner/project resolution (output of resolveEntity). */
 export interface ResolvedItem {
   title: string;
@@ -59,8 +87,9 @@ export interface ResolvedItem {
   sourceKey?: string | null;
   /** Set when the extractor says this item is an already-open card. */
   existingCardId?: string | null;
-  ownerId: string | null;
-  rawOwnerName: string | null;
+  ownerIds: string[]; // resolved, deduped (Part 38)
+  ownerRawNames: Record<string, string | null>; // personId -> heard text when it differed (Q100-a/c)
+  unmatchedOwnerNames: string[];
   projectId: string | null;
   rawProjectName: string | null;
   dueDate: Date | null;
@@ -72,15 +101,15 @@ export interface ExistingCardLite {
   id: string;
   sourceKey: string | null;
   humanEditedAt: Date | null;
-  ownerId: string | null;
+  ownerIds: string[];
   projectId: string | null;
   dueDate: Date | null;
 }
 
 /** Fields an automated "fill" may set; only ever for fields currently null. */
 export interface CardFill {
-  ownerId?: string;
-  rawOwnerName?: string | null;
+  ownerIds?: string[];
+  ownerRawNames?: Record<string, string | null>;
   projectId?: string;
   rawProjectName?: string | null;
   dueDate?: Date;
@@ -137,9 +166,10 @@ export function planCardWrites(
         }
         // 2. Untouched: fill only the null fields.
         const fill: CardFill = {};
-        if (!card.ownerId && item.ownerId) {
-          fill.ownerId = item.ownerId;
-          fill.rawOwnerName = item.rawOwnerName;
+        // JC-MO-G: only when the untouched card has zero owners.
+        if (card.ownerIds.length === 0 && item.ownerIds.length > 0) {
+          fill.ownerIds = item.ownerIds;
+          fill.ownerRawNames = item.ownerRawNames;
         }
         if (!card.projectId && item.projectId) {
           fill.projectId = item.projectId;

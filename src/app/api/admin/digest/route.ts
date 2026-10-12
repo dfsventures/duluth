@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { buildDigestActionItems, titleKey } from "@/lib/board-server";
-import { planCardWrites, type ResolvedItem } from "@/lib/board-reconcile";
+import { planCardWrites, fromSingleOwner, legacyOwnerFields, type ResolvedItem } from "@/lib/board-reconcile";
 import { POSITION_STEP, MAX_TITLE_LENGTH, parseDueDate, positionBetween } from "@/lib/board";
 
 export async function GET() {
@@ -72,8 +72,7 @@ export async function POST(request: Request) {
       }
       items.push({
         title: text,
-        ownerId: t.ownerId || null,
-        rawOwnerName: t.ownerRaw?.trim() || null,
+        ...fromSingleOwner({ id: t.ownerId || null, raw: t.ownerRaw?.trim() || null }),
         projectId: t.projectId || null,
         rawProjectName: t.projectRaw?.trim() || null,
         dueDate: due,
@@ -82,7 +81,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const ownerIds = Array.from(new Set(items.map((i) => i.ownerId).filter(Boolean) as string[]));
+    const ownerIds = Array.from(new Set(items.flatMap((i) => i.ownerIds)));
     const projectIds = Array.from(new Set(items.map((i) => i.projectId).filter(Boolean) as string[]));
     if (ownerIds.length) {
       const found = await db.boardPerson.count({ where: { id: { in: ownerIds } } });
@@ -105,9 +104,12 @@ export async function POST(request: Request) {
         const withKeys = items.map((i) => ({ ...i, sourceKey: `paste:${id}:${titleKey(i.title)}` }));
         const existing = await tx.boardCard.findMany({
           where: { archivedAt: null, status: { not: "DONE" } },
-          select: { id: true, sourceKey: true, humanEditedAt: true, ownerId: true, projectId: true, dueDate: true },
+          select: { id: true, sourceKey: true, humanEditedAt: true, projectId: true, dueDate: true, owners: { select: { personId: true } } },
         });
-        const plans = planCardWrites(withKeys, existing);
+        const plans = planCardWrites(
+          withKeys,
+          existing.map(({ owners, ...c }) => ({ ...c, ownerIds: owners.map((o) => o.personId) }))
+        );
 
         const now = new Date();
         const last = await tx.boardCard.findFirst({
@@ -126,8 +128,11 @@ export async function POST(request: Request) {
               status: "TODO",
               position,
               dueDate: it.dueDate,
-              ownerId: it.ownerId,
-              rawOwnerName: it.rawOwnerName,
+              ...legacyOwnerFields(it.ownerIds, it.ownerRawNames, it.unmatchedOwnerNames),
+              owners: {
+                create: it.ownerIds.map((personId) => ({ personId, rawName: it.ownerRawNames[personId] ?? null })),
+              },
+              unmatchedOwnerNames: it.unmatchedOwnerNames,
               projectId: it.projectId,
               rawProjectName: it.rawProjectName,
               needsReview: it.needsReview,

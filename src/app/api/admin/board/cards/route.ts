@@ -59,7 +59,8 @@ export async function POST(request: Request) {
         status: col,
         position: await endPosition(col),
         dueDate: due,
-        ownerId: ownerId ? (ownerId as string) : null,
+        ownerId: ownerId ? (ownerId as string) : null, // LEGACY (Part 38): dual-written
+        owners: ownerId ? { create: [{ personId: ownerId as string }] } : undefined,
         projectId: projectId ? (projectId as string) : null,
         source: "MANUAL",
         humanEditedAt: now,

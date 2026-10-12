@@ -11880,3 +11880,624 @@ Add about 1 day if Q95 = B. Without Granola (Q92 = no upgrade), the total is abo
 **Handoff status: WS104 is READY FOR ALVIN now.** The rest is ready once the listed questions are answered.
 
 ---
+
+# Part 38 — Team board cards with more than one owner (WS112–WS118, F115–F118, Q103–Q107, 2026-10-12)
+
+> **Status: PLANNED, not built.** Two decisions are locked: **(L1) owners are equal**, with no lead or helper distinction (Joseph, 2026-10-12); and **(L2) in the Slack digest a shared task is listed under each of its owners** (proposed by the coordinator; Joseph did not object). **Q103–Q107 were all decided (A) by Joseph on 2026-10-12.** **WS112–WS114 are not blocked by any of them** and can ship now. Q103/Q104 shape WS117, Q105 shapes WS115, Q106 shapes WS116, and Q107 gates WS118 (the only destructive step).
+>
+> **Numbering:** continues from Part 37 (WS111, F114, Q102, JC-TB-M). Checked 2026-10-12: no `F115+`, `Q103+` or `WS112+` exists anywhere in `ROADMAP.md`, `README.md` or `docs/`.
+>
+> **Baseline:** `npx vitest run --exclude '.claude/**'` → 91 files, **829/829 passing** (run 2026-10-12 on `claude/dfs-portfolio-platform-TZMWC` @ `0e50cd1`).
+
+**What Joseph asked for:** a team board task can have more than one owner, all equal.
+
+**Ground rules carried in from Part 37** (all still apply): the confidentiality rule (fixtures use `Jane Founder`, `Sam Partner`, `Acme`, `AcmeHQ onboarding`; logs and audit metadata carry ids and counts only); "the board is correct" (Q100: automation never overwrites a `humanEditedAt` card, and aliases come only from human resolutions); and "the db push precedes the deploy" (memory note from WS105).
+
+---
+
+## What the code does today (verified 2026-10-12)
+
+Every claim below was read in the file cited.
+
+**Schema** (`prisma/schema.prisma`)
+- `BoardCard` (`:499-529`) has one owner: `ownerId String?` → `owner BoardPerson? @relation(onDelete: SetNull)` (`:508-509`), `rawOwnerName String?` (`:510`), `needsReview Boolean` (`:512`), `@@index([ownerId])` (`:526`).
+- `BoardPerson` (`:486-497`) has `cards BoardCard[]` (`:493`) and an optional unique `userId` (JC-TB-A).
+- `DigestTodo` (`:394-411`) has `assigneeId String?` → `User` (`:399-400`), plus `cardId`, `ownerLabel`, `projectLabel` (`:405-408`).
+- There is no `prisma/migrations/` directory. Schema changes ship via `prisma db push`, and data scripts are hand-run SQL in `scripts/*.sql` ("Run this in the Neon SQL editor", e.g. `scripts/migrate-digest-recipients.sql:1`). The house pattern for list columns is `String[] @default([])` (`schema.prisma:95`, `:794`).
+
+**Every place that writes `ownerId` / `rawOwnerName`** (complete list, from a grep for `ownerId|rawOwnerName|boardCard` across `src/`, `prisma/seed.ts` and `scripts/`; the seed and the scripts touch neither):
+1. `POST /api/admin/board/cards`: `src/app/api/admin/board/cards/route.ts:23,42-46,62`.
+2. `PATCH /api/admin/board/cards/[id]`: `src/app/api/admin/board/cards/[id]/route.ts:49-73`. Setting `ownerId` clears `rawOwnerName`, and `needsReview` is cleared only if no raw value remains (`:71-73`).
+3. `POST …/cards/[id]/resolve`: `src/app/api/admin/board/cards/[id]/resolve/route.ts`. It handles one `ownerId` or `newPersonName`, an alias if `rememberAlias` (`:92`), then propagates to every open card with the same normalized raw value (`:96-131`).
+4. Digest save (paste path): `src/app/api/admin/digest/route.ts:72-81` (items), `:85-90` (owner validation), `:121-140` (`tx.boardCard.create`).
+5. Granola intake: `src/lib/granola-intake.ts:158-171` (resolution), `:199-217` (`tx.boardCard.createMany` with `skipDuplicates`), and `:220-223`, where **`p.fill` is passed straight into `tx.boardCard.update({ data: p.fill })`**.
+6. Person hard delete: `src/app/api/admin/board/people/[id]/route.ts:58-89`. The relation's `SetNull` nulls `ownerId`; `affectedCards` comes from `_count.cards`.
+
+`move` (`src/lib/board-server.ts:69-139`) and the digest tick (`src/app/api/admin/digest/[id]/todos/[todoId]/route.ts`) never touch owners. `PATCH /api/admin/digest/[id]` creates cards without an owner (`src/app/api/admin/digest/[id]/route.ts:106-121`).
+
+**Every place that reads the owner:**
+- `loadBoardContext` selects `ownerId` on open cards (`src/lib/board-server.ts:38`). The prompt's OPEN CARDS line prints one owner name (`src/lib/digest-extraction.ts:103,130`).
+- Reconciliation types and fill: `ResolvedItem` (`src/lib/board-reconcile.ts:55`), `ExistingCardLite` (`:71`), `CardFill` (`:81`), and the fill rule `if (!card.ownerId && item.ownerId)` (`:140`).
+- Extraction schema: `ownerRaw` / `ownerId` per item (`src/lib/digest-extraction.ts:30-31,64-65,122,168-169`).
+- `buildDigestActionItems`: `ownerLabel` from the one owner (`src/lib/board-server.ts:194`) and `assigneeId = c.owner?.userId` (`:196`).
+- Send route: email `assigneeName` (`src/app/api/admin/digest/[id]/send/route.ts:63`) and Slack `ownerLabel` (`:95`), **both preferring `assignee.name` over `ownerLabel`**.
+- Slack grouping by one `ownerLabel` (`src/lib/slack.ts:17,38-48`).
+- Board GET (`src/app/api/admin/board/route.ts:24-36`), card type `ownerId` (`src/components/admin/board/types.ts`), filter (`src/app/admin/board/board-client.tsx:145-151`), quick-add (`:287`), card tile (`:311` → `src/components/admin/board/board-card.tsx:189-205`), card dialog `Select` (`src/components/admin/board/card-dialog.tsx:35,59,73,166`), resolve dialog (`src/components/admin/board/resolve-dialog.tsx:23-41,70-83`), composer (`src/app/admin/digest/new/page.tsx:21-38,104-108,161-165,317-323`), and the People tab card count (`src/app/api/admin/board/people/route.ts:18`, `src/components/admin/board/people-projects-panel.tsx:266-269`).
+
+**Email reminders: there are none.** `assignee` is read only for display, in the four digest GET/PATCH/send includes and the email template's `assigneeName` (`src/lib/email.ts:473,498`). No cron or email is addressed to an assignee, so multi-owner has nothing to fan out. If per-owner reminders are ever built, they should iterate the card's owners, not `DigestTodo.assigneeId`.
+
+**Audit:** `logAdminAction(actor, action: string, …)` takes any string (`src/lib/audit.ts:9`). The board uses `BOARD_CARD_CREATED/UPDATED/ARCHIVED`, `BOARD_ALIAS_CREATED/DELETED` and `BOARD_PERSON_*`.
+
+**Tests that pin the single-owner shape** (all in `src/lib/__tests__/`, and all need updating): `board-reconcile.test.ts`, `digest-extraction.test.ts`, `digest-action-items.test.ts`, `digest-save-route.test.ts`, `granola-intake.test.ts` (it mocks `boardCard.createMany`), `slack.test.ts`, `digest-send-slack.test.ts`, `board-client.test.ts`, `board-delete-route.test.ts`, `email-escaping.test.ts`, `digest-patch-route.test.ts`.
+
+---
+
+## Findings
+
+## F115 — The weekly digest email is a flat list, not grouped by owner; and the send route prefers the assignee's name over the owner label (MEDIUM for this Part; drives Q103)
+
+- `sendWeeklyDigestEmail` renders one `<li>` per todo, with "— {assigneeName}" appended (`src/lib/email.ts:488-505`). The admin digest page is also flat (`src/app/admin/digest/[id]/page.tsx:429-431`). **Only Slack groups by owner** (`src/lib/slack.ts:38-48`). So the default "a shared task is listed under each of its owners" can only literally apply to Slack. For the email it is a product choice (Q103).
+- Label precedence is inconsistent. The email and Slack use `t.assignee?.name ?? t.assignee?.email ?? t.ownerLabel` (`send/route.ts:63,95`), while the admin page uses `todo.ownerLabel ?? todo.assignee…` (`[id]/page.tsx:429`). Today the two agree for board-linked rows, because both come from the same owner. **With several owners, the assignee-first order would print one owner's name and hide the rest.** WS117 flips the send route to owner labels first.
+
+## F116 — An archived owner shows as "Unassigned" on the board, but the "Unassigned" filter excludes the card (LOW)
+
+The board GET returns only non-archived people (`src/app/api/admin/board/route.ts:33-36`). The card tile looks the owner up in that list and falls back to `null` (`board-client.tsx:311`), so it renders the dashed "?" Unassigned tile (`board-card.tsx:198-206`). But the filter tests `c.ownerId` (`board-client.tsx:148-149`), so the card does **not** appear under "Unassigned". Fixed in passing by WS114.5 and WS116.1 (JC-MO-K).
+
+## F117 — Resolving an owner can re-flag a card whose project was matched via an alias (LOW, latent bug)
+
+`resolveEntity` keeps `raw` non-null on alias, email and Claude matches (`src/lib/board-reconcile.ts:32-52`). That is Q100-a/c: the heard text stays visible. So a card can carry `rawProjectName` with `projectId` set and `needsReview = false`. The resolve route then recomputes `data.needsReview = !!(rawO || rawP)` (`resolve/route.ts:118`), which is **true** for such a card whenever its owner is resolved or propagated to. PATCH has the mirror problem: it only clears the flag if no raw value remains at all (`cards/[id]/route.ts:71-73`). The correct rule is "an unmatched owner name remains, or a raw project remains **with no `projectId`**." WS114.1 adds `computeNeedsReview()` and both routes use it.
+
+## F118 — The card create, edit and resolve routes have no route tests (LOW, test gap)
+
+`board-delete-route.test.ts` and `board-move-route.test.ts` exist. Nothing covers `cards/route.ts`, `cards/[id]/route.ts` or `cards/[id]/resolve/route.ts`, which are the three routes this Part changes most. WS114 adds them.
+
+---
+
+## Design in one paragraph
+
+A new join table `BoardCardOwner (cardId, personId)`, unique per pair, holds the **resolved** owners. Names the extractor heard but could not match go in a new list column, `BoardCard.unmatchedOwnerNames String[]`. `needsReview` means "an unmatched owner name remains, or the project is unmatched." Legacy `ownerId`/`rawOwnerName` stay and are **dual-written** (first owner) so that any deploy can be rolled back to the previous one. They are dropped only in WS118, after Joseph signs off. `DigestTodo` keeps **one row per card** and gains `ownerLabels String[]` (frozen per row, like `ownerLabel`). `ownerLabel` becomes the names joined with ", ", and `assigneeId` stays a single user (the first owner who has a Molly login). Slack lists a shared item under each owner. The email stays one line per item, naming all owners (Q103-A).
+
+---
+
+## Technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-MO-A** | No ordering column on `BoardCardOwner`. Owners always **display alphabetically by label**, so no owner reads as the lead (L1). | Add `position Int @default(0)` later and sort by it |
+| **JC-MO-B** | Unmatched names live in `BoardCard.unmatchedOwnerNames String[]`, not in join rows with a nullable `personId`. Join rows are always real people, so "card has owner X" needs no null checks. | Move the names into join rows with `personId String?` + `rawName` |
+| **JC-MO-C** | **`MAX_OWNERS_PER_CARD = 5`**, counting resolved owners **plus** unmatched names (each unmatched name is a future owner). Over the cap: the API returns 400, extraction keeps the first 5, and resolve propagation skips a card that is full (the name stays and the card stays flagged). | One constant in `src/lib/board.ts` |
+| **JC-MO-D** | Legacy `ownerId` = the first id in the stored set, and `rawOwnerName` = that owner's raw name, or else the first unmatched name. Both are dual-written until WS118, purely so a rollback to the pre-WS114 deploy still shows one owner. | Stop writing them (that is WS118) |
+| **JC-MO-E** | `DigestTodo.assigneeId` = the first owner, in label order, with a linked `userId`, else null. Nothing displays it when `ownerLabels` is non-empty, and nothing emails it. | Add a `DigestTodoAssignee` join table if per-user features ever appear |
+| **JC-MO-F** | `DigestTodo.ownerLabels String[] @default([])` is frozen on the row at build time (consistent with JC-TB-G/K). Rows from before this Part keep `[]`, and readers fall back to `ownerLabel`. | Read labels from `card.owners` at send time instead |
+| **JC-MO-G** | Automation "fill" sets owners only when the untouched card has **zero** owners (parity with today's `!card.ownerId` at `board-reconcile.ts:140`). It never adds an owner to a card that already has some. | Change the fill rule to a union |
+| **JC-MO-H** | The digest save route **computes** `needsReview` server-side from `unmatchedOwnerNames` and the project, instead of trusting the client's `needsReview` flag (`digest/route.ts:80`). The client's rule (`new/page.tsx:37-38`) is the same rule, so nothing visible changes. | Trust the flag again |
+| **JC-MO-I** | No new audit action names. `BOARD_CARD_UPDATED` metadata gains `ownersAdded` / `ownersRemoved` (**person ids only**). | Add `BOARD_CARD_OWNERS_CHANGED` |
+| **JC-MO-J** | Slack's 50-line cap counts **lines**, so a shared item shown under two owners uses two. "…and N more" counts omitted lines. | Count distinct items instead |
+| **JC-MO-K** | The board GET also returns archived people who own a visible card (F116). Pickers and the filter list hide archived people, and tiles use them for labels. | Revert the `where` clause |
+| **JC-MO-L** | Two heard names that resolve to the same person collapse into one owner, keeping the first raw name. | None needed; a duplicate owner row is impossible anyway, because of the unique index |
+| **JC-MO-M** | Legacy single-owner request fields (`ownerId` on POST/PATCH; `ownerId`/`newPersonName` on resolve; `ownerRaw`/`ownerId` in the model's JSON) stay accepted and are mapped onto the array forms. This covers browser tabs opened before the deploy and model drift. | Remove the mapping in WS118 |
+
+---
+
+## WS112 — Additive schema + backfill script, ~0.3 day (invisible)
+
+**Goal:** create the new storage without changing any behaviour.
+
+**WS112.1 — `prisma/schema.prisma`.** Add a new model after `BoardCard`:
+
+```prisma
+// Part 38 (WS112): equal co-owners of a board card (L1). Resolved people only;
+// unmatched heard names live on BoardCard.unmatchedOwnerNames (JC-MO-B).
+model BoardCardOwner {
+  id        String      @id @default(cuid())
+  cardId    String
+  card      BoardCard   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  personId  String
+  person    BoardPerson @relation(fields: [personId], references: [id], onDelete: Cascade)
+  rawName   String? // as heard, when it differed from the canonical name (Q100-a/c)
+  createdAt DateTime    @default(now())
+
+  @@unique([cardId, personId])
+  @@index([personId])
+  @@map("board_card_owners")
+}
+```
+
+- `BoardCard`: add `owners BoardCardOwner[]` and `unmatchedOwnerNames String[] @default([]) // heard owner names not yet matched to a person (Part 38)`. **Keep** `ownerId`, `owner`, `rawOwnerName` and `@@index([ownerId])` as they are. Add a comment on them: `// LEGACY (Part 38): dual-written, first owner only; dropped in WS118`.
+- `BoardPerson`: add `cardOwnerships BoardCardOwner[]`. Keep `cards BoardCard[]` (legacy relation).
+- `DigestTodo`: add `ownerLabels String[] @default([]) // Part 38: frozen owner names, label order`.
+
+**WS112.2 — apply (Joseph runs it).** This adds columns to two **existing** tables (`board_cards`, `digest_todos`), and every `findMany` without `select` reads all columns. So **the db push must land before any deploy whose Prisma client knows these columns** (memory, WS105 lesson). Steps:
+1. Alvin commits WS112 + WS113 together **locally and does not push**.
+2. Joseph, on that commit, pulls the production env (`vercel env pull --environment=production`, scope `dfsventures`) and runs `npx prisma db push`. **Expected: no data-loss prompt.** The only unique constraint is on a brand-new table, and both new columns have defaults. **If Prisma asks for `--accept-data-loss`, stop and send the output to Felix.**
+3. Joseph checks: `\d board_card_owners` exists; `board_cards."unmatchedOwnerNames"` and `digest_todos."ownerLabels"` are `text[]` with default `'{}'`; `SELECT count(*) FROM board_cards` and `FROM digest_todos` are unchanged.
+4. Only then push the branch (= production deploy of WS112 + WS113).
+
+The old deployed code is safe through steps 2–4. Its Prisma client doesn't know the new columns, and every insert gets the defaults.
+
+**WS112.3 — `scripts/backfill-board-card-owners.sql`** (new; Joseph runs it in the Neon SQL editor **after the WS113 deploy is Ready**; idempotent, safe to re-run):
+
+```sql
+-- Part 38 (WS112.3). Run in the Neon SQL editor AFTER the WS113 deploy is Ready.
+-- Idempotent: deterministic ids + ON CONFLICT, and the UPDATE only touches empty arrays.
+BEGIN;
+
+INSERT INTO "board_card_owners" ("id", "cardId", "personId", "rawName", "createdAt")
+SELECT 'bco' || substr(md5(c."id" || ':' || c."ownerId"), 1, 22), c."id", c."ownerId", c."rawOwnerName", c."createdAt"
+FROM "board_cards" c
+WHERE c."ownerId" IS NOT NULL
+ON CONFLICT ("cardId", "personId") DO NOTHING;
+
+-- An unmatched owner today = raw name, no ownerId, card flagged (resolveEntity's "none" case).
+UPDATE "board_cards"
+SET "unmatchedOwnerNames" = ARRAY["rawOwnerName"]
+WHERE "ownerId" IS NULL AND "rawOwnerName" IS NOT NULL AND "needsReview" = true
+  AND cardinality("unmatchedOwnerNames") = 0;
+
+COMMIT;
+
+-- Verify (both must return 0):
+SELECT count(*) FROM "board_cards" c
+WHERE c."ownerId" IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM "board_card_owners" o WHERE o."cardId" = c."id" AND o."personId" = c."ownerId");
+SELECT count(*) FROM "board_cards"
+WHERE "ownerId" IS NULL AND "rawOwnerName" IS NOT NULL AND "needsReview" = true AND cardinality("unmatchedOwnerNames") = 0;
+```
+
+**Why the backfill runs after the WS113 deploy:** from that deploy on, every write keeps the join table in sync. A backfill run before it would miss any card created or re-owned by the old code in between. Run after it, the backfill covers everything older, and dual-write covers everything newer.
+
+**Acceptance:**
+- [ ] `npx prisma validate` and `npx prisma generate` pass; typecheck is clean.
+- [ ] The db push needs no `--accept-data-loss`; table counts are unchanged.
+- [ ] The backfill's two verify queries return 0; re-running the whole script changes 0 rows.
+
+**UX impact:** none. **Cost impact:** none (one small table in existing Neon).
+
+---
+
+## WS113 — Dual-write on every write path (still single-owner), ~0.6 day (invisible)
+
+**Goal:** every write keeps `board_card_owners` and `unmatchedOwnerNames` correct, while every read, every request shape and the UI stay exactly as they are. **Ships in the same deploy as WS112, after the db push.**
+
+**WS113.1 — `src/lib/board.ts`:** `export const MAX_OWNERS_PER_CARD = 5; // JC-MO-C`.
+
+**WS113.2 — `src/lib/board-reconcile.ts`** (pure). Change the owner fields of the three types, and update `planCardWrites` to match:
+
+```ts
+export interface ResolvedItem {
+  // …unchanged fields…
+  ownerIds: string[];                         // resolved, deduped, ≤ MAX (with unmatched)
+  ownerRawNames: Record<string, string | null>; // personId -> heard text when it differed (Q100-a/c)
+  unmatchedOwnerNames: string[];
+  // ownerId / rawOwnerName removed
+}
+export interface ExistingCardLite { /* … */ ownerIds: string[]; /* ownerId removed */ }
+export interface CardFill {
+  ownerIds?: string[];
+  ownerRawNames?: Record<string, string | null>;
+  projectId?: string; rawProjectName?: string | null; dueDate?: Date;
+}
+```
+
+- Fill rule (JC-MO-G, replacing `:140-143`): `if (card.ownerIds.length === 0 && item.ownerIds.length > 0) { fill.ownerIds = item.ownerIds; fill.ownerRawNames = item.ownerRawNames; }`.
+- New pure helpers in the same file:
+
+```ts
+/** JC-MO-D: legacy single-owner columns, dual-written until WS118. */
+export function legacyOwnerFields(
+  ownerIds: string[], raw: Record<string, string | null>, unmatched: string[]
+): { ownerId: string | null; rawOwnerName: string | null } {
+  if (ownerIds.length) return { ownerId: ownerIds[0], rawOwnerName: raw[ownerIds[0]] ?? null };
+  return { ownerId: null, rawOwnerName: unmatched[0] ?? null };
+}
+
+/** F117: the single rule for the review flag. */
+export function computeNeedsReview(c: {
+  unmatchedOwnerNames: string[]; rawProjectName: string | null; projectId: string | null;
+}): boolean {
+  return c.unmatchedOwnerNames.length > 0 || (c.rawProjectName != null && c.projectId == null);
+}
+
+/** Single-owner -> arrays, for the WS113 interim and legacy inputs (JC-MO-M). */
+export function fromSingleOwner(r: { id: string | null; raw: string | null }) {
+  return {
+    ownerIds: r.id ? [r.id] : [],
+    ownerRawNames: r.id ? { [r.id]: r.raw } : {},
+    unmatchedOwnerNames: !r.id && r.raw ? [r.raw] : [],
+  };
+}
+```
+
+**WS113.3 — `src/lib/board-server.ts`** (db). Add:
+
+```ts
+/** Replace a card's owner set (Part 38). Runs inside the caller's transaction. */
+export async function setCardOwnersIn(
+  tx: Prisma.TransactionClient,
+  cardId: string,
+  ownerIds: string[],
+  raw: Record<string, string | null> = {},
+  unmatchedOwnerNames?: string[] // undefined = leave as is
+) {
+  await tx.boardCardOwner.deleteMany({ where: { cardId, personId: { notIn: ownerIds } } });
+  if (ownerIds.length) {
+    await tx.boardCardOwner.createMany({
+      data: ownerIds.map((personId) => ({ cardId, personId, rawName: raw[personId] ?? null })),
+      skipDuplicates: true,
+    });
+  }
+  const unmatched = unmatchedOwnerNames ?? (await tx.boardCard.findUniqueOrThrow({ where: { id: cardId }, select: { unmatchedOwnerNames: true } })).unmatchedOwnerNames;
+  await tx.boardCard.update({
+    where: { id: cardId },
+    data: { ...legacyOwnerFields(ownerIds, raw, unmatched), ...(unmatchedOwnerNames ? { unmatchedOwnerNames } : {}) },
+  });
+}
+```
+
+- `loadBoardContext` (`:24-62`): add `owners: { select: { personId: true } }` to the open-card select, and map each card to `ownerIds`. **Keep `ownerId` in the returned `openCards`** until WS115 changes the prompt line.
+
+**WS113.4 — write paths** (each still receives one owner and wraps it in the arrays):
+1. `cards/route.ts` POST: in the `create`, add `owners: ownerId ? { create: [{ personId: ownerId }] } : undefined`. Keep `ownerId`.
+2. `cards/[id]/route.ts` PATCH: wrap the `update` in `db.$transaction`. When `"ownerId" in b`, call `setCardOwnersIn(tx, id, b.ownerId ? [b.ownerId] : [], {}, [])`. Today's behaviour clears the raw name, so it also clears unmatched names. The existing `data.ownerId` / `data.rawOwnerName` assignment may stay or go (the helper writes both).
+3. `resolve/route.ts`: wherever `data.ownerId = personId` is set (`:108`, `:127`), also make the owner set `[personId]` with `rawName` = the old raw name, and set `unmatchedOwnerNames: []` for that card (through `setCardOwnersIn` inside a `$transaction`). Leave everything else in the route as it is until WS114.
+4. `digest/route.ts` (save): build `ResolvedItem`s with `fromSingleOwner({ id: t.ownerId || null, raw: t.ownerRaw?.trim() || null })`. In `tx.boardCard.create`, write `owners: { create: it.ownerIds.map((personId) => ({ personId, rawName: it.ownerRawNames[personId] ?? null })) }`, `unmatchedOwnerNames: it.unmatchedOwnerNames` and `...legacyOwnerFields(…)`. The `existing` query selects `owners: { select: { personId: true } }` and is mapped to `ownerIds`.
+5. `granola-intake.ts`: build items with `fromSingleOwner(owner)` (`:158-171`). **Replace `createMany` with `createManyAndReturn({ data, skipDuplicates: true, select: { id: true, sourceKey: true } })`** (Prisma 6.19.2, so it is available). Then insert the owner rows with `tx.boardCardOwner.createMany({ data, skipDuplicates: true })`, mapping each returned card through `sourceKey` back to its item. Keep `cardsCreated = returned.length`. **Fill (`:220-223`) must no longer spread `p.fill` into `boardCard.update`**, because `ownerIds` is not a column. Split it: call `setCardOwnersIn(tx, p.cardId, fill.ownerIds, fill.ownerRawNames)` when `fill.ownerIds` is set, then `update` with only the scalar keys (`projectId`, `rawProjectName`, `dueDate`). The `existing` query maps owners to `ownerIds` as in step 4.
+6. People DELETE: no code change. The join rows go by cascade, and the legacy `ownerId` by `SetNull`. The count change is in WS114.6.
+
+**Tests (WS113):**
+- `board-reconcile.test.ts`: update the fixtures to `ownerIds`; add fill-only-when-empty, `legacyOwnerFields` (owner first, unmatched fallback, empty) and `computeNeedsReview` (including the F117 case: `rawProjectName` set **with** `projectId` → false).
+- `digest-save-route.test.ts`: the created card carries `owners.create` and the legacy `ownerId`; an unmatched owner lands in `unmatchedOwnerNames`.
+- `granola-intake.test.ts`: mock `createManyAndReturn` and `boardCardOwner.createMany`; a fill with owners calls the owner write and never passes `ownerIds` to `boardCard.update`.
+- New `board-card-owners.test.ts` for `setCardOwnersIn`: deletes only ids not in the new set, inserts with `skipDuplicates`, and writes the legacy fields.
+
+**Acceptance:**
+- [ ] All six write paths keep the join table in sync: after any create, edit, resolve, paste save or intake, the card's owner rows equal `{ownerId}`.
+- [ ] The full suite is green (829 + new).
+- [ ] After deploy: Joseph runs the WS112.3 backfill, and both verify queries return 0.
+- [ ] The board, composer, digest and Slack are byte-identical to before.
+
+**UX impact:** none (reads unchanged). **Cost impact:** none.
+
+---
+
+## WS114 — Read switch + multi-owner board APIs, ~0.9 day
+
+**Goal:** the board APIs read owners from the join table and accept owner **arrays**. Old single-owner bodies keep working (JC-MO-M). **Needs the WS112.3 backfill verified first.**
+
+**WS114.1 — validation helper** in `src/lib/board.ts` (pure, client-safe):
+
+```ts
+/** Part 38: owner input for POST/PATCH. `ownerIds` (array) or legacy `ownerId` (string|null); not both. */
+export function parseOwnerInput(b: Record<string, unknown>):
+  | { ok: true; ownerIds: string[] | undefined } // undefined = field absent
+  | { ok: false; error: string } {
+  const hasArr = "ownerIds" in b, hasOne = "ownerId" in b;
+  if (hasArr && hasOne) return { ok: false, error: "Send ownerIds or ownerId, not both" };
+  if (hasOne) {
+    if (b.ownerId === null || b.ownerId === "") return { ok: true, ownerIds: [] };
+    return typeof b.ownerId === "string" ? { ok: true, ownerIds: [b.ownerId] } : { ok: false, error: "Unknown owner" };
+  }
+  if (!hasArr) return { ok: true, ownerIds: undefined };
+  if (!Array.isArray(b.ownerIds) || b.ownerIds.some((x) => typeof x !== "string" || !x)) {
+    return { ok: false, error: "ownerIds must be an array of ids" };
+  }
+  const ids = [...new Set(b.ownerIds as string[])];
+  if (ids.length > MAX_OWNERS_PER_CARD) return { ok: false, error: `A card can have at most ${MAX_OWNERS_PER_CARD} owners` };
+  return { ok: true, ownerIds: ids };
+}
+```
+
+The routes then check existence with `db.boardPerson.count({ where: { id: { in: ids } } }) === ids.length`, else `400 "Unknown owner"` (same message as today). Archived people stay assignable, as today. For PATCH, the cap counts `ownerIds.length + card.unmatchedOwnerNames.length` **only when the PATCH does not clear the unmatched names**. Since an explicit owner set clears them (WS114.3), the cap is just `ownerIds.length`.
+
+**WS114.2 — one card serializer** in `src/lib/board-server.ts`:
+
+```ts
+export const CARD_OWNER_INCLUDE = { owners: { select: { personId: true } } } as const;
+/** Every route that returns a card to the board client goes through this. */
+export function toCardData<T extends { owners: { personId: string }[] }>(c: T) {
+  const { owners, ...rest } = c;
+  return { ...rest, ownerIds: owners.map((o) => o.personId) };
+}
+```
+
+Use it in the board GET, POST, PATCH and resolve responses. **The move route is unchanged.** Its response has no `ownerIds` key, and `applyCardToPayload` merges `{ ...c, ...saved }` (`src/lib/board-client.ts:38`), so the client keeps the card's current `ownerIds`. Do not return `ownerIds: undefined` from any route; an explicitly undefined key would wipe it in the merge.
+
+**WS114.3 — `cards/route.ts` POST and `cards/[id]/route.ts` PATCH:** replace the `ownerId` block with `parseOwnerInput`.
+- POST creates with `owners: { create: ids.map((personId) => ({ personId })) }` + `legacyOwnerFields(ids, {}, [])`.
+- PATCH, when `ownerIds !== undefined`: inside the transaction, `setCardOwnersIn(tx, id, ids, keepRawFor(ids), [])`, where `keepRawFor` preserves `rawName` for owners who stay. That means reading the existing rows first; `createMany skipDuplicates` leaves them untouched anyway. An explicit owner set is the admin's word, so it clears `unmatchedOwnerNames` (today's PATCH also clears `rawOwnerName`, `:58`).
+- Recompute the flag with `computeNeedsReview` whenever owners or the project change (F117; replaces `:71-73`).
+- Audit metadata: `fields` includes `"owners"`, plus `ownersAdded` / `ownersRemoved` person ids (JC-MO-I).
+
+**WS114.4 — `resolve/route.ts`, new contract** (route file comment updated):
+
+```ts
+// POST …/cards/[id]/resolve
+// { owners?: { raw: string; personId?: string; newPerson?: true; ignore?: true }[],   // exactly one of the three per entry
+//   projectId?: string; newProjectName?: string; rememberAlias?: boolean }
+// Legacy (JC-MO-M): { ownerId } / { newPersonName } resolve card.unmatchedOwnerNames[0].
+// -> { card, fixed }   (unchanged response shape)
+```
+
+Steps, all inside one `db.$transaction`, replacing `:96-131`:
+1. Each `owners[].raw` must match, by `normalizeName`, a name in the target card's `unmatchedOwnerNames`, else `400 "That name isn't waiting to be resolved"`. Every entry needs exactly one of `personId` / `newPerson` / `ignore`. `ignore` is only accepted if Q106 = A.
+2. Targets: `personId` is validated; `newPerson` creates a `BoardPerson { displayName: raw }`, audited as `BOARD_PERSON_CREATED` (as today, `:148`). Two entries that resolve to the same person collapse into one owner (JC-MO-L).
+3. The target card's new owner set is the current owners plus the resolved targets. If that set plus the remaining unmatched names exceeds `MAX_OWNERS_PER_CARD`, return `400` before any write. The resolved and ignored names are removed from `unmatchedOwnerNames`, and new owner rows get `rawName = raw`.
+4. Aliases: if `rememberAlias`, create a `PERSON` alias for each **non-ignored** entry (the existing 409-safe `remember_`, `:73-90`). An ignored name never becomes an alias.
+5. Propagation (the same idea as today, generalised): the candidates are `{ archivedAt: null, id: { not: id }, OR: [{ unmatchedOwnerNames: { isEmpty: false } }, { rawProjectName: { not: null }, projectId: null }] }`. For each candidate, every unmatched name whose `normalizeName` equals a **resolved** (not ignored) entry's raw value is removed, and its person added, unless the card is already at the cap (JC-MO-C: then the name stays). The project propagation is unchanged. `needsReview = computeNeedsReview(…)`. Only the target gets `humanEditedAt` (Part 37 contract). `fixed` counts the other cards changed.
+6. Audit: `BOARD_CARD_UPDATED` with `{ resolve: true, ownerIds: [...], ignored: n, projectId, otherCardsFixed }`. All ids and counts, never names.
+
+**WS114.5 — `src/app/api/admin/board/route.ts` GET:** cards `include: CARD_OWNER_INCLUDE` → `toCardData`. People `where` (JC-MO-K / F116): `includeArchived ? {} : { OR: [{ archivedAt: null }, { cardOwnerships: { some: { card: cardWhere } } }] }`.
+
+**WS114.6 — People:** `people/route.ts:18` and `people/[id]/route.ts:75`: count `cardOwnerships` instead of `cards`. The response key stays `cardCount` / `affectedCards`.
+
+**WS114.7 — `src/components/admin/board/types.ts`:** in `BoardCardData`, add `ownerIds: string[]` and `unmatchedOwnerNames: string[]`, and mark `ownerId` and `rawOwnerName` `/** @deprecated Part 38: use ownerIds / unmatchedOwnerNames; removed in WS118 */`. The old UI keeps reading `ownerId` (still dual-written) until WS116, so WS114 can ship alone.
+
+**Tests (WS114)** (new files closing F118):
+- `board-owner-input.test.ts`: `parseOwnerInput` covers absent, legacy string, legacy null, an array with duplicates collapsed, 6 ids → error, both fields → error, and non-string entries → error.
+- `board-cards-route.test.ts`: POST with `ownerIds` (2 owners) writes nested creates + legacy `ownerId` = first; POST with legacy `ownerId` still works; PATCH `ownerIds: []` clears owners and unmatched names and recomputes the flag; an unknown id gives 400; audit metadata carries only ids.
+- `board-resolve-route.test.ts`: two unmatched names resolved in one call; `newPerson`; `rememberAlias` creates one alias per non-ignored name; propagation to another card with the same normalized name; a full card is skipped and stays flagged; the F117 regression (a card with an alias-matched project is **not** re-flagged); the legacy `{ ownerId }` body; a raw name not on the card → 400.
+- `board-delete-route.test.ts`: `affectedCards` comes from `_count.cardOwnerships`.
+
+**Acceptance:**
+- [ ] The board GET returns `ownerIds` on every card; POST/PATCH/resolve return them; move is untouched.
+- [ ] A legacy single-owner body produces the same result as before.
+- [ ] A card can be given 5 owners through the API; a 6th gets 400.
+- [ ] The full suite is green.
+
+**UX impact:** none visible until WS116 (the old UI still reads the dual-written `ownerId`). F116's archived owners now come back in the payload, but the old UI only shows them once WS116 lands. **Cost impact:** none.
+
+---
+
+## WS115 — Extraction, intake and the digest composer handle several owners, ~0.8 day
+
+**Goal:** a meeting note can produce one task with several owners. Every heard name is matched on its own, and each unmatched name is flagged on its own. **Q105 sets the prompt wording.**
+
+**WS115.1 — `src/lib/digest-extraction.ts`:**
+- `ExtractedItem`: replace `ownerRaw`/`ownerId` with `owners: { raw: string; id: string | null }[]`.
+- zod item schema (`:61-71`): add `owners: z.array(z.object({ raw: nullableString, id: nullableString })).optional().default([])`, and **keep** `ownerRaw` / `ownerId` as accepted legacy fields (JC-MO-M).
+- `parseExtraction` (`:166-175`): `owners = parsed.owners.length ? parsed.owners : (ownerRaw ? [{ raw: ownerRaw, id: ownerId }] : [])`. Drop entries with no `raw`. A null `raw` resolves to "none" today too (`board-reconcile.ts:36`), so behaviour is unchanged. Null any `id` not in `personIds`. Dedupe by `normalizeName(raw)` and keep the first `MAX_OWNERS_PER_CARD`.
+- Prompt (`:122`). Replace the owner clause with:
+  > `"owners"`: an array of everyone who owns the item, each `{"raw": the name as said in the notes, "id": an id from PEOPLE only if you are confident it is the same person, else null}`. Owners are equal; list every owner, at most 5, or `[]` if nobody was named. **[Q105-A:]** If several people share one action item, return ONE item listing all of them; do not split it.
+
+  The `Jane Founder` example stays (F113).
+- OPEN CARDS line (`:100-105`): the owner column becomes `ownerIds.map(name).join(" & ") || "-"`. Change `ExtractionContext.openCards` to `ownerIds: string[]`, and delete the interim `ownerId` from `loadBoardContext` (WS113.3).
+
+**WS115.2 — `src/lib/board-reconcile.ts`:** add the per-owner resolver, which both intake paths share:
+
+```ts
+export function resolveOwners(
+  owners: { raw: string; id: string | null }[],
+  people: Canonical[],
+  attendeeEmailFor: (raw: string) => string | null = () => null
+): { ownerIds: string[]; ownerRawNames: Record<string, string | null>; unmatchedOwnerNames: string[] } {
+  const ownerIds: string[] = [], ownerRawNames: Record<string, string | null> = {}, unmatched: string[] = [];
+  for (const o of owners) {
+    if (ownerIds.length + unmatched.length >= MAX_OWNERS_PER_CARD) break; // JC-MO-C
+    const r = resolveEntity(o.raw, o.id, people, attendeeEmailFor(o.raw));
+    if (r.id) {
+      if (!ownerIds.includes(r.id)) { ownerIds.push(r.id); ownerRawNames[r.id] = r.raw; } // JC-MO-L
+    } else if (r.raw && !unmatched.some((u) => normalizeName(u) === normalizeName(r.raw!))) {
+      unmatched.push(r.raw);
+    }
+  }
+  return { ownerIds, ownerRawNames, unmatchedOwnerNames: unmatched };
+}
+```
+
+`MAX_OWNERS_PER_CARD` comes from `@/lib/board`, which is client-safe and has no db import, so the module stays pure. Aliases are unchanged: only the resolve dialog creates them (Q100, JC-TB-H). `resolveEntity` itself is unchanged.
+
+**WS115.3 — `src/lib/granola-intake.ts:158-171`:** `const o = resolveOwners(it.owners, ctx.people, (raw) => attendeeEmailFor(raw, note.attendees))`, then `needsReview: computeNeedsReview({ unmatchedOwnerNames: o.unmatchedOwnerNames, rawProjectName: project.raw, projectId: project.id })`. Note: this is the **F117-correct** rule, where today's `owner.needsReview || project.needsReview` is equivalent for fresh items. The create, owner-row and fill code from WS113.4 already takes arrays. The draft-ready email's `needsReview` count is unchanged (it counts items).
+
+**WS115.4 — `src/app/api/admin/digest/generate/route.ts:109-121`:** use `resolveOwners`. Each returned todo carries `ownerIds`, `ownerRawNames`, `unmatchedOwnerNames` and `heardOwners: item.owners.map((o) => o.raw)` (display only), replacing `ownerId`/`ownerRaw`.
+
+**WS115.5 — `src/app/api/admin/digest/route.ts` (save):**
+- `SaveTodo` gains `ownerIds?: string[]`, `ownerRawNames?: Record<string,string|null>` and `unmatchedOwnerNames?: string[]`, with legacy `ownerId`/`ownerRaw` mapped via `fromSingleOwner`.
+- Validate: arrays of strings; `ownerIds.length + unmatched.length ≤ MAX_OWNERS_PER_CARD`; each name 1–`MAX_NAME_LENGTH` characters; else 400.
+- The existence check (`:85-90`) runs over the flattened owner ids.
+- `needsReview` is computed with `computeNeedsReview` (JC-MO-H), and the client's flag is ignored.
+
+**WS115.6 — composer `src/app/admin/digest/new/page.tsx`:**
+- `DigestTodo` state: `ownerIds: string[]`, `ownerRawNames`, `unmatchedOwnerNames: string[]`, `heardOwners: string[]` (replacing `ownerId`/`ownerRaw`/`heardOwner`).
+- `unresolved(t)` = `t.unmatchedOwnerNames.length > 0 || (t.heardProject && !t.projectId)`.
+- Replace the owner `<select>` (`:315-323`) with the shared `OwnerPicker` from WS116.2 (compact variant, `h-9 text-xs`, as today).
+- Each unmatched name renders as a small chip, "‘{name}’ not matched", with a × that removes it from `unmatchedOwnerNames`. Removing a name is the admin saying "handled", like picking an owner clears `ownerRaw` today (`:318`).
+- The "Owner heard as …" line lists all `heardOwners`.
+- The save body sends the three arrays.
+
+**Tests (WS115):**
+- `digest-extraction.test.ts`: the new `owners` array is parsed; the legacy `ownerRaw`/`ownerId` shape still parses into `owners`; unknown ids are nulled; duplicates are collapsed; more than 5 are truncated; the prompt contains `"owners"`; the OPEN CARDS line joins two owners.
+- `board-reconcile.test.ts`: `resolveOwners` covers mixed matched (exact, alias, email) + unmatched, the same person heard twice, the cap counting unmatched names, and an empty input.
+- `granola-intake.test.ts`: a two-owner item creates one card with two owner rows; one matched + one unmatched name → one owner row, `unmatchedOwnerNames` = [the other], `needsReview` = true.
+- `digest-save-route.test.ts`: the array body; the legacy body; a server-computed `needsReview` ignores a lying client flag; the cap returns 400.
+
+**Acceptance:**
+- [ ] Pasting notes where "Jane Founder and Sam Partner will send the deck" (with both on the board) yields one composer row with two owner chips, and saving creates one card with two owners. (Q105-B instead: two rows.)
+- [ ] A misspelled second name shows as an unmatched chip, and the saved card is flagged with that name waiting in the resolve dialog.
+- [ ] The old-shape model JSON still works.
+
+**UX impact:** the composer's owner select becomes the multi-owner picker (additive: a single owner still takes one pick). Prompt drift is guarded by tests on the parse side. **Cost impact:** none. The prompt grows by about 40 tokens, on the existing Anthropic line.
+
+---
+
+## WS116 — Board UI: owner tiles, multi-owner picker, any-owner filter, per-name resolve, ~0.8 day
+
+**Goal:** admins see and edit several owners on a card. Single-owner cards look exactly as they do today.
+
+**WS116.1 — `src/app/admin/board/board-client.tsx`:**
+- Filter (`:145-151`) becomes "matches if **any** owner matches" (as the coordinator specified): `me` → `c.ownerIds.includes(myPersonId)`; `none` → `c.ownerIds.length === 0`; an id → `c.ownerIds.includes(ownerFilter)`. The URL keys and option values are unchanged, so saved links keep working.
+- Filter options (`:430-436`) and pickers list only `people.filter((p) => !p.archivedAt)` (JC-MO-K). Tiles look labels up in the full list.
+- Quick-add (`:287`): `ownerIds: myPersonId ? [myPersonId] : []`.
+- `renderCard` (`:311`): pass `ownerLabels={c.ownerIds.map((id) => personById.get(id)?.label).filter(Boolean).sort((a, b) => a.localeCompare(b))}` (JC-MO-A).
+
+**WS116.2 — new `src/components/admin/board/owner-picker.tsx`** (no new dependency; native `<select>` plus chips, matching the existing `Select`/`selectCls` styling and the global unlayered select rule in `globals.css`):
+
+```tsx
+// Part 38: equal co-owners. Chips (label + remove) followed by an "Add owner…" select
+// listing only people not already chosen; disabled at MAX_OWNERS_PER_CARD.
+export function OwnerPicker({ id, label = "Owners", people, value, onChange, compact }: {
+  id: string; label?: string; people: { id: string; label: string }[];
+  value: string[]; onChange: (ids: string[]) => void; compact?: boolean;
+}) { /* chips: <button aria-label={`Remove ${p.label}`}>×</button>; select onChange appends then resets to "" */ }
+```
+
+- The hint under it: "Up to 5. Everyone listed owns it equally."
+- Empty state: "Unassigned".
+- Keyboard: the chips' remove buttons and the select are normal tab stops.
+
+**WS116.3 — `card-dialog.tsx`:** state `ownerIds: string[]`, initialised to `card?.ownerIds ?? (defaultOwnerId ? [defaultOwnerId] : [])`. Replace the owner `Select` (`:166-173`) with `OwnerPicker`. The POST/PATCH bodies send `ownerIds` (`:59`, `:73`). The project select keeps its grid cell. The picker moves to its own full-width row above the project/due grid, because chips need the width.
+
+**WS116.4 — `board-card.tsx`** (`:21,45,62-63,189-205`): replace the `ownerLabel: string | null` prop with `ownerLabels: string[]`.
+- 0 labels → today's dashed "?" Unassigned tile, unchanged.
+- 1 label → today's tile, unchanged.
+- 2+ labels → up to 3 tiles, overlapped (`-ml-1.5` and a `ring-1 ring-card` separator), plus a "+N" tile beyond 3. One wrapper carries `role="img"`, `aria-label={"Owners: " + labels.join(", ")}` and `title` = the full list.
+- The `heard` tooltip (`:62`) becomes `[...card.unmatchedOwnerNames, card.rawProjectName]`.
+
+**WS116.5 — `resolve-dialog.tsx`:**
+- One row per `card.unmatchedOwnerNames` entry: "Molly heard ‘{name}’ as an owner", with a select offering the people, "Add ‘{name}’ as a new person" and, if Q106 = A, "Not an owner — ignore".
+- The project row is unchanged. There is one "Remember … next time" checkbox, as today (Part 37: a single `rememberAlias`), and its text lists the non-ignored names.
+- `ready` = every listed name and the project have a choice.
+- The body is the WS114.4 `owners[]` array.
+
+**WS116.6 — `people-projects-panel.tsx:266-269`** (the delete confirmation for a person): "{n} card(s) list this person. Cards with no other owner become unassigned." The project text is unchanged.
+
+**WS116.7 — `src/lib/board-client.ts`:** add a pure `ownerTileModel(labels: string[], max = 3): { shown: string[]; extra: number }` so the tile logic is unit-tested. `initials()` is unchanged.
+
+**Tests (WS116):** `board-client.test.ts` covers `ownerTileModel` (0, 1, 3 and 5 labels) and the filter predicate. Extract it as a pure `cardMatchesOwner(card, filter, myPersonId)` in `board-client.ts` and test me, none, an id, and a shared card matching each of its owners. `applyCardToPayload` keeps `ownerIds` when merging a move response that lacks the key.
+
+**Acceptance:**
+- [ ] A single-owner card looks pixel-identical to before; a two-owner card shows two overlapped tiles with both names on hover and to screen readers.
+- [ ] Filtering by either owner of a shared card shows it, "Me" shows cards I share, and "Unassigned" shows only cards with no owners.
+- [ ] Editing a card can add and remove owners; the 6th "Add owner" is disabled.
+- [ ] A card with two unmatched names resolves both in one dialog; "Remember" saves one alias per name.
+- [ ] An archived owner's card shows their name, not "Unassigned" (F116).
+
+**UX impact:** additive. Single-owner cards, the filter URLs and the board layout are unchanged. The edit dialog's owner field becomes a chip picker. **Cost impact:** none (no dependency).
+
+---
+
+## WS117 — Digest rows, email and Slack with several owners, ~0.5 day
+
+**Goal:** each digest item names all its owners, and Slack lists a shared item under each owner (L2). **Q103 and Q104 set the presentation.**
+
+**WS117.1 — `buildDigestActionItems`** (`src/lib/board-server.ts:158-228`):
+- The include becomes `owners: { include: { person: { include: { user: { select: { name: true, email: true } } } } } }` (replacing `owner`).
+- Labels per card: `owners.map(({ person: p }) => p.user?.name ?? p.user?.email ?? p.displayName).sort((a, b) => a.localeCompare(b))`.
+- `ownerLabel = labels.join(", ") || null`; `ownerLabels = labels`; `assigneeId` = the first owner in label order with `person.userId`, else null (JC-MO-E).
+- Change detection adds `!sameStrings(row.ownerLabels, labels)`, and the row select adds `ownerLabels`. A single-owner card produces the same `ownerLabel` and `assigneeId` as today.
+- Still **one row per card**; never one row per owner.
+
+**WS117.2 — send route** (`src/app/api/admin/digest/[id]/send/route.ts`), fixing F115's precedence:
+
+```ts
+const labelsOf = (t: { ownerLabels: string[]; ownerLabel: string | null; assignee: { name: string | null; email: string } | null }) =>
+  t.ownerLabels.length ? t.ownerLabels
+  : [t.ownerLabel ?? t.assignee?.name ?? t.assignee?.email].filter((s): s is string => !!s);
+```
+
+Email (`:63`): `assigneeName: labelsOf(t).join(", ") || null`. Slack (`:95`): `ownerLabels: labelsOf(t)`. For pre-Part-38 rows this order (owner label, then assignee) matches the admin digest page (`[id]/page.tsx:429`).
+
+**WS117.3 — `src/lib/slack.ts`:**
+- `SlackDigestItem.ownerLabel` becomes `ownerLabels: string[]`.
+- Grouping (`:38-48`): push the item into the group of **each** label (`[]` goes to Unassigned, still last).
+- The header count `n` stays `o.items.length`, i.e. distinct items, not lines.
+- Q104-A: a line in a group for one owner of a shared item ends with `— with {other owners, joined ", "}` (escaped with `slackEscape`).
+- The cap counts lines (JC-MO-J).
+
+**WS117.4 — email and admin page:** under Q103-A, **no template change**. `assigneeName` is now "Jane Founder, Sam Partner", and `escapeHtml` already covers it (`email.ts:498`). The admin digest page shows `ownerLabel`, which is already joined. Under Q103-B, see the option text.
+
+**Tests (WS117):**
+- `digest-action-items.test.ts`: two owners give a joined `ownerLabel`, a sorted `ownerLabels`, and `assigneeId` = the first linked user in label order; a single-owner card's output is identical to today's (a regression guard); a label-only change triggers an update.
+- `slack.test.ts`: a shared item appears under both owners; the header counts it once; the "— with" suffix is escaped; Unassigned is last; the cap and "…and N more" count lines.
+- `digest-send-slack.test.ts`: `ownerLabels` take precedence over the assignee; a legacy row (`ownerLabels: []`) falls back to `ownerLabel`, then the assignee.
+- `email-escaping.test.ts`: an owner name with `<` inside the joined `assigneeName` is escaped.
+
+**Acceptance:**
+- [ ] Sending a digest with one shared item posts it under both owners in Slack, and the email shows it once with both names.
+- [ ] Already-sent digests are untouched: rows freeze at `sentAt` (`board-server.ts:166`), and `slackPostedAt` prevents a re-post.
+
+**UX impact:** additive. Single-owner items render exactly as before in the email, on the admin page and in Slack. Shared items name all owners. **Cost impact:** none.
+
+---
+
+## WS118 — Drop the legacy single-owner columns (DESTRUCTIVE; needs Joseph's explicit sign-off, Q107), ~0.2 day
+
+**Do not start without Joseph's written OK at the time.** Earliest: 14 days after WS116 ships, with no rollback in that window.
+
+1. Remove every legacy write: the `legacyOwnerFields` calls, the helper itself, and `fromSingleOwner` where it is only used for legacy inputs. Optionally remove the legacy request mappings (JC-MO-M). Keep them if Vercel logs still show old-shape bodies.
+2. Schema: remove `BoardCard.ownerId`, `owner`, `rawOwnerName` and `@@index([ownerId])`, and `BoardPerson.cards`. Remove the `@deprecated` fields from `types.ts`.
+3. **Deploy order is reversed from WS112.** Ship the code that no longer reads or writes those columns **first**. While the columns exist, an old client that doesn't know about them is harmless. Joseph then runs `npx prisma db push --accept-data-loss` (this *is* destructive: the `ownerId` and `rawOwnerName` columns). He first saves `SELECT id, "ownerId", "rawOwnerName" FROM board_cards` to a CSV as the undo copy.
+4. After this, rolling back past WS118 is not possible without restoring the columns from that CSV.
+
+**UX impact:** none. **Cost impact:** none.
+
+---
+
+## Open product decisions (Joseph's call, each with a recommendation)
+
+| | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q103** | **The weekly digest email is a flat list, not grouped by owner (F115).** How should a shared item appear there and on the admin digest page? | **(A)** Keep the flat list: one line per item, "— Jane Founder, Sam Partner". **(B)** Regroup the email (and admin page) by owner like Slack, with shared items repeated under each owner. | **(A).** It changes nothing for single-owner items or for the extra (non-admin) digest recipients. One line per item keeps one tick per task. (B) is a layout change to an email everyone receives, and duplicate lines with the same tick read as two tasks. L2 still holds in Slack. |
+| **Q104** | In Slack, should a shared item's line say who else owns it? | **(A)** "• Send deck _(AcmeHQ onboarding)_ — due Oct 20 — with Sam Partner". **(B)** No suffix; the same line simply appears in two groups. | **(A).** Without it, a reader scanning one person's group can't tell the task is shared and may duplicate work. |
+| **Q105** | When the notes say "Jane and Sam will send the deck", what does the extractor produce? | **(A)** One shared card with both owners. **(B)** One card per person, each ticked separately. | **(A).** It matches "owners are equal", since a shared card is one task done once. (B) recreates today's workaround and doubles the digest lines. |
+| **Q106** | Should the resolve dialog offer "Not an owner — ignore" for a heard name? | **(A)** Yes, per name; it doesn't propagate and never becomes an alias. **(B)** No. To drop a bad name, edit the card's owners (which clears unmatched names). | **(A).** Several names per item means more mis-hearings ("the team", a founder's name). Ignoring is cheaper than editing, and the card-edit path still exists. |
+| **Q107** | When do the legacy `ownerId`/`rawOwnerName` columns go? | **(A)** WS118, at least 14 days after WS116, with your explicit OK then. **(B)** Keep them indefinitely (dual-written, harmless). | **(A).** Dual-write is code that every future owner change must remember. But (B) costs nothing, so this is purely about tidiness. |
+
+**Locked:** **L1** owners are equal (Joseph, 2026-10-12). **L2** in Slack, a shared task is listed under each owner (coordinator default; Joseph did not object). Q103 decides whether L2 also restructures the email.
+
+---
+
+## Part 38 sequencing, deploys and effort
+
+**Order** (a pushed branch = a production deploy):
+
+1. **WS112 + WS113**, committed together and **not pushed**.
+2. **Joseph: `prisma db push`** against prod from that commit (WS112.2). This needs no `--accept-data-loss`; if Prisma asks, stop.
+3. **Push** → deploy (invisible dual-write).
+4. **Joseph: run `scripts/backfill-board-card-owners.sql`** in Neon after the deploy is Ready; both verify queries must return 0.
+5. **WS114** → deploy (APIs read the join table; the old UI still works off the dual-written `ownerId`).
+6. **WS115** (after Q105) and **WS116** (after Q106), as one deploy or two. WS116 needs WS114; WS115 needs WS114 and WS116.2 (the picker), so ship WS116 first or together.
+7. **WS117** (after Q103/Q104). It needs only WS114, so it can go any time after step 5.
+8. **WS118**, at least 14 days later, only with Joseph's sign-off (Q107).
+
+**Rollback:** any deploy from step 3 up to WS118 can be reverted to the previous one. The legacy columns are still written, so older code reads a sensible single owner (the first). A multi-owner card shows just one owner after such a rollback, and nothing is lost: the join rows stay.
+
+| Workstream | Effort |
+|---|---|
+| WS112 | 0.3 |
+| WS113 | 0.6 |
+| WS114 | 0.9 |
+| WS115 | 0.8 |
+| WS116 | 0.8 |
+| WS117 | 0.5 |
+| WS118 | 0.2 |
+| **Total** | **≈ 4.1 days** |
+
+**Three things that must survive the handoff verbatim:**
+1. **db push before the WS112/113 deploy; backfill after it.** Reversing either order loses owners or breaks every board query.
+2. **`p.fill` must never again be spread into `boardCard.update`** (`granola-intake.ts:222`), because `ownerIds` is not a column. Owner changes go through `setCardOwnersIn` only.
+3. **Only human resolutions create aliases, and an ignored name never does** (Q100, JC-TB-H).
+
+**Do not touch in this Part:** `resolveEntity`'s matching order; the move contract (`beforeId`/`afterId`); the digest freeze at `sentAt`; `slackPostedAt` idempotency; the Granola exactly-once layers; the email template's layout (under Q103-A).
+
+## Part 38 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **L1** | Owners are equal; no lead/helper | **LOCKED** (Joseph, 2026-10-12) |
+| **L2** | Slack lists a shared task under each owner | **LOCKED** (coordinator default, unopposed) |
+| **Q103** | Email/admin digest: flat line naming all owners / regroup by owner | **DECIDED: (A)** (Joseph, 2026-10-12, accepted Felix's recommendation) |
+| **Q104** | Slack "— with …" co-owner suffix | **DECIDED: (A)** (Joseph, 2026-10-12, accepted Felix's recommendation) |
+| **Q105** | Shared action item → one card / one per person | **DECIDED: (A)** (Joseph, 2026-10-12, accepted Felix's recommendation) |
+| **Q106** | Resolve dialog "Not an owner — ignore" | **DECIDED: (A)** (Joseph, 2026-10-12, accepted Felix's recommendation) |
+| **Q107** | Drop legacy owner columns after ≥14 days / keep | **DECIDED: (A)** (Joseph, 2026-10-12, accepted Felix's recommendation) (destructive; explicit sign-off still required at WS118 time) |
+| **JC-MO-A…M** | See the judgment-calls table | **Decided (technical)**, each with a reversal |
+| **F115** | Digest email is flat; send route prefers assignee over owner label | Q103; precedence fixed in WS117.2 |
+| **F116** | Archived owner renders as "Unassigned" but the filter disagrees | WS114.5 + WS116.1 |
+| **F117** | Resolve/PATCH re-flag cards with an alias-matched project | `computeNeedsReview`, WS113.2/WS114 |
+| **F118** | No route tests for card create/edit/resolve | WS114 tests |
+
+**Constraints honored:** **no new cost line** (one Postgres table, two list columns, no new dependency, no new service, a slightly longer prompt on the existing Anthropic line); **additive-only schema** through WS117, with the one destructive step isolated in WS118 behind Q107 and an explicit sign-off; **no UX regression**, because single-owner cards, filter URLs, emails and Slack posts render exactly as before, and founders, LPs and investor-link recipients never see the board or the digest.
+
+**Handoff status: WS112 + WS113 are IMPLEMENTED and committed locally by Alvin (2026-10-12), NOT pushed; waiting on Joseph's `prisma db push`. (Was: READY FOR ALVIN.)** (invisible, not blocked by any question). WS114 is ready once the backfill is verified. WS115–WS117 are ready once Q103–Q106 are answered.
+
+---

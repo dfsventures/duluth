@@ -51,15 +51,17 @@ describe("POST /api/admin/digest", () => {
     expect(tx.boardCard.create).toHaveBeenCalledTimes(2);
     const first = tx.boardCard.create.mock.calls[0][0].data;
     expect(first).toMatchObject({ title: "Send deck", source: "DIGEST_PASTE", ownerId: "p1", rawOwnerName: "Jayne", needsReview: false });
+    expect(first.owners).toEqual({ create: [{ personId: "p1", rawName: "Jayne" }] });
+    expect(first.unmatchedOwnerNames).toEqual([]);
     expect(first.humanEditedAt).toBeInstanceOf(Date);
     expect(first.sourceKey).toMatch(/^paste:.+:k_senddeck$/);
-    expect(tx.boardCard.create.mock.calls[1][0].data).toMatchObject({ ownerId: null, rawOwnerName: "Sam", needsReview: true });
+    expect(tx.boardCard.create.mock.calls[1][0].data).toMatchObject({ ownerId: null, rawOwnerName: "Sam", needsReview: true, unmatchedOwnerNames: ["Sam"], owners: { create: [] } });
     expect(mockBuild).toHaveBeenCalledWith(expect.any(String), tx);
   });
 
   it("links (does not create) a todo that restates an open card", async () => {
     tx.boardCard.findMany.mockResolvedValue([
-      { id: "c1", sourceKey: null, humanEditedAt: new Date(), ownerId: null, projectId: null, dueDate: null },
+      { id: "c1", sourceKey: null, humanEditedAt: new Date(), owners: [], projectId: null, dueDate: null },
     ]);
     await post({ ...base, todos: [{ text: "Send deck", existingCardId: "c1" }] });
     expect(tx.boardCard.create).not.toHaveBeenCalled();
