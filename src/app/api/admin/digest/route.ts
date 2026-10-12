@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { buildDigestActionItems, titleKey } from "@/lib/board-server";
-import { planCardWrites, fromSingleOwner, legacyOwnerFields, type ResolvedItem } from "@/lib/board-reconcile";
-import { POSITION_STEP, MAX_TITLE_LENGTH, parseDueDate, positionBetween } from "@/lib/board";
+import { planCardWrites, fromSingleOwner, legacyOwnerFields, computeNeedsReview, type ResolvedItem } from "@/lib/board-reconcile";
+import { POSITION_STEP, MAX_TITLE_LENGTH, MAX_NAME_LENGTH, MAX_OWNERS_PER_CARD, parseDueDate, positionBetween } from "@/lib/board";
 
 export async function GET() {
   try {
@@ -31,13 +31,53 @@ export async function GET() {
 
 interface SaveTodo {
   text: string;
+  // Part 38: owner arrays. Legacy ownerId/ownerRaw still accepted (JC-MO-M).
+  ownerIds?: string[];
+  ownerRawNames?: Record<string, string | null>;
+  unmatchedOwnerNames?: string[];
   ownerId?: string | null;
-  projectId?: string | null;
   ownerRaw?: string | null;
+  projectId?: string | null;
   projectRaw?: string | null;
   needsReview?: boolean;
   existingCardId?: string | null;
   dueDate?: string | null;
+}
+
+type SaveOwners = Pick<ResolvedItem, "ownerIds" | "ownerRawNames" | "unmatchedOwnerNames">;
+
+/** Validates one todo's owner fields (array form, or the legacy single-owner pair). */
+function parseSaveOwners(t: SaveTodo): { ok: true; value: SaveOwners } | { ok: false; error: string } {
+  const hasArrays = t.ownerIds !== undefined || t.unmatchedOwnerNames !== undefined || t.ownerRawNames !== undefined;
+  if (!hasArrays) {
+    return { ok: true, value: fromSingleOwner({ id: t.ownerId || null, raw: t.ownerRaw?.trim() || null }) };
+  }
+  const ids = t.ownerIds ?? [];
+  const names = t.unmatchedOwnerNames ?? [];
+  if (!Array.isArray(ids) || ids.some((x) => typeof x !== "string" || !x)) {
+    return { ok: false, error: "ownerIds must be an array of ids" };
+  }
+  if (!Array.isArray(names) || names.some((n) => typeof n !== "string" || !n.trim() || n.trim().length > MAX_NAME_LENGTH)) {
+    return { ok: false, error: "Each unmatched owner name needs 1-120 characters" };
+  }
+  const rawNames = t.ownerRawNames ?? {};
+  if (typeof rawNames !== "object" || rawNames === null || Array.isArray(rawNames)) {
+    return { ok: false, error: "ownerRawNames must be an object" };
+  }
+  const uniqueIds = Array.from(new Set(ids));
+  const trimmed = names.map((n) => n.trim());
+  if (uniqueIds.length + trimmed.length > MAX_OWNERS_PER_CARD) {
+    return { ok: false, error: `A card can have at most ${MAX_OWNERS_PER_CARD} owners` };
+  }
+  const raw: Record<string, string | null> = {};
+  for (const id of uniqueIds) {
+    const r = (rawNames as Record<string, unknown>)[id];
+    if (r !== undefined && r !== null && (typeof r !== "string" || r.length > MAX_NAME_LENGTH)) {
+      return { ok: false, error: "Invalid ownerRawNames" };
+    }
+    raw[id] = typeof r === "string" && r.trim() ? r.trim() : null;
+  }
+  return { ok: true, value: { ownerIds: uniqueIds, ownerRawNames: raw, unmatchedOwnerNames: trimmed } };
 }
 
 export async function POST(request: Request) {
@@ -70,13 +110,18 @@ export async function POST(request: Request) {
       if (due === undefined) {
         return NextResponse.json({ error: "dueDate must be YYYY-MM-DD" }, { status: 400 });
       }
+      const owners = parseSaveOwners(t);
+      if (!owners.ok) return NextResponse.json({ error: owners.error }, { status: 400 });
+      const projectId = t.projectId || null;
+      const rawProjectName = t.projectRaw?.trim() || null;
       items.push({
         title: text,
-        ...fromSingleOwner({ id: t.ownerId || null, raw: t.ownerRaw?.trim() || null }),
-        projectId: t.projectId || null,
-        rawProjectName: t.projectRaw?.trim() || null,
+        ...owners.value,
+        projectId,
+        rawProjectName,
         dueDate: due,
-        needsReview: Boolean(t.needsReview),
+        // JC-MO-H: computed here, the client's flag is ignored.
+        needsReview: computeNeedsReview({ unmatchedOwnerNames: owners.value.unmatchedOwnerNames, rawProjectName, projectId }),
         existingCardId: t.existingCardId || null,
       });
     }

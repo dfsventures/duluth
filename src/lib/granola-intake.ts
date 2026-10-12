@@ -18,7 +18,7 @@ import {
 } from "@/lib/granola";
 import { extractDigest, DigestExtractionError } from "@/lib/digest-extraction";
 import { loadBoardContext, buildDigestActionItems, titleKey, setCardOwnersIn } from "@/lib/board-server";
-import { planCardWrites, resolveEntity, normalizeName, fromSingleOwner, legacyOwnerFields, type ResolvedItem } from "@/lib/board-reconcile";
+import { planCardWrites, resolveEntity, resolveOwners, computeNeedsReview, normalizeName, legacyOwnerFields, type ResolvedItem } from "@/lib/board-reconcile";
 import { plainToDigestHtml } from "@/lib/digest-html";
 import { POSITION_STEP, MAX_TITLE_LENGTH, parseDueDate, positionBetween } from "@/lib/board";
 import { sendDigestDraftReadyEmail, BASE_URL } from "@/lib/email";
@@ -155,18 +155,22 @@ async function processNote(
     const items: ResolvedItem[] = [];
     for (const it of extracted.items.slice(0, MAX_ITEMS)) {
       const title = it.title.slice(0, MAX_TITLE_LENGTH);
-      const owner = resolveEntity(it.ownerRaw, it.ownerId, ctx.people, attendeeEmailFor(it.ownerRaw, note.attendees));
+      const owners = resolveOwners(it.owners, ctx.people, (raw) => attendeeEmailFor(raw, note.attendees));
       const project = resolveEntity(it.projectRaw, it.projectId, ctx.projects);
       const due = it.dueDate ? parseDueDate(it.dueDate) : null;
       items.push({
         title,
         sourceKey: `granola:${noteId}:${titleKey(title)}`,
         existingCardId: it.existingCardId,
-        ...fromSingleOwner(owner),
+        ...owners,
         projectId: project.id,
         rawProjectName: project.raw,
         dueDate: due ?? null,
-        needsReview: owner.needsReview || project.needsReview,
+        needsReview: computeNeedsReview({
+          unmatchedOwnerNames: owners.unmatchedOwnerNames,
+          rawProjectName: project.raw,
+          projectId: project.id,
+        }),
       });
     }
 

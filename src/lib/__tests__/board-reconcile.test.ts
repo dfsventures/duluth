@@ -6,6 +6,7 @@ import {
   legacyOwnerFields,
   computeNeedsReview,
   fromSingleOwner,
+  resolveOwners,
   type Canonical,
   type ResolvedItem,
   type ExistingCardLite,
@@ -157,5 +158,47 @@ describe("fromSingleOwner", () => {
     expect(fromSingleOwner({ id: "a", raw: "Janey" })).toEqual({ ownerIds: ["a"], ownerRawNames: { a: "Janey" }, unmatchedOwnerNames: [] });
     expect(fromSingleOwner({ id: null, raw: "Sam" })).toEqual({ ownerIds: [], ownerRawNames: {}, unmatchedOwnerNames: ["Sam"] });
     expect(fromSingleOwner({ id: null, raw: null })).toEqual({ ownerIds: [], ownerRawNames: {}, unmatchedOwnerNames: [] });
+  });
+});
+
+describe("resolveOwners (Part 38)", () => {
+  it("resolves exact, alias and email matches and keeps unmatched names apart", () => {
+    const r = resolveOwners(
+      [
+        { raw: "Jane Founder", id: null }, // exact
+        { raw: "janey", id: null }, // alias of the same person: collapses (JC-MO-L)
+        { raw: "Sammy", id: null }, // matched through the attendee email hint
+        { raw: "Zed Unknown", id: null }, // unmatched
+      ],
+      people,
+      (raw) => (raw === "Sammy" ? "sam@example.com" : null)
+    );
+    expect(r.ownerIds).toEqual(["p-jane", "p-sam"]);
+    expect(r.ownerRawNames).toEqual({ "p-jane": null, "p-sam": "Sammy" });
+    expect(r.unmatchedOwnerNames).toEqual(["Zed Unknown"]);
+  });
+
+  it("accepts Claude's id guess only for a real canonical id", () => {
+    const r = resolveOwners([{ raw: "S. Partner", id: "p-sam" }, { raw: "Q", id: "invented" }], people);
+    expect(r.ownerIds).toEqual(["p-sam"]);
+    expect(r.unmatchedOwnerNames).toEqual(["Q"]);
+  });
+
+  it("the same unmatched name heard twice is kept once", () => {
+    const r = resolveOwners([{ raw: "Zed", id: null }, { raw: "zed.", id: null }], people);
+    expect(r.unmatchedOwnerNames).toEqual(["Zed"]);
+  });
+
+  it("counts unmatched names toward the cap of 5", () => {
+    const r = resolveOwners(
+      ["Jane Founder", "Sam Partner", "A", "B", "C", "D"].map((raw) => ({ raw, id: null })),
+      people
+    );
+    expect(r.ownerIds.length + r.unmatchedOwnerNames.length).toBe(5);
+    expect(r.unmatchedOwnerNames).toEqual(["A", "B", "C"]);
+  });
+
+  it("returns empty sets for no input", () => {
+    expect(resolveOwners([], people)).toEqual({ ownerIds: [], ownerRawNames: {}, unmatchedOwnerNames: [] });
   });
 });

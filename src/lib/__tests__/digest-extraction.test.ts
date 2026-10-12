@@ -21,7 +21,7 @@ const ctx = {
     { id: "p2", name: "Sam Partner", aliases: [] },
   ],
   projects: [{ id: "pr1", name: "AcmeHQ onboarding", aliases: [] }],
-  openCards: [{ id: "c1", title: "Send the deck", ownerId: "p1", projectId: "pr1" }],
+  openCards: [{ id: "c1", title: "Send the deck", ownerIds: ["p1"], projectId: "pr1" }],
 };
 
 function reply(obj: unknown) {
@@ -32,7 +32,7 @@ const goodBody = {
   title: "Weekly",
   sections: [{ id: "projects", heading: "x", content: "Hello" }],
   items: [
-    { title: "Send deck", ownerRaw: "Jayne", ownerId: "p1", projectRaw: null, projectId: null, dueDate: "2026-10-16", existingCardId: "c1" },
+    { title: "Send deck", owners: [{ raw: "Jayne", id: "p1" }], projectRaw: null, projectId: null, dueDate: "2026-10-16", existingCardId: "c1" },
   ],
 };
 
@@ -56,6 +56,23 @@ describe("buildPrompt", () => {
     expect(p).not.toMatch(/Joseph|Felix|Alvin/);
     expect(p).not.toContain("— Joseph");
   });
+
+  it("asks for an owners array and one shared item (Q105-A)", () => {
+    const p = buildPrompt({ notesText: "notes", ctx, weekOf: "October 8, 2026", lastRiddle: null });
+    expect(p).toContain('"owners"');
+    expect(p).toContain("return ONE item listing all of them");
+    expect(p).toContain("at most 5");
+  });
+
+  it("joins an open card's owners with ' & '", () => {
+    const p = buildPrompt({
+      notesText: "notes",
+      ctx: { ...ctx, openCards: [{ id: "c9", title: "Send the deck", ownerIds: ["p1", "p2"], projectId: null }] },
+      weekOf: "October 8, 2026",
+      lastRiddle: null,
+    });
+    expect(p).toContain("c9 | Send the deck | Jane Founder & Sam Partner | -");
+  });
 });
 
 describe("extractDigest", () => {
@@ -68,18 +85,55 @@ describe("extractDigest", () => {
     expect(DIGEST_MODEL).toBe("claude-sonnet-4-6");
     expect(out.sections).toHaveLength(6);
     expect(out.sections[0].content).toBe("Hello");
-    expect(out.items[0]).toMatchObject({ ownerId: "p1", existingCardId: "c1", dueDate: "2026-10-16" });
+    expect(out.items[0]).toMatchObject({ owners: [{ raw: "Jayne", id: "p1" }], existingCardId: "c1", dueDate: "2026-10-16" });
   });
 
   it("nulls ids that are not in the canonical lists and bad dates", async () => {
     mockCreate.mockResolvedValue(
       reply({
         ...goodBody,
-        items: [{ title: "T", ownerRaw: "X", ownerId: "invented", projectRaw: null, projectId: "nope", dueDate: "Friday", existingCardId: "ghost" }],
+        items: [{ title: "T", owners: [{ raw: "X", id: "invented" }], projectRaw: null, projectId: "nope", dueDate: "Friday", existingCardId: "ghost" }],
       })
     );
     const out = await extractDigest({ notesText: "n", ctx });
-    expect(out.items[0]).toMatchObject({ ownerId: null, projectId: null, existingCardId: null, dueDate: null, ownerRaw: "X" });
+    expect(out.items[0]).toMatchObject({ owners: [{ raw: "X", id: null }], projectId: null, existingCardId: null, dueDate: null });
+  });
+
+  it("parses several owners on one item", async () => {
+    mockCreate.mockResolvedValue(
+      reply({ ...goodBody, items: [{ title: "T", owners: [{ raw: "Jane Founder", id: "p1" }, { raw: "Sam Partner", id: null }] }] })
+    );
+    const out = await extractDigest({ notesText: "n", ctx });
+    expect(out.items[0].owners).toEqual([
+      { raw: "Jane Founder", id: "p1" },
+      { raw: "Sam Partner", id: null },
+    ]);
+  });
+
+  it("maps the legacy ownerRaw/ownerId shape into owners", async () => {
+    mockCreate.mockResolvedValue(
+      reply({ ...goodBody, items: [{ title: "T", ownerRaw: "Jayne", ownerId: "p1" }, { title: "U", ownerRaw: null, ownerId: null }] })
+    );
+    const out = await extractDigest({ notesText: "n", ctx });
+    expect(out.items[0].owners).toEqual([{ raw: "Jayne", id: "p1" }]);
+    expect(out.items[1].owners).toEqual([]);
+  });
+
+  it("collapses duplicate names, drops nameless entries and truncates to 5", async () => {
+    const many = ["A One", "B Two", "C Three", "D Four", "E Five", "F Six"].map((raw) => ({ raw, id: null }));
+    mockCreate.mockResolvedValue(
+      reply({
+        ...goodBody,
+        items: [
+          { title: "T", owners: [{ raw: "Jane Founder", id: "p1" }, { raw: "jane  founder", id: null }, { raw: null, id: "p2" }] },
+          { title: "U", owners: many },
+        ],
+      })
+    );
+    const out = await extractDigest({ notesText: "n", ctx });
+    expect(out.items[0].owners).toEqual([{ raw: "Jane Founder", id: "p1" }]);
+    expect(out.items[1].owners).toHaveLength(5);
+    expect(out.items[1].owners[4].raw).toBe("E Five");
   });
 
   it("retries once on malformed JSON, then succeeds", async () => {

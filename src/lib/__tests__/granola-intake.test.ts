@@ -105,7 +105,7 @@ const note = (over: Record<string, unknown> = {}) => ({
 const extracted = {
   title: "Digest",
   sections: [{ id: "projects", heading: "Running Projects", content: "a <b> & b" }],
-  items: [{ title: "Send deck", ownerRaw: "Jane", ownerId: null, projectRaw: null, projectId: null, dueDate: null, existingCardId: null }],
+  items: [{ title: "Send deck", owners: [{ raw: "Jane", id: null }], projectRaw: null, projectId: null, dueDate: null, existingCardId: null }],
 };
 
 describe("granola intake", () => {
@@ -192,6 +192,42 @@ describe("granola intake", () => {
       data: [{ cardId: "new0", personId: "p1", rawName: "Jane" }],
       skipDuplicates: true,
     });
+  });
+
+  it("a two-owner item creates one card with two owner rows", async () => {
+    m.extract.mockResolvedValue({
+      ...extracted,
+      items: [{ ...extracted.items[0], owners: [{ raw: "Jane Founder", id: "p1" }, { raw: "Sam Partner", id: "p2" }] }],
+    });
+    const people = [
+      { id: "p1", name: "Jane Founder", aliases: [], email: "jane@example.test" },
+      { id: "p2", name: "Sam Partner", aliases: [], email: null },
+    ];
+    const bs = await import("@/lib/board-server");
+    vi.mocked(bs.loadBoardContext).mockResolvedValueOnce({ people, projects: [], openCards: [] } as never);
+    const res = await processGranolaIntake("i1");
+    expect(res.cardsCreated).toBe(1);
+    const data = m.cardCreateMany.mock.calls[0][0].data;
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ ownerId: "p1", unmatchedOwnerNames: [], needsReview: false });
+    expect(m.ownerCreateMany).toHaveBeenCalledWith({
+      data: [
+        { cardId: "new0", personId: "p1", rawName: null },
+        { cardId: "new0", personId: "p2", rawName: null },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
+  it("one matched and one unmatched name: one owner row, the other name waits, card flagged", async () => {
+    m.extract.mockResolvedValue({
+      ...extracted,
+      items: [{ ...extracted.items[0], owners: [{ raw: "Jane Founder", id: "p1" }, { raw: "Sam Partnr", id: null }] }],
+    });
+    await processGranolaIntake("i1");
+    const data = m.cardCreateMany.mock.calls[0][0].data;
+    expect(data[0]).toMatchObject({ ownerId: "p1", unmatchedOwnerNames: ["Sam Partnr"], needsReview: true });
+    expect(m.ownerCreateMany.mock.calls[0][0].data).toHaveLength(1);
   });
 
   it("retry after a crash reuses the existing draft, creates no second one, sends no second email", async () => {

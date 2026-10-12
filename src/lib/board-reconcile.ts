@@ -1,6 +1,7 @@
 // Part 37 (WS106.2) — pure reconciliation logic for the team board.
 // No db access. Decides which canonical person/project a free-text name
 // refers to, and what to do with each extracted item (create / link / fill / skip).
+import { MAX_OWNERS_PER_CARD } from "@/lib/board";
 
 export function normalizeName(s: string): string {
   return s
@@ -49,6 +50,33 @@ export function resolveEntity(
     return { id: claudeId, raw, needsReview: false, via: "claude" }; // JC-TB-H: no alias saved
   }
   return { id: null, raw, needsReview: true, via: "none" };
+}
+
+/**
+ * Part 38: resolves every heard owner on its own (shared by Granola intake and
+ * the paste composer). Aliases are never created here (Q100, JC-TB-H).
+ */
+export function resolveOwners(
+  owners: { raw: string; id: string | null }[],
+  people: Canonical[],
+  attendeeEmailFor: (raw: string) => string | null = () => null
+): { ownerIds: string[]; ownerRawNames: Record<string, string | null>; unmatchedOwnerNames: string[] } {
+  const ownerIds: string[] = [];
+  const ownerRawNames: Record<string, string | null> = {};
+  const unmatched: string[] = [];
+  for (const o of owners) {
+    if (ownerIds.length + unmatched.length >= MAX_OWNERS_PER_CARD) break; // JC-MO-C
+    const r = resolveEntity(o.raw, o.id, people, attendeeEmailFor(o.raw));
+    if (r.id) {
+      if (!ownerIds.includes(r.id)) {
+        ownerIds.push(r.id); // JC-MO-L: the same person heard twice is one owner
+        ownerRawNames[r.id] = r.raw;
+      }
+    } else if (r.raw && !unmatched.some((u) => normalizeName(u) === normalizeName(r.raw as string))) {
+      unmatched.push(r.raw);
+    }
+  }
+  return { ownerIds, ownerRawNames, unmatchedOwnerNames: unmatched };
 }
 
 /** JC-MO-D: legacy single-owner columns, dual-written until WS118. */

@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { ORG_NAME } from "@/lib/org";
 import { extractDigest, DigestExtractionError } from "@/lib/digest-extraction";
 import { loadBoardContext } from "@/lib/board-server";
-import { resolveEntity } from "@/lib/board-reconcile";
+import { resolveEntity, resolveOwners, computeNeedsReview } from "@/lib/board-reconcile";
 
 // Part 37 (WS108.2): thin route. Fetching/splitting stays here; the prompt,
 // Claude call and validation live in src/lib/digest-extraction.ts.
@@ -107,15 +107,25 @@ export async function POST(request: Request) {
     const extracted = await extractDigest({ notesText: combinedNotes, ctx });
 
     const todos = extracted.items.map((item) => {
-      const owner = resolveEntity(item.ownerRaw, item.ownerId, ctx.people);
+      const owners = resolveOwners(item.owners, ctx.people);
       const project = resolveEntity(item.projectRaw, item.projectId, ctx.projects);
       return {
         text: item.title,
-        ownerId: owner.id,
+        // Part 38: owner arrays. heardOwners is display only.
+        ownerIds: owners.ownerIds,
+        ownerRawNames: owners.ownerRawNames,
+        unmatchedOwnerNames: owners.unmatchedOwnerNames,
+        heardOwners: item.owners.map((o) => o.raw),
+        // Legacy single-owner fields kept (additive contract): the first owner.
+        ownerId: owners.ownerIds[0] ?? null,
+        ownerRaw: owners.ownerIds.length ? (owners.ownerRawNames[owners.ownerIds[0]] ?? null) : (owners.unmatchedOwnerNames[0] ?? null),
         projectId: project.id,
-        ownerRaw: owner.raw,
         projectRaw: project.raw,
-        needsReview: owner.needsReview || project.needsReview,
+        needsReview: computeNeedsReview({
+          unmatchedOwnerNames: owners.unmatchedOwnerNames,
+          rawProjectName: project.raw,
+          projectId: project.id,
+        }),
         existingCardId: item.existingCardId,
         dueDate: item.dueDate,
       };

@@ -5,7 +5,8 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { ORG_NAME } from "@/lib/org";
 import { digestHtmlToPlain } from "@/lib/digest-html";
-import type { Canonical } from "@/lib/board-reconcile";
+import { normalizeName, type Canonical } from "@/lib/board-reconcile";
+import { MAX_OWNERS_PER_CARD } from "@/lib/board";
 
 export const DIGEST_MODEL = "claude-sonnet-4-6"; // unchanged from the original generate route
 
@@ -22,13 +23,13 @@ export const SECTION_DEFS = [
 export interface ExtractionContext {
   people: Canonical[];
   projects: Canonical[];
-  openCards: { id: string; title: string; ownerId: string | null; projectId: string | null }[];
+  openCards: { id: string; title: string; ownerIds: string[]; projectId: string | null }[];
 }
 
 export interface ExtractedItem {
   title: string;
-  ownerRaw: string | null;
-  ownerId: string | null;
+  /** Part 38: everyone who owns the item (equal owners), as heard + matched id. */
+  owners: { raw: string; id: string | null }[];
   projectRaw: string | null;
   projectId: string | null;
   dueDate: string | null; // YYYY-MM-DD
@@ -61,6 +62,11 @@ const RawSchema = z.object({
     .array(
       z.object({
         title: z.string().min(1),
+        owners: z
+          .array(z.object({ raw: nullableString, id: nullableString }))
+          .nullish()
+          .transform((v) => v ?? []),
+        // Legacy single-owner fields stay accepted (JC-MO-M): model drift, old prompts.
         ownerRaw: nullableString,
         ownerId: nullableString,
         projectRaw: nullableString,
@@ -100,7 +106,7 @@ export function buildPrompt(input: PromptInput): string {
       .slice(0, MAX_OPEN_CARDS_IN_PROMPT)
       .map(
         (c) =>
-          `${c.id} | ${c.title} | ${(c.ownerId && personName.get(c.ownerId)) || "-"} | ${(c.projectId && projectName.get(c.projectId)) || "-"}`
+          `${c.id} | ${c.title} | ${c.ownerIds.map((o) => personName.get(o)).filter(Boolean).join(" & ") || "-"} | ${(c.projectId && projectName.get(c.projectId)) || "-"}`
       )
       .join("\n") || "(none)";
 
@@ -119,7 +125,7 @@ export function buildPrompt(input: PromptInput): string {
 Today is ${weekOf}. Given the meeting notes below, produce a JSON object with:
 - "title": a digest title like "${ORG_NAME} Weekly — Week of ${weekOf}"
 - "sections": array of exactly 6 objects, one per section, each with "id", "heading", and "content" (plain text, 1-4 short paragraphs). Leave "content" as an empty string if there is nothing relevant from the notes.
-- "items": array of action items extracted from the notes. For each action item return "title" (without the owner's name, e.g. "Follow up with Acme re: term sheet"), "ownerRaw" (the name as said in the notes, e.g. "Jane Founder", or null), "ownerId" (an id from PEOPLE only if you are confident it is the same person, else null; never invent ids), "projectRaw"/"projectId" likewise from PROJECTS, "dueDate" (YYYY-MM-DD or null), and "existingCardId" if the item restates an OPEN CARD (an id from OPEN CARDS, else null). The board's spellings are always correct; the notes may misspell names.
+- "items": array of action items extracted from the notes. For each action item return "title" (without the owner's name, e.g. "Follow up with Acme re: term sheet"), "owners" (an array of everyone who owns the item, each {"raw": the name as said in the notes, e.g. "Jane Founder", "id": an id from PEOPLE only if you are confident it is the same person, else null; never invent ids}; owners are equal, so list every owner, at most ${MAX_OWNERS_PER_CARD}, or [] if nobody was named; if several people share one action item, return ONE item listing all of them and do not split it), "projectRaw"/"projectId" likewise from PROJECTS, "dueDate" (YYYY-MM-DD or null), and "existingCardId" if the item restates an OPEN CARD (an id from OPEN CARDS, else null). The board's spellings are always correct; the notes may misspell names.
 
 PEOPLE (id | name | aliases):
 ${peopleLines}
@@ -140,6 +146,24 @@ Return only valid JSON, no markdown fences.
 ${meetingLines ? `\n${meetingLines}\n` : ""}
 Meeting notes:
 ${input.notesText}`;
+}
+
+/** Drops nameless entries, nulls unknown ids, dedupes by normalized name, caps at the max. */
+function normalizeOwners(
+  owners: { raw: string | null; id: string | null }[],
+  personIds: Set<string>
+): { raw: string; id: string | null }[] {
+  const out: { raw: string; id: string | null }[] = [];
+  const seen = new Set<string>();
+  for (const o of owners) {
+    if (!o.raw) continue;
+    const key = normalizeName(o.raw);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ raw: o.raw, id: o.id && personIds.has(o.id) ? o.id : null });
+    if (out.length >= MAX_OWNERS_PER_CARD) break;
+  }
+  return out;
 }
 
 /** Validates Claude's text output. Unknown ids are nulled (JC-TB-H). Throws on malformed output. */
@@ -165,8 +189,7 @@ export function parseExtraction(raw: string, ctx: ExtractionContext, fallbackTit
 
   const items: ExtractedItem[] = parsed.data.items.map((i) => ({
     title: i.title.trim(),
-    ownerRaw: i.ownerRaw,
-    ownerId: i.ownerId && personIds.has(i.ownerId) ? i.ownerId : null,
+    owners: normalizeOwners(i.owners.length ? i.owners : i.ownerRaw ? [{ raw: i.ownerRaw, id: i.ownerId }] : [], personIds),
     projectRaw: i.projectRaw,
     projectId: i.projectId && projectIds.has(i.projectId) ? i.projectId : null,
     dueDate: i.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(i.dueDate) ? i.dueDate : null,

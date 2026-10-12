@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { plainToDigestHtml } from "@/lib/digest-html";
+import { OwnerPicker } from "@/components/admin/board/owner-picker";
 
 interface DigestSection {
   id: string;
@@ -18,11 +19,12 @@ interface DigestSection {
 
 interface DigestTodo {
   text: string;
-  ownerId: string | null;
+  ownerIds: string[];
+  ownerRawNames: Record<string, string | null>; // personId -> heard text when it differed
+  unmatchedOwnerNames: string[]; // heard but not matched; an admin picks an owner or removes the chip
   projectId: string | null;
-  ownerRaw: string | null; // sent to the server; cleared when an admin picks a name
   projectRaw: string | null;
-  heardOwner: string | null; // display only: what the notes said
+  heardOwners: string[]; // display only: what the notes said
   heardProject: string | null;
   existingCardId: string | null;
   dueDate: string | null;
@@ -31,11 +33,11 @@ interface DigestTodo {
 interface Option { id: string; label: string }
 
 function blankTodo(text: string): DigestTodo {
-  return { text, ownerId: null, projectId: null, ownerRaw: null, projectRaw: null, heardOwner: null, heardProject: null, existingCardId: null, dueDate: null };
+  return { text, ownerIds: [], ownerRawNames: {}, unmatchedOwnerNames: [], projectId: null, projectRaw: null, heardOwners: [], heardProject: null, existingCardId: null, dueDate: null };
 }
 
 function unresolved(t: DigestTodo): boolean {
-  return Boolean((t.heardOwner && !t.ownerId) || (t.heardProject && !t.projectId));
+  return Boolean(t.unmatchedOwnerNames.length > 0 || (t.heardProject && !t.projectId));
 }
 
 type Step = "paste" | "edit";
@@ -65,7 +67,11 @@ export default function NewDigestPage() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d) return;
-        setPeople((d.people ?? []).map((p: { id: string; label: string }) => ({ id: p.id, label: p.label })));
+        setPeople(
+          (d.people ?? [])
+            .filter((p: { archivedAt: string | null }) => !p.archivedAt)
+            .map((p: { id: string; label: string }) => ({ id: p.id, label: p.label }))
+        );
         setProjects((d.projects ?? []).map((p: { id: string; name: string }) => ({ id: p.id, label: p.name })));
         setOpenCardIds(
           (d.cards ?? [])
@@ -101,11 +107,12 @@ export default function NewDigestPage() {
       setTodos(
         (data.todos ?? []).map((t: Partial<DigestTodo> & { text: string }) => ({
           ...blankTodo(t.text),
-          ownerId: t.ownerId ?? null,
+          ownerIds: t.ownerIds ?? [],
+          ownerRawNames: t.ownerRawNames ?? {},
+          unmatchedOwnerNames: t.unmatchedOwnerNames ?? [],
           projectId: t.projectId ?? null,
-          ownerRaw: t.ownerRaw ?? null,
           projectRaw: t.projectRaw ?? null,
-          heardOwner: t.ownerRaw ?? null,
+          heardOwners: t.heardOwners ?? [],
           heardProject: t.projectRaw ?? null,
           existingCardId: t.existingCardId ?? null,
           dueDate: t.dueDate ?? null,
@@ -158,11 +165,12 @@ export default function NewDigestPage() {
           })),
           todos: todos.map((t) => ({
             text: t.text,
-            ownerId: t.ownerId,
+            ownerIds: t.ownerIds,
+            ownerRawNames: t.ownerRawNames,
+            unmatchedOwnerNames: t.unmatchedOwnerNames,
             projectId: t.projectId,
-            ownerRaw: t.ownerRaw,
             projectRaw: t.projectRaw,
-            needsReview: unresolved(t),
+            needsReview: unresolved(t), // advisory; the server recomputes it
             existingCardId: t.existingCardId,
             dueDate: t.dueDate,
           })),
@@ -311,17 +319,33 @@ export default function NewDigestPage() {
                         </button>
                       </div>
                       <div className="flex flex-wrap items-center gap-2 pl-4">
-                        <select
-                          aria-label="Owner"
-                          className="input-field h-9 w-full text-xs sm:w-44"
-                          value={todo.ownerId ?? ""}
-                          onChange={(e) => patchTodo(i, { ownerId: e.target.value || null, ownerRaw: null })}
-                        >
-                          <option value="">No owner</option>
-                          {people.map((p) => (
-                            <option key={p.id} value={p.id}>{p.label}</option>
-                          ))}
-                        </select>
+                        <OwnerPicker
+                          id={`todo-owner-${i}`}
+                          label="Owners"
+                          compact
+                          people={people}
+                          value={todo.ownerIds}
+                          reservedSlots={todo.unmatchedOwnerNames.length}
+                          onChange={(ids) => patchTodo(i, { ownerIds: ids })}
+                        />
+                        {todo.unmatchedOwnerNames.map((name) => (
+                          <span
+                            key={name}
+                            className="inline-flex items-center gap-1 border border-ochre/40 bg-ochre/10 px-2 py-0.5 text-xs text-foreground"
+                          >
+                            &lsquo;{name}&rsquo; not matched
+                            <button
+                              type="button"
+                              aria-label={`Dismiss unmatched name ${name}`}
+                              onClick={() =>
+                                patchTodo(i, { unmatchedOwnerNames: todo.unmatchedOwnerNames.filter((n) => n !== name) })
+                              }
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
                         <select
                           aria-label="Project"
                           className="input-field h-9 w-full text-xs sm:w-44"
@@ -333,10 +357,19 @@ export default function NewDigestPage() {
                             <option key={p.id} value={p.id}>{p.label}</option>
                           ))}
                         </select>
-                        {(todo.heardOwner || todo.heardProject || todo.existingCardId) && (
+                        {(todo.heardOwners.length > 0 || todo.heardProject || todo.existingCardId) && (
                           <p className="basis-full text-xs leading-5 text-muted-foreground">
-                            {todo.heardOwner && (
-                              <>Owner heard as <span className="font-mono">&lsquo;{todo.heardOwner}&rsquo;</span>. </>
+                            {todo.heardOwners.length > 0 && (
+                              <>
+                                {todo.heardOwners.length === 1 ? "Owner" : "Owners"} heard as{" "}
+                                {todo.heardOwners.map((h, k) => (
+                                  <span key={k}>
+                                    {k > 0 && ", "}
+                                    <span className="font-mono">&lsquo;{h}&rsquo;</span>
+                                  </span>
+                                ))}
+                                .{" "}
+                              </>
                             )}
                             {todo.heardProject && (
                               <>Project heard as <span className="font-mono">&lsquo;{todo.heardProject}&rsquo;</span>. </>

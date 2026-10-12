@@ -17,7 +17,7 @@ const tx = {
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: (fn: (t: typeof tx) => unknown) => fn(tx),
-    boardPerson: { count: vi.fn().mockResolvedValue(1) },
+    boardPerson: { count: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.length) },
     boardProject: { count: vi.fn().mockResolvedValue(1) },
     weeklyDigest: { findUnique: vi.fn().mockResolvedValue({ id: "x", todos: [] }) },
   },
@@ -71,6 +71,52 @@ describe("POST /api/admin/digest", () => {
   it("skips a duplicate title within one digest", async () => {
     await post({ ...base, todos: [{ text: "Send deck" }, { text: "send deck" }] });
     expect(tx.boardCard.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts the owner-array body: two owners plus an unmatched name", async () => {
+    const res = await post({
+      ...base,
+      todos: [
+        {
+          text: "Send deck",
+          ownerIds: ["p1", "p2"],
+          ownerRawNames: { p1: "Jayne" },
+          unmatchedOwnerNames: ["Zed"],
+        },
+      ],
+    });
+    expect(res.status).toBe(201);
+    const data = tx.boardCard.create.mock.calls[0][0].data;
+    expect(data.owners).toEqual({
+      create: [
+        { personId: "p1", rawName: "Jayne" },
+        { personId: "p2", rawName: null },
+      ],
+    });
+    expect(data).toMatchObject({ ownerId: "p1", rawOwnerName: "Jayne", unmatchedOwnerNames: ["Zed"], needsReview: true });
+  });
+
+  it("computes needsReview on the server and ignores a lying client flag", async () => {
+    await post({
+      ...base,
+      todos: [
+        { text: "A", ownerIds: ["p1"], unmatchedOwnerNames: [], needsReview: true },
+        { text: "B", ownerIds: ["p1"], unmatchedOwnerNames: ["Zed"], needsReview: false },
+        { text: "C", ownerIds: ["p1"], projectId: "pr1", projectRaw: "AcmeHQ", needsReview: true }, // alias-matched project
+      ],
+    });
+    const flags = tx.boardCard.create.mock.calls.map((c) => c[0].data.needsReview);
+    expect(flags).toEqual([false, true, false]);
+  });
+
+  it("rejects more than 5 owners counting unmatched names, and bad name entries", async () => {
+    const over = await post({ ...base, todos: [{ text: "A", ownerIds: ["a", "b", "c"], unmatchedOwnerNames: ["x", "y", "z"] }] });
+    expect(over.status).toBe(400);
+    const bad = await post({ ...base, todos: [{ text: "A", unmatchedOwnerNames: ["  "] }] });
+    expect(bad.status).toBe(400);
+    const long = await post({ ...base, todos: [{ text: "A", unmatchedOwnerNames: ["x".repeat(121)] }] });
+    expect(long.status).toBe(400);
+    expect(tx.weeklyDigest.create).not.toHaveBeenCalled();
   });
 
   it("rejects an empty todo text with 400 and writes nothing", async () => {
