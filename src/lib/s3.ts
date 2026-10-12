@@ -84,3 +84,27 @@ export async function objectExists(key: string): Promise<boolean> {
 export async function deleteObject(key: string): Promise<void> {
   await getClient().send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
 }
+
+/**
+ * Server-side upload of bytes we generated ourselves (e.g. processed logo
+ * derivatives). Browser uploads still use presigned URLs via getUploadUrl().
+ */
+export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
+  await getClient().send(
+    new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType })
+  );
+}
+
+/** Read an object fully into memory (small objects only, e.g. logos). Null if missing. */
+export async function getObjectBuffer(key: string): Promise<Buffer | null> {
+  try {
+    const res = await getClient().send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+    if (!res.Body) return null;
+    return Buffer.from(await res.Body.transformToByteArray());
+  } catch (err: unknown) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+    const name = (err as { name?: string })?.name;
+    if (status === 404 || name === "NoSuchKey") return null;
+    throw err;
+  }
+}

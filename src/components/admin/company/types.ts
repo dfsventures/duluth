@@ -15,6 +15,7 @@ export interface Company {
   id: string;
   name: string;
   logo: string | null;
+  logoWebKey?: string | null;
   description: string | null;
   website: string | null;
   sector: string | null;

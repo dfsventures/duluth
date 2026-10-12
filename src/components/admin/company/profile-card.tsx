@@ -1,5 +1,6 @@
 "use client";
 
+import { logoPublicPath } from "@/lib/company-logo";
 import { useState } from "react";
 import Link from "next/link";
 import { Bell, Building2, ExternalLink, Globe, MapPin, Pencil, Save } from "lucide-react";
@@ -77,11 +78,11 @@ export function ProfileCard({
     <CardHeader>
       <div className="flex items-start justify-between">
         <CardTitle className="flex items-center gap-3">
-          {company.logo ? (
+          {logoPublicPath(company.id, company.logoWebKey) ? (
             <img
-              src={company.logo}
+              src={logoPublicPath(company.id, company.logoWebKey) ?? undefined}
               alt={company.name}
-              className="h-10 w-10 rounded-lg object-cover"
+              className="h-10 w-10 rounded-lg bg-white object-contain"
             />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-100 text-primary-700">

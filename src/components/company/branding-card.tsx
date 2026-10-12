@@ -28,15 +28,17 @@ interface Props {
   logoUrl: string | null;
   logoLuminance: number | null;
   logoSquare?: boolean;
+  /** Start with "Your colour" selected (unsaved), e.g. after uploading a mostly-white logo. */
+  suggestBrandPlate?: boolean;
   onSaved?: (v: BrandingValues) => void;
 }
 
 const asField = (hex: string | null) => (hex ?? DEFAULT_BRAND_HEX).toUpperCase();
 
-export function BrandingCard({ companyId, companyName, initial, logoUrl, logoLuminance, logoSquare, onSaved }: Props) {
+export function BrandingCard({ companyId, companyName, initial, logoUrl, logoLuminance, logoSquare, suggestBrandPlate, onSaved }: Props) {
   const [saved, setSaved] = useState<BrandingValues>(initial);
   const [text, setText] = useState(asField(initial.brandColor));
-  const [plate, setPlate] = useState<LogoPlate>(initial.logoPlate);
+  const [plate, setPlate] = useState<LogoPlate>(suggestBrandPlate ? "BRAND" : initial.logoPlate);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 

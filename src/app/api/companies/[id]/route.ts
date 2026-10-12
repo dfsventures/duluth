@@ -93,7 +93,8 @@ export async function PATCH(
       "sector",
       "geography",
       "fundingStage",
-      "logo",
+      // "logo" is no longer client-writable: POST /api/companies/[id]/logo is the
+      // only way to set it, so it can only ever hold a key we generated.
     ];
 
     const data: Record<string, unknown> = {};

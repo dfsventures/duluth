@@ -59,6 +59,19 @@ describe("decideRoute — public routes", () => {
     expect(decideRoute("/brand/dfs-logo-primary.png", "", loggedOut)).toEqual({ type: "next" });
   });
 
+  // Company update theming: logo derivatives are fetched by sessionless
+  // investors and email clients. The path has two dynamic segments, so it is a
+  // trailing-slash prefix; lookalikes must stay protected.
+  it("allows /api/logo/[companyId]/[file] with no session", () => {
+    expect(decideRoute("/api/logo/ckabc1234567890abcdef/0123456789abcdef-email.png", "", loggedOut)).toEqual({ type: "next" });
+  });
+
+  it("does not make lookalikes of /api/logo public", () => {
+    for (const p of ["/api/logos", "/api/logo", "/api/logo-admin/x", "/api/companies/c1/logo"]) {
+      expect(decideRoute(p, "", loggedOut)).toEqual({ type: "redirect", to: "/login", callbackUrl: p });
+    }
+  });
+
   // Found 2026-07-03: Vercel Cron invocations carry no session, so without
   // this the middleware redirected every cron call to /login before the
   // route's own CRON_SECRET check ever ran — the daily reminder job had

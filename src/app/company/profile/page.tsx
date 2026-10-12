@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Building2,
   X,
+  Trash2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -30,6 +31,7 @@ import { PageSkeleton } from "@/components/ui/skeleton";
 import { BrandingCard, type BrandingValues } from "@/components/company/branding-card";
 import { logoPublicPath } from "@/lib/company-logo";
 import { normalizeLogoPlate } from "@/lib/brand-theme";
+import { CompanyLogo } from "@/components/share/company-brand";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -60,6 +62,10 @@ export default function CompanyProfilePage() {
     logoLuminance: number | null;
     logoSquare: boolean;
   } | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [suggestBrandPlate, setSuggestBrandPlate] = useState(false);
+  const [brandingKey, setBrandingKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -173,6 +179,61 @@ export default function CompanyProfilePage() {
       });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !companyId) return;
+    setLogoError(null);
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoError("This file is over 2 MB. Please upload a smaller logo.");
+      return;
+    }
+    setLogoBusy(true);
+    try {
+      const body = new FormData();
+      body.set("file", file);
+      const res = await fetch(`/api/companies/${companyId}/logo`, { method: "POST", body });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error ?? "Failed to upload logo");
+      setBranding((b) =>
+        b
+          ? {
+              ...b,
+              logoUrl: data.logoUrl,
+              logoLuminance: data.logoLuminance,
+              logoSquare: !!data.logoWidth && !!data.logoHeight && data.logoWidth / data.logoHeight < 1.15,
+            }
+          : b
+      );
+      // A mostly-white logo vanishes on a white plate: pre-select "Your colour".
+      setSuggestBrandPlate(
+        typeof data.logoLuminance === "number" && data.logoLuminance > 0.85 && branding?.values.logoPlate === "LIGHT"
+      );
+      setBrandingKey((k) => k + 1);
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Failed to upload logo");
+    } finally {
+      setLogoBusy(false);
+    }
+  }
+
+  async function handleLogoRemove() {
+    if (!companyId) return;
+    setLogoError(null);
+    setLogoBusy(true);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/logo`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to remove logo");
+      setBranding((b) => (b ? { ...b, logoUrl: null, logoLuminance: null, logoSquare: false } : b));
+      setSuggestBrandPlate(false);
+      setBrandingKey((k) => k + 1);
+    } catch (err) {
+      setLogoError(err instanceof Error ? err.message : "Failed to remove logo");
+    } finally {
+      setLogoBusy(false);
     }
   }
 
@@ -296,18 +357,47 @@ export default function CompanyProfilePage() {
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted">
-                  <Upload className="h-6 w-6 text-muted-foreground" />
+                <div className="flex h-20 min-w-[5rem] items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted px-2">
+                  {branding?.logoUrl ? (
+                    <CompanyLogo
+                      name={form.name || "Company"}
+                      logoUrl={branding.logoUrl}
+                      plate={branding.values.logoPlate}
+                      size="card"
+                      square={branding.logoSquare}
+                    />
+                  ) : (
+                    <Upload className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+                  )}
                 </div>
                 <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary-500"
-                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label
+                      className={`inline-flex h-8 cursor-pointer items-center rounded-ctl border border-edge bg-btn2 px-3 text-[13px] font-medium text-foreground shadow-soft hover:bg-muted focus-within:ring-2 focus-within:ring-ring ${logoBusy ? "pointer-events-none opacity-50" : ""}`}
+                    >
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        className="sr-only"
+                        onChange={handleLogoFile}
+                        disabled={logoBusy}
+                        aria-label={branding?.logoUrl ? "Replace logo" : "Upload logo"}
+                      />
+                      {logoBusy ? "Working..." : branding?.logoUrl ? "Replace" : "Upload logo"}
+                    </label>
+                    {branding?.logoUrl && (
+                      <Button type="button" variant="ghost" size="sm" onClick={handleLogoRemove} disabled={logoBusy}>
+                        <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                        Remove
+                      </Button>
+                    )}
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    PNG, JPG, or SVG. Max 2MB.
+                    PNG, JPG, SVG or WebP, wider than tall works best. Max 2 MB, at least 256px.
                   </p>
+                  {logoError && (
+                    <p role="alert" className="mt-1 text-xs text-destructive">{logoError}</p>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -316,6 +406,8 @@ export default function CompanyProfilePage() {
           {/* Investor update branding (own save; buttons are type="button") */}
           {companyId && branding && (
             <BrandingCard
+              key={brandingKey}
+              suggestBrandPlate={suggestBrandPlate}
               companyId={companyId}
               companyName={form.name}
               initial={branding.values}

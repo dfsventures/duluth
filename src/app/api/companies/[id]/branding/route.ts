@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { refreshEmailLogo } from "@/lib/logo-store";
 import { DEFAULT_BRAND_HEX, normalizeBrandHex, normalizeLogoPlate } from "@/lib/brand-theme";
 
 /**
@@ -73,6 +74,14 @@ export async function PATCH(
     });
 
     if (changed) {
+      // The email logo derivative is flattened onto the plate colour, so it must
+      // follow a plate or colour change. Best effort: never fail the save.
+      try {
+        await refreshEmailLogo(id);
+      } catch (err) {
+        console.error("PATCH /api/companies/[id]/branding: email logo refresh failed:", err);
+      }
+
       await logAdminAction(user!, "COMPANY_BRANDING_UPDATED", {
         targetType: "Company",
         targetId: id,

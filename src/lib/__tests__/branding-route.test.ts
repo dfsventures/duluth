@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // PATCH /api/companies/[id]/branding — mocked db/auth/audit, synthetic data.
 vi.mock("@/lib/auth-guard", () => ({ requireCompanyAccess: vi.fn() }));
+vi.mock("@/lib/logo-store", () => ({ refreshEmailLogo: vi.fn(() => Promise.resolve(null)) }));
 vi.mock("@/lib/audit", () => ({ logAdminAction: vi.fn(() => Promise.resolve()) }));
 
 const mockFind = vi.fn();
@@ -17,6 +18,7 @@ vi.mock("@/lib/db", () => ({
 
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
+import { refreshEmailLogo } from "@/lib/logo-store";
 import { PATCH } from "@/app/api/companies/[id]/branding/route";
 
 const access = vi.mocked(requireCompanyAccess);
@@ -100,6 +102,15 @@ describe("PATCH /api/companies/[id]/branding", () => {
     }
     expect(mockUpdate).not.toHaveBeenCalled();
     expect(audit).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the email logo on a change, and survives that failing", async () => {
+    await PATCH(req({ brandColor: "#12a5b0" }), params);
+    expect(refreshEmailLogo).toHaveBeenCalledWith("company-1");
+    vi.mocked(refreshEmailLogo).mockRejectedValueOnce(new Error("s3 down"));
+    const res = await PATCH(req({ brandColor: "#00ff00" }), params);
+    expect(res.status).toBe(200);
+    expect(audit).toHaveBeenCalledTimes(2);
   });
 
   it("does not audit a no-op save", async () => {
