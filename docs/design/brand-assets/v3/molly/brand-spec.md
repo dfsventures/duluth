@@ -1,7 +1,7 @@
 # Molly brand kit, round 3
 
 Status: direction decided (2026-10-13), files not committed. Preview: https://claude.ai/artifact/Trth4wZeZqTuXPBgZbJbWr (round 3 is the top section).
-Family rules, the DFS module and where round 3 bends the system: `../brand-spec.md`. Marge's kit: `../marge/brand-spec.md`. Round 2's kit (the LL block): `../../v2/molly/brand-spec.md`.
+Family rules, the DFS module and where round 3 bends the system: `../brand-spec.md`. Marge's kit: `../marge/brand-spec.md`. Round 2's kit (the LL block) is in git history (`408f948`, `docs/design/brand-assets/v2/`).
 
 ## Concept: Mosaic, calm
 Molly is where the firm and its companies meet: founders update it, investors read it, the team runs it. A place, not a person.

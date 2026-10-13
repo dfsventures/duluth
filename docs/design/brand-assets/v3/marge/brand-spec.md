@@ -2,7 +2,7 @@
 
 Status: direction decided (2026-10-13), files not committed. Marge's repo (dfsventures/marge) is untouched; the files are installed there by `../MANIFEST.md`.
 Preview: https://claude.ai/artifact/Trth4wZeZqTuXPBgZbJbWr (round 3 is the top section; the three colour options are shown side by side there, each on Slack light and Slack dark).
-Family rules, the DFS module and where round 3 bends the system: `../brand-spec.md`. Molly's kit: `../molly/brand-spec.md`. Round 2's kit (the face): `../../v2/marge/brand-spec.md`.
+Family rules, the DFS module and where round 3 bends the system: `../brand-spec.md`. Molly's kit: `../molly/brand-spec.md`. Round 2's kit (the face) is in git history (`408f948`, `docs/design/brand-assets/v2/`).
 
 ## Concept: Dog-ear
 Marge is a teammate: she remembers what the team says, answers in channels, keeps DMs private. Her voice is plain, direct, a little dry (unchanged).

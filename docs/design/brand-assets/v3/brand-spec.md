@@ -2,7 +2,7 @@
 
 Status: directions decided (2026-10-13), files not committed. Preview with every asset, the exploration, the colour options and the four context mockups:
 https://claude.ai/artifact/Trth4wZeZqTuXPBgZbJbWr (private; sharing is the owner's call). Round 3 is the top section; rounds 2 and 1 are kept below it.
-Kits: `molly/brand-spec.md` and `marge/brand-spec.md`. Round 2 (`../v2/`) and round 1 (`../brand-spec.md`, `../marge/`) are untouched, kept for comparison.
+Kits: `molly/brand-spec.md` and `marge/brand-spec.md`. Rounds 1 and 2 were removed from the tree on 2026-10-13; see git history (commit `408f948`) and the brand artifact for comparison.
 
 ## What round 3 did
 The round-2 review chose concept B for both products and named three faults: Molly's mark was too busy, Marge's colour was wrong, and the face on Marge was not welcoming. So round 3 is subtraction and a new colour, not a new idea.
