@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <LogoMark className="text-lg" />
+          <LogoMark />
           {isAdmin && (
             <button
               onClick={openCommandPalette}

@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { ORG_NAME } from "@/lib/org";
+import { ORG_NAME, ORG_FULL_NAME } from "@/lib/org";
 import { sanitizeDigestHtml } from "@/lib/digest-html";
 import { SETUP_TOKEN_TTL_DAYS } from "@/lib/setup-token";
 
@@ -16,7 +16,7 @@ const BROADCAST_FROM = process.env.BROADCAST_EMAIL_FROM || `${ORG_NAME} <hello@d
 const TEAM_EMAIL = process.env.TEAM_EMAIL || "team@example.com";
 export const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
-const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/dfs-logo-primary.png";
+const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/molly-email-header.png";
 
 // ---------------------------------------------------------------------------
 // DFS brand tokens (see ~/.claude/skills/dfs-brand-style)
@@ -82,8 +82,7 @@ function emailWrapper(content: string): string {
           <!-- Header -->
           <tr>
             <td style="padding: 0 4px 20px;">
-              <img src="${BASE_URL}${EMAIL_LOGO_PATH}" alt="${ORG_NAME}" width="54" height="22" style="display: inline-block; vertical-align: middle; border: 0;" />
-              <span style="font-family: ${FONT_BODY}; font-size: 12px; color: ${C.tide}; margin-left: 10px; vertical-align: middle;">Molly &middot; Portfolio Platform</span>
+              <img src="${BASE_URL}${EMAIL_LOGO_PATH}" alt="Molly, from ${ORG_FULL_NAME}" width="160" height="29" style="display: block; border: 0;" />
             </td>
           </tr>
           <!-- Card -->
@@ -98,8 +97,8 @@ function emailWrapper(content: string): string {
           <tr>
             <td style="padding: 20px 4px 0;">
               <p style="margin: 0; font-family: ${FONT_BODY}; font-size: 12px; color: ${C.muted}; line-height: 1.6;">
-                ${ORG_NAME} &mdash; Molly Portfolio Platform<br>
-                Questions? Just reply to this email &mdash; it reaches a human.
+                ${ORG_FULL_NAME} | Molly, our portfolio platform<br>
+                Questions? Reply to this email. It reaches a person.
               </p>
             </td>
           </tr>

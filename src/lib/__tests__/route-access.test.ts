@@ -59,6 +59,20 @@ describe("decideRoute — public routes", () => {
     expect(decideRoute("/brand/dfs-logo-primary.png", "", loggedOut)).toEqual({ type: "next" });
   });
 
+  // Brand kit v3: icons, email header and OG card are fetched by browsers,
+  // email clients and link-preview crawlers with no session.
+  it("allows every installed brand image with no session", () => {
+    for (const p of [
+      "/brand/molly-icon.svg",
+      "/brand/molly-apple-touch-180.png",
+      "/brand/molly-icon-512.png",
+      "/brand/molly-email-header.png",
+      "/brand/molly-og-card.png",
+    ]) {
+      expect(decideRoute(p, "", loggedOut)).toEqual({ type: "next" });
+    }
+  });
+
   // Company update theming: logo derivatives are fetched by sessionless
   // investors and email clients. The path has two dynamic segments, so it is a
   // trailing-slash prefix; lookalikes must stay protected.

@@ -32,7 +32,7 @@ export function AuthLayout({
       <SurfaceSync surface="founder" />
       <header className="px-6 py-5 sm:px-10">
         <Link href="/" aria-label="Molly home" className="inline-flex items-center">
-          <LogoMark />
+          <LogoMark height={22} />
         </Link>
       </header>
       <main className="flex-1 px-6 pb-16 pt-6 sm:px-10 sm:pt-12">

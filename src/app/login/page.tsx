@@ -45,7 +45,7 @@ function LoginForm() {
     <AuthLayout
       eyebrow="Molly"
       title="Sign in to Molly."
-      description={`Portfolio updates and reports for ${ORG_NAME} companies and team.`}
+      description="Post an update, read a report, or run the portfolio."
       footer={
         <p>
           Don&apos;t have access yet?{" "}

@@ -11,7 +11,7 @@ export default function InvestorsPage() {
       {/* Nav */}
       <header className="flex items-center justify-between px-6 py-4 sm:px-10">
         <Link href="/">
-          <LogoMark className="text-lg" />
+          <LogoMark />
         </Link>
         <Link href="/" className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="h-3.5 w-3.5" />

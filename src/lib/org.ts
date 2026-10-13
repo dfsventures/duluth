@@ -5,6 +5,10 @@
 /** Organization display name, used in UI copy, page titles, and emails. */
 export const ORG_NAME = process.env.NEXT_PUBLIC_ORG_NAME || "DFS";
 
+/** Long-form organization name for brand copy ("DFS Lab"). Falls back to ORG_NAME
+ *  when a fork sets NEXT_PUBLIC_ORG_NAME, so forks never see "DFS Lab". */
+export const ORG_FULL_NAME = process.env.NEXT_PUBLIC_ORG_NAME || "DFS Lab";
+
 /** Email domains granted admin access via Google OAuth. The env var takes a
  *  comma-separated list (e.g. "dfs.vc,example.org"); a leading "@" on any
  *  entry is ignored. */

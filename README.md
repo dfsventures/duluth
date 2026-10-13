@@ -123,14 +123,14 @@ A fork can rename the deployment with env vars only — no source edits needed f
 
 - `NEXT_PUBLIC_ORG_NAME` — organization display name in UI copy, page titles, and emails (default `"DFS Lab"`)
 - `NEXT_PUBLIC_ADMIN_EMAIL_DOMAIN` — email domain granted admin access via Google OAuth, no leading `@` (default `"dfs.vc"`)
-- `EMAIL_LOGO_PATH` — path under `public/` to the logo shown in transactional email headers (default `"/brand/dfs-logo-primary.png"`; recommended ~54×22px to avoid letterboxing)
+- `EMAIL_LOGO_PATH` — path under `public/` to the logo shown in transactional email headers (default `"/brand/molly-email-header.png"`; a single opaque image, 320×58 shown at 160×29 — a fork's replacement should match that size to avoid letterboxing)
 - `ORG_LOGO_PATH` — path under `public/` to the logo shown in the LP portal header (default `"/brand/dfs-logo-primary.png"`). Server-side only (the LP layout is a Server Component), so no `NEXT_PUBLIC_` prefix and no rebuild needed — drop your own file in `public/brand/` and point this at it.
 - `SUPPORT_EMAIL` — contact address on the public `/investors` page and the rejection email's reply-to (default `"support@dfs.vc"`)
 
 `NEXT_PUBLIC_*` vars are inlined into the client bundle at build time, so changing them requires a redeploy, not just an env edit. With none of the above set, a deploy behaves byte-identically to unconfigured DFS Lab defaults.
 
 Theming stays a source edit by design (not yet runtime-configurable):
-- Replace `public/brand/*` assets and `public/favicon.png` with your own
+- Replace `public/brand/*` assets and `public/favicon.ico` with your own
 - Replace the CSS theme tokens (colors, fonts) in `src/app/globals.css`
 - The `LogoMark` component (`src/components/ui/logo-mark.tsx`) and the color token object at the top of `src/lib/email.ts` are the two places brand colors are centralized if you want to re-theme beyond swapping CSS variables
 

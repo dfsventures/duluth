@@ -36,7 +36,7 @@ export default async function HomePage() {
     <div data-surface="founder" className="flex min-h-screen flex-col bg-background">
       {/* Nav */}
       <header className="flex items-center justify-between px-6 py-4 sm:px-10">
-        <LogoMark className="text-lg" />
+        <LogoMark />
         <div className="flex items-center gap-5 text-sm text-muted-foreground">
           <Link href="/login" className="hover:text-foreground transition-colors">
             Log in

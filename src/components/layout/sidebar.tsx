@@ -241,7 +241,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-5">
         <Link href={useAdminNav ? "/admin" : "/dashboard"} className="flex items-center gap-2">
-          <LogoMark className="text-lg" />
+          <LogoMark />
         </Link>
       </div>
 
