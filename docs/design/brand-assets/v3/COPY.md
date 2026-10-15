@@ -1,5 +1,7 @@
 # Copy for Molly and Marge (round 3)
 
+> **Renamed 2026-10-15:** the firm is now "DFS", not "DFS Lab". Strings below are updated; character counts were measured before the rename and are now a few characters shorter.
+
 Status: final copy, written to the v3 specs. Not committed. Lengths are counted by script and include spaces. Nothing here edits the SVG/PNG files or the visual sections of the specs.
 Fictional names only (Priya, Tomas, Lena, Kestrel Grid, Harbor Analytics, Fenwick). Dot is not mentioned anywhere in public copy.
 
@@ -13,26 +15,26 @@ Fictional names only (Priya, Tomas, Lena, Kestrel Grid, Harbor Analytics, Fenwic
 
 | Label | String | Chars |
 |---|---|---|
-| Root page `<title>` (src/app/layout.tsx `metadata.title`) | `Molly | DFS Lab portfolio platform` | 34 |
+| Root page `<title>` (src/app/layout.tsx `metadata.title`) | `Molly | DFS portfolio platform` | 34 |
 | Page title pattern for every other page (`title.template` = `%s | Molly`) | `{Page} | Molly` | 14 |
-| Meta description (also OG/Twitter description). Under 160 | `Molly is DFS Lab's portfolio platform. Founders post investor updates, LPs read fund reports, and the DFS team runs the portfolio. Sign in to continue.` | 151 |
+| Meta description (also OG/Twitter description). Under 160 | `Molly is DFS's portfolio platform. Founders post investor updates, LPs read fund reports, and the DFS team runs the portfolio. Sign in to continue.` | 151 |
 | Open Graph card headline (replaces the placeholder) | `Founder updates in. Fund reports out.` | 37 |
-| Open Graph card subline (set in caps by the descriptor style, 15px mono, Sky) | `DFS LAB PORTFOLIO PLATFORM` | 26 |
+| Open Graph card subline (set in caps by the descriptor style, 15px mono, Sky) | `DFS PORTFOLIO PLATFORM` | 26 |
 | Tagline (one line) | `Founder updates in. Fund reports out.` | 37 |
 | Login page line (replaces "Portfolio updates and reports for DFS companies and team.") | `Post an update, read a report, or run the portfolio.` | 52 |
-| Email header image alt (replaces "DFS Molly") | `Molly, from DFS Lab` | 19 |
-| Email footer, brand line | `DFS Lab | Molly, our portfolio platform` | 39 |
+| Email header image alt (replaces "DFS Molly") | `Molly, from DFS` | 19 |
+| Email footer, brand line | `DFS | Molly, our portfolio platform` | 39 |
 | Email footer, help line (current wording kept in meaning) | `Questions? Reply to this email. It reaches a person.` | 52 |
 
 Notes for whoever implements:
-- Title: set `title: { default: "Molly | DFS Lab portfolio platform", template: "%s | Molly" }`. Pipe, not em dash.
+- Title: set `title: { default: "Molly | DFS portfolio platform", template: "%s | Molly" }`. Pipe, not em dash.
 - Email header: once the one-image header from the v3 handoff lands, the "Molly · Portfolio Platform" span goes away and only the alt text and footer remain.
-- The footer currently reads "{ORG_NAME} — Molly Portfolio Platform". `ORG_NAME` defaults to "DFS" in src/lib/org.ts; this copy assumes the live value reads "DFS Lab". If the env value stays "DFS", use it as is and the strings still work.
+- The footer currently reads "{ORG_NAME} — Molly Portfolio Platform". `ORG_NAME` defaults to "DFS" in src/lib/org.ts; this copy assumes the live value reads "DFS". If the env value stays "DFS", use it as is and the strings still work.
 - The OG headline and subline are outlined in the SVG, so changing them means regenerating the card, not editing code. Subline is written in caps because the descriptor style is caps.
 - The "reply reaches a person" promise is true only while the reply-to goes to a monitored inbox. Keep it in step with that.
 
 ### Variations to test
-- Tagline / OG headline: (a) "Founder updates in. Fund reports out." (recommended) (b) "Your DFS Lab portfolio, in one place." (clearer to a first-time LP, but generic) (c) "Where DFS Lab keeps the portfolio record."
+- Tagline / OG headline: (a) "Founder updates in. Fund reports out." (recommended) (b) "Your DFS portfolio, in one place." (clearer to a first-time LP, but generic) (c) "Where DFS keeps the portfolio record."
 - Login line: (a) "Post an update, read a report, or run the portfolio." (recommended) (b) "Sign in to post updates and read reports."
 - These are low-traffic surfaces (login and root are the only public pages), so a formal A/B test is not worth it. Measure instead: login completion rate, and for sent emails, reply rate to the footer address. SEO is not a goal for Molly: the product is sign-in only, so keep the pages indexable but do not expect or promise rankings.
 
@@ -58,13 +60,13 @@ Marge
 **Slack short description** (108)
 
 ```
-DFS Lab's team agent. Knows our thesis, portfolio, people and meetings. Keeps your private messages private.
+DFS's team agent. Knows our thesis, portfolio, people and meetings. Keeps your private messages private.
 ```
 
 **Slack long description** (764)
 
 ```
-Marge is DFS Lab's team agent. She keeps track of what the team is working on: the investment thesis, the portfolio, who is who, and what was said in meetings. Ask her in a channel or in a direct message.
+Marge is DFS's team agent. She keeps track of what the team is working on: the investment thesis, the portfolio, who is who, and what was said in meetings. Ask her in a channel or in a direct message.
 
 In a channel she answers from what the team shares. In a direct message she can also use what you have connected for yourself, and she says so when she does. What you tell her privately is not repeated in a channel or to anyone else unless you ask her to.
 
@@ -76,13 +78,13 @@ To start, send Marge a direct message and link your account. Details on what she
 **Telegram bio (About)** (97)
 
 ```
-DFS Lab's team agent. Knows the thesis, portfolio and meetings. Keeps your private chats private.
+DFS's team agent. Knows the thesis, portfolio and meetings. Keeps your private chats private.
 ```
 
 **Telegram description (optional)** (219)
 
 ```
-Marge is DFS Lab's team agent. Ask her about the thesis, the portfolio, the people and what was said in meetings. She tells you what she knows, how sure she is and where it came from. What you tell her here stays yours.
+Marge is DFS's team agent. Ask her about the thesis, the portfolio, the people and what was said in meetings. She tells you what she knows, how sure she is and where it came from. What you tell her here stays yours.
 ```
 
 ### Her lines
@@ -90,7 +92,7 @@ Marge is DFS Lab's team agent. Ask her about the thesis, the portfolio, the peop
 **First DM intro** (440)
 
 ```
-Hi, I'm Marge, DFS Lab's team agent. I keep track of the thesis, the portfolio, the people and the meetings. Ask me about any of them, here or in a channel.
+Hi, I'm Marge, DFS's team agent. I keep track of the thesis, the portfolio, the people and the meetings. Ask me about any of them, here or in a channel.
 
 What you tell me here stays with you. I won't repeat it in a channel or to anyone else unless you ask me to, and I'll say when an answer comes from something private. The few people who can technically see stored data are listed at marge.dfs.vc.
 
@@ -191,9 +193,9 @@ The sample facts are invented to show the voice. None of them is real data.
 1. **Marge spec, first DM:** "What you tell me in a DM stays between us" over-promises. D-M9 in her plan says DFS's Vercel owners and anyone with the Neon credentials can technically see stored data, and D-M4 ingests the whole inbox. Use the version above ("stays with you... I won't repeat it... listed at marge.dfs.vc"). Also "Ask me anything about those in a channel" is narrower than it should be: DMs work too.
 2. **Marge spec, private answer line:** "That one comes from your DMs, so I'm answering here only with you" is confusing. Her plan answers in a channel from team memory only, so a private-sourced answer would not appear in a channel at all. The line above is what she says in a DM.
 3. **Marge spec, unknown line:** "The last meeting I can see mentioning it is the Tuesday call" invents a fixed day. Fine as an example, but the shipped line should not hard-code "Tuesday". Mine keeps the shape without it.
-4. **Marge spec, status "Display name Marge, description DFS Lab team agent":** the description is too thin for a 140-character field. Use the short description above.
+4. **Marge spec, status "Display name Marge, description DFS team agent":** the description is too thin for a 140-character field. Use the short description above.
 5. **Molly spec, OG card:** "Portfolio updates and reports." is called placeholder in one place and "stays plain" in the open decisions (family spec decision 7; Molly decision 4). These contradict. This file resolves it: replace it.
-6. **Molly spec, email header alt "DFS Molly":** reads as a product called DFS Molly. Use "Molly, from DFS Lab".
+6. **Molly spec, email header alt "DFS Molly":** reads as a product called DFS Molly. Use "Molly, from DFS".
 7. **Family spec says to "mention Dot at all; recommend not until Dot is retired".** Agreed. Nothing in this file mentions it. Marge's README does, in a public-facing sentence; if that repo ever goes public, cut that line.
 8. **Current `layout.tsx` description** ("Submit updates, track metrics, and share progress with your investors.") speaks only to founders; LPs and the team get no mention. Replaced by the meta description above.
 9. **Marge spec, voice section says "no exclamation marks, no emoji"** but the three sample lines are the only examples. The guide and samples above are meant to replace "her voice is only written down in three lines".

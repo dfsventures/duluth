@@ -21,7 +21,7 @@ Round 3b (2026-10-13) regenerated Marge's marks, lockups, icons, favicons, avata
 | `molly/png/molly-apple-touch-180.png` | iOS home-screen icon | `public/brand/molly-apple-touch-180.png` |
 | `molly/png/molly-icon-512.png` | 512 icon for a future web manifest or app listing | `public/brand/molly-icon-512.png` (optional until a manifest exists) |
 | `molly/molly-wordmark.svg` | primary logo, `_Molly` | inline SVG in `src/components/ui/logo-mark.tsx`, sized by height (20px nav, 22px login header). That one component feeds `src/components/auth/auth-layout.tsx`, `src/components/layout/sidebar.tsx`, `src/components/layout/app-shell.tsx`, `src/app/page.tsx`, `src/app/investors/page.tsx` and `src/app/share/[token]/page.tsx`. Never retype it in CSS |
-| `molly/png/molly-email-header@2x.png` | email header: the DFS logo and `_Molly` in one opaque image on Paper, 320 x 58 shown at 160 x 29 | `public/brand/molly-email-header.png` (no `@` in a served URL). In `src/lib/email.ts` it replaces the DFS logo `<img>` and the "Molly · Portfolio Platform" span; alt text "Molly, from DFS Lab"; make the path env-overridable like `EMAIL_LOGO_PATH` |
+| `molly/png/molly-email-header@2x.png` | email header: the DFS logo and `_Molly` in one opaque image on Paper, 320 x 58 shown at 160 x 29 | `public/brand/molly-email-header.png` (no `@` in a served URL). In `src/lib/email.ts` it replaces the DFS logo `<img>` and the "Molly · Portfolio Platform" span; alt text "Molly, from DFS"; make the path env-overridable like `EMAIL_LOGO_PATH` |
 | `molly/png/molly-og-card.png` | Open Graph and Twitter card, 1200 x 630, final copy | `public/brand/molly-og-card.png`, used as `openGraph.images` and `twitter.images` in `src/app/layout.tsx` with an absolute URL (so `metadataBase` is `https://molly.dfs.vc`) |
 
 Shape of the metadata change in `src/app/layout.tsx` (strings from `COPY.md`; this is the shape, not code to paste):
@@ -30,7 +30,7 @@ title: { default: <root title>, template: "%s | Molly" }
 description: <meta description>
 icons: { icon: [{ url: "/favicon.ico", sizes: "48x48" }, { url: "/brand/molly-icon.svg", type: "image/svg+xml" }],
          apple: "/brand/molly-apple-touch-180.png" }
-openGraph.images: [{ url: "/brand/molly-og-card.png", width: 1200, height: 630, alt: "Molly, from DFS Lab" }]
+openGraph.images: [{ url: "/brand/molly-og-card.png", width: 1200, height: 630, alt: "Molly, from DFS" }]
 twitter: { card: "summary_large_image", images: ["/brand/molly-og-card.png"] }
 ```
 
@@ -112,7 +112,7 @@ If the Slack form asks for an app background colour, Clay #B56D44 is the colour 
 |---|---|---|
 | `COPY.md` | the final copy: Molly's strings (root title, meta description, OG headline and subline, tagline, login line, email alt and footer) and Marge's (Slack and Telegram texts, her lines, eight sample replies, the voice guide) | **duluth**: stays in `docs/design/brand-assets/v3/`; Alvin implements the Molly strings: `src/app/layout.tsx` (title, description), `src/app/login/page.tsx` line 48 (login line), `src/lib/email.ts` (header alt and footer). The OG headline and subline are already outlined in `molly/png/molly-og-card.png`. **marge**: copy the whole file to `brand/COPY.md`; the Marge section is the source for the Slack and Telegram form fields and for her first-DM, refusal and "I don't know" lines |
 
-Note from `COPY.md`: its strings assume `ORG_NAME` reads "DFS Lab". In `src/lib/org.ts` it defaults to "DFS", so check the live env value before relying on the footer wording.
+Note from `COPY.md`: its strings assume `ORG_NAME` reads "DFS". In `src/lib/org.ts` it defaults to "DFS", so check the live env value before relying on the footer wording.
 
 ## Exploration (not installed)
 | Folder | What it is for |
