@@ -38,6 +38,7 @@ interface BroadcastDetail {
   publishedAt: string | null;
   targets: BroadcastTarget[];
   recipients: DeliveryRow[];
+  senderLabel: string | null;
 }
 
 interface PortfolioCompanyOption {
@@ -322,7 +323,11 @@ export default function AdminBroadcastEditorPage() {
       <Breadcrumb items={[{ label: "Broadcasts", href: "/admin/broadcasts" }, { label: subject.trim() || "Untitled broadcast" }]} />
 
       <ComposerTopBar
-        draftLabel={isDraft ? "Draft" : `Sent ${data.publishedAt ? formatDate(data.publishedAt) : ""}`}
+        draftLabel={
+          isDraft
+            ? "Draft"
+            : `Sent ${data.publishedAt ? formatDate(data.publishedAt) : ""}${data.senderLabel ? ` by ${data.senderLabel}` : ""}`
+        }
         secondaryActions={
           isDraft ? (
             <>

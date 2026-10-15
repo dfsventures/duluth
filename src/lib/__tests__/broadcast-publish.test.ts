@@ -16,6 +16,16 @@ vi.mock("@/lib/email", () => ({
   sendBroadcastTeamCopy: (...args: unknown[]) => mockSendBroadcastTeamCopy(...args),
 }));
 
+// Per-sender From / Reply-To: the sender lookup is stubbed; its own logic is
+// covered in company-broadcast-email.test.ts.
+const SENDER = { name: "Sam Partner", email: "sam@example.test" };
+const mockSenderFor = vi.fn(async (_id?: string | null) => SENDER);
+const mockPublisherIdOf = vi.fn(async (_b: unknown) => "publisher-1");
+vi.mock("@/lib/broadcast-sender", () => ({
+  senderFor: (id?: string | null) => mockSenderFor(id),
+  publisherIdOf: (b: unknown) => mockPublisherIdOf(b),
+}));
+
 const mockBroadcastFindUnique = vi.fn();
 const mockBroadcastUpdate = vi.fn();
 const mockContactFindMany = vi.fn();
@@ -195,6 +205,7 @@ describe("POST /api/admin/broadcasts/[id]/publish", () => {
       subject: "Hello portfolio",
       bodyHtml: "<p>Some news</p>",
       recipientCount: 2,
+      sender: SENDER,
     });
   });
 
@@ -251,5 +262,21 @@ describe("POST /api/admin/broadcasts/[id]/retry", () => {
     const res = await retryPOST(req(), params());
     expect(res.status).toBe(400);
     expect(mockSendCompanyBroadcastEmails).not.toHaveBeenCalled();
+  });
+});
+
+describe("broadcast sender", () => {
+  it("publish sends as the publishing admin, retry as the original publisher", async () => {
+    mockSenderFor.mockClear();
+    mockPublisherIdOf.mockClear();
+    mockRequireAdmin.mockResolvedValue({ user: { id: "admin-2", email: "a2@example.test", roles: ["ADMIN"] }, error: null } as never);
+    mockBroadcastFindUnique.mockResolvedValue({ id: "b1", createdById: "author-1", subject: "S", body: "<p>x</p>", status: "PUBLISHED" });
+    mockRecipientFindMany.mockResolvedValue([{ email: "f@example.com", name: "F", status: "FAILED" }]);
+    mockSendCompanyBroadcastEmails.mockResolvedValue([{ email: "f@example.com", ok: true }]);
+    mockRecipientUpdateMany.mockResolvedValue({ count: 1 });
+    await retryPOST(new Request("http://x", { method: "POST" }), { params: Promise.resolve({ id: "b1" }) });
+    expect(mockPublisherIdOf).toHaveBeenCalled();
+    expect(mockSenderFor).toHaveBeenCalledWith("publisher-1");
+    expect(mockSendCompanyBroadcastEmails.mock.calls.at(-1)?.[1]).toEqual(SENDER);
   });
 });

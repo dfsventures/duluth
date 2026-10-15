@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { senderLabels } from "@/lib/broadcast-sender";
 import { logAdminAction } from "@/lib/audit";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -20,7 +21,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     });
     if (!broadcast) return NextResponse.json({ error: "Broadcast not found" }, { status: 404 });
 
-    return NextResponse.json(broadcast);
+    const by = await senderLabels([broadcast]);
+    return NextResponse.json({ ...broadcast, senderLabel: by[broadcast.id] ?? null });
   } catch (err) {
     console.error("GET /api/admin/broadcasts/[id] error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

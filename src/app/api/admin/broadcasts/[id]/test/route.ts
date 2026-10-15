@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { sendCompanyBroadcastEmail } from "@/lib/email";
+import { senderFor } from "@/lib/broadcast-sender";
 
 // Part 30, WS73 / JC-BC-F — "send a test to myself" before publish. The
 // safety valve for an irreversible action. Never touches status or
@@ -29,7 +30,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       recipientName: user!.name ?? null,
       subject: broadcast.subject,
       bodyHtml: broadcast.body,
-    });
+    }, await senderFor(user!.id));
 
     await logAdminAction(user!, "BROADCAST_TEST_SENT", {
       targetType: "CompanyBroadcast",

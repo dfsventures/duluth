@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { resolveBroadcastRecipients } from "@/lib/broadcast-recipients";
 import { sendCompanyBroadcastEmails, sendBroadcastTeamCopy } from "@/lib/email";
+import { senderFor } from "@/lib/broadcast-sender";
 
 // Part 30, WS73 — the heart of the feature. Order of operations mirrors
 // the report publish route: freeze → publish → best-effort send → audit
@@ -72,8 +73,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       });
     });
 
+    const sender = await senderFor(user!.id);
     const results = await sendCompanyBroadcastEmails(
-      recipients.map((r) => ({ email: r.email, recipientName: r.name, subject: broadcast.subject, bodyHtml: broadcast.body }))
+      recipients.map((r) => ({ email: r.email, recipientName: r.name, subject: broadcast.subject, bodyHtml: broadcast.body })),
+      sender
     );
 
     const sentEmails = results.filter((r) => r.ok).map((r) => r.email);
@@ -124,6 +127,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
         subject: broadcast.subject,
         bodyHtml: broadcast.body,
         recipientCount: recipients.length,
+        sender,
       });
     } catch (copyErr) {
       console.error("Broadcast team copy failed:", copyErr);

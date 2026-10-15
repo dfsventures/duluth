@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { logAdminAction } from "@/lib/audit";
 import { sendCompanyBroadcastEmails } from "@/lib/email";
+import { publisherIdOf, senderFor } from "@/lib/broadcast-sender";
 
 // Part 30, WS73 / D8 — re-sends only recipient rows whose status is
 // PENDING or FAILED. Idempotent: an already-SENT row is never re-sent,
@@ -30,7 +31,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     }
 
     const results = await sendCompanyBroadcastEmails(
-      toRetry.map((r) => ({ email: r.email, recipientName: r.name, subject: broadcast.subject, bodyHtml: broadcast.body }))
+      toRetry.map((r) => ({ email: r.email, recipientName: r.name, subject: broadcast.subject, bodyHtml: broadcast.body })),
+      // Retries keep the original publisher as sender, whoever clicks Retry.
+      await senderFor(await publisherIdOf(broadcast))
     );
 
     const sentEmails = results.filter((r) => r.ok).map((r) => r.email);

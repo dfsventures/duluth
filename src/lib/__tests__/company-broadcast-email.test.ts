@@ -167,3 +167,41 @@ describe("sendBroadcastTeamCopy", () => {
     await expect(sendBroadcastTeamCopy({ subject: "Hi", bodyHtml: "<p>x</p>", recipientCount: 2 })).resolves.toBe(false);
   });
 });
+
+// Per-sender From / Reply-To (2026-10-15). Synthetic people only.
+import { broadcastFrom, broadcastReplyTo } from "@/lib/email";
+
+describe("per-sender broadcasts", () => {
+  it("sends as '<first name> at <org>' on the verified address", () => {
+    expect(broadcastFrom({ name: "Sam Partner", email: "sam@example.test" })).toBe("Sam at DFS <hello@dfs.vc>");
+  });
+
+  it("strips characters that could break the From header", () => {
+    expect(broadcastFrom({ name: 'Sa"m<x>,;\r\nBcc: Partner' })).toBe("Samx at DFS <hello@dfs.vc>");
+  });
+
+  it("falls back to the shared sender when there is no usable name", () => {
+    expect(broadcastFrom(null)).toBe("DFS <hello@dfs.vc>");
+    expect(broadcastFrom({ name: "  " })).toBe("DFS <hello@dfs.vc>");
+    expect(broadcastFrom({ name: "<<>>" })).toBe("DFS <hello@dfs.vc>");
+  });
+
+  it("replies go to the sender with the team inbox kept on", () => {
+    expect(broadcastReplyTo({ email: "Sam@Example.test" })).toEqual(["sam@example.test", "team@example.com"]);
+    expect(broadcastReplyTo(null)).toBe("team@example.com");
+    expect(broadcastReplyTo({ email: "bad address@x" })).toBe("team@example.com");
+  });
+
+  it("fan-out and test send use the sender for every message", async () => {
+    await sendCompanyBroadcastEmails(
+      [{ email: "a@example.com", subject: "S", bodyHtml: "<p>x</p>" }],
+      { name: "Sam Partner", email: "sam@example.test" }
+    );
+    const msg = (mockBatchSend.mock.calls[0][0] as { from: string; replyTo: unknown }[])[0];
+    expect(msg.from).toBe("Sam at DFS <hello@dfs.vc>");
+    expect(msg.replyTo).toEqual(["sam@example.test", "team@example.com"]);
+
+    await sendCompanyBroadcastEmail({ email: "me@example.com", subject: "S", bodyHtml: "<p>x</p>" }, { name: "Sam" });
+    expect(mockSend.mock.calls[0][0].from).toBe("Sam at DFS <hello@dfs.vc>");
+  });
+});

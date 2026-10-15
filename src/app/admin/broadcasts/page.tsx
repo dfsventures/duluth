@@ -21,6 +21,7 @@ interface Broadcast {
   createdAt: string;
   targetCount: number;
   recipientCount: number;
+  senderLabel: string | null;
 }
 
 interface PortfolioCompanyOption {
@@ -163,6 +164,7 @@ export default function AdminBroadcastsPage() {
                   <span>{b.targetCount} compan{b.targetCount === 1 ? "y" : "ies"}</span>
                   {b.status === "PUBLISHED" && <span>Sent to {b.recipientCount} contact{b.recipientCount === 1 ? "" : "s"}</span>}
                   {b.publishedAt && <span>{formatDate(b.publishedAt)}</span>}
+                  {b.senderLabel && <span>{b.status === "PUBLISHED" ? "Sent by" : "By"} {b.senderLabel}</span>}
                 </div>
               </div>
               {b.status === "DRAFT" && (

@@ -628,6 +628,37 @@ export async function sendLpReportPublishedEmail(opts: {
 // admin-authored TipTap HTML and is intentionally NOT escaped — the same
 // trust boundary sendUpdatePublishedEmail already accepts; every
 // plain-text field around it IS escaped (the F47 lesson).
+/** The admin a broadcast goes out under (publisher, or tester for a test send). */
+export interface BroadcastSender {
+  name?: string | null;
+  email?: string | null;
+}
+
+/** Address part of BROADCAST_FROM, so the per-sender From keeps the verified domain. */
+function broadcastFromAddress(): string {
+  const m = /<([^>]+)>/.exec(BROADCAST_FROM);
+  return (m ? m[1] : BROADCAST_FROM).trim();
+}
+
+/**
+ * "Jake at DFS <hello@dfs.vc>". Only the first name is used, stripped to letters,
+ * spaces, apostrophes, dots and hyphens so it can never break the From header.
+ * No usable name falls back to BROADCAST_FROM.
+ */
+export function broadcastFrom(sender?: BroadcastSender | null): string {
+  const first = (sender?.name ?? "").trim().split(/\s+/)[0] ?? "";
+  const safe = first.replace(/[^\p{L}\p{M}' .-]/gu, "").trim().slice(0, 40);
+  if (!safe) return BROADCAST_FROM;
+  return `${safe} at ${ORG_NAME} <${broadcastFromAddress()}>`;
+}
+
+/** Replies reach the sender, with the team inbox kept on them. */
+export function broadcastReplyTo(sender?: BroadcastSender | null): string | string[] {
+  const email = sender?.email?.trim().toLowerCase();
+  if (!email || !/^[^\s@<>",;]+@[^\s@<>",;]+$/.test(email) || email === TEAM_EMAIL.toLowerCase()) return TEAM_EMAIL;
+  return [email, TEAM_EMAIL];
+}
+
 export interface BroadcastMessage {
   email: string;
   recipientName?: string | null;
@@ -650,10 +681,10 @@ function broadcastHtml(msg: BroadcastMessage): string {
 }
 
 /** One message, one recipient — the "send me a test copy" path (JC-BC-F). */
-export async function sendCompanyBroadcastEmail(msg: BroadcastMessage) {
+export async function sendCompanyBroadcastEmail(msg: BroadcastMessage, sender?: BroadcastSender | null) {
   const result = await resend.emails.send({
-    from: BROADCAST_FROM,
-    replyTo: TEAM_EMAIL,
+    from: broadcastFrom(sender),
+    replyTo: broadcastReplyTo(sender),
     to: msg.email,
     subject: msg.subject,
     html: broadcastHtml(msg),
@@ -670,14 +701,15 @@ export async function sendBroadcastTeamCopy(opts: {
   subject: string;
   bodyHtml: string;
   recipientCount: number;
+  sender?: BroadcastSender | null;
 }): Promise<boolean> {
   const to = process.env.BROADCAST_COPY_EMAIL?.trim();
   if (!to) return false;
   try {
     const n = opts.recipientCount;
     const result = await resend.emails.send({
-      from: BROADCAST_FROM,
-      replyTo: TEAM_EMAIL,
+      from: broadcastFrom(opts.sender),
+      replyTo: broadcastReplyTo(opts.sender),
       to,
       subject: `[Copy] ${opts.subject}`,
       html: emailWrapper(`
@@ -702,16 +734,19 @@ export async function sendBroadcastTeamCopy(opts: {
  * NEVER throws: returns one result per input message, in input order.
  */
 export async function sendCompanyBroadcastEmails(
-  messages: BroadcastMessage[]
+  messages: BroadcastMessage[],
+  sender?: BroadcastSender | null
 ): Promise<{ email: string; ok: boolean; error?: string }[]> {
   const out: { email: string; ok: boolean; error?: string }[] = [];
+  const from = broadcastFrom(sender);
+  const replyTo = broadcastReplyTo(sender);
   for (let i = 0; i < messages.length; i += 100) {
     const chunk = messages.slice(i, i + 100);
     try {
       const res = await resend.batch.send(
         chunk.map((m) => ({
-          from: BROADCAST_FROM,
-          replyTo: TEAM_EMAIL,
+          from,
+          replyTo,
           to: m.email,
           subject: m.subject,
           html: broadcastHtml(m),

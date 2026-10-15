@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { senderLabels } from "@/lib/broadcast-sender";
 import { logAdminAction } from "@/lib/audit";
 
 // Part 30, WS73 — broadcast CRUD, mirroring /api/admin/reports/** route
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
       orderBy: { createdAt: "desc" },
     });
 
+    const by = await senderLabels(broadcasts);
     return NextResponse.json(
       broadcasts.map((b) => ({
         id: b.id,
@@ -31,6 +33,7 @@ export async function GET(request: Request) {
         createdAt: b.createdAt,
         targetCount: b._count.targets,
         recipientCount: b._count.recipients,
+        senderLabel: by[b.id] ?? null,
       }))
     );
   } catch (err) {

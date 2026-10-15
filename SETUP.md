@@ -140,7 +140,7 @@ variables and what each one does.
 3. Create an API key and paste it into `RESEND_API_KEY`.
 4. Set `EMAIL_FROM` to your verified sender address.
 5. Set `TEAM_EMAIL` to the inbox that receives team notifications (new applications, published updates). If unset, Molly falls back to a placeholder address, so set it in every real deployment.
-6. Optional: set `BROADCAST_COPY_EMAIL` to an inbox that should get one `[Copy]` of every portfolio broadcast, with the recipient count (sent on the first send only, never on retries; unset means no copy). `BROADCAST_EMAIL_FROM` optionally overrides the broadcast sender name.
+6. Optional: set `BROADCAST_COPY_EMAIL` to an inbox that should get one `[Copy]` of every portfolio broadcast, with the recipient count (sent on the first send only, never on retries; unset means no copy). Broadcasts go out as "<first name> at <ORG_NAME>" from the address in `BROADCAST_EMAIL_FROM` (default `hello@dfs.vc`), with replies to the sender and `TEAM_EMAIL`; `BROADCAST_EMAIL_FROM` is the whole sender only when the admin has no name.
 
 ### OpenAI (optional — for AI chatbot)
 
