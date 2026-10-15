@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { authConfig } from "@/lib/auth.config";
 import { isAdminEmailDomain } from "@/lib/org";
 import { currentRequestInfo, logSignInFailed, logSignInSucceeded } from "@/lib/signin-audit";
+import { resolveGoogleSignIn } from "@/lib/google-signin";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -30,38 +31,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return false;
         }
 
-        const existing = await db.user.findUnique({ where: { email } });
-        if (!existing) {
-          await db.user.create({
-            data: {
-              email,
-              name: user.name,
-              image: user.image,
-              googleId: account.providerAccountId,
-              roles: ["ADMIN"],
-              status: "APPROVED",
-            },
-          });
-        } else if (!existing.googleId) {
-          await db.user.update({
-            where: { email },
-            data: { googleId: account.providerAccountId, image: user.image },
-          });
+        const resolved = await resolveGoogleSignIn({
+          email,
+          googleId: account.providerAccountId,
+          name: user.name,
+          image: user.image,
+        });
+        if (!resolved.ok) {
+          await logSignInFailed(email, undefined, "google", resolved.reason, await currentRequestInfo());
+          return "/login?error=GoogleAccountConflict";
         }
-        const signedIn = await db.user.findUnique({ where: { email } });
         await logSignInSucceeded(
-          { id: signedIn?.id, email },
+          { id: resolved.userId, email: resolved.email },
           "google",
           await currentRequestInfo()
         );
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
-        const dbUser = await db.user.findUnique({
-          where: { email: user.email! },
-        });
+        // Google: resolve by account id, since the reported email can differ
+        // from the Molly account's (see src/lib/google-signin.ts).
+        const dbUser =
+          account?.provider === "google"
+            ? await db.user.findUnique({ where: { googleId: account.providerAccountId } })
+            : await db.user.findUnique({ where: { email: user.email! } });
         if (dbUser) {
           token.id = dbUser.id;
           token.roles = dbUser.roles;

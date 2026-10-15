@@ -9,6 +9,7 @@ export type SignInFailReason =
   | "wrong_password"
   | "admin_password_refused"
   | "google_domain_refused"
+  | "google_account_conflict"
   | "rate_limited";
 
 export const MAX_FAILS_PER_EMAIL = 10;

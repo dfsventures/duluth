@@ -29,6 +29,8 @@ function LoginForm() {
   const errorMessages: Record<string, string> = {
     CredentialsSignin: "Invalid email or password.",
     AccessDenied: `Access denied. Only ${ADMIN_EMAIL_DOMAINS_LABEL} accounts can sign in with Google.`,
+    GoogleAccountConflict:
+      "This Google account is already linked to a different Molly account. Ask a Molly admin to merge them.",
     Default: "An error occurred. Please try again.",
   };
 
