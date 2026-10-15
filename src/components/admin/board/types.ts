@@ -1,5 +1,14 @@
 import { positionBetween, type BoardStatus } from "@/lib/board";
 
+export interface BoardCardLinkData {
+  id: string;
+  cardId: string;
+  url: string;
+  label: string | null;
+  addedById: string | null;
+  createdAt: string;
+}
+
 export interface BoardCardData {
   id: string;
   title: string;
@@ -20,6 +29,13 @@ export interface BoardCardData {
   archivedAt: string | null;
   updatedById: string | null;
   updatedAt: string;
+  /** Proof links; absent on payloads from routes that predate the field. */
+  links?: BoardCardLinkData[];
+  /** Present on the board GET (full row); used by the view sheet's history. */
+  source?: string;
+  createdById?: string | null;
+  createdAt?: string;
+  humanEditedAt?: string | null;
 }
 
 export interface BoardPersonData {

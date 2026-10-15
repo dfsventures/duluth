@@ -64,7 +64,11 @@ export async function loadBoardContext() {
   };
 }
 
-export const CARD_OWNER_INCLUDE = { owners: { select: { personId: true } } } as const;
+export const CARD_OWNER_INCLUDE = {
+  owners: { select: { personId: true } },
+  // Proof links ride along with every card the board client receives.
+  links: { orderBy: { createdAt: "asc" } },
+} as const;
 
 /**
  * Part 38: every route that returns a card to the board client goes through

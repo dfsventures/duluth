@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, MoreHorizontal, Pencil, SearchCheck } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, Link2, MoreHorizontal, Pencil, SearchCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/board";
 import { adjacentStatus, initials, ownerTileModel } from "@/lib/board-client";
@@ -29,7 +29,10 @@ interface Props {
   dragging: boolean;
   /** Just moved or created: plays the Sky landing wash. */
   landed: boolean;
+  /** Opens the read-only view sheet. */
   onOpen: () => void;
+  /** Opens the edit form directly. */
+  onEdit: () => void;
   onResolve: () => void;
   onMoveTo: (status: BoardStatus) => void;
   onNudge: (dir: "up" | "down") => void;
@@ -52,6 +55,7 @@ export function BoardCard({
   dragging,
   landed,
   onOpen,
+  onEdit,
   onResolve,
   onMoveTo,
   onNudge,
@@ -91,7 +95,7 @@ export function BoardCard({
       setMenuOpen(true);
     } else if (e.key === "e") {
       e.preventDefault();
-      onOpen();
+      onEdit();
     }
   }
 
@@ -172,6 +176,10 @@ export function BoardCard({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={onOpen}>
+                <Eye aria-hidden="true" className="h-3.5 w-3.5" />
+                View
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onEdit}>
                 <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                 Edit
               </DropdownMenuItem>
@@ -239,6 +247,17 @@ export function BoardCard({
         )}
         {projectName && (
           <span className="bg-tone-stone px-1.5 py-0.5 font-mono text-[11px] text-tone-stone-ink">{projectName}</span>
+        )}
+        {card.status === "DONE" && (card.links?.length ?? 0) > 0 && (
+          <span
+            title={`${card.links!.length} proof link${card.links!.length === 1 ? "" : "s"}`}
+            aria-label={`${card.links!.length} proof link${card.links!.length === 1 ? "" : "s"}`}
+            role="img"
+            className="inline-flex items-center gap-1 font-mono text-[11px]"
+          >
+            <Link2 aria-hidden="true" className="h-3 w-3" />
+            {card.links!.length}
+          </span>
         )}
         {card.dueDate && (
           <span

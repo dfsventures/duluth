@@ -13,6 +13,7 @@ import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/boa
 import { cn } from "@/lib/utils";
 import { BoardCard } from "@/components/admin/board/board-card";
 import { BoardColumn } from "@/components/admin/board/board-column";
+import { CardSheet } from "@/components/admin/board/card-sheet";
 import { CardDialog } from "@/components/admin/board/card-dialog";
 import { ResolveDialog } from "@/components/admin/board/resolve-dialog";
 import { PeopleProjectsPanel } from "@/components/admin/board/people-projects-panel";
@@ -26,7 +27,7 @@ import {
   undoTarget,
 } from "@/lib/board-client";
 import { toast } from "@/lib/toast";
-import { localPosition, type BoardCardData, type BoardPayload } from "@/components/admin/board/types";
+import { localPosition, type BoardCardData, type BoardCardLinkData, type BoardPayload } from "@/components/admin/board/types";
 import { Skeleton } from "@/components/ui/skeleton";
 
 // Part 37 (WS107). Tabs are data. The Intake tab (WS109) is appended only when
@@ -64,6 +65,10 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const tabs = granolaIntake ? [...TABS, INTAKE_TAB] : TABS;
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<BoardCardData | "new" | null>(null);
+  // View sheet: card id + whether to focus the Proof field on open. `editFromView`
+  // sends Cancel/Save in the edit form back to the sheet.
+  const [viewing, setViewing] = useState<{ id: string; focusProof: boolean } | null>(null);
+  const [editFromView, setEditFromView] = useState(false);
   const [resolving, setResolving] = useState<BoardCardData | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
@@ -231,6 +236,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
       }
       const saved: BoardCardData = await res.json();
       setData((cur) => (cur ? { ...cur, cards: cur.cards.map((c) => (c.id === saved.id ? { ...c, ...saved } : c)) } : cur));
+      if (!opts.undo) maybeNudgeProof(cardId, card.title, fromStatus, status);
       if (!opts.undo && back) {
         toast.undo(
           status === fromStatus
@@ -249,6 +255,19 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
         retry: () => void move(cardId, status, beforeId, afterId, opts),
       });
     }
+  }
+
+  // Gentle, non-blocking prompt after a person moves a card to Done without proof.
+  // Never fires for automated moves (digest ticks do not go through here).
+  function maybeNudgeProof(cardId: string, title: string, from: BoardStatus, to: BoardStatus) {
+    if (to !== "DONE" || from === "DONE") return;
+    const current = dataRef.current?.cards.find((c) => c.id === cardId);
+    if (!current || (current.links?.length ?? 0) > 0) return;
+    toast.info("Add a link to the work?", {
+      description: title,
+      duration: 8000,
+      action: { label: "Add", onClick: () => setViewing({ id: cardId, focusProof: true }) },
+    });
   }
 
   function nudge(card: BoardCardData, dir: "up" | "down", refocus = false) {
@@ -317,7 +336,11 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
         desktop={desktop}
         dragging={draggingId === card.id}
         landed={landedId === card.id}
-        onOpen={() => setEditing(card)}
+        onOpen={() => setViewing({ id: card.id, focusProof: false })}
+        onEdit={() => {
+          setEditFromView(false);
+          setEditing(card);
+        }}
         onResolve={() => setResolving(card)}
         onMoveTo={(s) => move(card.id, s, undefined, undefined, { refocus: true })}
         onNudge={(dir) => nudge(card, dir, true)}
@@ -361,7 +384,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
         description="Action items from team calls and the weekly digest"
         action={
           tab === "board" ? (
-            <Button onClick={() => setEditing("new")} disabled={!data}>
+            <Button onClick={() => { setEditFromView(false); setEditing("new"); }} disabled={!data}>
               <Plus className="h-4 w-4" /> Add item
             </Button>
           ) : undefined
@@ -524,6 +547,30 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
         )}
       </Tabs.Root>
 
+      {viewing && data && (() => {
+        const vc = data.cards.find((c) => c.id === viewing.id);
+        if (!vc || editing) return null;
+        return (
+          <CardSheet
+            key={vc.id}
+            card={vc}
+            ownerLabels={vc.ownerIds.map((id) => personById.get(id)?.label).filter((l): l is string => !!l)}
+            projectName={vc.projectId ? (projectById.get(vc.projectId)?.name ?? null) : null}
+            userLabel={(uid) => (uid ? (personByUserId.get(uid)?.label ?? null) : null)}
+            focusProof={viewing.focusProof}
+            onEdit={() => {
+              setEditFromView(true);
+              setViewing({ id: vc.id, focusProof: false });
+              setEditing(vc);
+            }}
+            onClose={() => setViewing(null)}
+            onLinksChanged={(cardId, links: BoardCardLinkData[]) => {
+              loadSeq.current.invalidate();
+              setData((cur) => (cur ? { ...cur, cards: cur.cards.map((c) => (c.id === cardId ? { ...c, links } : c)) } : cur));
+            }}
+          />
+        );
+      })()}
       {editing && data && (
         <CardDialog
           card={editing === "new" ? null : editing}
@@ -531,10 +578,26 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           allPeople={data.people}
           projects={data.projects}
           defaultOwnerId={myPersonId}
-          onClose={() => setEditing(null)}
-          onSaved={(c) => {
+          onClose={() => {
+            // Opened from the view sheet: Cancel goes back to it.
+            if (!editFromView) setViewing(null);
             setEditing(null);
+            setEditFromView(false);
+          }}
+          onSaved={(c) => {
+            const before = editing === "new" ? null : editing;
+            if (!editFromView) setViewing(null);
+            setEditing(null);
+            setEditFromView(false);
             applyCard(c ?? null);
+            // A status change to Done through the form gets the same proof nudge.
+            if (before && c && c.status === "DONE" && before.status !== "DONE" && (c.links ?? before.links ?? []).length === 0) {
+              toast.info("Add a link to the work?", {
+                description: c.title,
+                duration: 8000,
+                action: { label: "Add", onClick: () => setViewing({ id: c.id, focusProof: true }) },
+              });
+            }
           }}
           onPartialFailure={(msg) => toast.error(msg)}
         />
