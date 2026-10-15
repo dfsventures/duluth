@@ -538,6 +538,7 @@ model BoardCard {
   updatedAt           DateTime         @updatedAt
   digestTodos         DigestTodo[]
   owners              BoardCardOwner[]
+  links               BoardCardLink[] // proof-of-work links (max 10 per card, enforced in the API)
   unmatchedOwnerNames String[]         @default([]) // heard owner names not yet matched to a person (Part 38)
 
   @@index([status, position])
@@ -560,6 +561,20 @@ model BoardCardOwner {
   @@unique([cardId, personId])
   @@index([personId])
   @@map("board_card_owners")
+}
+
+// Proof of work: http(s) links attached to a board card. Additive model.
+model BoardCardLink {
+  id        String    @id @default(cuid())
+  cardId    String
+  card      BoardCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  url       String
+  label     String?
+  addedById String? // admin user id
+  createdAt DateTime  @default(now())
+
+  @@index([cardId])
+  @@map("board_card_links")
 }
 
 model BoardAlias {
