@@ -24,6 +24,9 @@ export interface Via {
 }
 export type ActionResult<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409; error: string };
 
+/** A card as the board client receives it (toCardData output). */
+export type CardData = { id: string; title: string; ownerIds: string[] } & Record<string, unknown>;
+
 const viaMeta = (v?: Via) => (v ? { via: v.via, margeActionId: v.margeActionId } : {});
 const fail = (status: 400 | 404 | 409, error: string): { ok: false; status: 400 | 404 | 409; error: string } => ({
   ok: false,
@@ -35,7 +38,7 @@ export async function createBoardCard(
   actor: Actor,
   body: Record<string, unknown>,
   via?: Via
-): Promise<ActionResult<ReturnType<typeof toCardData>>> {
+): Promise<ActionResult<CardData>> {
   const { title, status, projectId, dueDate, notes } = body;
 
   if (typeof title !== "string" || !title.trim() || title.trim().length > MAX_TITLE_LENGTH) {
@@ -101,7 +104,7 @@ export async function updateBoardCard(
   id: string,
   b: Record<string, unknown>,
   via?: Via
-): Promise<ActionResult<ReturnType<typeof toCardData>>> {
+): Promise<ActionResult<CardData>> {
   const card = await db.boardCard.findUnique({
     where: { id },
     include: { owners: { select: { personId: true, rawName: true } } },

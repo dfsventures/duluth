@@ -35,14 +35,22 @@ export function resolveOne(raw: string, list: Canonical[], kind: ResolveKind): R
   };
 }
 
-/** "me" -> the principal's BoardPerson. ensureAdminPeople() guarantees every admin has one. */
-export async function resolveMe(p: Principal): Promise<{ id: string; name: string }> {
-  await ensureAdminPeople();
+/**
+ * "me" -> the principal's BoardPerson. ensureAdminPeople() guarantees every admin has one, but it
+ * can upsert, so it only runs when `allowCreate` is true (reads and applies). On a dry run
+ * (allowCreate false) a missing person resolves to id "" with the principal's name: the preview
+ * still reads right, nothing is written, and the apply re-resolves with creation allowed.
+ */
+export async function resolveMe(p: Principal, allowCreate = true): Promise<{ id: string; name: string }> {
+  if (allowCreate) await ensureAdminPeople();
   const person = await db.boardPerson.findUnique({
     where: { userId: p.id },
     select: { id: true, displayName: true, user: { select: { name: true } } },
   });
-  if (!person) throw new ToolError("Molly has no board profile for you yet.");
+  if (!person) {
+    if (!allowCreate) return { id: "", name: p.name ?? "you" };
+    throw new ToolError("Molly has no board profile for you yet.");
+  }
   return { id: person.id, name: person.user?.name ?? person.displayName };
 }
 
@@ -57,8 +65,13 @@ export async function loadBoardLists(): Promise<BoardLists> {
 }
 
 /** One person: "me" or a name. Throws ToolError on unknown or ambiguous. */
-export async function resolvePerson(raw: string, p: Principal, lists: BoardLists): Promise<{ id: string; name: string }> {
-  if (normalizeName(raw) === "me") return resolveMe(p);
+export async function resolvePerson(
+  raw: string,
+  p: Principal,
+  lists: BoardLists,
+  allowCreate = true
+): Promise<{ id: string; name: string }> {
+  if (normalizeName(raw) === "me") return resolveMe(p, allowCreate);
   const r = resolveOne(raw, lists.people, "person");
   if (!r.ok) throw new ToolError(r.error);
   return { id: r.id, name: r.name };

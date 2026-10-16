@@ -31,3 +31,18 @@ export const isoDate = (d: Date | null | undefined): string | null => (d ? d.toI
 export function money(n: number): string {
   return `$${Math.round(n).toLocaleString("en-US")}`;
 }
+
+/** What a dry run returns in `structuredContent.preview`; rendered by Marge's code, never by the model. */
+export interface MargePreview {
+  action:
+    | "Create card"
+    | "Edit card"
+    | "Move card"
+    | "Add link"
+    | "Create draft broadcast"
+    | "Edit draft broadcast";
+  target?: string;
+  fields: { label: string; before?: string; after: string }[];
+  warnings: string[];
+  expectedUpdatedAt?: string;
+}
