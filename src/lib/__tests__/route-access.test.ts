@@ -194,3 +194,15 @@ describe("decideRoute — Granola webhook (Part 37, WS110)", () => {
     expect(decideRoute("/admin/board", "", anon)).toMatchObject({ type: "redirect", to: "/login" });
   });
 });
+
+describe("decideRoute — Marge MCP endpoint (Part 39, WS123)", () => {
+  const anon = { isLoggedIn: false, roles: [] as string[] };
+  it("exempts exactly /api/mcp/marge for an anonymous caller", () => {
+    expect(decideRoute("/api/mcp/marge", "", anon)).toEqual({ type: "next" });
+  });
+  it("does not exempt /api/mcp, sub-paths or lookalikes", () => {
+    for (const p of ["/api/mcp", "/api/mcp/marge/x", "/api/mcp/marge-x", "/api/mcp/other", "/api/mcp/marge/"]) {
+      expect(decideRoute(p, "", anon)).toMatchObject({ type: "redirect", to: "/login" });
+    }
+  });
+});

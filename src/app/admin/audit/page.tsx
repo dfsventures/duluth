@@ -39,7 +39,11 @@ const FILTERS = [
   { key: "admin", label: "Admin actions" },
   { key: "signin", label: "Sign-ins" },
   { key: "failed", label: "Failed sign-ins" },
+  { key: "marge", label: "Via Marge" }, // Part 39 (WS123.4)
 ] as const;
+
+// Part 39 (WS123.4): rows Marge acted on behalf of someone for carry metadata.via = "marge".
+const VIA_MARGE = { metadata: { path: ["via"], equals: "marge" } };
 
 function truncateValue(value: string, max = 40): string {
   return value.length > max ? `${value.slice(0, max)}…` : value;
@@ -94,10 +98,12 @@ export default async function AuditLogPage({
         ? { action: { startsWith: "SIGN_IN_" } }
         : filter === "failed"
           ? { action: "SIGN_IN_FAILED" }
-          : {};
+          : filter === "marge"
+            ? VIA_MARGE
+            : {};
 
   const signinWhere = { action: { startsWith: "SIGN_IN_" } };
-  const [logs, signinCount, failedCount, totalCount] = await Promise.all([
+  const [logs, signinCount, failedCount, margeCount, totalCount] = await Promise.all([
     db.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -105,6 +111,7 @@ export default async function AuditLogPage({
     }),
     db.auditLog.count({ where: signinWhere }),
     db.auditLog.count({ where: { action: "SIGN_IN_FAILED" } }),
+    db.auditLog.count({ where: VIA_MARGE }),
     db.auditLog.count(),
   ]);
   const counts: Record<string, number> = {
@@ -112,6 +119,7 @@ export default async function AuditLogPage({
     admin: totalCount - signinCount,
     signin: signinCount,
     failed: failedCount,
+    marge: margeCount,
   };
 
   return (

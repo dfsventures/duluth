@@ -46,13 +46,19 @@ export type RouteDecision =
 // retried). It is matched as an EXACT path, not a prefix, so nothing else under
 // /api/webhooks (or a lookalike such as /api/webhooks/granola-x) becomes public.
 //
+// "/api/mcp/marge" (Part 39, WS123) is public because Marge's tool calls carry no user
+// session; the route authenticates every request itself with a short-lived Ed25519-signed
+// assertion (src/lib/marge-auth.ts) and returns 404 until MARGE_MCP_MODE is set. It is
+// matched as an EXACT path, so nothing else under /api/mcp (or a lookalike such as
+// /api/mcp/marge-x) becomes public.
+//
 // "/api/logo/" (company update theming) serves company logo derivatives to
 // sessionless investors and email clients. It is a prefix WITH a trailing
 // slash because the path carries two dynamic segments (company id and a
 // content-hashed file name), so an exact match is impossible; the route itself
 // only serves keys that match companies/{id}/logo/{hash16}-{web|email}.png
 // (src/lib/company-logo.ts). No authenticated route may ever live under it.
-const PUBLIC_EXACT = ["/api/webhooks/granola"];
+const PUBLIC_EXACT = ["/api/webhooks/granola", "/api/mcp/marge"];
 const PUBLIC_PREFIXES = ["/login", "/signup", "/set-password", "/api/auth", "/share", "/api/share", "/api/cron", "/investors", "/brand", "/lp", "/api/lp", "/api/logo/"];
 
 export function decideRoute(pathname: string, search: string, s: SessionInfo): RouteDecision {

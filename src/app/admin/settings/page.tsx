@@ -14,6 +14,8 @@ import { SettingsTabs } from "./settings-tabs";
 import { normalizeSettingsTab } from "./settings-tabs-util";
 import { SettingsStatusStrip } from "./settings-status-strip";
 import { EmailsSentList } from "./emails-sent-list";
+import { margeMcpMode } from "@/lib/marge-auth";
+import { relativeTime } from "@/lib/relative-time";
 
 function Status({ on }: { on: boolean }) {
   return on ? (
@@ -59,6 +61,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
   });
   const granolaOn = !!process.env.GRANOLA_API_KEY && !!process.env.GRANOLA_FOLDER_ID;
   const slackConfigured = !!process.env.SLACK_DIGEST_WEBHOOK_URL;
+  // Part 39 (WS123.5) — mode and last call only; no key material is ever shown.
+  const margeMode = margeMcpMode();
+  const lastMargeCall = await db.auditLog.findFirst({
+    where: { action: "MARGE_READ" },
+    orderBy: { createdAt: "desc" },
+    select: { createdAt: true },
+  });
 
   return (
     <AppShell>
@@ -181,6 +190,22 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
               When set, sending a digest also posts its open items to one channel (once per digest).
             </p>
             <SlackTestPanel configured={slackConfigured} />
+          </section>
+
+          <section className={SECTION}>
+            <SectionHeading title="Marge (Slack assistant)" description="Optional. Off until MARGE_MCP_MODE and MARGE_ASSERTION_JWKS are set." />
+            <p className="text-xs text-muted-foreground">
+              Marge:{" "}
+              <span className="text-foreground">
+                {margeMode === "write" ? "Read and draft" : margeMode === "read" ? "Read only" : "Off"}
+              </span>
+              . Last call:{" "}
+              <span className="text-foreground">{lastMargeCall ? relativeTime(lastMargeCall.createdAt) : "None yet"}</span>
+              {" "}
+              <Link href="/admin/audit?filter=marge" className="text-primary underline">
+                View audit
+              </Link>
+            </p>
           </section>
         </>
       )}

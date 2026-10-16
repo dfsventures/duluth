@@ -167,6 +167,14 @@ Both integrations below are off until their environment variables are set. Leavi
 3. Redeploy, open **Admin > Settings > Integrations**, and click **Send test post**.
 4. Each digest posts once. Resending a digest re-emails but does not re-post to Slack. A failed post is retried on the next send. The free Slack plan limits a workspace to 10 app integrations (unconfirmed officially).
 
+**Marge (the Slack assistant reads Molly and drafts board work, Part 39)**
+
+1. Optional and off by default. With `MARGE_MCP_MODE` unset, `POST /api/mcp/marge` answers 404 and does nothing.
+2. Marge signs a 60-second, single-use assertion for the teammate who asked; Molly verifies it with the public key(s) in `MARGE_ASSERTION_JWKS` (a JWKS with Ed25519 keys; Molly holds only public keys, so there is no secret to leak from Molly). Generate the key pair on your own machine, put the public JWKS in Molly's `MARGE_ASSERTION_JWKS` and the private key in Marge's environment as a Sensitive variable. Never commit either.
+3. `MARGE_MCP_MODE=read` lets Marge read and show previews. `write` also lets a change that the requester confirmed with a Slack button be applied; it can only create or edit board cards and draft broadcasts. Sending, publishing, deleting and anything about LPs or fund figures are not available to Marge in either mode.
+4. Marge only acts for a person who is an approved admin in Molly. To cut someone off, set `users.status = 'REJECTED'` (or remove the `ADMIN` role) in the database: Marge reads this on every call, so it takes effect at once. Deleting the user does not work, because an admin-domain Google sign-in recreates them. (Molly's own web session for that person lasts until it expires; that is a separate, known gap.)
+5. Kill switch: unset `MARGE_MCP_MODE` and redeploy. See **Admin > Settings > Integrations** for the current mode and the last call, and **Admin > Audit Log > Via Marge** for everything Marge did, shown against the person who asked.
+
 ## 3. Set up the database
 
 Push the schema to your database:

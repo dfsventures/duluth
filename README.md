@@ -38,6 +38,9 @@ Built by [DFS Lab](https://www.dfs.vc) and open source under MIT so other invest
 - Manage a service-provider directory: founders submit and endorse providers, admins vet them
 - Configure per-company update reminder frequency (weekly, bi-weekly, monthly, quarterly)
 
+### Marge connection (optional)
+Molly can let the Marge Slack assistant read company, update, board and broadcast data and draft board cards and broadcast drafts, always as the admin who asked and only after that admin confirms a change with a button. It is off unless `MARGE_MCP_MODE` and `MARGE_ASSERTION_JWKS` are set (kill switch: unset `MARGE_MCP_MODE`). Every call is audited under the asking admin with `via: marge` (**Admin > Audit Log > Via Marge**). To cut a teammate off, set their `users.status` to `REJECTED`; Marge checks on every call. Sending, publishing, deleting and LP or fund figures are never available to Marge. Setup is in `SETUP.md` under "Optional integrations".
+
 ### LP Fund-Report Portal
 A separate, third audience alongside founders/admins and investor-link recipients: **limited partners** of the funds an admin has configured. Admins manage funds, portfolio companies, and per-fund deals/valuations (imported once from a spreadsheet, then Molly is the source of truth — see `scripts/import-investment-tracker.ts` in SETUP.md), and author letter-style reports per fund with an explicit `@`-mention picker for portfolio companies. Publishing **freezes** valuation snapshots into the report (the LP-facing numbers never silently drift after the fact); re-publishing after an edit re-freezes fresh ones.
 
