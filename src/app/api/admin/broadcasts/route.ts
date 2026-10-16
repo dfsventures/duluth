@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { senderLabels } from "@/lib/broadcast-sender";
-import { logAdminAction } from "@/lib/audit";
+import { createBroadcastDraft } from "@/lib/broadcast-drafts";
 
 // Part 30, WS73 — broadcast CRUD, mirroring /api/admin/reports/** route
 // for route. A DRAFT has no recipient rows by construction (they're only
@@ -48,31 +48,12 @@ export async function POST(request: Request) {
     if (error) return error;
 
     const body = await request.json();
-    const subject = body.subject?.trim();
-    if (!subject || subject.length > 200) {
-      return NextResponse.json({ error: "Subject is required and must be 200 characters or fewer." }, { status: 400 });
-    }
-
-    const portfolioCompanyIds: string[] = Array.isArray(body.portfolioCompanyIds) ? body.portfolioCompanyIds : [];
-
-    const broadcast = await db.$transaction(async (tx) => {
-      const created = await tx.companyBroadcast.create({
-        data: { subject, body: "", status: "DRAFT", createdById: user!.id },
-      });
-      if (portfolioCompanyIds.length > 0) {
-        await tx.companyBroadcastTarget.createMany({
-          data: portfolioCompanyIds.map((portfolioCompanyId) => ({ broadcastId: created.id, portfolioCompanyId })),
-        });
-      }
-      return created;
+    // Part 39 (WS119): shared with the Marge tools; F122 validates company ids here too.
+    const r = await createBroadcastDraft(user!, {
+      subject: body.subject,
+      portfolioCompanyIds: body.portfolioCompanyIds,
     });
-
-    await logAdminAction(user!, "BROADCAST_CREATED", {
-      targetType: "CompanyBroadcast",
-      targetId: broadcast.id,
-      metadata: { subject, companyCount: portfolioCompanyIds.length },
-    });
-    return NextResponse.json(broadcast, { status: 201 });
+    return r.ok ? NextResponse.json(r.value, { status: 201 }) : NextResponse.json({ error: r.error }, { status: r.status });
   } catch (err) {
     console.error("POST /api/admin/broadcasts error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
