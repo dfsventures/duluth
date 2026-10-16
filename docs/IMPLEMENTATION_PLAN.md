@@ -12501,3 +12501,575 @@ Email (`:63`): `assigneeName: labelsOf(t).join(", ") || null`. Slack (`:95`): `o
 **Handoff status: WS112 + WS113 are IMPLEMENTED and committed locally by Alvin (2026-10-12), NOT pushed; waiting on Joseph's `prisma db push`. (Was: READY FOR ALVIN.)** (invisible, not blocked by any question). WS114 is ready once the backfill is verified. WS115–WS117 are ready once Q103–Q106 are answered.
 
 ---
+
+# Part 39 — Marge reads and acts on Molly through a curated tool surface (WS119–WS124, F119–F124, Q108–Q114, 2026-10-16)
+
+> **Status: APPROVED 2026-10-16, building.** The owner accepted Q108–Q114 as recommended and the contract below.  Nothing here is shipped or merged. The Marge half is **MWS-21** in the Marge repo's `docs/IMPLEMENTATION_PLAN.md`; the two halves share one contract (tool names, assertion claims, the argument hash) written out in WS120 and WS121 below, and in MWS-21.
+>
+> **Numbering:** continues from Part 38 (WS118, F118, Q107). Checked 2026-10-16: no `WS119+`, `F119+`, `Q108+` or "Part 39" exists in `ROADMAP.md`, `README.md` or `docs/`. Judgment calls are `JC-MG-*`.
+>
+> **Baseline:** `npx vitest run --exclude '.claude/**'` → 104 files, **1129/1129 passing** (run 2026-10-16 on `claude/dfs-portfolio-platform-TZMWC` @ `4aa4a08`).
+>
+> **Schema:** **none.** No Prisma change, so no `db push` and no deploy-ordering constraint on the Molly side (JC-MG-C explains how replay protection avoids a table).
+
+**What was asked for.** When a teammate asks Marge in Slack, Marge can read Molly data and take a small set of actions on Molly, always as that teammate, with every write confirmed by that teammate's own button click.
+
+**Locked by the owner (do not re-open):**
+- **L1 Architecture.** Molly owns a curated tool surface (MCP over Streamable HTTP preferred). Marge consumes it as tools in her own tool system.
+- **L2 Identity.** Marge acts as the specific teammate who asked, via a short-lived signed assertion that Molly verifies. Molly maps it to an approved admin; non-admins and unknown people get nothing. Every call is audit-logged as "<user> via Marge". Disabling a user in Molly cuts them off in Marge.
+- **L3 Writes.** Every write needs a Slack confirm button clicked by the requesting user. Prompt-injected text in Molly data (founder updates, notes) must never be able to trigger a write.
+- **L4 Human-only in Molly, never tools.** Sending or publishing anything (broadcasts, LP reports, digests), approving signups, deletes, changing LP or fund figures.
+- **L5 Where data may appear.** Marge DMs and team channels; never external, Slack Connect or ambiguous-with-guests contexts. *Confirmed 2026-10-16 (Q108-A):* LP-personal and fund-metric/deal-term data is DM-only (Q108).
+- **L6 First scope.** Board tasks (create, edit, move; owners, due date, project, proof links); broadcast drafts (create/edit a DRAFT only; never publish or test-send); reads (companies, latest updates and metrics, board cards, broadcast status, deal-ledger and portfolio summaries).
+
+**Ground rules carried in:** fixtures use `Jane Founder`, `Sam Partner`, `Acme`, `AcmeHQ onboarding`, `admin@example.com`; logs and audit metadata carry ids and counts, never content (Part 37); "the board is correct" (automation never creates aliases or people, Q100); hand-written allowlists, never a spread body (F95).
+
+---
+
+## What the code does today (verified 2026-10-16 at `4aa4a08`)
+
+**Identity and access**
+- Google sign-in is matched on the Google account id first, then the email, and never auto-merges (`src/lib/google-signin.ts:24-38`). A first Google sign-in from an admin-domain address **creates an `ADMIN`, `APPROVED` user** (`google-signin.ts:40-50`); the domain check runs before it (`src/lib/auth.ts:27-32`, `src/lib/org.ts:33-39`). So "approved admin" today means "anyone on an admin domain who has signed in to Molly once".
+- `User` has `roles UserRole[]`, `status UserStatus` (`PENDING | APPROVED | REJECTED`) and `googleId String? @unique` (`prisma/schema.prisma:47-57`). There is **no disabled flag and no UI to disable or demote an admin**: `/api/admin/users/[id]` PATCH only toggles `receivesDigest` (`src/app/api/admin/users/[id]/route.ts:16-25`). (F119)
+- Sessions are JWTs (`src/lib/auth.config.ts:10`). The `jwt` callback copies `roles`/`status` at sign-in and re-reads the database only when they are missing (`src/lib/auth.ts:52-75`), and `requireAuth` trusts `session.user.status` (`src/lib/auth-guard.ts:16-22`). A user set to `REJECTED` keeps working in Molly until the token expires. (F120)
+- Middleware calls the pure `decideRoute` (`src/middleware.ts:8-22`). Public paths are `PUBLIC_EXACT` (exact, currently only `/api/webhooks/granola`) and `PUBLIC_PREFIXES` (`src/lib/route-access.ts:55-63`). An API route with no session is redirected to `/login` unless listed there.
+
+**Audit, rate limits, kill switches**
+- `logAdminAction(actor, action, { targetType, targetId, metadata })` writes one `AuditLog` row and never throws (`src/lib/audit.ts:7-26`; model `schema.prisma:630-643`). `/admin/audit` shows `actorEmail` and pretty-prints `metadata` as `key: value` pairs (`src/app/admin/audit/page.tsx:48-78`, `:170-179`); filters are All / Admin actions / Sign-ins / Failed sign-ins (`:37-42`).
+- `checkRateLimit(bucket, id, limit)` is a Postgres fixed 1-hour window on `RateLimitCounter` (`@@unique([key, windowStart])`), **fails open** on DB errors, and deletes windows older than 24 h on about 1% of calls (`src/lib/rate-limit.ts:10-33`; `schema.prisma:618-627`).
+- Precedent for an off-by-default public endpoint: the Granola webhook returns 404 until its secret is set, verifies a signature before any DB access, then rate-limits (`src/app/api/webhooks/granola/route.ts:23-45`).
+
+**Board writes (all `requireAdmin`, all audit-logged)**
+- Create: `POST /api/admin/board/cards` validates title (1–300), status, notes (≤5000), `dueDate` (`YYYY-MM-DD`), owners (`parseOwnerInput`, all must exist) and project, creates at the end of the column, and logs `BOARD_CARD_CREATED` with `{ title, status }` (`src/app/api/admin/board/cards/route.ts:16-85`).
+- Edit: `PATCH …/cards/[id]` is a hand-written allowlist (title, notes, dueDate, owners, projectId, archived), recomputes `needsReview`, sets owners through `setCardOwnersIn`, logs `BOARD_CARD_UPDATED` or `BOARD_CARD_ARCHIVED` (`cards/[id]/route.ts:10-130`). `archived` is the soft delete (`:91-98`).
+- Move: `POST …/cards/[id]/move` → `moveCard(id, status, beforeId, afterId, actor)`; with neither id the card goes to the end of the column (`src/lib/board-server.ts:119-127`, `:148-155`); logs `BOARD_CARD_MOVED` (`move/route.ts:28-41`).
+- Proof links: `POST …/cards/[id]/links` (`parseLinkInput`, http(s) only, max 10 per card), logs `BOARD_CARD_LINK_ADDED` with the host only (`links/route.ts:17-39`).
+- Name matching: `loadBoardContext()` returns canonical people and projects with normalized aliases (`board-server.ts:24-66`); `resolveEntity(raw, null, list)` matches exact name, then alias, and **takes the first match** when two entries normalize the same (`src/lib/board-reconcile.ts:31-55`). (F124) `ensureAdminPeople()` guarantees every admin has a `BoardPerson` (`board-server.ts:9-21`).
+
+**Broadcasts**
+- `POST /api/admin/broadcasts` creates a DRAFT with an empty body and optional targets; `portfolioCompanyIds` is **not validated** (`src/app/api/admin/broadcasts/route.ts:50-66`). (F122)
+- `PATCH /api/admin/broadcasts/[id]` refuses a PUBLISHED broadcast (`[id]/route.ts:41-48`), but the check and the update are separate statements (`:38`, `:77-90`). (F121) `body` is stored as given with no type or length check (`:60`), and the email path trusts it (`src/lib/broadcast-html.ts:1-4`). (F123)
+- Publish, test-send, retry, duplicate and delete are separate routes (`src/app/api/admin/broadcasts/[id]/{publish,test,retry,duplicate}`, `DELETE` in `[id]/route.ts:100-125`). None is exposed (L4).
+- `senderLabels` / `publisherIdOf` read the author or the `BROADCAST_PUBLISHED` audit row (`src/lib/broadcast-sender.ts:15-50`). A Marge-created draft has `createdById` = the requesting admin, so "By" shows that person.
+- `plainToDigestHtml(text)` escapes `& < >` and wraps paragraphs in `<p>`/`<br>` (`src/lib/digest-html.ts:6-13`), which is valid TipTap input.
+
+**Reads**
+- Companies: `GET /api/admin/companies` uses `approvedCompanyFilter` (`src/lib/company-filters.ts:10`); cadence is `cadenceStatus()` (`src/lib/update-cadence.ts:65`).
+- Updates: `GET /api/admin/updates` lists `SENT` updates only (`src/app/api/admin/updates/route.ts:11-21`). `Update.body` is TipTap HTML (`schema.prisma:192-210`); metrics are `MetricDefinition`/`MetricValue` (`:217-246`).
+- Deal ledger: `GET /api/admin/portfolio` returns deals plus `{ totalInvested, dealCount, companyCount, fundCount, blendedImpliedValue }` using `positionValue()` (`src/app/api/admin/portfolio/route.ts:34-70`); the same arithmetic exists as the pure `summarizeLedger()` (`src/lib/ledger.ts:38-60`).
+
+**Dependencies:** Molly has `zod ^4.3.6` and `jose` only transitively (via NextAuth, `package-lock.json:113`); no MCP package.
+
+---
+
+## Findings
+
+## F119 — Molly has no way to disable or demote an admin, and a deleted admin is recreated on their next Google sign-in (MEDIUM for this Part; drives Q112)
+
+L2 says "disabling a user in Molly cuts them off in Marge". Today the only levers are SQL: set `users.status = 'REJECTED'` or remove `ADMIN` from `roles`. Deleting the row does not work, because `resolveGoogleSignIn` creates a fresh `ADMIN`/`APPROVED` user for any admin-domain Google account (`src/lib/google-signin.ts:40-50`). This Part's per-call check (WS120) makes `status = 'REJECTED'` cut a person off in Marge **at once**; it does not add a UI.
+
+## F120 — In Molly itself, a rejected admin keeps working until their session token expires (LOW-MEDIUM, confirmed path; not fixed here)
+
+`token.status` is set at sign-in and only re-read when missing (`src/lib/auth.ts:65-74`); `requireAuth` reads it from the token (`src/lib/auth-guard.ts:16`). Sessions are JWTs (`auth.config.ts:10`) with the Auth.js default lifetime (30 days; no `maxAge` set). So F119's SQL lever is immediate for Marge (WS120 reads the database on every call) but not for the Molly web app. Recorded for a later Part; the fix is a cheap DB re-read in the `jwt` callback.
+
+## F121 — A broadcast can be edited after it is published, in a narrow race (LOW; fixed in WS119)
+
+`PATCH /api/admin/broadcasts/[id]` reads the row (`[id]/route.ts:38`), checks `PUBLISHED` (`:43`), then updates in a later transaction (`:77-90`). A publish that lands in between lets the edit change a sent broadcast's subject, body or targets. WS119 makes the update conditional on `status = 'DRAFT'`, for the web route and Marge alike.
+
+## F122 — Creating a broadcast with an unknown company id returns 500 (LOW; fixed in WS119)
+
+`POST /api/admin/broadcasts` passes `portfolioCompanyIds` straight to `createMany` (`route.ts:56-66`), so an unknown id fails on the foreign key, and non-string entries are not rejected. WS119 applies the PATCH route's existing check (`[id]/route.ts:63-75`) to create as well, returning the same 400 message.
+
+## F123 — A broadcast body is stored unvalidated and the email trusts it (LOW, admin-only; recorded, route unchanged)
+
+`body` has no type or length check (`[id]/route.ts:60`), and `broadcast-html.ts:2` notes the email path trusts admin TipTap HTML. That is acceptable for a signed-in admin's editor. It is **not** acceptable for text that came through a model, so the Marge path never accepts HTML: it takes plain text and converts it with `plainToDigestHtml` (WS122). The web route is left as is.
+
+## F124 — Two board people (or projects) whose names normalize the same are resolved to the first one, silently (LOW, informational)
+
+`resolveEntity` uses `list.find` (`board-reconcile.ts:39-41`). The Granola and paste paths accept that. The Marge path must not guess, so WS122 detects more than one match and refuses with the candidates. `resolveEntity` itself is unchanged.
+
+**Also found on the Marge side** (recorded in MWS-21, listed here because they shape this Part): Marge never checks group DMs for guests (Marge `lib/slack-context.ts:59`), so this Part offers no Molly data in Marge's `ambiguous` contexts at all (Q110); Marge's channel classification is cached for 10 minutes (`lib/slack-context.ts:29`, `:52`); and Marge's existing `wrapDoc` does not neutralise a closing tag inside the wrapped body (`lib/tools/index.ts:43`).
+
+---
+
+## Design in one paragraph
+
+Molly serves one stateless MCP endpoint, `POST /api/mcp/marge`, built with `@modelcontextprotocol/server` v2 `createMcpHandler` in JSON response mode. The route is public in middleware (exact path) and does its own authentication: every request carries `Authorization: Bearer <assertion>`, an Ed25519-signed JWT that Marge mints for one person and one tool call, valid for 60 seconds. Molly verifies the signature, issuer, audience and expiry before touching the database; then, for `tools/call` only, spends the token's `jti` (single use, fail-closed), maps `sub` (the person's Google account id) to a Molly user who must be `ADMIN` and `APPROVED`, and applies per-tool rules: a **sensitivity tier** (`team` tools may answer a DM or a team channel; `dm` tools only a DM, from the signed `ctx` claim) and, for writes, a **two-step contract**. Step one is a dry run with an ordinary read token: Molly resolves names, validates everything and returns a structured preview, writing nothing. Marge shows that preview on a Slack card with Confirm/Cancel. Step two runs only from Marge's button handler, never from the model's tool loop: Marge mints a write-scope token whose `act` claim binds the tool name and a SHA-256 of the exact arguments, and Molly re-validates, checks the record has not changed since the preview, writes through the same library functions the web routes use, and audit-logs under the existing action names with `via: "marge"`. Reads are audit-logged as `MARGE_READ`. A single env var, `MARGE_MCP_MODE` (`off` by default, `read`, `write`), is the kill switch.
+
+**Why MCP and not a plain internal API.** A plain JSON route would be about the same size: authentication, authorization and tools are the same code either way. MCP costs one free dependency and gives Marge a standard client (`@ai-sdk/mcp`, made for AI SDK 7), tool listing for a drift check, and standard error shapes. A spike on 2026-10-16 (scratch directory, not the working tree; Node 22, `@modelcontextprotocol/server@2.3.1`, `@ai-sdk/mcp@2.0.77`, `jose@6`) confirmed the four things this design depends on: `createMcpHandler(factory, { responseMode: "json" })` serves a web-standard `Request`; `handler.fetch(req, { authInfo, parsedBody })` hands verified identity to the factory; the AI SDK client sends custom headers and makes exactly two HTTP requests per call (`server/discover`, then `tools/call`; `tools/list` only when asked); and a raw JSON-RPC `tools/call` POST with no handshake is answered, which keeps route tests simple. **Not yet verified:** the package inside a Next.js 14 build (WS120 step 0). If that fails, the fallback (JC-MG-A) is a hand-written JSON-RPC route of about 120 lines; the tool functions do not change.
+
+---
+
+## Technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-MG-A** | MCP via `@modelcontextprotocol/server` v2, stateless, `responseMode: "json"`, one fresh `McpServer` per request. All tool logic lives in plain functions under `src/lib/marge-tools/`; the route is a thin adapter. Batch JSON-RPC (arrays) is refused, so one token covers one call. | Replace `src/app/api/mcp/marge/route.ts` with a hand-written JSON-RPC handler; nothing else changes |
+| **JC-MG-B** | Assertions are **EdDSA (Ed25519) JWTs** verified with `jose` (`createLocalJWKSet`, `jwtVerify`, `algorithms: ["EdDSA"]`). Molly holds only public keys, as a JWKS in `MARGE_ASSERTION_JWKS`, so rotation is "add the new key, switch Marge, remove the old key". | ES256 keys in the same JWKS |
+| **JC-MG-C** | **Replay protection without a new table:** the `jti` is claimed by **creating** a `RateLimitCounter` row with key `marge-jti:<jti>` and `windowStart` = the token's signed `iat`. A replay hits the unique index; **any error is treated as a replay (fail closed)**, unlike `checkRateLimit`, which fails open. The existing 24-hour cleanup removes old rows; tokens live 60 s. | A dedicated `MargeAssertionNonce` table (additive; would need a `db push`) |
+| **JC-MG-D** | The `jti` is spent only on `tools/call`. `server/discover` and `tools/list` need a valid signature but touch no database, because the AI SDK client sends them with the same header before the call. | Spend on every request and have Marge send one token per HTTP request |
+| **JC-MG-E** | **Identity match:** `googleId = sub` first. If no user has that Google id, match the email case-insensitively **only if that user has no `googleId` yet**; a user linked to a different Google account is refused (`identity_conflict`), mirroring `resolveGoogleSignIn`'s conflict rule (`google-signin.ts:27-32`). Molly never writes a link from this path. | Google id only (strict), or email only |
+| **JC-MG-F** | Writes reuse the existing action names (`BOARD_CARD_CREATED`, `BOARD_CARD_UPDATED`, `BOARD_CARD_MOVED`, `BOARD_CARD_LINK_ADDED`, `BROADCAST_CREATED`, `BROADCAST_UPDATED`) with `metadata.via = "marge"` and `metadata.margeActionId`, so every existing audit filter and the "By" label keep working. Reads log `MARGE_READ`; refusals after a valid signature log `MARGE_DENIED`. Unsigned or badly signed requests are never audited (no flood path). | New `MARGE_*` names for writes |
+| **JC-MG-G** | Edits and moves carry `expectedUpdatedAt` from the preview; apply refuses with 409 if the card or draft changed since. A renormalize of a column also bumps `updatedAt`, so a concurrent drag elsewhere can occasionally invalidate a preview; the user just asks again. | Compare only the fields being changed |
+| **JC-MG-H** | Rate limits: reads 300 per user per hour, writes (applies) 30 per user per hour, everything 3,000 per hour globally, via `checkRateLimit` (fail open, like every other bucket). | Change three constants in `src/lib/marge-auth.ts` |
+| **JC-MG-I** | Read results are plain text (TipTap HTML converted by a new `htmlToPlainText`), with per-field caps (update body 4,000 characters, card notes 1,000), plus the same data as `structuredContent`. Founder-written and meeting-derived fields are labelled as such in the text so Marge's prompt can treat them as untrusted. | Raise the caps |
+| **JC-MG-J** | Unknown owner, project or company names are **errors listing the closest known names**; this path never creates a person, project, alias or company (Q100). | Allow creating projects (Q113) |
+
+---
+
+## The contract shared with Marge (both plans must match this text)
+
+**Assertion** (JWT, header `{ "alg": "EdDSA", "kid": "<kid>", "typ": "JWT" }`):
+
+| Claim | Value | Checked by Molly |
+|---|---|---|
+| `iss` | `"marge"` | exact |
+| `aud` | `"molly-mcp"` | exact |
+| `sub` | the requester's Google account id (Marge `account."accountId"` where `"providerId" = 'google'`) | identity (JC-MG-E) |
+| `email` | the requester's Google-verified email in Marge | identity fallback; must be an admin domain (`isAdminEmailDomain`) |
+| `iat`, `exp` | `exp - iat <= 60` | `jwtVerify` with 30 s clock tolerance; also `maxTokenAge: "90s"` |
+| `jti` | random UUID | single use on `tools/call` (JC-MG-C) |
+| `scope` | `"read"` or `"write"` | writes need `"write"` |
+| `ctx` | `"private"` (Marge DM) or `"team"` (team channel) | `dm`-tier tools need `"private"` |
+| `act` | writes only: `{ "tool": "<tool name>", "h": "<argsHash>", "aid": "<Marge action id>" }` | `tool` = called tool, `h` = recomputed hash |
+
+**`argsHash`** = lowercase hex SHA-256 of the canonical JSON of the tool arguments **without the `dryRun` key**. Canonical JSON: objects with keys sorted by code-point order, recursively; arrays in order; no whitespace; strings as `JSON.stringify` writes them. Both repos implement it as:
+
+```ts
+export function canonicalJson(v: unknown): string {
+  if (v === null || typeof v !== "object") return JSON.stringify(v);
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(",")}]`;
+  const o = v as Record<string, unknown>;
+  return `{${Object.keys(o).filter((k) => o[k] !== undefined).sort().map((k) => `${JSON.stringify(k)}:${canonicalJson(o[k])}`).join(",")}}`;
+}
+export function argsHash(args: Record<string, unknown>): string {
+  const { dryRun: _ignored, ...rest } = args;
+  return crypto.createHash("sha256").update(canonicalJson(rest)).digest("hex");
+}
+```
+
+A shared test vector goes in both test suites: `argsHash({ title: "Send deck", owners: ["me", "Sam Partner"], dryRun: false, dueDate: "2026-10-23" })` must equal the value Alvin computes once and pastes into both tests.
+
+**Tools** (13). Tier `team` = DM or team channel; `dm` = DM only; `write` = dry run with a read token in DM or team channel, apply only with a write token.
+
+| Tool | Tier | Input (zod; unknown keys stripped) | Returns |
+|---|---|---|---|
+| `companies_find` | team | `{ query?: string(≤100), limit?: int 1–25 = 10 }` | id, name, sector, geography, stage, last update date, cadence status, admin URL |
+| `company_overview` | team | `{ company: string }` (id or exact name) | profile fields; latest 3 `SENT` updates (title, period, sentAt, plain-text body ≤4,000 chars, **founder-written**); latest value of each metric (name, unit, value, date) |
+| `updates_recent` | team | `{ days?: int 1–90 = 14 }` | `SENT` updates in the window: company, title, period, sentAt (no bodies) |
+| `board_cards` | team | `{ owner?: string ("me" or a name), project?: string, status?: enum, dueBefore?: YYYY-MM-DD, includeDone?: bool, limit?: int 1–50 = 30 }` | cards: id, title, status, owners, project, due, link count, needsReview, `updatedAt`, notes ≤1,000 chars (**may come from meeting notes**); plus active people and project names |
+| `broadcasts_list` | team | `{ status?: "DRAFT" \| "PUBLISHED", limit?: int 1–25 = 10 }` | id, subject, status, publishedAt, target count, recipient count, sent/failed counts, "By" label (no recipient emails) |
+| `broadcast_get` | team | `{ broadcastId: string }` | subject, status, plain-text body ≤6,000 chars, target company names, `updatedAt`, counts (no recipient emails) |
+| `portfolio_summary` | **dm** | `{ fund?: string }` (name or slug) | per fund and overall: deal count, company count, total invested, blended implied value, dilution-aware flag (the `/api/admin/portfolio` summary) |
+| `company_deals` | **dm** | `{ company: string }` | that portfolio company's deals: fund, date, type, amount, instrument, entry/current valuation, ownership, multiple label |
+| `board_card_create` | write | `{ title, notes?, status?, owners?: string[≤5], project?, dueDate?, dryRun?: bool = true }` | preview, or `{ cardId, url }` |
+| `board_card_update` | write | `{ cardId, expectedUpdatedAt, title?, notes?: string\|null, owners?: string[≤5], project?: string\|null, dueDate?: string\|null, dryRun? }` | preview, or `{ cardId, url }` |
+| `board_card_move` | write | `{ cardId, expectedUpdatedAt, status, dryRun? }` (goes to the end of the column) | preview, or `{ cardId, url }` |
+| `board_card_add_link` | write | `{ cardId, url, label?, dryRun? }` | preview, or `{ linkId, url }` |
+| `broadcast_draft_save` | write | `{ broadcastId?, expectedUpdatedAt? (required with broadcastId), subject?, bodyText?: string(≤10,000), companies?: string[≤50] (names), dryRun? }` | preview, or `{ broadcastId, url }` |
+
+**`dryRun` defaults to `true`.** An apply is `dryRun: false` and is accepted only with a write token (below). **Not exposed, by design (L4):** archive, delete, link removal, resolve/aliases, people and project creation, publish, test-send, retry, duplicate, LP anything, fund figures, cap tables, diligence, documents, company notes, share links, users.
+
+**Preview shape** (`structuredContent.preview`, rendered by Marge's code, never by the model):
+
+```ts
+interface MargePreview {
+  action: "Create card" | "Edit card" | "Move card" | "Add link" | "Create draft broadcast" | "Edit draft broadcast";
+  target?: string;                                    // e.g. the card title being edited
+  fields: { label: string; before?: string; after: string }[];   // only changed fields; plain text
+  warnings: string[];                                 // e.g. "Replaces the current body (1,240 characters)."
+  expectedUpdatedAt?: string;                         // echoed for the apply call
+}
+```
+
+**Errors** are MCP tool errors (`isError: true`) with one plain sentence: `not_admin` → "You don't have admin access in Molly."; `unknown_user` → "Molly doesn't know your Google account. Sign in to molly.dfs.vc with Google once."; tier refusal → "That's DM-only. Ask me in a DM."; conflicts, validation and ambiguity messages as listed in WS122.
+
+---
+
+## WS119 — Shared write functions for board cards and broadcast drafts; fix F121/F122, ~0.8 day (invisible)
+
+**Goal:** the web routes and the Marge tools call the same validated write code, so a Marge write can never drift from what the UI allows. Behaviour, status codes, messages and audit metadata of every existing route stay byte-identical, except F121 (a race now loses cleanly) and F122 (400 instead of 500).
+
+**WS119.1 — `src/lib/board-actions.ts`** (new). Move the bodies of the four handlers into functions that take an actor and an already-parsed body. Sketch:
+
+```ts
+// Part 39 (WS119) — board card writes shared by /api/admin/board/** and the Marge tools.
+// Messages and status codes are the routes' own, verbatim; the routes are now thin wrappers.
+import { db } from "@/lib/db";
+import { logAdminAction } from "@/lib/audit";
+// …same imports the four routes use today…
+
+export interface Actor { id: string; email?: string | null }
+export interface Via { via: "marge"; margeActionId: string } // absent for the web UI
+export type ActionResult<T> = { ok: true; value: T } | { ok: false; status: 400 | 404 | 409; error: string };
+
+const viaMeta = (v?: Via) => (v ? { via: v.via, margeActionId: v.margeActionId } : {});
+
+export async function createBoardCard(actor: Actor, body: Record<string, unknown>, via?: Via): Promise<ActionResult<ReturnType<typeof toCardData>>> {
+  // lines 25-78 of cards/route.ts, with every `return NextResponse.json({ error }, { status })`
+  // replaced by `return { ok: false, status, error }`
+  …
+  await logAdminAction(actor, "BOARD_CARD_CREATED", {
+    targetType: "BoardCard", targetId: card.id,
+    metadata: { title: card.title, status: card.status, ...viaMeta(via) },
+  });
+  return { ok: true, value: toCardData(card) };
+}
+export async function updateBoardCard(actor: Actor, id: string, b: Record<string, unknown>, via?: Via) { /* cards/[id]/route.ts:26-130 */ }
+export async function moveBoardCard(actor: Actor, id: string, b: Record<string, unknown>, via?: Via) { /* move/route.ts:19-42 */ }
+export async function addBoardCardLink(actor: Actor, id: string, body: unknown, via?: Via) { /* links/route.ts:18-40 */ }
+```
+
+The routes become, for example:
+
+```ts
+const r = await createBoardCard(user!, body as Record<string, unknown>);
+return r.ok ? NextResponse.json(r.value, { status: 201 }) : NextResponse.json({ error: r.error }, { status: r.status });
+```
+
+Keep each route's own `requireAdmin()`, body parsing (`request.json().catch(() => null)`, the `Invalid body` 400) and `try/catch` 500 where they are. `...viaMeta(undefined)` adds no keys, so web-UI audit metadata is unchanged.
+
+**WS119.2 — `src/lib/broadcast-drafts.ts`** (new): `createBroadcastDraft(actor, { subject, body, portfolioCompanyIds }, via?)` and `updateBroadcastDraft(actor, id, { subject?, body?, portfolioCompanyIds? }, via?)`, from `broadcasts/route.ts:50-75` and `[id]/route.ts:38-93`.
+- **F122:** create runs the PATCH route's id check (`[id]/route.ts:63-75`): an array of strings that all exist, else 400 "One or more selected companies could not be found." (and "portfolioCompanyIds must be an array." for a non-array).
+- **F121:** inside the transaction, first `const n = await tx.companyBroadcast.updateMany({ where: { id, status: "DRAFT" }, data: { ...data, updatedAt: new Date() } })`; if `n.count === 0`, throw a sentinel that the function maps to the existing 400 "Published broadcasts can't be edited. Duplicate it as a draft instead." Do the target replace only after that. The pre-check at `:43` stays for the common case (same message).
+- `body` passes through untouched for the web route (F123: no change to the editor path).
+- `createBroadcastDraft` accepts a `body` (default `""`, today's value) so the Marge path can create a draft with text in one write.
+
+**WS119.3 — routes.** `cards/route.ts`, `cards/[id]/route.ts` (PATCH), `cards/[id]/move/route.ts`, `cards/[id]/links/route.ts`, `broadcasts/route.ts` (POST), `broadcasts/[id]/route.ts` (PATCH) call the new functions. GET and DELETE handlers are not touched.
+
+**Tests:** every existing route test passes **unchanged** (`board-cards-route.test.ts`, `board-move-route.test.ts`, `board-links-route.test.ts`, `board-card-owners.test.ts`, broadcast tests). New `src/lib/__tests__/broadcast-drafts.test.ts`: F121 (status flips to PUBLISHED between the pre-check and the update → 400, targets untouched); F122 (unknown id → 400, non-array → 400); `via` present → metadata has `via: "marge"`; absent → metadata identical to today's.
+
+**Acceptance:**
+- [ ] `npx vitest run` green with no edits to existing tests; typecheck clean.
+- [ ] Clicking through `/admin/board` (create, edit owners, drag, add link) and `/admin/broadcasts` (new draft, edit, change audience) behaves as before; the audit rows look as before.
+
+**UX impact:** none, except a draft can no longer be edited in the instant after it is published (F121) and a bad company id shows a message instead of an error page (F122). **Cost impact:** none.
+
+---
+
+## WS120 — Assertion verification, identity, replay protection, kill switch, ~0.7 day (invisible; endpoint still absent)
+
+**WS120.0 — build check first (15 minutes).** On a scratch branch, add `@modelcontextprotocol/server@^2.3.1` and `jose@^6`, import `createMcpHandler` in a throwaway route, run `npm run build`. If Next 14 fails to bundle it, stop and use the JC-MG-A fallback; tell Felix.
+
+**WS120.1 — dependencies (`package.json`).** Add `"@modelcontextprotocol/server": "^2.3.1"` and `"jose": "^6.0.6"` (already in the lockfile transitively; now direct). Both MIT/Apache, free.
+
+**WS120.2 — `src/lib/marge-auth.ts`** (new). Exports, with sketches:
+
+```ts
+// Part 39 (WS120). Marge acts as one person per call. Nothing here reads the database until the
+// signature, issuer, audience and expiry have verified (no DB load from unsigned traffic).
+import crypto from "crypto";
+import { createLocalJWKSet, jwtVerify } from "jose";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { isAdminEmailDomain } from "@/lib/org";
+
+export type MargeMode = "off" | "read" | "write";
+/** The kill switch. Anything but "read"/"write", or no keys, is off. */
+export function margeMcpMode(): MargeMode {
+  const m = process.env.MARGE_MCP_MODE;
+  return (m === "read" || m === "write") && process.env.MARGE_ASSERTION_JWKS ? m : "off";
+}
+
+const Claims = z.object({
+  iss: z.literal("marge"), aud: z.literal("molly-mcp"),
+  sub: z.string().min(1).max(64), email: z.string().email().max(320),
+  iat: z.number().int(), exp: z.number().int(), jti: z.string().uuid(),
+  scope: z.enum(["read", "write"]), ctx: z.enum(["private", "team"]),
+  act: z.object({ tool: z.string().max(64), h: z.string().regex(/^[0-9a-f]{64}$/), aid: z.string().max(64) }).optional(),
+});
+export type MargeClaims = z.infer<typeof Claims>;
+
+let keys: ReturnType<typeof createLocalJWKSet> | null = null;
+export async function verifyAssertion(authorization: string | null): Promise<{ ok: true; claims: MargeClaims } | { ok: false }> {
+  const token = authorization?.startsWith("Bearer ") ? authorization.slice(7) : "";
+  if (!token || token.length > 4000) return { ok: false };
+  try {
+    keys ??= createLocalJWKSet(JSON.parse(process.env.MARGE_ASSERTION_JWKS!));
+    const { payload } = await jwtVerify(token, keys, {
+      issuer: "marge", audience: "molly-mcp", algorithms: ["EdDSA"], clockTolerance: 30, maxTokenAge: "90s",
+    });
+    const c = Claims.safeParse(payload);
+    if (!c.success || c.data.exp - c.data.iat > 60) return { ok: false };
+    if (c.data.scope === "write" && !c.data.act) return { ok: false };
+    return { ok: true, claims: c.data };
+  } catch {
+    return { ok: false }; // never log the token or the error text (it can echo claims)
+  }
+}
+
+/** Single use. FAILS CLOSED (JC-MG-C): any error, including a unique violation, means "already used". */
+export async function claimJti(c: MargeClaims): Promise<boolean> {
+  try {
+    await db.rateLimitCounter.create({ data: { key: `marge-jti:${c.jti}`, windowStart: new Date(c.iat * 1000) } });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export type Principal = { id: string; email: string; name: string | null };
+export type PrincipalResult = { ok: true; user: Principal } | { ok: false; reason: "unknown_user" | "identity_conflict" | "not_admin" | "not_approved" | "domain" };
+
+/** JC-MG-E. Read-only: never links a Google id. Runs on every call, so status/role changes apply at once (F119). */
+export async function resolvePrincipal(c: MargeClaims): Promise<PrincipalResult> {
+  if (!isAdminEmailDomain(c.email)) return { ok: false, reason: "domain" };
+  let u = await db.user.findUnique({ where: { googleId: c.sub } });
+  if (!u) {
+    const byEmail = await db.user.findFirst({ where: { email: { equals: c.email, mode: "insensitive" } } });
+    if (byEmail?.googleId) return { ok: false, reason: "identity_conflict" };
+    u = byEmail;
+  }
+  if (!u) return { ok: false, reason: "unknown_user" };
+  if (!u.roles.includes("ADMIN")) return { ok: false, reason: "not_admin" };
+  if (u.status !== "APPROVED") return { ok: false, reason: "not_approved" };
+  return { ok: true, user: { id: u.id, email: u.email, name: u.name } };
+}
+
+export const MARGE_LIMITS = { readPerHour: 300, writePerHour: 30, globalPerHour: 3000 } as const; // JC-MG-H
+export { argsHash, canonicalJson } from "@/lib/marge-hash"; // the contract's exact code, in its own file
+```
+
+**WS120.3 — `src/lib/marge-hash.ts`** (new): the two functions from "The contract shared with Marge", verbatim.
+
+**Tests (`src/lib/__tests__/marge-auth.test.ts`):** generate a key pair in the test with `jose.generateKeyPair("EdDSA", { crv: "Ed25519" })`, export its public JWK into `MARGE_ASSERTION_JWKS`, sign test tokens. Cases: valid read token; expired; `exp - iat = 61`; wrong `iss`; wrong `aud`; `alg: none` and HS256 with the public key as secret (both refused); unknown `kid`; token signed by another key; write scope without `act`; `ctx` outside the enum; malformed `jti`. `claimJti`: first call true, second false, DB error false (mock `create` to throw). `resolvePrincipal`: Google id match; email fallback with null `googleId`; email match whose `googleId` differs → `identity_conflict`; `FOUNDER` only → `not_admin`; `PENDING`/`REJECTED` → `not_approved`; non-admin domain → `domain`; a user flipped to `REJECTED` between two calls is refused on the second (no caching). `argsHash`: the shared test vector; `dryRun` ignored; key order irrelevant; `undefined` keys dropped. `margeMcpMode`: unset, `"true"`, `"read"` without keys → off.
+
+**Acceptance:** all of the above green; no route exists yet. **UX impact:** none. **Cost impact:** none (two free packages).
+
+---
+
+## WS121 — Read tools and the tier table, ~1.0 day (invisible)
+
+**WS121.1 — `src/lib/plain-text.ts`** (new): `htmlToPlainText(html: string, max: number): string`. Block tags (`p`, `br`, `li`, `h2`–`h4`, `blockquote`, `pre`) become line breaks, every other tag is removed, `&amp; &lt; &gt; &quot; &#39; &nbsp;` and numeric entities are decoded, runs of blank lines collapse to one, and the result is cut at `max` characters with "… (truncated)". Pure; unit-tested with TipTap fixtures (lists, links keep their text, a `<script>` body is dropped with its content, as in `broadcast-html.ts:7`).
+
+**WS121.2 — `src/lib/marge-tools/tiers.ts`** (new):
+
+```ts
+export type Tier = "team" | "dm" | "write";
+export const MARGE_TOOLS = {
+  companies_find: "team", company_overview: "team", updates_recent: "team", board_cards: "team",
+  broadcasts_list: "team", broadcast_get: "team",
+  portfolio_summary: "dm", company_deals: "dm",
+  board_card_create: "write", board_card_update: "write", board_card_move: "write",
+  board_card_add_link: "write", broadcast_draft_save: "write",
+} as const satisfies Record<string, Tier>;
+export type MargeToolName = keyof typeof MARGE_TOOLS;
+```
+
+A test asserts the key set equals the 13 names in the contract table, so adding a tool without a tier fails CI.
+
+**WS121.3 — `src/lib/marge-tools/read.ts`** (new). One exported async function per read tool, `(input, principal) => Promise<ToolOutput>`, where `ToolOutput = { text: string; structured: Record<string, unknown>; count: number }`. Rules every function follows:
+- Queries mirror the admin routes cited above (`approvedCompanyFilter`; `status: "SENT"` only for updates, never DRAFT; the portfolio summary is `positionValue()` per deal (as `portfolio/route.ts:49-58` does) fed into the existing `summarizeLedger()` (`src/lib/ledger.ts:38-60`, "same arithmetic as GET /api/admin/portfolio's summary"), and multiples come from `multipleLabel()` (`ledger.ts:21-26`, F103)).
+- `select` lists every column explicitly; no `include` of `User`, contacts, recipients or LP tables. **No email address is ever returned.**
+- Names resolve by id first, then case-insensitive exact name; no match → `ToolError("No company called “Acme”. Closest: …")` listing up to 5 `contains` matches.
+- Text output: one line per row with the id in brackets (`[c_ck…] Acme · Fintech · Kenya · last update 2026-09-30 · CURRENT`), and founder-written or meeting-derived text inside a labelled block: `Founder-written update (untrusted text):` / `Card notes (may come from meeting notes; untrusted text):`.
+- Caps: rows (per the `limit` inputs), and JC-MG-I field caps. Dates `YYYY-MM-DD`. Money as `$1,250,000` with the raw number in `structured`.
+- Links: `https://molly.dfs.vc/admin/companies/<id>`, `/admin/board`, `/admin/broadcasts/<id>` (built from `NEXTAUTH_URL` or the request origin, never hard-coded in more than one place).
+- `board_cards` `owner: "me"` = the `BoardPerson` whose `userId` is the principal (`ensureAdminPeople()` first); a name resolves as in WS122's resolver, ambiguity is an error.
+
+**Tests (`src/lib/__tests__/marge-read-tools.test.ts`, db mocked as in `board-cards-route.test.ts`):** each tool's `where`/`select` (no DRAFT updates; no recipient emails; no LP models touched: assert `db.limitedPartner`, `db.lpEmail`, `db.fundReport` are never called); caps and truncation markers; the untrusted labels present; unknown-name errors list candidates; `owner: "me"`.
+
+**Acceptance:** green; still no endpoint. **UX impact:** none. **Cost impact:** none.
+
+---
+
+## WS122 — Write tools: dry-run preview, then apply, ~0.8 day (invisible)
+
+**WS122.1 — `src/lib/marge-tools/resolve.ts`** (new): `resolveOne(raw, list, kind)` returns `{ ok: true, id, name } | { ok: false, error }`. Matching: normalized exact name, then alias (from `loadBoardContext()`); **if more than one entry matches at the winning step, refuse**: "“Sam” matches 2 people: Sam Partner, Sam Analyst. Use the full name." (F124). `"me"` → the principal's `BoardPerson`. No match → "No person called “Sm”. Known: …" (up to 8 names). Never creates anything (JC-MG-J). Companies resolve on `PortfolioCompany.name` the same way.
+
+**WS122.2 — `src/lib/marge-tools/write.ts`** (new). Each tool is `plan(input, principal)` (pure validation and resolution, **reads only**) plus `apply(plan, principal, via)` (calls WS119's functions). The exported tool function:
+
+```ts
+export async function boardCardCreate(input: CardCreateInput, p: Principal, opts: { dryRun: boolean; via?: Via }): Promise<ToolOutput> {
+  const plan = await planCardCreate(input, p);          // throws ToolError with a user-facing sentence
+  if (opts.dryRun) return previewOutput(plan.preview);   // nothing below runs on a dry run
+  const r = await createBoardCard(p, plan.body, opts.via!); // plan.body: explicit allowlist, resolved ids only
+  if (!r.ok) throw new ToolError(r.error);
+  return { text: `Created card “${r.value.title}”.`, structured: { cardId: r.value.id, url: boardUrl() }, count: 1 };
+}
+```
+
+Per tool:
+- **`board_card_create`:** body = `{ title, notes, status, ownerIds, projectId, dueDate }` built field by field. Preview fields: Title, Status (default To do), Owners, Project, Due (`Fri 23 Oct 2026` plus the ISO date), Notes (first 300 characters).
+- **`board_card_update`:** loads the card; `expectedUpdatedAt` must equal `card.updatedAt.toISOString()` at plan time **and again at apply time** (JC-MG-G; 409 "This card changed since I showed it to you. Ask me again."). Body = only the provided keys among `title, notes, dueDate, ownerIds, projectId` (**never `archived`**). Preview shows before → after for each changed field.
+- **`board_card_move`:** same freshness check; calls `moveBoardCard(p, id, { status })` (end of column). Preview: "To do → Done". If the target is Done and the card has no links, add the warning "No proof link yet." (mirrors the board's Done nudge; never blocks).
+- **`board_card_add_link`:** `parseLinkInput` and the 10-link cap run at plan time and again at apply. Preview: host and label.
+- **`broadcast_draft_save`:** `bodyText` is **plain text only**; apply stores `plainToDigestHtml(bodyText)` (F123). Without `broadcastId` → `createBroadcastDraft` with subject (required), body and resolved company ids. With `broadcastId` → must be DRAFT (else "That broadcast is already published; edit a draft instead.") and fresh; `updateBroadcastDraft` with only the provided keys. Preview: Subject, Audience ("3 companies: Acme, …"), Body (first 1,500 characters and the total length); when a body is replaced, warning "Replaces the current body (1,240 characters). Formatting from the Molly editor is lost." (Q111). Always the warning "Draft only. Nothing is sent until someone publishes it in Molly."
+
+**Tests (`src/lib/__tests__/marge-write-tools.test.ts`):**
+- A dry run never calls any `create`, `update`, `updateMany`, `delete` or `$transaction` on the mocked `db` (spy on every model method; one helper asserts zero write calls), for all five tools.
+- Apply calls the WS119 function with the allowlisted body and `via`; `archived`, `status` on update, unknown keys and HTML in `bodyText` (stored escaped) cannot reach Prisma.
+- Freshness 409 at plan time and at apply time; DRAFT check; ambiguity, unknown names, the 5-owner cap, the 10-link cap, a 301-character title.
+
+**Acceptance:** green; still no endpoint. **UX impact:** none. **Cost impact:** none.
+
+---
+
+## WS123 — The endpoint, audit, admin visibility, docs, ~0.6 day
+
+**WS123.1 — `src/lib/marge-tools/server.ts`** (new): builds the handler once per instance.
+
+```ts
+import { createMcpHandler, McpServer } from "@modelcontextprotocol/server";
+
+export const margeHandler = createMcpHandler(({ authInfo }) => {
+  const s = new McpServer({ name: "molly", version: "1" });
+  const call = authInfo?.extra as MargeCall | undefined; // set by the route; undefined for discover/list
+  for (const def of TOOL_DEFS) {                        // name, description, zod inputSchema, tier, fn
+    s.registerTool(def.name, { description: def.description, inputSchema: def.inputSchema }, async (input) => runTool(def, input, call));
+  }
+  return s;
+}, { responseMode: "json", maxRequestBodySize: 64_000 });
+```
+
+`runTool(def, input, call)` is the one gate every tool passes, in this order:
+1. `call` must exist (a `tools/call` that reached here without the route's checks is refused).
+2. Tier: `dm` needs `ctx === "private"`. `write` with `dryRun !== false` is treated as a read. `write` with `dryRun === false` needs `margeMcpMode() === "write"`, `scope === "write"`, `act.tool === def.name` and `act.h === argsHash(input)`.
+3. Rate limit: `checkRateLimit("marge-read" | "marge-write", principal.id, …)` and `checkRateLimit("marge", "global", 3000)`.
+4. Run; map `ToolError` to `{ content: [{ type: "text", text }], isError: true }`; any other error → "Molly had a problem; nothing was changed." and `console.error` with the tool name only.
+5. Audit: reads and dry runs → `logAdminAction(principal, "MARGE_READ", { targetType: "MargeTool", targetId: def.name, metadata: { via: "marge", ctx, count, dryRun } })`; refusals → `MARGE_DENIED` with `{ via: "marge", tool, reason, ctx }`; applies are audited inside the WS119 functions (JC-MG-F). **No arguments or results in metadata.**
+
+**WS123.2 — `src/app/api/mcp/marge/route.ts`** (new):
+
+```ts
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
+// Part 39 (WS123). Public in route-access.ts for exactly this path; the signed assertion is the real gate.
+export async function POST(req: Request) {
+  if (margeMcpMode() === "off") return Response.json({ error: "Not found" }, { status: 404 });
+  const raw = await req.text();
+  if (raw.length > 64_000) return Response.json({ error: "Too large" }, { status: 413 });
+  const v = await verifyAssertion(req.headers.get("authorization"));
+  if (!v.ok) return Response.json({ error: "Unauthorized" }, { status: 401 });  // no DB access before this line
+  let body: unknown;
+  try { body = JSON.parse(raw); } catch { return Response.json({ error: "Bad request" }, { status: 400 }); }
+  if (Array.isArray(body)) return Response.json({ error: "Batch not supported" }, { status: 400 }); // JC-MG-A
+  let extra: MargeCall | undefined;
+  if ((body as { method?: string }).method === "tools/call") {
+    if (!(await claimJti(v.claims))) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const who = await resolvePrincipal(v.claims);
+    if (!who.ok) { await auditDenied(v.claims, who.reason); return toolErrorResponse(body, who.reason); } // JSON-RPC result with isError
+    extra = { claims: v.claims, principal: who.user };
+  }
+  return margeHandler.fetch(new Request(req.url, { method: "POST", headers: req.headers, body: raw }), {
+    authInfo: { token: "", clientId: "marge", scopes: [v.claims.scope], extra },
+    parsedBody: body,
+  });
+}
+export async function GET() { return Response.json({ error: "Method not allowed" }, { status: 405 }); }
+```
+
+`toolErrorResponse` answers in JSON-RPC form (`{ jsonrpc: "2.0", id, result: { content: [{ type: "text", text }], isError: true } }`) so Marge can show the sentence ("You don't have admin access in Molly.").
+
+**WS123.3 — `src/lib/route-access.ts`.** Add `"/api/mcp/marge"` to `PUBLIC_EXACT` (exact, like the Granola webhook) and extend the comment block above it with one paragraph in the same style: why it is public, that the assertion is the gate, and that nothing else under `/api/mcp` becomes public. Add tests to `route-access.test.ts`: the exact path is public; `/api/mcp`, `/api/mcp/marge/x` and `/api/mcp/marge-x` are not.
+
+**WS123.4 — `/admin/audit`.** Add a fifth filter, "Via Marge", that matches `metadata: { path: ["via"], equals: "marge" }`, beside the existing four (`audit/page.tsx:37-42`). The actor column already shows the person; the metadata column shows `via: marge`. That is the "<user> via Marge" view, with no new rendering.
+
+**WS123.5 — `/admin/settings` Integrations panel.** One more row: "Marge: Off / Read only / Read and draft" from `margeMcpMode()`, plus "Last call: <relative time>" from the newest `MARGE_READ` row. No secrets shown.
+
+**WS123.6 — docs and env.** `.env.example`: a commented `MARGE_MCP_MODE` and `MARGE_ASSERTION_JWKS` block explaining each. README: a "Marge connection" paragraph in the integrations section (what it is, the two env vars, the kill switch, "set `users.status = 'REJECTED'` to cut someone off", F119). ROADMAP: move the Part 39 bullet into Existing Features when shipped.
+
+**Tests (`src/lib/__tests__/marge-mcp-route.test.ts`)** drive `POST` with raw JSON-RPC bodies (the spike showed no handshake is needed):
+- mode off → 404 before reading the body; mode `read` → write applies refused with "Molly is in read-only mode for Marge." (`MARGE_DENIED`).
+- no/invalid token → 401 and **no `db` call at all**; replayed `jti` → 401; DB error in `claimJti` → 401.
+- `server/discover` and `tools/list` with a valid token: no `db` call; the listed names equal `MARGE_TOOLS`.
+- `dm` tool with `ctx: "team"` → refusal sentence, `MARGE_DENIED`.
+- write apply: wrong `act.tool`, wrong hash, read scope → refused, no write; correct → WS119 function called with `via`.
+- audit: every `tools/call` leaves exactly one audit row (read, denied or the write's own), and metadata never contains an argument value (assert on a canary string in the arguments).
+- rate limits: the 301st read in an hour is refused.
+
+**Acceptance:**
+- [ ] With `MARGE_MCP_MODE` unset in production, `POST https://molly.dfs.vc/api/mcp/marge` returns 404 and nothing else changes.
+- [ ] All tests green; `npm run build` green.
+
+**UX impact:** admins see one new audit filter and one settings row; founders, LPs and investor-link recipients see nothing. **Cost impact:** none (a few extra function invocations on the existing Vercel plan; a few audit rows in existing Neon).
+
+---
+
+## WS124 — Keys, turn-on, live verification, ~0.4 day (the owner runs every env change)
+
+1. **Keys (the owner, on their own machine; never committed, never pasted into chat):** in any scratch folder, `npm i jose` then
+   `node -e "const j=require('jose');(async()=>{const k=await j.generateKeyPair('EdDSA',{crv:'Ed25519',extractable:true});const kid='marge-'+new Date().toISOString().slice(0,10);const pub={...await j.exportJWK(k.publicKey),kid,alg:'EdDSA',use:'sig'};const priv={...await j.exportJWK(k.privateKey),kid,alg:'EdDSA'};console.log('MOLLY:',JSON.stringify({keys:[pub]}));console.log('MARGE:',JSON.stringify(priv))})()"`.
+   The `MOLLY:` line goes into Molly's `MARGE_ASSERTION_JWKS` (production). The `MARGE:` line goes into Marge's `MOLLY_ASSERTION_PRIVATE_JWK` as a **Sensitive** variable. Then clear that line from your shell history.
+2. **Molly:** deploy WS119–WS123 with `MARGE_MCP_MODE` unset (404). Then set `MARGE_ASSERTION_JWKS`, set `MARGE_MCP_MODE=read`, redeploy.
+3. **Marge:** MWS-21 ships with its flag off; then the owner turns on read for themselves only (MWS-21 steps).
+4. **Live checks (the owner, signed in):** in a Marge DM, "what's on my board?" → cards; `/admin/audit` → "Via Marge" shows one `MARGE_READ` with your email. "Show Acme's deals" in a team channel → "That's DM-only. Ask me in a DM." and a `MARGE_DENIED` row. In a DM → the deals.
+5. **Writes:** set `MARGE_MCP_MODE=write`, redeploy; in a DM, "add a card 'Send deck' for me due Friday" → a card with Confirm/Cancel; nothing on `/admin/board` until Confirm; after Confirm, the card exists and `BOARD_CARD_CREATED` shows `via: marge`.
+6. **Cut-off rehearsal:** on a test admin account (not a real teammate), `UPDATE users SET status = 'REJECTED' WHERE email = '<test account>'`, ask Marge as that account → "You don't have admin access in Molly."; set it back.
+7. **Rotation (later):** add a second key to the JWKS, redeploy Molly, switch Marge's private key, then remove the old key.
+
+**Kill switch:** `MARGE_MCP_MODE=off` (or unset) and redeploy. Every Marge call then fails closed with "Molly isn't available right now."
+
+**UX impact:** none until step 2; afterwards only for people who use Marge. **Cost impact:** none.
+
+---
+
+## Open product decisions (the owner's call, each with a recommendation)
+
+| | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q108** | **The DM-only rule (L5, proposed).** Which data may appear in a team channel? | **(A)** As tabled above: board, companies, founder updates, company metrics and broadcasts are `team`; deal terms, amounts, valuations, ownership and portfolio totals are `dm`; LP-personal data and fund performance figures are **not exposed at all** in this Part. **(B)** Also make founder update bodies and company metrics DM-only. **(C)** Everything DM-only. | **(A).** It matches the default as stated, and the board already posts to a team channel today (`#task-board`, Part 37). (B) is the cautious alternative if founder updates are considered partner-only; it is a one-word tier change per tool. |
+| **Q109** | Fund performance metrics (TVPI, DPI, IRR, NAV) in this first scope? | **(A)** Not now. **(B)** Add `fund_performance` as a `dm` tool reading `computeFundPerformance` plus overrides, as the admin fund page does. | **(A).** Part 36 made "which number is right" depend on overrides and visibility flags; quoting them in Slack invites a figure that disagrees with the LP portal. Add later as (B) once the first scope has settled. |
+| **Q110** | Private channels and group DMs (Marge's `ambiguous` contexts): any Molly data there? | **(A)** None in this Part. **(B)** `team`-tier data in private channels only (they are guest-checked); never group DMs. | **(A).** Group DMs are not guest-checked in Marge today (MWS-21, F-81), and private channels have smaller, less predictable audiences. (B) is a small follow-up. |
+| **Q111** | Replacing the body of an existing draft broadcast from Slack | **(A)** Allowed for any DRAFT, with the preview warning that the body is replaced and editor formatting is lost. **(B)** Allowed only for drafts Marge created. **(C)** Subject and audience only; body edits in Molly. | **(A).** It is still a draft, the card names exactly what is replaced, and the freshness check refuses if someone edited it meanwhile. |
+| **Q112** | How someone is cut off (F119) | **(A)** SQL runbook only: `status = 'REJECTED'` (documented in README). **(B)** Also build a small "Disable" control for admins on `/admin/settings` in a later Part, with F120's session re-read. | **(A) now, (B) soon.** (B) is needed for Molly itself, not just Marge, and deserves its own small Part. |
+| **Q113** | May Slack create a new board project when the name is unknown? | **(A)** No: list known projects and ask. **(B)** Yes, with "New project" shown on the card. | **(A).** Projects and people are the board's canonical lists (Q100); creating them from free text is how duplicates start. |
+| **Q114** | Board writes from team channels | **(A)** Allowed: the card appears in the thread and only the requester's click counts. **(B)** DM only. | **(A).** Board work is team-visible already, and asking in `#task-board` is the natural place. Others in the channel see the proposed change, which is no more than the board shows them. |
+
+---
+
+## Part 39 sequencing, deploys and effort
+
+**Order** (a pushed branch = a production deploy; no `db push` anywhere in this Part):
+1. **WS119** → deploy (invisible refactor, F121/F122).
+2. **WS120 → WS121 → WS122 → WS123**, one deploy or several, with `MARGE_MCP_MODE` unset (endpoint 404).
+3. **WS124 steps 1–2** (the owner: keys and env, `read`).
+4. **MWS-21** in Marge, flag off, through its gates (built after Marge's MWS-20 lands; both touch `lib/agent.ts`, `lib/tools/index.ts` and `lib/turn.ts`, and they share the tool-result redaction helper); then Marge read for the owner only.
+5. **WS124 step 5** (`write`), first for the owner, then the pilot users Marge's allowlist names.
+
+| Workstream | Effort |
+|---|---|
+| WS119 | 0.8 |
+| WS120 | 0.7 |
+| WS121 | 1.0 |
+| WS122 | 0.8 |
+| WS123 | 0.6 |
+| WS124 | 0.4 |
+| **Total (Molly)** | **≈ 4.3 days** |
+
+**New env vars (Molly, production, set by the owner):** `MARGE_MCP_MODE` (`off` | `read` | `write`; unset = off), `MARGE_ASSERTION_JWKS` (public JWKS JSON; not secret, but keep it in env so rotation needs no code change). **New secrets:** none on Molly (it holds only public keys). **New packages:** `@modelcontextprotocol/server`, `jose` (direct). **Schema:** none.
+
+**Three things that must survive the handoff verbatim:**
+1. **No database access before the signature verifies**, and **`claimJti` fails closed**. Every other limiter in Molly fails open; this one must not.
+2. **A write happens only with a write-scope token whose `act.h` equals `argsHash` of the received arguments**, and dry runs never reach a Prisma write method. Marge mints write tokens only in its button handler.
+3. **Never return an email address, an LP record or a fund figure from any tool in this Part**, and never accept HTML from Marge.
+
+**Do not touch in this Part:** the publish, test, retry, duplicate and delete routes; the TipTap editor path for broadcast bodies (F123); `resolveEntity` (F124); NextAuth session behaviour (F120); any LP route or model.
+
+## Part 39 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **L1–L4, L6** | Architecture, identity, confirmed writes, human-only list, first scope | **LOCKED** (the owner, 2026-10-16) |
+| **L5** | Molly data in DMs and team channels only | **LOCKED**; its DM-only sub-rule is **Q108** |
+| **Q108** | Tiers: (A) as tabled / (B) updates and metrics DM-only / (C) all DM-only | **LOCKED 2026-10-16: (A) as tabled** (owner accepted the recommendation) |
+| **Q109** | Fund performance figures now / later | **LOCKED 2026-10-16: (A) later** (owner accepted the recommendation) |
+| **Q110** | Molly data in private channels or group DMs | **LOCKED 2026-10-16: (A) none** (owner accepted the recommendation) |
+| **Q111** | Replace a draft's body from Slack | **LOCKED 2026-10-16: (A) any draft, with warning** (owner accepted the recommendation) |
+| **Q112** | Cut-off: SQL runbook now, UI later | **LOCKED 2026-10-16: (A) SQL runbook now, (B) Disable control in a later Part** (owner accepted the recommendation) |
+| **Q113** | Create unknown projects from Slack | **LOCKED 2026-10-16: (A) no** (owner accepted the recommendation) |
+| **Q114** | Board writes from team channels | **LOCKED 2026-10-16: (A) yes** (owner accepted the recommendation) |
+| **JC-MG-A…J** | See the judgment-calls table | **Decided (technical)**, each with a reversal |
+| **F119** | No way to disable an admin; deleted admins are recreated | Q112; WS120 makes `REJECTED` immediate for Marge |
+| **F120** | Molly sessions ignore a status change until expiry | Recorded; later Part |
+| **F121** | Broadcast edit/publish race | Fixed in WS119 |
+| **F122** | Unknown company id on broadcast create → 500 | Fixed in WS119 |
+| **F123** | Broadcast body unvalidated; email trusts it | Recorded; Marge path plain text only (WS122) |
+| **F124** | Name resolution silently takes the first of two matches | Recorded; Marge path refuses ambiguity (WS122) |
+
+**Constraints honored:** **no new cost line** (two free packages; existing Vercel, Neon and audit tables; no new service); **no schema change**; **no UX regression** (one refactor proven by unchanged route tests, one audit filter, one settings row; founders, LPs and investor links untouched); **nothing sends, publishes, deletes or touches LP or fund figures.**
+
+**Handoff status: PLANNED, not built. WS119 is ready for Alvin now** (not blocked by any question). WS120–WS123 are ready once the owner accepts the contract; Q108 and Q114 change only tier strings. WS124 waits on MWS-21.
+
+---
