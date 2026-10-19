@@ -67,6 +67,7 @@ describe("decideRoute — public routes", () => {
       "/brand/molly-apple-touch-180.png",
       "/brand/molly-icon-512.png",
       "/brand/molly-email-header.png",
+      "/brand/molly-email-wordmark.png",
       "/brand/molly-og-card.png",
     ]) {
       expect(decideRoute(p, "", loggedOut)).toEqual({ type: "next" });

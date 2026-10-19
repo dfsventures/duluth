@@ -16,7 +16,7 @@ const BROADCAST_FROM = process.env.BROADCAST_EMAIL_FROM || `${ORG_NAME} <hello@d
 const TEAM_EMAIL = process.env.TEAM_EMAIL || "team@example.com";
 export const BASE_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "support@dfs.vc";
-const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/molly-email-header.png";
+const EMAIL_LOGO_PATH = process.env.EMAIL_LOGO_PATH || "/brand/molly-email-wordmark.png"; // Molly only, no DFS logo (2026-10-19)
 
 // ---------------------------------------------------------------------------
 // DFS brand tokens (see ~/.claude/skills/dfs-brand-style)
@@ -82,7 +82,7 @@ function emailWrapper(content: string): string {
           <!-- Header -->
           <tr>
             <td style="padding: 0 4px 20px;">
-              <img src="${BASE_URL}${EMAIL_LOGO_PATH}" alt="Molly, from ${ORG_FULL_NAME}" width="160" height="29" style="display: block; border: 0;" />
+              <img src="${BASE_URL}${EMAIL_LOGO_PATH}" alt="Molly" width="79" height="29" style="display: block; border: 0;" />
             </td>
           </tr>
           <!-- Card -->
