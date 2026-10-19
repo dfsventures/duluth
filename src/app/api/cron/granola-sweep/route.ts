@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300; // digest drafting thinks first; 60s was too tight
 import { NextRequest } from "next/server";
 import { granolaIntakeEnabled } from "@/lib/granola";
 import { runGranolaSweep, safeErrorText } from "@/lib/granola-intake";
