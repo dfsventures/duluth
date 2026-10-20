@@ -76,6 +76,8 @@ model User {
   capTableScenarios    CapTableScenario[]
   createdBroadcasts    CompanyBroadcast[]      @relation("CreatedBroadcasts")
   boardPerson          BoardPerson?            @relation("BoardPersonUser")
+  ownedMemos           Memo[]                  @relation("OwnedMemos")
+  memoRevisions        MemoSectionRevision[]   @relation("MemoRevisions")
 
   @@map("users")
 }
@@ -126,6 +128,7 @@ model Company {
   portfolioCompany  PortfolioCompany?
   diligence         CompanyDiligence?
   capTableScenarios CapTableScenario[]
+  memos             Memo[]
 
   @@map("companies")
 }
@@ -296,7 +299,10 @@ model Sector {
 
 model ShareableLink {
   id          String    @id @default(cuid())
-  token       String    @unique
+  token       String?   @unique // investor links only; memo links never store their token (Part 40)
+  tokenHash   String?   @unique // memo links: sha256(token) as hex (Part 40)
+  memoId      String? // memo links only (Part 40)
+  revokedAt   DateTime? // memo links: soft revoke, answers 410 and keeps the view log (Part 40)
   label       String?
   createdById String
   periodStart DateTime? // null for links using explicit update selection
@@ -309,7 +315,9 @@ model ShareableLink {
   companies       ShareableLinkCompany[]
   views           ShareableLinkView[]
   selectedUpdates ShareableLinkUpdate[]
+  memo            Memo?                  @relation(fields: [memoId], references: [id], onDelete: Cascade)
 
+  @@index([memoId])
   @@map("shareable_links")
 }
 
@@ -1106,4 +1114,94 @@ model FundReportFundSnapshot {
   fund   Fund       @relation(fields: [fundId], references: [id], onDelete: Cascade)
 
   @@map("fund_report_fund_snapshots")
+}
+
+// ─── Investment memos (Part 40) ───────────────────────────
+// Private to the owner until shared with the team (visibility "TEAM").
+// Reads always go through memoVisibleWhere() in src/lib/memos.ts.
+model Memo {
+  id                 String    @id @default(cuid())
+  title              String
+  companyId          String?
+  companyNamePending String? // the company isn't in Molly yet; cleared on link
+  status             String    @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "FINAL"
+  visibility         String    @default("PRIVATE") // "PRIVATE" | "TEAM"
+  ownerId            String
+  draftedByMarge     Boolean   @default(false)
+  source             String? // one of MEMO_SOURCES (src/lib/memos.ts)
+  tags               String[]  @default([])
+  introDate          DateTime? // date-only, 00:00 UTC (BoardCard.dueDate convention)
+  websiteUrl         String?
+  introCalls         Json      @default("[]") // MemoIntroCall[] { label, date?, url? }
+  templateVersion    Int?
+  version            Int       @default(1) // metadata version, optimistic concurrency
+  createKey          String?   @unique // sha256(ownerId:idempotencyKey); Marge creates only
+  archivedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company    Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  owner      User            @relation("OwnedMemos", fields: [ownerId], references: [id])
+  sections   MemoSection[]
+  shareLinks ShareableLink[]
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@index([companyId])
+  @@map("memos")
+}
+
+model MemoSection {
+  id             String   @id @default(cuid())
+  memoId         String
+  key            String // slug, unique per memo ("open-questions")
+  title          String
+  markdown       String   @default("") @db.Text
+  citations      Json     @default("[]") // MemoCitation[]
+  position       Int
+  includeInShare Boolean  @default(true)
+  version        Int      @default(1)
+  updatedById    String?
+  updatedVia     String? // "marge" | null
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  memo      Memo                  @relation(fields: [memoId], references: [id], onDelete: Cascade)
+  revisions MemoSectionRevision[]
+
+  @@unique([memoId, key])
+  @@index([memoId, position])
+  @@map("memo_sections")
+}
+
+// Full copy per save, like CompanyNoteRevision. Restore = a new save of an old copy.
+model MemoSectionRevision {
+  id             String   @id @default(cuid())
+  sectionId      String
+  version        Int
+  title          String
+  markdown       String   @db.Text
+  citations      Json
+  includeInShare Boolean
+  editedById     String
+  via            String? // "marge" | null
+  restoredFrom   Int? // version restored, when this save was a restore
+  createdAt      DateTime @default(now())
+
+  section  MemoSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  editedBy User        @relation("MemoRevisions", fields: [editedById], references: [id])
+
+  @@unique([sectionId, version])
+  @@map("memo_section_revisions")
+}
+
+// Versioned singleton: the current template is the row with the highest version.
+model MemoTemplate {
+  id          String   @id @default(cuid())
+  version     Int      @unique
+  sections    Json // MemoTemplateSection[] { key, title, guidance, required, shareByDefault }
+  createdById String? // null for the seed
+  createdAt   DateTime @default(now())
+
+  @@map("memo_templates")
 }
