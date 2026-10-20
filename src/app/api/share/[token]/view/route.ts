@@ -1,6 +1,10 @@
 export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+
+// Part 40 (WS130, F126): the view logger accepted any email with no limit.
+const SHARE_VIEW_LIMIT_PER_HOUR = 30;
 
 export async function POST(
   request: Request,
@@ -8,6 +12,9 @@ export async function POST(
 ) {
   try {
     const { token } = await params;
+    if (!(await checkRateLimit("share-view", clientIp(request), SHARE_VIEW_LIMIT_PER_HOUR))) {
+      return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+    }
     const body = await request.json();
     const { email } = body;
 

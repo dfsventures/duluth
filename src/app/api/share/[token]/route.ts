@@ -6,13 +6,21 @@ import { buildMetricDateFilter, buildMetricSummary, endOfDayUTC } from "@/lib/sh
 import { rewriteDocumentUrls } from "@/lib/share-docs";
 import { normalizeLogoPlate, themeForStored } from "@/lib/brand-theme";
 import { logoPublicPath } from "@/lib/company-logo";
+import { checkRateLimit, clientIp } from "@/lib/rate-limit";
+import { sanitizeUpdateHtml } from "@/lib/update-html";
+
+// Part 40 (WS130, F126): this public endpoint had no rate limit.
+const SHARE_PAGE_LIMIT_PER_HOUR = 240;
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
   try {
     const { token } = await params;
+    if (!(await checkRateLimit("share-page", clientIp(request), SHARE_PAGE_LIMIT_PER_HOUR))) {
+      return NextResponse.json({ error: "Too many requests. Please try again later." }, { status: 429 });
+    }
 
     const link = await db.shareableLink.findUnique({
       where: { token, memoId: null }, // investor links only; memo links live under /share/m
@@ -150,9 +158,11 @@ export async function GET(
       }),
       // Inline document images are rewritten to the token-scoped proxy so
       // they render for sessionless investors (F16, option b)
+      // Part 40 (WS130, F125): the body is founder-written HTML on a public page, so it is sanitized
+      // here (after the rewrite, which produces URLs the sanitizer allows) and again at render.
       updates: updates.map((u) => ({
         ...u,
-        body: rewriteDocumentUrls(u.body, token),
+        body: sanitizeUpdateHtml(rewriteDocumentUrls(u.body, token)),
       })),
     });
   } catch (err) {

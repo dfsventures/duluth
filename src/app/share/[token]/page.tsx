@@ -23,6 +23,7 @@ import { PageSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { BrandTheme, LogoPlate } from "@/lib/brand-theme";
 import { BrandButton, CompanyChip, CompanyLogo, Monogram, ThemeBand, ThemeScope } from "@/components/share/company-brand";
+import { sanitizeUpdateHtml } from "@/lib/update-html";
 
 interface MetricSnapshot {
   name: string;
@@ -397,7 +398,7 @@ export default function SharePage() {
 
                           <div
                             className={cn("prose prose-sm max-w-none", uTheme && "co-body")}
-                            dangerouslySetInnerHTML={{ __html: update.body }}
+                            dangerouslySetInnerHTML={{ __html: sanitizeUpdateHtml(update.body) }}
                           />
                         </div>
                       )}

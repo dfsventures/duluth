@@ -24,6 +24,7 @@ import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { sanitizeUpdateHtml } from "@/lib/update-html";
 
 interface MetricDefinition {
   id: string;
@@ -603,7 +604,7 @@ export default function UpdateDetailPage() {
               {update.body ? (
                 <div
                   className="prose prose-sm max-w-none text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: update.body }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeUpdateHtml(update.body) }}
                 />
               ) : (
                 <span className="text-sm italic text-muted-foreground">
