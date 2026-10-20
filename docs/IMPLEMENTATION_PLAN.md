@@ -13073,3 +13073,444 @@ export async function GET() { return Response.json({ error: "Method not allowed"
 **Handoff status: PLANNED, not built. WS119 is ready for Alvin now** (not blocked by any question). WS120–WS123 are ready once the owner accepts the contract; Q108 and Q114 change only tier strings. WS124 waits on MWS-21.
 
 ---
+
+# Part 40 — Investment memos that Marge drafts and people edit and share (WS125–WS131, F125–F130, Q115–Q125, 2026-10-20)
+
+> **Status: APPROVED 2026-10-20.** The owner accepted every recommendation (Q115–Q125 all **A**, including WS130) and the technical calls JC-MM-A…K, including the nullable `ShareableLink.token` (JC-MM-B) and the 400,000-character Marge cap (JC-MM-F). **Change from the draft: no Markdown download** (owner, 2026-10-20); export is print / Save as PDF only. Text below that mentioned Markdown download has been struck from the workstreams.
+>
+> **Numbering:** continues from Part 39 (WS124, F124, Q114). Checked 2026-10-20: no `WS125+`, `F125+`, `Q115+` or "Part 40" exists in `ROADMAP.md`, `README.md` or `docs/`. Judgment calls are `JC-MM-*`.
+>
+> **Baseline:** `npx vitest run --exclude '.claude/**'` → 110 files, **1258/1258 passing** (run 2026-10-20 on `claude/dfs-portfolio-platform-TZMWC` @ `2ee3509`, which includes Part 39's WS119–WS123).
+>
+> **Schema:** **additive**, plus one relaxation (`ShareableLink.token` becomes nullable; no data loss, `db push` needs no `--accept-data-loss`; JC-MM-B). Needs a `db push` by the owner **before** the WS125 deploy.
+
+**What was asked for.** Memos live in Molly instead of Notion. Marge drafts a memo from call notes, the deck and internal knowledge, and replies with a Molly link. People make light edits and share it, often with people outside DFS (co-investors, LPs, advisors). Out of scope: importing Notion memos, Drive folders, comments, Notion sync, real-time collaboration.
+
+**Ground rules carried in:** fixtures use `Jane Founder`, `Sam Partner`, `Acme`, `admin@example.com`; audit metadata carries ids, keys and counts, never content, and for memos **never the title** (the audit log is visible to every admin, and a private memo's title names a prospect); hand-written allowlists, never a spread body (F95); the 13 Part 39 tools, their tiers and their tests are **not changed**.
+
+---
+
+## What the code does today (verified 2026-10-20 at `2ee3509`)
+
+**The brief says Molly "already has link sharing and editing". That is partly true.** Precisely:
+
+**Link sharing = Investor Links, a per-update mechanism.**
+- Model `ShareableLink` (`prisma/schema.prisma:297-313`): `token String @unique` stored **in plain text**, optional `expiresAt`, `label`, `createdById`, plus update-specific shape: `periodStart/periodEnd`, `metricScope`, `companies` (`ShareableLinkCompany`, `:328-338`), `selectedUpdates` (`ShareableLinkUpdate`, `:316-326`) and a view log `ShareableLinkView { email, viewedAt }` (`:340-…`).
+- Created by `POST /api/links` for **any approved user** (founders for their own companies, admins for any) from a list of SENT update ids; token = `crypto.randomBytes(24).toString("hex")` (`src/app/api/links/route.ts:33-109`, token at `:81`).
+- Listing: `GET /api/links` returns **every** link, token included, to every admin (`route.ts:12-15`); the admin page builds "Copy link" from the stored token at any time (`src/app/admin/links/page.tsx:57-58`, `:210-211`, `:467`; founder copy in `src/app/links/page.tsx:59-60`, `:188-189`).
+- "Revoke" is a **hard delete** (`src/app/api/links/[id]/route.ts:26`), so a revoked link answers **404** and its view log is gone. An expired link answers **410** "This link has expired" (`src/app/api/share/[token]/route.ts:46-49`).
+- Public surface: `/share/[token]` (a `"use client"` page, `src/app/share/[token]/page.tsx:1`) fetches `GET /api/share/[token]` and renders. Both paths are public by prefix (`src/lib/route-access.ts:63`). **No `noindex`** (the only `robots` setting in the app is the LP layout, `src/app/lp/layout.tsx:10`), **no `Referrer-Policy`** (`next.config.js` has no `headers()`), **no rate limit** on `/api/share/*` (the full list of `checkRateLimit` callers has none there).
+- The email prompt is **cosmetic**: the page loads the full payload first (`page.tsx:102-109`) and only then shows the email gate (`:111-125`); `POST /api/share/[token]/view` records any syntactically valid email with no throttle (`view/route.ts:13-40`). (F127)
+- Update bodies are rendered with `dangerouslySetInnerHTML={{ __html: update.body }}` on the public page (`page.tsx:400`), and `PATCH /api/updates/[id]` stores `body` as given (`src/app/api/updates/[id]/route.ts:161`). (F125)
+- No per-item "exclude from share" flag exists; the equivalent is **per-link selection** of which updates a link carries (`ShareableLinkUpdate`).
+
+**Editing = TipTap rich text plus company notes with a revision log.**
+- `RichEditor` (`src/components/ui/rich-editor.tsx:83-100`) is TipTap with StarterKit (h2/h3), Underline, Image, Link, TextAlign, Indent, Placeholder and the fund-snapshot node. It stores **HTML**. There is **no table extension** in `package.json` and **no markdown** import or export anywhere in `src/`. It cannot carry markdown tables.
+- Company notes (`CompanyNote` / `CompanyNoteRevision`, `schema.prisma:353-384`): every `PATCH` appends a full-copy revision with `editedById` (`src/app/api/companies/[id]/notes/[noteId]/route.ts:34-50`); `GET …/revisions` lists them (`revisions/route.ts:20-24`); `note-history-dialog.tsx:26` shows a word diff via `require("diff")`. **No restore**, and **no concurrency check**: the update is unconditional, last write wins (`[noteId]/route.ts:34`). (F130)
+- Optimistic concurrency exists in one place only: the Marge write tools compare `expectedUpdatedAt` at plan and at apply (`src/lib/marge-tools/write.ts:145`, sentence `STALE` at `:44`).
+- Sanitising: `sanitizeBroadcastHtml` (`src/lib/broadcast-html.ts:47-83`) is a hand-written allowlist (no tables) with an exported `safeUrl` (`:30-35`) that allows only http(s) and mailto. `sanitizeDigestHtml` allows only `<p>`/`<br>` (`src/lib/digest-html.ts:18-20`).
+
+**Export.** There is **no PDF generator**. `src/lib/pdf.ts:4-8` builds print-ready HTML and relies on the browser's Print → Save as PDF; the LP portal does the same with a print stylesheet (`src/app/globals.css:414-440`, scope class in `src/app/lp/layout.tsx:23`). No Markdown download exists anywhere.
+
+**Identity, roles, companies.**
+- Roles are `FOUNDER | ADMIN` only (`schema.prisma:12-15`), status `PENDING | APPROVED | REJECTED` (`:17-21`). There is **no admin tier above "admin"**: every approved admin has the same rights. `requireAdmin()` = approved + `ADMIN` (`src/lib/auth-guard.ts:9-33`).
+- Marge's asserted person resolves to a Molly `User` on every call (`resolvePrincipal`, `src/lib/marge-auth.ts:77-91`): `ADMIN` + `APPROVED`, returning `{ id, email, name }` with `name` nullable. **A memo owner maps cleanly to `User.id`**, for the web and for Marge.
+- Two company models: `Company` (operational; `stage` `"DILIGENCE" | "ACTIVE"`, `aliases String[]`; `schema.prisma:85-133`) and `PortfolioCompany` (deal ledger; optional `companyId` link; `:748-766`). Marge's company lookups use `approvedCompanyFilter`, which **excludes DILIGENCE companies** (`src/lib/company-filters.ts:10-15`; `src/lib/marge-tools/read.ts:96`, `:142`). Name matching for suggestions exists as the pure `normalizeCompanyName` (`src/lib/portco-match.ts:98`).
+- **No reusable "source" options**: every `source` column is a provenance enum (`WeeklyDigest.source` `MANUAL|GRANOLA`, `schema.prisma:399`; `BoardCard.source`, `:529`; rounds and marks, `:914`, `:932`). **No tag model** anywhere; the precedent for a string list is `Company.aliases`.
+- Precedent for ordered sections as JSON: `WeeklyDigest.sections Json` (`schema.prisma:392`). Precedent for an idempotency key: `BoardCard.sourceKey @unique` (`:531`). No singleton-row precedent; `UpdateTemplate` is a multi-row admin template list (`:646-659`).
+
+**Marge transport limits.** The MCP route refuses bodies over **64,000 characters** before verifying the signature (`src/app/api/mcp/marge/route.ts:12`, `:32`), and the handler has the same `maxRequestBodySize: 64_000` (`src/lib/marge-tools/server.ts:235`). The tier map is pinned to 13 names by `marge-read-tools.test.ts:54-60`, and `tools/list` is asserted to equal it (`marge-mcp-route.test.ts:161-165`). The `write` tier allows dry runs and applies in team channels (`server.ts:177-182`). (F128)
+
+**Dependencies:** no markdown library. `diff` is used once, via `require` (`note-history-dialog.tsx:26`). A scratch check on 2026-10-20 (not the working tree): `markdown-it@14.3.3` (MIT, 7 small transitive packages, all MIT) with `html: false` renders GFM tables and strikethrough, escapes `<script>` and `<img onerror>` to text, and with a custom `validateLink` leaves `javascript:` and `data:` links as plain text.
+
+---
+
+## Findings
+
+## F125 — Founder-written update HTML is rendered unsanitised on the public share page (MEDIUM; pre-existing; WS130 if approved)
+
+`PATCH /api/updates/[id]` stores `body` as sent (`route.ts:161`); the editor is not the only client, so a founder (an external user) can store any HTML with a direct request. `/share/[token]` renders it raw (`page.tsx:400`), as do `src/app/updates/[id]/page.tsx:606` and the admin views. The share page runs on `molly.dfs.vc`, the same origin as the admin app, so a script there runs with the viewer's Molly session if an admin opens the link. Part 26 treated update bodies as "trusted TipTap markup"; that holds only for the editor path. Memo share pages will live on the same origin, so this matters to this Part. Fix: render through an allowlist sanitizer (the `sanitizeBroadcastHtml` pattern plus the update editor's tags). Not memo work; proposed as optional WS130.
+
+## F126 — Investor Links miss several of the brief's link requirements (LOW; recorded)
+
+Plain-text tokens readable by every admin (`api/links/route.ts:12-15`, `:81`); revoke is a hard delete (404, view log lost); no `noindex`, no `Referrer-Policy`, no rate limit on `/api/share/*` or the view logger. Hashing **existing** tokens would break "Copy link" on `/admin/links` and `/links` (a UX regression), so this Part does **not** hash old links. The invisible fixes (headers, rate limit) are in WS128.5 and WS130.
+
+## F127 — The share-page email gate is a courtesy prompt, not access control (LOW, informational)
+
+The payload is already in the browser before the gate shows (`page.tsx:102-125`), and the view logger accepts any email without a limit. Fine for a "who viewed" hint; it must not be described as protection.
+
+## F128 — Marge's 64,000-character request cap cannot carry a full memo (design constraint for this Part)
+
+The brief allows 150,000 characters per memo, and `memo_create` sends the whole memo in one call (twice: dry run, then apply). The route and handler caps (`route.ts:12`, `server.ts:235`) must rise for this to work (JC-MM-F). The existing 13 tools are unaffected: the check is a size ceiling, not tool logic.
+
+## F129 — ROADMAP says the Marge connection is "PLANNED, not built", but WS119–WS123 are committed (docs drift)
+
+`ROADMAP.md:3` and `:182` still read "PLANNED"; commits `e52be6f`, `0d5dac3`, `2b9e523` hold WS121–WS123. Whether they are deployed and turned on is not verifiable from the repo. The owner should update the Part 39 roadmap entry once WS124 runs.
+
+## F130 — Company-note edits are last-write-wins, and revisions can be viewed but not restored (LOW, informational)
+
+`[noteId]/route.ts:34` updates unconditionally. Memos get a version check and restore (WS126); notes are unchanged.
+
+---
+
+## Design in one paragraph
+
+A memo is a `Memo` row (owner, company or pending company name, status, visibility, metadata) with ordered `MemoSection` rows of GitHub-flavoured markdown and citations. Each section save is guarded by an integer `version` and writes a `MemoSectionRevision`. Markdown is rendered on the server by one pure function (`markdown-it` with raw HTML off, images off, only http(s)/mailto links) followed by a table-aware allowlist sanitizer; the same function feeds the app page, the share page, print and Markdown export. Memos are private to their owner until the owner shares them with the team; all reads go through one `memoVisibleWhere(userId)` helper used by pages, API routes and Marge alike. External sharing **reuses `ShareableLink`, its view log, its expiry options and the `/share` public namespace**, with three additive columns (`memoId`, `tokenHash`, `revokedAt`): memo tokens are stored only as SHA-256 hashes and shown once, revoked or expired links answer 410, and the public page `/share/m/[token]` is server-rendered with `noindex`, `no-referrer`, no-store and a rate limit, showing only that memo's shareable sections with internal citation URLs removed. Marge gets six tools behind the existing gate (`runTool`): `memo_template_get`, `memo_list`, `memo_get`, and the confirmed writes `memo_create`, `memo_update_section`, `memo_link_company`. They live in a separate tier map and are hidden unless `MARGE_MEMO_TOOLS=on`, so the 13 existing tools and their tests are untouched. Marge cannot change visibility, status or share links.
+
+---
+
+## Reuse versus new (explicit)
+
+| Need | Reused as is | Reused with an additive change | New |
+|---|---|---|---|
+| Owner, approved-admin check | `User`, `requireAdmin()`, `resolvePrincipal` | | |
+| Share links | `ShareableLink` table, `ShareableLinkView` log and the email prompt, `EXPIRY_OPTIONS` list (`admin/links/page.tsx:15-21`), the `/share` public prefix | `ShareableLink`: `memoId`, `tokenHash`, `revokedAt`; `token` nullable; `GET /api/links` filters `memoId: null` | `/share/m/[token]` page; share panel on the memo page |
+| Revisions | `CompanyNoteRevision` shape (full copy + `editedById`), the history dialog layout and `diffWords` | | `MemoSectionRevision`, restore action |
+| Concurrency | the Marge `STALE` sentence style and 409 pattern | | integer `version` per section and per memo |
+| Editor | `Textarea`, `TabBar` (Write / Preview), `Sheet`, `Card`, `PageHeader`, `AppShell`, `EmptyState`, `Badge`, `DataTable` | | section editor component (TipTap is **not** used: it stores HTML and has no tables) |
+| Rendering and safety | `safeUrl` (`broadcast-html.ts:30`) | | `markdown-it` dependency (free), `src/lib/memo-render.ts` with its own table-aware allowlist |
+| Print / PDF | the browser print approach (`pdf.ts`, `globals.css:414`) | | `.memo-print-scope` stylesheet block |
+| Companies | `Company`, `normalizeCompanyName`, `Company.aliases` | | "Link to company" action and on-read suggestion |
+| Rate limits, audit | `checkRateLimit`, `clientIp`, `logAdminAction`, `/admin/audit` "Via Marge" filter | | new `MEMO_*` action names |
+| Marge | `runTool`, assertions, `argsHash`, `claimJti`, `MargePreview`, `ToolError`, `mollyOrigin()` | `Tier` gains `dm_write`; `MargePreview.action` gains three strings; route cap rises; route's audit tool-name check includes memo names | `src/lib/marge-tools/memos.ts`, `MARGE_MEMO_TOOLS` map and flag |
+
+---
+
+## Technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-MM-A** | Sections are rows (`MemoSection`), not a JSON array on `Memo`, so each has its own `version` and two people editing different sections never conflict. Memo metadata has its own `version`. | One JSON column with a memo-level version (more false conflicts) |
+| **JC-MM-B** | Reuse `ShareableLink` for memo links: `token` becomes nullable (memo links never store it), `tokenHash @unique` holds `sha256(token)`, `revokedAt` soft-revokes memo links so they answer 410 and keep their view log. Investor links are unchanged (plain token, hard delete). | Sibling `MemoShareLink` table; nothing outside WS128 changes |
+| **JC-MM-C** | Markdown via `markdown-it` (`html: false`, `linkify: true`, images disabled, `validateLink` = http/https/mailto), then a memo allowlist sanitizer as defence in depth. Headings in section text are shifted to h3/h4 (the section title is the h2). Links get `target="_blank" rel="noopener noreferrer nofollow"`. Rendering happens on the server; the editor preview calls a preview route, so the client bundle does not grow. | Swap the renderer inside `memo-render.ts`; or allow images later |
+| **JC-MM-D** | "Internal URL" rule for share surfaces: a citation shows its URL only if `kind === "web"` and its host is not in `INTERNAL_HOSTS` (`molly.dfs.vc`, `granola.ai`, `notion.so`, `notion.site`, `docs.google.com`, `drive.google.com`, `slack.com`, `*.slack.com`). Links **inside section text** to those hosts lose their `href` on share surfaces (text kept). | Edit one constant |
+| **JC-MM-E** | Limits: 20,000 characters per section text, 150,000 per memo (all section text), at most 30 sections, 20 citations per section, citation label ≤ 200, URL ≤ 2,000, title ≤ 200, tags ≤ 20 of ≤ 40 characters, intro calls ≤ 20. Enforced in one `validateMemoInput` used by the web routes and Marge. | Change constants in `src/lib/memos.ts` |
+| **JC-MM-F** | Raise the Marge route and handler cap from 64,000 to **400,000** characters (`route.ts:12`, `server.ts:235`). The check stays before signature verification; Vercel's own 4.5 MB ceiling still applies. Test 413 at 400,001. | Back to 64,000 and require Marge to create a memo with fewer sections and fill the rest with `memo_update_section` |
+| **JC-MM-G** | Memo tools sit in their own map, `MARGE_MEMO_TOOLS`, and are registered only when `MARGE_MEMO_TOOLS=on`. `MARGE_TOOLS` and its tests stay byte-identical; with the flag off `tools/list` is exactly today's 13. | Merge the maps once memos have settled |
+| **JC-MM-H** | Idempotency: `memo_create` requires `idempotencyKey`; Molly stores `createKey = sha256(ownerId + ":" + key)` (unique). A repeat apply returns the existing memo, marked `duplicate: true`; a dry run with a used key previews with the warning "Already created as “…”". | Make the key optional |
+| **JC-MM-I** | No zod `.default()` on any memo tool input except `dryRun`, so Marge's `argsHash` equals Molly's (Part 39 rule, `write.ts:52-53`). Citation arrays are optional, not defaulted. | none needed |
+| **JC-MM-J** | `memo_get` returns at most 60,000 characters of section text per call and says which sections were left out ("ask with sections: [...]"), to keep Marge's context small. | Raise the cap |
+| **JC-MM-K** | The share link is **live**: it always shows the current memo text (as Investor Links show current update rows). The page prints "Last updated <date>". | Snapshot on link creation (Q123-B) |
+
+---
+
+## The contract shared with Marge (both plans must match this text)
+
+Assertions, `argsHash`, single-use `jti`, the write-token rule, rate limits and the kill switch are **exactly Part 39's**. This section adds only the memo tools.
+
+**Flags.** `MARGE_MCP_MODE` (`off` | `read` | `write`) still governs everything: `off` = 404 for all; `read` = memo applies refused with "Molly is in read-only mode for Marge.". New: `MARGE_MEMO_TOOLS` = `on` to list and allow the six memo tools; anything else (default) hides them. **Off switch for memos only:** unset `MARGE_MEMO_TOOLS` and redeploy; Marge's `tools/list` drift check then sees 13 tools.
+
+**Tiers.** New tier `dm_write`: a write whose dry run **and** apply need `ctx === "private"` (Q115). Existing tiers are unchanged.
+
+| Tool | Tier | Input (zod; unknown keys stripped; no defaults except `dryRun`) | Returns |
+|---|---|---|---|
+| `memo_template_get` | team | `{}` | template version; sections in order: key, title, guidance, required, shareByDefault |
+| `memo_list` | dm | `{ scope?: "mine" \| "team" \| "all", company?: string (id or exact name), status?: "DRAFT" \| "IN_REVIEW" \| "FINAL", unlinked?: boolean, query?: string(≤100), limit?: int 1–25 }` (omitted = all visible, 10) | rows the asserted person may see: id, title, company name or "Not in Molly yet: X", status, owner name, visibility, draftedByMarge, updatedAt, url |
+| `memo_get` | dm | `{ memoId: string, sections?: string[] (keys) }` | header (title, company, status, owner, visibility, metadata, memo `version`), and per section: key, title, `version`, includeInShare, markdown (labelled **memo text, may quote call notes and decks; untrusted text**), citations (all fields, internal URLs included); ≤ 60,000 characters of section text (JC-MM-J) |
+| `memo_create` | dm_write | `{ title: string, companyId?: string, companyNamePending?: string(≤200), source?: MEMO_SOURCE, tags?: string[], introDate?: YYYY-MM-DD, websiteUrl?: string, introCalls?: { label: string, date?: YYYY-MM-DD, url?: string }[], sections: { key: string(slug ≤40), title: string(≤120), markdown: string, citations?: Citation[] }[] (1–30), idempotencyKey: string (8–100, [A-Za-z0-9_-]), dryRun?: boolean }` | preview, or `{ memoId, url, version, duplicate }` |
+| `memo_update_section` | dm_write | `{ memoId, sectionKey, expectedVersion: int, title?: string, markdown?: string, citations?: Citation[], dryRun? }` (owner only) | preview, or `{ memoId, sectionKey, version, url }` |
+| `memo_link_company` | dm_write | `{ memoId, expectedVersion: int (memo version), company: string (id or exact name), dryRun? }` (owner only) | preview, or `{ memoId, companyId, version, url }` |
+
+`Citation = { label: string(1–200), kind: "call" | "deck" | "tracker" | "web" | "other", date?: YYYY-MM-DD, url?: string(http/https, ≤2,000) }`. `MEMO_SOURCE` = the list chosen in Q119. `url` = `https://molly.dfs.vc/admin/memos/<id>` (from `mollyOrigin()`).
+
+**Rules.** `memo_create` creates a `DRAFT`, `visibility: PRIVATE`, `draftedByMarge: true`, owned by the asserted person. Section keys must be unique; unknown keys (not in the template) are allowed and kept in the given order. Missing required template sections are a preview **warning**, not an error. Company lookup for `memo_link_company` and the `companyNamePending` suggestion covers `Company` rows in **both** stages (DILIGENCE and ACTIVE), excluding companies whose founder signup is still pending. **Not exposed, by design:** visibility, status, share links (create, revoke, list), archive, delete, template edits, restore, section add/remove/reorder, metadata edits after creation.
+
+**Previews** (`MargePreview`, `action` gains `"Create memo" | "Edit memo section" | "Link memo to company"`):
+- Create memo: Title; Company (or "Not in Molly yet: Acme"); Owner "you"; Sections ("1. Open Questions · 1,240 characters · 3 citations", …); Citations (total); Status "Draft"; Visibility "Private to you". Warnings: "Private to you until you share it in Molly."; "Missing required sections: Team, Key Risks."; "Acme looks like it is already in Molly. Link it to keep things together." (with the id in `structured`).
+- Edit memo section: target "<memo title> — <section title>"; Section title before → after; Text (first 1,500 characters) with length before → after; Citations count before → after; `expectedVersion` echoed. Warning: "Replaces the whole section text (2,310 characters)."
+- Link memo to company: Company "Not in Molly yet: Acme" → "Acme".
+
+**Error sentences** (MCP tool errors, one sentence each):
+| Case | Sentence |
+|---|---|
+| memo not visible to the person, or unknown | "No memo with that id." |
+| archived | "That memo is archived." |
+| not the owner (update, link) | "Only the memo's owner can change it from Slack." |
+| stale section | "This section changed since I showed it to you. Ask me again." |
+| stale memo (link) | "This memo changed since I showed it to you. Ask me again." |
+| unknown section key | "No section “x” in this memo. Sections: open-questions, company-overview, …" |
+| duplicate keys | "Each section needs a different key." |
+| section too long | "A section is limited to 20,000 characters." |
+| memo too long | "A memo is limited to 150,000 characters in total." |
+| too many sections / citations | "A memo can have at most 30 sections." / "A section can have at most 20 citations." |
+| title | "A title of 1-200 characters is required." |
+| both company fields given | "Give either a company or a pending company name, not both." |
+| unknown `companyId` | "No company with that id in Molly. Use companyNamePending for a company that isn't in Molly yet." |
+| company name unknown / ambiguous (link) | "No company called “Acme”. Closest: …" / "“Acme” matches 2 companies: …. Use the id." |
+| already linked | "This memo is already linked to Acme." |
+| bad URL | "Links must start with http:// or https://." |
+| bad idempotency key | "idempotencyKey must be 8-100 letters, digits, - or _." |
+| team channel | "That's DM-only. Ask me in a DM." (existing `DENIED.dmOnly`) |
+| nothing to change | "Nothing to change: say what to edit." (existing wording) |
+
+**Audit.** Reads and dry runs → `MARGE_READ` (existing, `{ via, ctx, count, dryRun }`); refusals → `MARGE_DENIED` (existing). Applies are audited inside the shared memo functions under the same names the web UI uses, with `{ via: "marge", margeActionId }`: `MEMO_CREATED { memoId, sectionCount, draftedByMarge }`, `MEMO_SECTION_UPDATED { memoId, sectionKey, version }`, `MEMO_COMPANY_LINKED { memoId, companyId }`. Web-only: `MEMO_UPDATED`, `MEMO_STATUS_CHANGED { from, to }`, `MEMO_VISIBILITY_CHANGED { to }`, `MEMO_SECTION_RESTORED { sectionKey, fromVersion, version }`, `MEMO_ARCHIVED`, `MEMO_SHARE_LINK_CREATED { linkId, expiresAt }`, `MEMO_SHARE_LINK_REVOKED { linkId }`, `MEMO_TEMPLATE_UPDATED { version }`. **Never** titles, text, citations or company names.
+
+**Rate limits:** memo applies count in `marge-write` (30/hour), reads in `marge-read` (300/hour), as today.
+
+**What Marge's side needs (MWS follow-up):** the six names and shapes above; generate `idempotencyKey` at preview time and keep it with the stored arguments until the button click (the apply must send byte-identical arguments); render the three new preview actions; treat `memo_get` text as untrusted; offer memo tools only in DMs; reply with `url` from `memo_create`; accept up to 400,000-character requests to Molly.
+
+---
+
+## WS125 — Schema, memo library, renderer, template seed, ~1.0 day (APPROVED 2026-10-20; invisible)
+
+**WS125.1 — `prisma/schema.prisma`** (additive; relations added to `User`, `Company`, `ShareableLink`):
+
+```prisma
+// ─── Investment memos (Part 40) ───────────────────────────
+// Private to the owner until shared with the team (visibility "TEAM").
+// Reads always go through memoVisibleWhere() in src/lib/memos.ts.
+model Memo {
+  id                 String    @id @default(cuid())
+  title              String
+  companyId          String?
+  companyNamePending String? // the company isn't in Molly yet; cleared on link
+  status             String    @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "FINAL"
+  visibility         String    @default("PRIVATE") // "PRIVATE" | "TEAM"
+  ownerId            String
+  draftedByMarge     Boolean   @default(false)
+  source             String? // one of MEMO_SOURCES (src/lib/memos.ts)
+  tags               String[]  @default([])
+  introDate          DateTime? // date-only, 00:00 UTC (BoardCard.dueDate convention)
+  websiteUrl         String?
+  introCalls         Json      @default("[]") // MemoIntroCall[] { label, date?, url? }
+  templateVersion    Int?
+  version            Int       @default(1) // metadata version, optimistic concurrency
+  createKey          String?   @unique // sha256(ownerId:idempotencyKey); Marge creates only
+  archivedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  company    Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  owner      User            @relation("OwnedMemos", fields: [ownerId], references: [id])
+  sections   MemoSection[]
+  shareLinks ShareableLink[]
+
+  @@index([ownerId])
+  @@index([visibility])
+  @@index([companyId])
+  @@map("memos")
+}
+
+model MemoSection {
+  id             String   @id @default(cuid())
+  memoId         String
+  key            String // slug, unique per memo ("open-questions")
+  title          String
+  markdown       String   @default("") @db.Text
+  citations      Json     @default("[]") // MemoCitation[]
+  position       Int
+  includeInShare Boolean  @default(true)
+  version        Int      @default(1)
+  updatedById    String?
+  updatedVia     String? // "marge" | null
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  memo      Memo                  @relation(fields: [memoId], references: [id], onDelete: Cascade)
+  revisions MemoSectionRevision[]
+
+  @@unique([memoId, key])
+  @@index([memoId, position])
+  @@map("memo_sections")
+}
+
+// Full copy per save, like CompanyNoteRevision. Restore = a new save of an old copy.
+model MemoSectionRevision {
+  id             String   @id @default(cuid())
+  sectionId      String
+  version        Int
+  title          String
+  markdown       String   @db.Text
+  citations      Json
+  includeInShare Boolean
+  editedById     String
+  via            String? // "marge" | null
+  restoredFrom   Int? // version restored, when this save was a restore
+  createdAt      DateTime @default(now())
+
+  section  MemoSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  editedBy User        @relation("MemoRevisions", fields: [editedById], references: [id])
+
+  @@unique([sectionId, version])
+  @@map("memo_section_revisions")
+}
+
+// Versioned singleton: the current template is the row with the highest version.
+model MemoTemplate {
+  id          String   @id @default(cuid())
+  version     Int      @unique
+  sections    Json // MemoTemplateSection[] { key, title, guidance, required, shareByDefault }
+  createdById String? // null for the seed
+  createdAt   DateTime @default(now())
+
+  @@map("memo_templates")
+}
+```
+
+`ShareableLink` changes: `token String? @unique // investor links only; memo links never store their token`, plus `tokenHash String? @unique`, `memoId String?`, `revokedAt DateTime?`, `memo Memo? @relation(fields: [memoId], references: [id], onDelete: Cascade)`, `@@index([memoId])`. Fix the TypeScript fallout of the nullable `token` in `admin/links/page.tsx`, `links/page.tsx` and the share routes (investor links always have a token; assert it).
+
+**WS125.2 — `src/lib/memos.ts`** (new, pure where possible): `MEMO_STATUSES`, `MEMO_SOURCES`, `CITATION_KINDS`, the JC-MM-E limits, types, `validateMemoInput()` and `validateSectionInput()` returning `{ ok: false, error }` with the sentences in the contract, `slugifyKey()`, and:
+
+```ts
+// Part 40. The only definition of "who can read a memo". Pages, API routes and Marge all use it.
+export function memoVisibleWhere(userId: string): Prisma.MemoWhereInput {
+  return { archivedAt: null, OR: [{ ownerId: userId }, { visibility: "TEAM" }] };
+}
+export function canEditMemo(memo: { ownerId: string; visibility: string }, userId: string): boolean {
+  return memo.ownerId === userId || memo.visibility === "TEAM"; // Q116-A; owner-only if Q116-B
+}
+export const canManageMemo = (memo: { ownerId: string }, userId: string) => memo.ownerId === userId; // visibility, links, archive (Q117)
+```
+
+**WS125.3 — `src/lib/memo-render.ts`** (new): `renderMemoMarkdown(src, { surface: "app" | "share" })` per JC-MM-C and JC-MM-D, `sanitizeMemoHtml(html)` (own allowlist: `p br strong em s code pre blockquote h3 h4 ul ol li hr a table thead tbody tr th td`; only `href` via `safeUrl`, and `style="text-align: left|center|right"` on `th`/`td`), `shareableCitations(citations)` (drops URLs per JC-MM-D). `broadcast-html.ts` is not modified.
+
+**WS125.4 — `src/lib/memo-template.ts`** (new): `currentTemplate()` (highest version, or the built-in default if the table is empty) and `DEFAULT_MEMO_TEMPLATE` with the house format, in order: Open Questions, Company Overview, Product, Market Opportunity, Traction, Business Model, Go-to-Market / Hook, Competition / Status Quo, Team, Round / Investment Terms, Key Risks, Exit opportunities. Guidance text per section includes the brief's rules (separate headline TAM or traction from the underwritable near-term reality and never underwrite on the biggest number; attribute claims to source and date; use tables for TAM and competitor comparisons). `shareByDefault` false for Open Questions only (Q122). The "Drafted with Marge" line is rendered by pages, never stored.
+
+**WS125.5 — `package.json`:** add `"markdown-it": "^14.3.3"` and `"@types/markdown-it"` (dev). Free, MIT.
+
+**Tests:** `memo-render.test.ts` (XSS corpus: `<script>`, `<img onerror>`, `<a href="javascript:">`, `[x](javascript:…)`, `[x](data:…)`, `<iframe>`, HTML entities that decode to `javascript:`, `<style>`, attribute injection through table alignment; tables render; images become text; share surface strips internal-host hrefs; heading shift); `memos.test.ts` (limits with exact sentences, slug rules, `memoVisibleWhere` shape, `canEditMemo`/`canManageMemo`).
+
+**Acceptance:** schema pushes without data-loss prompts; all tests green, no existing test edited. **UX impact:** none. **Cost impact:** none (one free package).
+
+---
+
+## WS126 — Shared memo functions and web API, ~1.0 day (APPROVED 2026-10-20; invisible until WS127)
+
+**WS126.1 — `src/lib/memo-actions.ts`** (new; the WS119 pattern, `ActionResult<T>`, optional `Via`): `createMemo`, `updateMemoMeta` (expects `version`), `setMemoStatus`, `setMemoVisibility` (owner only), `saveSection` (expects section `version`; conditional `updateMany({ where: { id, version: expected }, data: { …, version: { increment: 1 } } })`, count 0 → 409; then writes the revision in the same transaction), `restoreSection(sectionId, fromVersion, expectedVersion)`, `addSection` / `removeSection` / `reorderSections` (web only), `linkCompany` (expects memo `version`; clears `companyNamePending`), `archiveMemo`. Every function enforces `memoVisibleWhere` first (not visible → 404 "Memo not found"), then `canEditMemo` or `canManageMemo` (403 "Only the memo's owner can do that."), then limits, then writes and audits.
+
+**WS126.2 — routes** under `src/app/api/admin/memos/` (all `requireAdmin()`, `request.json().catch(() => null)`, try/catch 500, as the board routes do): `route.ts` (GET list with filters `scope`, `companyId`, `status`, `unlinked`, `q`; POST create from template), `[id]/route.ts` (GET, PATCH meta/status/visibility, DELETE = archive), `[id]/sections/route.ts` (POST add, PATCH reorder), `[id]/sections/[key]/route.ts` (PATCH save, DELETE), `[id]/sections/[key]/revisions/route.ts` (GET list, POST restore), `[id]/link-company/route.ts`, `[id]/company-suggestion/route.ts` (GET: `normalizeCompanyName` of `companyNamePending` against `Company.name` and `aliases`, both stages; returns at most one strong match), `preview/route.ts` (POST markdown → sanitized HTML, ≤ 20,000 characters), `template/route.ts` (GET current, PUT new version).
+
+**Tests:** visibility matrix on every route (owner; other approved admin gets 404 for a private memo on GET, list, sections, revisions; team memo readable; `FOUNDER` and `PENDING` get 401/403 from `requireAdmin`); stale save → 409 and no revision row; restore creates version n+1 with `restoredFrom`; limits; audit metadata contains no title or text (canary string).
+
+**Acceptance:** green; no UI yet. **UX impact:** none. **Cost impact:** none.
+
+---
+
+## WS127 — Memo pages in the admin app, ~1.75 days (APPROVED 2026-10-20)
+
+- **Nav:** `src/lib/admin-nav.ts`, "Company Operations": `{ label: "Memos", href: "/admin/memos", goto: "m", keywords: ["investment memo", "ic", "notion"] }` (`m` is unused today).
+- **`/admin/memos`** (list): `PageHeader` with "New memo"; `TabBar` Mine / Shared with team / All I can see; filters Company (combobox), Status, "Not linked to a company"; `DataTable` rows: title, company or "Not in Molly yet: Acme" in muted text, status `Badge`, owner, visibility, "Drafted by Marge" badge, updated. `EmptyState` when none.
+- **`/admin/memos/new`**: title, company (combobox over both stages) or "Company isn't in Molly yet" text field; creates from the current template.
+- **`/admin/memos/[id]`** (server page; `notFound()` unless visible): header (title, company link or pending name with "Link to company" and the suggestion banner "Acme is now in Molly. Link it?", status select, owner, visibility badge, "Drafted by Marge for <owner name or email>" when `draftedByMarge`), metadata card (source, tags, intro date, website, intro calls), sticky table of contents, then sections: `h2` title, rendered HTML in `prose prose-sm`, citation chips (label · date; link icon when it has a URL), "Not in share links" muted tag when `includeInShare` is false. Per section: Edit (Write / Preview tabs on a `Textarea`, citation rows editor, "Include in share links" toggle, Save with `expectedVersion`), History (dialog in the `note-history-dialog` style: who, when, "via Marge", word diff, Restore). A 409 shows "Someone else saved this section while you were editing. Copy your text, then reload." with Copy and Reload buttons; the textarea keeps the user's text.
+- **Share panel** (`Sheet`, owner only; others see read-only state): "Share with team" toggle; share links list (label, created, expiry, views, Revoke); "New link" with label and `EXPIRY_OPTIONS`; on create the full URL is shown once with Copy and the line "Molly stores only a fingerprint of this link, so copy it now." (Q120).
+- **Export:** "Print or save as PDF" (`window.print()`, page wrapped in `.memo-print-scope`). No Markdown download (owner, 2026-10-20).
+- **`/admin/memos/template`**: ordered rows (key, title, guidance, required, include in share links by default), add/remove/reorder, Save → new version; banner "Changes apply to new memos only."
+- **`globals.css`:** a `.memo-print-scope` print block modelled on `.lp-print-scope` (hide chrome, edit controls and the TOC; avoid breaks inside tables; print the "Drafted with Marge" line).
+
+Design system: existing tokens and components only (`Card`, `Badge`, `Button`, `Sheet`, `Dialog`, `TabBar`, `Textarea`, `Input`, `Select`, `EmptyState`, `PageSkeleton`); Nisat can review the memo page layout before build if the owner wants.
+
+**Acceptance:** owner and team flows click through; stale save shows the conflict state; restore works; print preview shows only the memo. **UX impact:** one new nav item and pages for admins; nothing changes for founders, LPs or investor-link recipients. **Cost impact:** none.
+
+---
+
+## WS128 — Memo share links, public page, headers, ~1.25 days (APPROVED 2026-10-20)
+
+**WS128.1 — create and revoke** (`src/app/api/admin/memos/[id]/links/route.ts`, `[linkId]/route.ts`; owner only): token = `crypto.randomBytes(32).toString("base64url")`; store `tokenHash = sha256(token)`, `token: null`, `memoId`, `label`, `expiresAt`, `createdById`; return the URL once. Revoke sets `revokedAt` (never deletes). List returns no token or hash.
+
+**WS128.2 — keep memo links out of Investor Links:** `GET /api/links` adds `memoId: null` to its `where` (`route.ts:12-15`); `GET /api/share/[token]` and its `view`/`doc` routes add `memoId: null` to their lookups (memo links have no `token`, so they could not match anyway; this is belt and braces).
+
+**WS128.3 — `/share/m/[token]/page.tsx`** (server component, `dynamic = "force-dynamic"`, `export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" }`): `checkRateLimit("memo-share", clientIp, 120)` (per hour; over → a plain "Too many requests" page with 429), look up by `tokenHash`; unknown → `notFound()` (404); `revokedAt` set or memo archived → 410 "This link was turned off by the sender."; expired → 410 "This link has expired." (status set via a route-segment response; if the App Router cannot set 410 from a page, serve the body from a route handler at the same path and render the HTML there; decide in WS128 step 0). Renders only: memo title, company name and website (no internal link), status, "Last updated", "Drafted with Marge" line, sections with `includeInShare` true rendered with `surface: "share"`, citation chips from `shareableCitations`, a footer "Shared from Molly · DFS". No nav, no other memo or company data, no edit controls, no owner email. Reuses the existing soft email prompt and `ShareableLinkView` log (Q121) via `POST /api/share/m/[token]/view` (rate-limited).
+
+**WS128.4 — (dropped 2026-10-20: no Markdown download.)**
+
+**WS128.5 — headers (`next.config.js` `headers()`):** for `/share/:path*` and `/api/share/:path*`: `X-Robots-Tag: noindex, nofollow`, `Referrer-Policy: no-referrer`, and for `/share/m/:path*` also `Cache-Control: no-store`. This also covers Investor Links (invisible to recipients).
+
+**Tests:** works with no session (route-access already public by prefix; add a test for `/share/m/x`); revoked → 410, expired → 410, unknown → 404; HTML contains no other memo's title, no `/admin/` href, no internal citation URL, no excluded section text (canary strings) in the page; the stored row has `token: null` and a 64-hex `tokenHash`, never the token; headers present; rate limit returns 429 at 121; `/api/links` never returns memo links.
+
+**Acceptance:** owner creates, opens in a private window, revokes, sees 410. **UX impact:** memo owners gain sharing; investor-link recipients get the same page plus invisible headers. **Cost impact:** none.
+
+---
+
+## WS129 — Marge memo tools, ~1.25 days (APPROVED 2026-10-20; invisible until `MARGE_MEMO_TOOLS=on`)
+
+- **`src/lib/marge-tools/tiers.ts`:** `Tier` gains `"dm_write"`; new `MARGE_MEMO_TOOLS = { memo_template_get: "team", memo_list: "dm", memo_get: "dm", memo_create: "dm_write", memo_update_section: "dm_write", memo_link_company: "dm_write" }`. `MARGE_TOOLS` unchanged.
+- **`src/lib/marge-tools/memos.ts`** (new): the six functions in the plan/apply shape of `write.ts`; plans read only; applies call WS126's `memo-actions.ts` with `via`; inputs per the contract table (JC-MM-I).
+- **`server.ts`:** `MEMO_TOOL_DEFS` appended to the registered list only when `margeMemoToolsEnabled()`; in `runTool`, `dm` checks become `def.tier === "dm" || def.tier === "dm_write"`, and `isApply` becomes `(def.tier === "write" || def.tier === "dm_write") && input.dryRun === false`. For the 13 existing tools both expressions evaluate exactly as before.
+- **`types.ts`:** `memoUrl(id)`; three new `MargePreview.action` strings.
+- **`route.ts` / `server.ts`:** cap 400,000 (JC-MM-F); the audit tool-name check accepts names in either map.
+- **`/admin/settings`:** the Marge row adds "Memo tools: On / Off".
+- **`.env.example`, README, SETUP:** document `MARGE_MEMO_TOOLS`.
+
+**Tests (`marge-memo-tools.test.ts`, plus additions to the route test):** token bound to exact args (change one character of one section → `not_confirmed`); dry run makes zero write calls on every model (Part 39 helper); idempotent `memo_create` (second apply with the same key → same `memoId`, `duplicate: true`, one row); stale `memo_update_section` → conflict sentence and no write; non-owner → refusal; private memo of another admin → "No memo with that id." from `memo_get` and absent from `memo_list`; `memo_*` in a team channel → "That's DM-only. Ask me in a DM." except `memo_template_get`; no tool or argument can change visibility, status or links (zod strips `visibility`, `status`, `shareLinks`; assert Prisma never receives them); flag off → `tools/list` equals today's 13 and a memo call is "tool not found"; 400,000-character body accepted, 400,001 → 413. **All existing Marge test files pass with zero edits.**
+
+**UX impact:** none in Molly; Marge users gain memo drafting once both flags are on. **Cost impact:** none (Marge's model usage is on the Marge side and already budgeted there).
+
+---
+
+## WS130 — Optional: investor-link hardening (F125, F126), ~0.5 day (APPROVED 2026-10-20, Q125-A)
+
+Sanitize update bodies on render (`/share/[token]`, `/updates/[id]`, admin update views) with an allowlist covering the update editor's tags; rate-limit `GET /api/share/[token]` (240/hour per IP) and `POST …/view` (30/hour per IP). No token hashing for existing links (would break Copy link). **UX impact:** none for honest content. **Cost impact:** none.
+
+## WS131 — Rollout, ~0.3 day (the owner runs every env and schema change)
+
+1. `db push` (additive) → deploy WS125–WS128 with `MARGE_MEMO_TOOLS` unset. 2. Seed check: `/admin/memos/template` shows the house format. 3. Owner creates a memo, shares with team, creates and revokes a link in a private window. 4. MWS memo follow-up ships in Marge with its flag off. 5. Set `MARGE_MEMO_TOOLS=on`, redeploy; in a Marge DM, "draft a memo for Acme from today's call" → preview → Confirm → link opens a private Draft with "Drafted by Marge for <you>"; `/admin/audit` "Via Marge" shows `MEMO_CREATED`. 6. Ask in a team channel → "That's DM-only. Ask me in a DM."
+
+---
+
+## Acceptance tests (the brief's list, mapped)
+
+| Brief item | Where |
+|---|---|
+| Visibility matrix (owner, other admin, team, unapproved; also through Marge) | WS126 tests, WS129 tests |
+| Share links: no login; revoked and expired fail; no other data; internal URLs hidden; excluded sections absent from HTML and print; token hashed; noindex and no-referrer | WS128 tests (print uses the same HTML as the page) |
+| Security: script and HTML neutralised in app and share page; oversized section or memo rejected | WS125 renderer corpus, WS126 and WS129 limit tests |
+| Marge: token bound; dry run writes nothing; idempotent create; stale update rejected; no visibility or link changes | WS129 tests |
+| Concurrency and revisions: stale save rejected, restore works | WS126 tests, WS127 click-through |
+| Existing Marge tool tests still pass | every WS: zero edits to existing test files |
+
+---
+
+## Open product decisions (the owner's call, each with a recommendation)
+
+| | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q115** | Where may Marge read and write memos? | **(A)** Template anywhere; list, get and all writes DM-only (new `dm_write` tier). **(B)** Writes allowed in team channels like board writes. | **(A).** Memos are private by default; a team-channel preview would show a private memo's headings, and an edit preview shows its text. |
+| **Q116** | Who may edit a memo shared with the team? | **(A)** Any approved admin edits sections (revisions show who); only the owner manages visibility, links and archive. **(B)** Owner only; the team reads. | **(A).** "Light edits by people" implies more than the owner; revisions and the version check make it safe. Marge edits stay owner-only either way, as the brief says. |
+| **Q117** | "Only the owner (or an admin) changes visibility": every reader is an admin, and Molly has no higher role | **(A)** Owner only; if an owner leaves, transfer ownership by SQL runbook (like F119). **(B)** Owner, or any admin for team-shared memos. | **(A).** (B) lets anyone un-share a teammate's memo. A "transfer ownership" control can follow. |
+| **Q118** | Which company record does a memo link to? | **(A)** `Company`, both DILIGENCE and ACTIVE (the deal ledger is reached through `Company.portfolioCompany`). **(B)** `PortfolioCompany`. | **(A).** Prospects enter Molly as DILIGENCE companies; ledger rows exist only after a deal. Note that Marge's existing `companies_find` hides DILIGENCE companies, so memo tools use their own lookup. |
+| **Q119** | Source options (none exist to reuse) | **(A)** Fixed list: Referral, Inbound, Outbound, Event, Portfolio founder, Co-investor, Program or accelerator, Other. **(B)** Free text. | **(A).** Filterable and consistent; the list is one constant. |
+| **Q120** | Memo share tokens stored only as a hash means the link is shown once | **(A)** Hash, show once, "create another link" if lost. **(B)** Store in plain text like Investor Links (copy any time). | **(A),** as the brief requires. Investor Links stay as they are. |
+| **Q121** | Email prompt on memo share links | **(A)** Same soft email prompt and view log as Investor Links. **(B)** No prompt; count views only. | **(A).** Recipients already know it, owners see who opened it; it is not a login. (B) is one flag. |
+| **Q122** | Leaving sections out of a link | **(A)** Per-section "Include in share links" toggle on the memo (brief), template default off for Open Questions only. **(B)** Pick sections per link, like Investor Links pick updates. | **(A),** default off for Open Questions. Investor Links' per-link selection is the nearest existing equivalent; (B) can be added later for "different sections for different co-investors". |
+| **Q123** | Do share links show live text or a snapshot? | **(A)** Live, with "Last updated". **(B)** Snapshot at link creation. | **(A),** matching Investor Links; edits after sharing are usually corrections. |
+| **Q124** | PDF | **(A)** Browser Print → Save as PDF with a print stylesheet (how Molly does it today). **(B)** Server-side PDF with headless Chromium (free packages, but a heavy function and slow cold starts). | **(A).** No new service and no heavy dependency. |
+| **Q125** | Investor-link hardening (F125, F126) | **(A)** Approve WS130 alongside this Part. **(B)** Later. | **(A)** for F125 at least: it is a stored-HTML issue on the same origin the memo share pages will use. |
+
+---
+
+## Part 40 sequencing, deploys and effort
+
+**Order:** WS125 (needs `db push` first) → WS126 → WS127 → WS128 → WS129 (flag off) → WS131. WS130 independent.
+
+| Workstream | Effort |
+|---|---|
+| WS125 | 1.0 |
+| WS126 | 1.0 |
+| WS127 | 1.75 |
+| WS128 | 1.25 |
+| WS129 | 1.25 |
+| WS131 | 0.3 |
+| **Total (Molly)** | **≈ 6.5 days** (+ 0.5 for optional WS130) |
+
+**New env vars:** `MARGE_MEMO_TOOLS` (`on` | unset). **New packages:** `markdown-it` (+ types). **Schema:** five additive models and four `ShareableLink` columns, `token` nullable. **New secrets:** none.
+
+**Do not touch in this Part:** the 13 Part 39 tools, `MARGE_TOOLS`, their tests; `broadcast-html.ts`; investor-link token storage; TipTap and the update editor; LP routes.
+
+## Part 40 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **Q115–Q125** | See the table above | **DECIDED 2026-10-20: all A (recommendations)** |
+| **JC-MM-A…K** | See the judgment-calls table | **APPROVED 2026-10-20** (owner signed off JC-MM-B and JC-MM-F explicitly) |
+| **F125** | Unsanitised update HTML on the public share page | WS130, approved |
+| **F126** | Investor Links gaps against the brief | Recorded; invisible fixes in WS128.5 / WS130 |
+| **F127** | Email gate is cosmetic | Recorded |
+| **F128** | Marge request cap below memo size | JC-MM-F |
+| **F129** | ROADMAP says Part 39 is planned; code is committed | Owner to update after WS124 |
+| **F130** | Notes: last write wins, no restore | Recorded |
+
+**Constraints honored:** **no new cost line** (one free package; existing Vercel, Neon and tables); **additive schema** (plus one non-destructive NOT NULL relaxation, flagged); **no UX regression** (one new nav item; Investor Links unchanged for founders and recipients apart from invisible headers); the 13 Marge tools unchanged.
+
+**Handoff status: APPROVED 2026-10-20. Ready for Alvin: WS125 → WS126 → WS127 → WS128 → WS129, plus WS130; WS131 rollout steps are the owner's.**
+
+---
