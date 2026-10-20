@@ -333,3 +333,8 @@ export function readIntroCalls(json: unknown): MemoIntroCall[] {
   const v = validateIntroCalls(Array.isArray(json) ? json.slice(0, MEMO_LIMITS.introCalls) : []);
   return v.ok ? v.value : [];
 }
+
+/** Companies a memo may link to: both stages (DILIGENCE and ACTIVE), but not a signup still pending approval (Q118-A). */
+export const memoCompanyFilter: Prisma.CompanyWhereInput = {
+  NOT: { createdBy: { status: "PENDING", approvalToken: null } },
+};
