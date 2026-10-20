@@ -17,7 +17,7 @@ export async function GET(
     const { token, docId } = await params;
 
     const link = await db.shareableLink.findUnique({
-      where: { token },
+      where: { token, memoId: null },
       select: {
         expiresAt: true,
         companies: { select: { companyId: true } },

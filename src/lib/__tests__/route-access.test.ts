@@ -207,3 +207,17 @@ describe("decideRoute — Marge MCP endpoint (Part 39, WS123)", () => {
     }
   });
 });
+
+describe("decideRoute — memo share pages (Part 40, WS128)", () => {
+  const anon = { isLoggedIn: false, roles: [] as string[] };
+  it("serves /share/m/<token> and its view API to an anonymous reader (public by the /share and /api/share prefixes)", () => {
+    for (const p of ["/share/m/x", "/share/m/abcdefghijklmnopqrstuvwxyz0123456789_-ABCDEF", "/api/share/m/x/view"]) {
+      expect(decideRoute(p, "", anon), p).toEqual({ type: "next" });
+    }
+  });
+  it("does not make the memo admin pages or admin API public", () => {
+    for (const p of ["/admin/memos", "/admin/memos/m1", "/admin/memos/template", "/api/admin/memos", "/api/admin/memos/m1/links"]) {
+      expect(decideRoute(p, "", anon), p).toMatchObject({ type: "redirect", to: "/login" });
+    }
+  });
+});

@@ -13,14 +13,8 @@ import { formatDate } from "@/lib/utils";
 import { useCompany } from "@/context/company-context";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { EXPIRY_OPTIONS } from "@/lib/expiry-options";
 
-const EXPIRY_OPTIONS = [
-  { label: "7 days", days: 7 },
-  { label: "30 days", days: 30 },
-  { label: "90 days", days: 90 },
-  { label: "1 year", days: 365 },
-  { label: "Never", days: null },
-];
 
 interface PublishedUpdate {
   id: string;

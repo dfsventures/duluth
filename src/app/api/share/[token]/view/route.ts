@@ -24,7 +24,7 @@ export async function POST(
       );
     }
 
-    const link = await db.shareableLink.findUnique({ where: { token } });
+    const link = await db.shareableLink.findUnique({ where: { token, memoId: null } });
     if (!link) {
       return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }

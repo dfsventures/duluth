@@ -4,11 +4,12 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ModalSheet } from "@/components/ui/sheet";
 import { toast } from "@/lib/toast";
+import { ShareLinksSection } from "./share-links-section";
 import { ownerLabel, readError, type MemoView } from "./types";
 
 /**
  * Sharing, in a Sheet. The owner sets "Share with team" (visibility PRIVATE or TEAM); everyone else
- * sees the state read-only. External links are added below this block in WS128.
+ * sees the state read-only. Below it, the owner manages links for people outside DFS.
  */
 export function SharePanel({ memo, onClose, onChanged }: { memo: MemoView; onClose: () => void; onChanged: () => void }) {
   const [saving, setSaving] = useState(false);
@@ -57,6 +58,7 @@ export function SharePanel({ memo, onClose, onChanged }: { memo: MemoView; onClo
             <p className="mt-2 text-xs text-muted-foreground">Only {ownerLabel(memo.owner)}, the owner, can change sharing.</p>
           )}
         </div>
+        {memo.canManage && <ShareLinksSection memoId={memo.id} />}
         <div className="flex justify-end">
           <Button variant="secondary" onClick={onClose}>
             Done

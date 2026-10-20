@@ -15,7 +15,7 @@ export async function GET(
     const { token } = await params;
 
     const link = await db.shareableLink.findUnique({
-      where: { token },
+      where: { token, memoId: null }, // investor links only; memo links live under /share/m
       include: {
         companies: {
           include: {

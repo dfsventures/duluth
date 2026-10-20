@@ -13,7 +13,8 @@ export async function DELETE(
     if (error) return error;
 
     const link = await db.shareableLink.findUnique({ where: { id } });
-    if (!link) {
+    // Memo share links (Part 40) are managed only by their owner, on the memo.
+    if (!link || link.memoId) {
       return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }
 
@@ -46,7 +47,7 @@ export async function GET(
       },
     });
 
-    if (!link) {
+    if (!link || link.memoId) {
       return NextResponse.json({ error: "Link not found" }, { status: 404 });
     }
 

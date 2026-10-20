@@ -9,6 +9,7 @@ import { logAdminAction } from "@/lib/audit";
 import type { Actor, Via } from "@/lib/board-actions";
 import { currentTemplate } from "@/lib/memo-template";
 import { normalizeCompanyName } from "@/lib/portco-match";
+import { mollyOrigin } from "@/lib/marge-tools/types";
 import {
   MEMO_ERRORS,
   MEMO_LIMITS,
@@ -622,4 +623,100 @@ export async function saveTemplate(actor: Actor, raw: unknown): Promise<MemoResu
   }
   await logAdminAction(actor, "MEMO_TEMPLATE_UPDATED", { targetType: "MemoTemplate", metadata: { version } });
   return { ok: true, value: { version } };
+}
+
+// ── external share links (WS128) ──────────────────────────────────────────────────────────
+// Memo links reuse ShareableLink. The token is shown once and only its SHA-256 fingerprint is stored
+// (`token` stays null); revoking is a soft delete (`revokedAt`), so the link answers 410 and keeps
+// its view log. Owner only (Q117-A). Links work whatever the memo's team visibility is: the owner
+// chose to share it.
+
+export const sha256Hex = (v: string) => crypto.createHash("sha256").update(v).digest("hex");
+export const MAX_LINK_LABEL = 100;
+
+export interface CreatedShareLink {
+  id: string;
+  label: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  /** Shown to the owner once. Never stored, never listed again. */
+  url: string;
+}
+
+export async function createShareLink(actor: Actor, memoId: string, body: Record<string, unknown>): Promise<MemoResult<CreatedShareLink>> {
+  const memo = await loadVisible(actor.id, memoId, { ...HEAD });
+  if (!memo) return fail(404, MEMO_MESSAGES.notFound);
+  if (!canManageMemo(memo, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
+
+  let label: string | null = null;
+  if (body.label !== undefined && body.label !== null) {
+    if (typeof body.label !== "string") return fail(400, "label must be text.");
+    label = body.label.trim() || null;
+    if (label && label.length > MAX_LINK_LABEL) return fail(400, "A label is limited to 100 characters.");
+  }
+  let expiresAt: Date | null = null;
+  if (body.expiresAt !== undefined && body.expiresAt !== null) {
+    const d = typeof body.expiresAt === "string" ? new Date(body.expiresAt) : null;
+    if (!d || Number.isNaN(d.getTime())) return fail(400, "expiresAt must be a date.");
+    if (d.getTime() <= Date.now()) return fail(400, "expiresAt must be in the future.");
+    expiresAt = d;
+  }
+
+  const token = crypto.randomBytes(32).toString("base64url");
+  const link = await db.shareableLink.create({
+    data: { token: null, tokenHash: sha256Hex(token), memoId, label, expiresAt, createdById: actor.id },
+    select: { id: true, label: true, expiresAt: true, createdAt: true },
+  });
+  await logAdminAction(actor, "MEMO_SHARE_LINK_CREATED", {
+    targetType: "Memo",
+    targetId: memoId,
+    metadata: { linkId: link.id, expiresAt: link.expiresAt ? link.expiresAt.toISOString() : null },
+  });
+  return {
+    ok: true,
+    value: {
+      id: link.id,
+      label: link.label,
+      expiresAt: link.expiresAt ? link.expiresAt.toISOString() : null,
+      createdAt: link.createdAt.toISOString(),
+      url: `${mollyOrigin()}/share/m/${token}`,
+    },
+  };
+}
+
+/** The owner's list. Never returns a token or its hash. Viewer emails are the owner's "who opened it". */
+export async function listShareLinks(actor: Actor, memoId: string): Promise<MemoResult<unknown[]>> {
+  const memo = await loadVisible(actor.id, memoId, { ...HEAD });
+  if (!memo) return fail(404, MEMO_MESSAGES.notFound);
+  if (!canManageMemo(memo, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
+  const rows = await db.shareableLink.findMany({
+    where: { memoId },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      label: true,
+      createdAt: true,
+      expiresAt: true,
+      revokedAt: true,
+      _count: { select: { views: true } },
+      views: { orderBy: { viewedAt: "desc" }, take: 20, select: { email: true, viewedAt: true } },
+    },
+  });
+  return {
+    ok: true,
+    value: rows.map(({ _count, ...r }) => ({ ...r, viewCount: _count.views })),
+  };
+}
+
+export async function revokeShareLink(actor: Actor, memoId: string, linkId: string): Promise<MemoResult<{ id: string }>> {
+  const memo = await loadVisible(actor.id, memoId, { ...HEAD });
+  if (!memo) return fail(404, MEMO_MESSAGES.notFound);
+  if (!canManageMemo(memo, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
+  const link = await db.shareableLink.findFirst({ where: { id: linkId, memoId }, select: { id: true, revokedAt: true } });
+  if (!link) return fail(404, "Link not found");
+  if (!link.revokedAt) {
+    await db.shareableLink.update({ where: { id: link.id }, data: { revokedAt: new Date() } });
+    await logAdminAction(actor, "MEMO_SHARE_LINK_REVOKED", { targetType: "Memo", targetId: memoId, metadata: { linkId: link.id } });
+  }
+  return { ok: true, value: { id: link.id } };
 }

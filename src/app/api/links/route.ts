@@ -9,10 +9,12 @@ export async function GET() {
     const { user, error } = await requireAuth();
     if (error) return error;
 
+    // Memo share links (Part 40) are listed on their own memo, never here: they have no plain-text
+    // token to copy, and Investor Links are a different surface.
     const where =
       user!.roles.includes("ADMIN")
-        ? {} // admins see all links
-        : { createdById: user!.id };
+        ? { memoId: null } // admins see all investor links
+        : { createdById: user!.id, memoId: null };
 
     const links = await db.shareableLink.findMany({
       where,
