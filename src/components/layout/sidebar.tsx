@@ -33,6 +33,7 @@ import {
   Megaphone,
   Contact,
   KanbanSquare,
+  NotebookText,
 } from "lucide-react";
 import { CompanySwitcher } from "@/components/ui/company-switcher";
 import { useCompany } from "@/context/company-context";
@@ -71,6 +72,7 @@ const ADMIN_ICONS: Record<string, typeof LayoutDashboard> = {
   "/admin/companies": Building2,
   "/admin/updates": FileText,
   "/admin/links": Link2,
+  "/admin/memos": NotebookText,
   "/admin/funds": Landmark,
   // Part 33, WS89 (D1): portfolio-WIDE contact + account-link management.
   "/admin/portfolio": Rows3,

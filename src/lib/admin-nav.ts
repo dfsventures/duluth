@@ -30,6 +30,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { label: "Companies", href: "/admin/companies", goto: "c", keywords: ["portfolio", "startups"] },
       { label: "Updates", href: "/admin/updates", goto: "u", keywords: ["investor updates", "templates"] },
       { label: "Investor Links", href: "/admin/links", goto: "v", keywords: ["share", "links"] },
+      { label: "Memos", href: "/admin/memos", goto: "m", keywords: ["investment memo", "ic", "notion"] },
     ],
   },
   {

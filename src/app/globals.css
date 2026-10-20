@@ -440,6 +440,63 @@ select:not([multiple]):not([size]):disabled {
   }
 }
 
+/* ── Investment memo print stylesheet (Part 40, WS127) ───────
+   Export is the browser's Print / Save as PDF (no server PDF, no Markdown file).
+   The memo page sits inside the app shell, so besides styling the memo this
+   releases the shell's fixed-height, clipped layout and hides its chrome. Every
+   rule is scoped to a page that contains `.memo-print-scope`, so no other page's
+   printing changes. The share page (/share/m/...) has no shell and uses the
+   same scope class for the same card and badge rules. */
+@media print {
+  body:has(.memo-print-scope) [data-surface] {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body:has(.memo-print-scope) .app-sidebar,
+  body:has(.memo-print-scope) main > .md\:hidden {
+    display: none !important;
+  }
+  body:has(.memo-print-scope) main {
+    overflow: visible !important;
+  }
+
+  .memo-print-scope {
+    background: #ffffff !important;
+    color: #14140f !important;
+  }
+  .memo-print-scope,
+  .memo-print-scope * {
+    box-shadow: none !important;
+  }
+  .memo-print-scope .card,
+  .memo-print-scope .badge {
+    border: 1px solid var(--color-border) !important;
+    background: #ffffff !important;
+    color: #14140f !important;
+  }
+  /* Edit controls, the contents list and anything marked no-print stay on screen only. */
+  .memo-print-scope .memo-no-print {
+    display: none !important;
+  }
+  /* A section's heading stays with its first lines; tables and quotes never split across pages. */
+  .memo-print-scope .memo-section {
+    break-inside: auto;
+  }
+  .memo-print-scope .memo-section > h2 {
+    break-after: avoid;
+  }
+  .memo-print-scope table,
+  .memo-print-scope blockquote,
+  .memo-print-scope pre {
+    break-inside: avoid;
+  }
+  .memo-print-scope a {
+    color: inherit !important;
+    text-decoration: underline;
+  }
+}
+
 /* ── Reduced motion ──────────────────────────────────────────
    Durations to ~0 for everything (transitions, entrance animations, skeleton
    pulse). Unlayered and !important so it beats Tailwind utilities. The spinner
