@@ -597,3 +597,37 @@ describe("audit metadata carries ids, never content", () => {
     expect(JSON.stringify(audit.logAdminAction.mock.calls.map((c) => [c[1], c[2]]))).not.toContain("CANARY");
   });
 });
+
+describe("decision and source (Part 41, WS132)", () => {
+  it("PATCH decision: set, change, clear; an unknown value is a 400 with the sentence", async () => {
+    const patch = (body: Row) => onePATCH(req("PATCH", body), ctx("team"));
+    expect((await patch({ decision: "INVESTED", version: 1 })).status).toBe(200);
+    expect(state.memos.find((m) => m.id === "team")!.decision).toBe("INVESTED");
+    expect((await patch({ decision: "PASSED", version: 2 })).status).toBe(200);
+    expect(state.memos.find((m) => m.id === "team")!.decision).toBe("PASSED");
+    expect((await patch({ decision: null, version: 3 })).status).toBe(200);
+    expect(state.memos.find((m) => m.id === "team")!.decision).toBeNull();
+    const bad = await patch({ decision: "Invested", version: 4 });
+    expect(bad.status).toBe(400);
+    expect((await json(bad)).error).toBe(MEMO_ERRORS.badDecision);
+    expect(audit.logAdminAction.mock.calls.some((c) => c[1] === "MEMO_UPDATED" && c[2].metadata.fields.includes("decision"))).toBe(true);
+  });
+
+  it("the list filters by decision and ignores an unknown value", async () => {
+    state.memos.find((m) => m.id === "team")!.decision = "INVESTED";
+    const get = async (q: string) => (await json(await listGET(new Request(`https://molly.dfs.vc/api/admin/memos?${q}`)))) as Row[];
+    expect((await get("decision=INVESTED")).map((m) => m.id)).toEqual(["team"]);
+    expect(await get("decision=PASSED")).toEqual([]);
+    expect((await get("decision=bogus")).length).toBe(2);
+  });
+
+  it("a stored value that is no longer in the list saves unchanged; a different invalid one fails", async () => {
+    state.memos.find((m) => m.id === "team")!.source = "Referral"; // a retired Part 40 value
+    const patch = (body: Row) => onePATCH(req("PATCH", body), ctx("team"));
+    expect((await patch({ source: "Referral", title: "Renamed", version: 1 })).status).toBe(200);
+    expect((await patch({ source: "Billboard", version: 2 })).status).toBe(400);
+    expect((await patch({ source: "Inbound", version: 2 })).status).toBe(400); // another retired value is not accepted
+    expect((await patch({ source: "Founder Intro", version: 2 })).status).toBe(200);
+    expect((await patch({ source: "Referral", version: 3 })).status).toBe(400); // no longer the stored value
+  });
+});

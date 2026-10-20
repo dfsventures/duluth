@@ -1,7 +1,7 @@
 // Part 40 (WS127). Shapes the memo pages pass between server and client. Dates are ISO strings.
-import type { CitationKind, MemoCitation, MemoIntroCall, MemoStatus } from "@/lib/memos";
+import type { CitationKind, MemoCitation, MemoDecision, MemoIntroCall, MemoStatus } from "@/lib/memos";
 
-export type { MemoCitation, MemoIntroCall, MemoStatus, CitationKind };
+export type { MemoCitation, MemoDecision, MemoIntroCall, MemoStatus, CitationKind };
 
 export interface CompanyOption {
   id: string;
@@ -16,6 +16,7 @@ export interface MemoRow {
   status: MemoStatus;
   visibility: "PRIVATE" | "TEAM";
   draftedByMarge: boolean;
+  decision: MemoDecision | null;
   version: number;
   updatedAt: string;
   company: { id: string; name: string } | null;
@@ -41,6 +42,8 @@ export interface MemoView {
   status: MemoStatus;
   visibility: "PRIVATE" | "TEAM";
   draftedByMarge: boolean;
+  importedFromNotion: boolean;
+  decision: MemoDecision | null;
   source: string | null;
   tags: string[];
   introDate: string | null; // YYYY-MM-DD

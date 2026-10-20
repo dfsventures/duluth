@@ -21,6 +21,7 @@ export const memoSummarySelect = {
   visibility: true,
   draftedByMarge: true,
   source: true,
+  decision: true,
   tags: true,
   version: true,
   createdAt: true,

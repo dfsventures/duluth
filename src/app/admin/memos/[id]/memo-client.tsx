@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/lib/toast";
-import { MEMO_STATUSES, MEMO_STATUS_LABELS } from "@/lib/memos";
+import { MEMO_DECISION_LABELS, MEMO_STATUSES, MEMO_STATUS_LABELS } from "@/lib/memos";
 import { SectionCard } from "@/components/admin/memos/section-card";
 import { MetaSheet } from "@/components/admin/memos/meta-sheet";
 import { SharePanel } from "@/components/admin/memos/share-panel";
@@ -102,7 +102,7 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
     <span className="text-muted-foreground">No company</span>
   );
 
-  const hasDetails = memo.source || memo.tags.length || memo.introDate || memo.websiteUrl || memo.introCalls.length;
+  const hasDetails = memo.source || memo.decision || memo.tags.length || memo.introDate || memo.websiteUrl || memo.introCalls.length;
 
   return (
     <AppShell>
@@ -146,6 +146,7 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
           <Badge variant={STATUS_VARIANT[memo.status]} className={memo.canEdit ? "hidden print:inline-flex" : undefined}>
             {MEMO_STATUS_LABELS[memo.status]}
           </Badge>
+          {memo.decision && <Badge variant="neutral">{MEMO_DECISION_LABELS[memo.decision]}</Badge>}
           <Badge variant={memo.visibility === "TEAM" ? "info" : "neutral"} className="memo-no-print">
             {memo.visibility === "TEAM" ? "Shared with team" : "Private"}
           </Badge>
@@ -159,6 +160,8 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
             <p className="mb-4 hidden text-sm print:block">Drafted with Marge</p>
           </>
         )}
+
+        {memo.importedFromNotion && <p className="mb-4 text-sm text-muted-foreground">Imported from Notion.</p>}
 
         {suggestion && !dismissed && (
           <div className="memo-no-print mb-6 flex flex-wrap items-center justify-between gap-3 border border-edge bg-muted/40 p-3 text-sm">
@@ -194,6 +197,7 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
           </div>
           {hasDetails ? (
             <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+              {memo.decision && <Detail label="Decision">{MEMO_DECISION_LABELS[memo.decision]}</Detail>}
               {memo.source && <Detail label="Source">{memo.source}</Detail>}
               {memo.introDate && <Detail label="Intro date">{formatDateOnly(memo.introDate)}</Detail>}
               {memo.websiteUrl && (

@@ -1129,6 +1129,8 @@ model Memo {
   ownerId            String
   draftedByMarge     Boolean   @default(false)
   source             String? // one of MEMO_SOURCES (src/lib/memos.ts)
+  decision           String? // one of MEMO_DECISIONS (src/lib/memos.ts); Notion's pipeline stage. Never on share links.
+  notionId           String?   @unique // Notion page id (32 hex) of an imported memo; null otherwise (Part 41)
   tags               String[]  @default([])
   introDate          DateTime? // date-only, 00:00 UTC (BoardCard.dueDate convention)
   websiteUrl         String?

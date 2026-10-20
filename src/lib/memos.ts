@@ -13,18 +13,28 @@ export const MEMO_STATUS_LABELS: Record<MemoStatus, string> = {
 export const MEMO_VISIBILITIES = ["PRIVATE", "TEAM"] as const;
 export type MemoVisibility = (typeof MEMO_VISIBILITIES)[number];
 
-// Q119-A: a fixed list, one constant.
+// Part 41 (D4). Notion's list. The partner-event value is stored under a generic label (Q130).
 export const MEMO_SOURCES = [
-  "Referral",
-  "Inbound",
-  "Outbound",
-  "Event",
-  "Portfolio founder",
-  "Co-investor",
-  "Program or accelerator",
-  "Other",
+  "Cold Outreach",
+  "Founder Intro",
+  "VC Intro",
+  "Conference",
+  "Operator Intro",
+  "Warm Outreach",
+  "Partner event",
 ] as const;
 export type MemoSource = (typeof MEMO_SOURCES)[number];
+
+// Part 41 (D3). Notion's Decision. Separate from status (the memo's own lifecycle).
+export const MEMO_DECISIONS = ["IN_PROGRESS", "MEMO", "INVESTED", "LATER", "PASSED"] as const;
+export type MemoDecision = (typeof MEMO_DECISIONS)[number];
+export const MEMO_DECISION_LABELS: Record<MemoDecision, string> = {
+  IN_PROGRESS: "In Progress",
+  MEMO: "Memo",
+  INVESTED: "Invested",
+  LATER: "Later",
+  PASSED: "Passed",
+};
 
 export const CITATION_KINDS = ["call", "deck", "tracker", "web", "other"] as const;
 export type CitationKind = (typeof CITATION_KINDS)[number];
@@ -95,6 +105,7 @@ export const MEMO_ERRORS = {
   badDate: "Dates must look like 2026-10-23.",
   badCitation: "Each citation needs a label of 1-200 characters and a kind of call, deck, tracker, web or other.",
   badSource: "That source isn't one of the options.",
+  badDecision: "That decision isn't one of the options.",
   badTags: "Tags: at most 20, each 1-40 characters.",
   tooManyCalls: "A memo can have at most 20 intro calls.",
   badCall: "Each intro call needs a label of 1-200 characters.",

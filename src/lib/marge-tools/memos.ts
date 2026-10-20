@@ -23,8 +23,10 @@ import {
 import { currentTemplate } from "@/lib/memo-template";
 import {
   CITATION_KINDS,
+  MEMO_DECISION_LABELS,
   MEMO_ERRORS,
   MEMO_LIMITS,
+  MEMO_SOURCES,
   MEMO_STATUSES,
   MEMO_STATUS_LABELS,
   memoCompanyFilter,
@@ -92,7 +94,7 @@ export const memoCreateInput = z.object({
   title: z.string(),
   companyId: z.string().max(100).optional(),
   companyNamePending: z.string().max(200).optional(),
-  source: z.string().max(100).optional(),
+  source: z.string().max(100).optional().describe(`one of: ${MEMO_SOURCES.join(", ")}`),
   tags: z.array(z.string()).optional(),
   introDate: z.string().optional().describe("YYYY-MM-DD"),
   websiteUrl: z.string().optional(),
@@ -142,6 +144,9 @@ async function notFoundOrArchived(memoId: string, p: Principal): Promise<never> 
   throw new ToolError(archived ? MEMO_SENTENCES.archived : MEMO_SENTENCES.notFound);
 }
 
+/** Part 41: Notion's pipeline decision as its label; null when not set. Output only: Marge cannot set it. */
+const decisionLabel = (d: string | null): string | null => (d ? (MEMO_DECISION_LABELS as Record<string, string>)[d] ?? d : null);
+
 const HEAD_SELECT = {
   id: true,
   title: true,
@@ -149,6 +154,7 @@ const HEAD_SELECT = {
   visibility: true,
   ownerId: true,
   draftedByMarge: true,
+  decision: true,
   companyId: true,
   companyNamePending: true,
   version: true,
@@ -241,12 +247,13 @@ export async function memoList(input: z.infer<typeof memoListInput>, p: Principa
     owner: ownerName(m.owner),
     visibility: m.visibility,
     draftedByMarge: m.draftedByMarge,
+    decision: decisionLabel(m.decision),
     updatedAt: m.updatedAt.toISOString(),
     url: memoUrl(m.id),
   }));
   const lines = memos.map(
     (m) =>
-      `[${m.id}] ${m.title} · ${m.company} · ${MEMO_STATUS_LABELS[m.status as MemoStatus] ?? m.status} · owner ${m.owner} · ${m.visibility === "TEAM" ? "shared with team" : "private"}${m.draftedByMarge ? " · drafted by Marge" : ""} · updated ${isoDate(new Date(m.updatedAt))} · ${m.url}`
+      `[${m.id}] ${m.title} · ${m.company} · ${MEMO_STATUS_LABELS[m.status as MemoStatus] ?? m.status} · ${m.decision ? `${m.decision} · ` : ""}owner ${m.owner} · ${m.visibility === "TEAM" ? "shared with team" : "private"}${m.draftedByMarge ? " · drafted by Marge" : ""} · updated ${isoDate(new Date(m.updatedAt))} · ${m.url}`
   );
   return { text: lines.length ? lines.join("\n") : "No memos matched.", structured: { memos }, count: memos.length };
 }
@@ -298,6 +305,7 @@ export async function memoGet(input: z.infer<typeof memoGetInput>, p: Principal)
     ownerIsYou: memo.ownerId === p.id,
     visibility: memo.visibility,
     draftedByMarge: memo.draftedByMarge,
+    decision: decisionLabel(memo.decision),
     source: memo.source,
     tags: memo.tags,
     introDate: isoDate(memo.introDate),
@@ -320,7 +328,7 @@ export async function memoGet(input: z.infer<typeof memoGetInput>, p: Principal)
   const lines = [
     `Memo [${header.id}] ${header.title}`,
     `Company: ${header.company} · Status: ${MEMO_STATUS_LABELS[header.status as MemoStatus] ?? header.status} · ${header.visibility === "TEAM" ? "Shared with team" : "Private"} · Owner: ${header.owner}${header.ownerIsYou ? " (you)" : ""} · Memo version ${header.version}${header.draftedByMarge ? " · Drafted by Marge" : ""}`,
-    `Source: ${header.source ?? "not set"} · Tags: ${header.tags.length ? header.tags.join(", ") : "none"} · Intro date: ${header.introDate ?? "not set"} · Website: ${header.websiteUrl ?? "not set"}`,
+    `Source: ${header.source ?? "not set"} · Decision: ${header.decision ?? "not set"} · Tags: ${header.tags.length ? header.tags.join(", ") : "none"} · Intro date: ${header.introDate ?? "not set"} · Website: ${header.websiteUrl ?? "not set"}`,
   ];
   if (calls.length) lines.push(`Intro calls: ${calls.map((c) => [c.label, c.date, c.url].filter(Boolean).join(" · ")).join("; ")}`);
   lines.push(`Link: ${header.url}`);

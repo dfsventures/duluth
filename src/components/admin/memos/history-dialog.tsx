@@ -104,6 +104,7 @@ export function HistoryDialog({
                     <p className="text-xs text-muted-foreground">
                       {ownerLabel(r.editedBy)} · {new Date(r.createdAt).toLocaleString()}
                       {r.via === "marge" && " · via Marge"}
+                      {r.via === "notion" && " · imported from Notion"}
                       {r.restoredFrom !== null && ` · restored from version ${r.restoredFrom}`}
                     </p>
                   </div>

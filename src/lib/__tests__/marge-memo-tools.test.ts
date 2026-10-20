@@ -731,3 +731,33 @@ describe("the shared create action is the same one the web uses", () => {
     expect(web.ok && state.memos.find((m) => m.id === web.value.id)!.draftedByMarge).toBe(false);
   });
 });
+
+describe("decision and sources (Part 41, WS132)", () => {
+  it("memo_get and memo_list return the decision as its label (null when not set); output only", async () => {
+    state.memos.find((m) => m.id === "team")!.decision = "INVESTED";
+    const own = await tools.memoGet({ memoId: "own" }, P);
+    expect(own.structured.memo).toMatchObject({ decision: null });
+    expect(own.text).toContain("Decision: not set");
+    const team = await tools.memoGet({ memoId: "team" }, P);
+    expect(team.structured.memo).toMatchObject({ decision: "Invested" });
+    expect(team.text).toMatch(/Source: not set · Decision: Invested · Tags: none/);
+    const list = await tools.memoList({}, P);
+    const rows = list.structured.memos as Row[];
+    expect(rows.find((m) => m.id === "team")).toMatchObject({ decision: "Invested" });
+    expect(rows.find((m) => m.id === "own")).toMatchObject({ decision: null });
+    expect(list.text).toContain("· Invested · owner Jane Partner");
+  });
+
+  it("memo_create has no decision input: zod strips it and Prisma never receives it", async () => {
+    expect(tools.memoCreateInput.parse(createArgs({ decision: "INVESTED" }))).not.toHaveProperty("decision");
+    await tools.memoCreate(tools.memoCreateInput.parse(createArgs({ decision: "INVESTED" })), P, APPLY);
+    const db = (await import("@/lib/db")).db as unknown as Row;
+    expect(db.memo.create.mock.calls[0][0].data).not.toHaveProperty("decision");
+  });
+
+  it("memo_create's source describes the allowed values, and an old value now fails with the sentence", async () => {
+    const shape = (tools.memoCreateInput as unknown as { shape: Row }).shape;
+    expect(shape.source.description).toBe("one of: Cold Outreach, Founder Intro, VC Intro, Conference, Operator Intro, Warm Outreach, Partner event");
+    await expect(tools.memoCreate(tools.memoCreateInput.parse(createArgs({ source: "Referral" })), P, DRY)).rejects.toThrow("That source isn't one of the options.");
+  });
+});

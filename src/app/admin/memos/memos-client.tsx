@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TabBar } from "@/components/ui/tab-bar";
 import { parseTab } from "@/lib/url-tab";
 import { relativeTime } from "@/lib/relative-time";
-import { MEMO_STATUSES, MEMO_STATUS_LABELS } from "@/lib/memos";
+import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_STATUSES, MEMO_STATUS_LABELS } from "@/lib/memos";
 import { STATUS_VARIANT, ownerLabel, type CompanyOption, type MemoRow } from "@/components/admin/memos/types";
 
 const SCOPES = ["mine", "team", "all"] as const;
@@ -43,6 +43,7 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
   const [error, setError] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState("");
   const [status, setStatus] = useState("");
+  const [decision, setDecision] = useState("");
   const [unlinked, setUnlinked] = useState(false);
 
   const load = useCallback(async () => {
@@ -52,6 +53,7 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
       const params = new URLSearchParams({ scope });
       if (companyId) params.set("companyId", companyId);
       if (status) params.set("status", status);
+      if (decision) params.set("decision", decision);
       if (unlinked) params.set("unlinked", "true");
       const res = await fetch(`/api/admin/memos?${params}`);
       if (!res.ok) throw new Error("Couldn't load memos.");
@@ -61,13 +63,13 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
     } finally {
       setLoading(false);
     }
-  }, [scope, companyId, status, unlinked]);
+  }, [scope, companyId, status, decision, unlinked]);
   useEffect(() => {
     load();
   }, [load]);
 
   const me = session?.user?.id;
-  const filtered = !!(companyId || status || unlinked);
+  const filtered = !!(companyId || status || decision || unlinked);
 
   const columns = useMemo<DataTableColumn<MemoRow>[]>(
     () => [
@@ -102,6 +104,13 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
         sortValue: (m) => MEMO_STATUSES.indexOf(m.status),
         mobile: "badge",
         cell: (m) => <Badge variant={STATUS_VARIANT[m.status]}>{MEMO_STATUS_LABELS[m.status]}</Badge>,
+      },
+      {
+        key: "decision",
+        header: "Decision",
+        sortValue: (m) => (m.decision ? MEMO_DECISIONS.indexOf(m.decision) : MEMO_DECISIONS.length),
+        mobile: "meta",
+        cell: (m) => (m.decision ? <Badge variant="neutral">{MEMO_DECISION_LABELS[m.decision]}</Badge> : <span className="text-muted-foreground">—</span>),
       },
       {
         key: "owner",
@@ -187,6 +196,14 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
                 </option>
               ))}
             </select>
+            <select aria-label="Decision" className="input-field w-auto" value={decision} onChange={(e) => setDecision(e.target.value)}>
+              <option value="">Any decision</option>
+              {MEMO_DECISIONS.map((d) => (
+                <option key={d} value={d}>
+                  {MEMO_DECISION_LABELS[d]}
+                </option>
+              ))}
+            </select>
             <label className="flex items-center gap-2 text-sm text-muted-foreground">
               <input type="checkbox" checked={unlinked} onChange={(e) => setUnlinked(e.target.checked)} />
               Not linked to a company
@@ -197,13 +214,14 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
           filtered ? (
             <EmptyState
               title="No memos match those filters"
-              description="Try a different company or status."
+              description="Try a different company, status or decision."
               action={
                 <Button
                   variant="secondary"
                   onClick={() => {
                     setCompanyId("");
                     setStatus("");
+                    setDecision("");
                     setUnlinked(false);
                   }}
                 >

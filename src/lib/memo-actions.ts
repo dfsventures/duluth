@@ -12,6 +12,7 @@ import { normalizeCompanyName } from "@/lib/portco-match";
 import { mollyOrigin } from "@/lib/marge-tools/types";
 import {
   MEMO_ERRORS,
+  MEMO_DECISIONS,
   MEMO_LIMITS,
   MEMO_SOURCES,
   MEMO_STATUSES,
@@ -178,11 +179,11 @@ export async function createMemo(actor: Actor, body: Record<string, unknown>, vi
 
 // ── metadata, status, visibility, archive ─────────────────────────────────────────────────
 
-const META_KEYS = ["title", "source", "tags", "introDate", "websiteUrl", "introCalls", "companyNamePending"] as const;
+const META_KEYS = ["title", "source", "decision", "tags", "introDate", "websiteUrl", "introCalls", "companyNamePending"] as const;
 export const isMetaBody = (b: Record<string, unknown>) => META_KEYS.some((k) => k in b);
 
 export async function updateMemoMeta(actor: Actor, id: string, body: Record<string, unknown>): Promise<MemoResult<{ id: string; version: number }>> {
-  const memo = await loadVisible(actor.id, id, { ...HEAD, companyId: true, version: true });
+  const memo = await loadVisible(actor.id, id, { ...HEAD, companyId: true, source: true, version: true });
   if (!memo) return fail(404, MEMO_MESSAGES.notFound);
   if (!canEditMemo(memo as never, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
   if (!isVersion(body.version)) return fail(400, "version is required.");
@@ -195,8 +196,14 @@ export async function updateMemoMeta(actor: Actor, id: string, body: Record<stri
   }
   if ("source" in body) {
     if (body.source === null || body.source === "") data.source = null;
-    else if ((MEMO_SOURCES as readonly unknown[]).includes(body.source)) data.source = body.source;
+    // F133: a value no longer in the list is accepted while it is the memo's stored value (unchanged).
+    else if ((MEMO_SOURCES as readonly unknown[]).includes(body.source) || (memo.source != null && body.source === memo.source)) data.source = body.source;
     else return fail(400, MEMO_ERRORS.badSource);
+  }
+  if ("decision" in body) {
+    if (body.decision === null || body.decision === "") data.decision = null;
+    else if ((MEMO_DECISIONS as readonly unknown[]).includes(body.decision)) data.decision = body.decision;
+    else return fail(400, MEMO_ERRORS.badDecision);
   }
   if ("tags" in body) {
     const t = validateTags(body.tags);

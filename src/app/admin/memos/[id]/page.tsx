@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { currentTemplate } from "@/lib/memo-template";
 import { renderMemoMarkdown } from "@/lib/memo-render";
 import { canEditMemo, canManageMemo, memoCompanyFilter, memoVisibleWhere, readCitations, readIntroCalls } from "@/lib/memos";
-import type { MemoStatus, MemoView } from "@/components/admin/memos/types";
+import type { MemoDecision, MemoStatus, MemoView } from "@/components/admin/memos/types";
 import MemoClient from "./memo-client";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +40,8 @@ export default async function MemoPage({ params }: { params: Promise<{ id: strin
     status: memo.status as MemoStatus,
     visibility: memo.visibility as "PRIVATE" | "TEAM",
     draftedByMarge: memo.draftedByMarge,
+    importedFromNotion: memo.notionId !== null,
+    decision: memo.decision as MemoDecision | null,
     source: memo.source,
     tags: memo.tags,
     introDate: memo.introDate ? memo.introDate.toISOString().slice(0, 10) : null,

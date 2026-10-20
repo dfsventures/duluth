@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { createMemo } from "@/lib/memo-actions";
 import { memoResponse, memoSummarySelect, readObjectBody } from "@/lib/memo-route";
-import { MEMO_STATUSES, memoVisibleWhere } from "@/lib/memos";
+import { MEMO_DECISIONS, MEMO_STATUSES, memoVisibleWhere } from "@/lib/memos";
 
 // GET: every memo the signed-in admin may read, with filters. POST: create from the template.
 export async function GET(request: Request) {
@@ -22,6 +22,8 @@ export async function GET(request: Request) {
     if (companyId) and.push({ companyId });
     const status = sp.get("status");
     if (status && (MEMO_STATUSES as readonly string[]).includes(status)) and.push({ status });
+    const decision = sp.get("decision");
+    if (decision && (MEMO_DECISIONS as readonly string[]).includes(decision)) and.push({ decision });
     if (sp.get("unlinked") === "true") and.push({ companyId: null });
     const q = sp.get("q")?.trim().slice(0, 100);
     if (q) {
