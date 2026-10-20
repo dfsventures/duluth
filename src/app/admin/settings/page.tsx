@@ -15,6 +15,7 @@ import { normalizeSettingsTab } from "./settings-tabs-util";
 import { SettingsStatusStrip } from "./settings-status-strip";
 import { EmailsSentList } from "./emails-sent-list";
 import { margeMcpMode } from "@/lib/marge-auth";
+import { margeMemoToolsEnabled } from "@/lib/marge-tools/tiers";
 import { relativeTime } from "@/lib/relative-time";
 
 function Status({ on }: { on: boolean }) {
@@ -63,6 +64,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
   const slackConfigured = !!process.env.SLACK_DIGEST_WEBHOOK_URL;
   // Part 39 (WS123.5) — mode and last call only; no key material is ever shown.
   const margeMode = margeMcpMode();
+  const margeMemos = margeMemoToolsEnabled(); // Part 40: the memo tools' own switch
   const lastMargeCall = await db.auditLog.findFirst({
     where: { action: "MARGE_READ" },
     orderBy: { createdAt: "desc" },
@@ -193,12 +195,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
           </section>
 
           <section className={SECTION}>
-            <SectionHeading title="Marge (Slack assistant)" description="Optional. Off until MARGE_MCP_MODE and MARGE_ASSERTION_JWKS are set." />
+            <SectionHeading title="Marge (Slack assistant)" description="Optional. Off until MARGE_MCP_MODE and MARGE_ASSERTION_JWKS are set. Memo tools also need MARGE_MEMO_TOOLS=on." />
             <p className="text-xs text-muted-foreground">
               Marge:{" "}
               <span className="text-foreground">
                 {margeMode === "write" ? "Read and draft" : margeMode === "read" ? "Read only" : "Off"}
               </span>
+              . Memo tools:{" "}
+              <span className="text-foreground">{margeMemos && margeMode !== "off" ? "On" : "Off"}</span>
               . Last call:{" "}
               <span className="text-foreground">{lastMargeCall ? relativeTime(lastMargeCall.createdAt) : "None yet"}</span>
               {" "}

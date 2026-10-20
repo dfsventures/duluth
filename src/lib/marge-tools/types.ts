@@ -24,6 +24,7 @@ export function mollyOrigin(): string {
 export const companyUrl = (id: string) => `${mollyOrigin()}/admin/companies/${id}`;
 export const boardUrl = () => `${mollyOrigin()}/admin/board`;
 export const broadcastUrl = (id: string) => `${mollyOrigin()}/admin/broadcasts/${id}`;
+export const memoUrl = (id: string) => `${mollyOrigin()}/admin/memos/${id}`;
 
 export const isoDate = (d: Date | null | undefined): string | null => (d ? d.toISOString().slice(0, 10) : null);
 
@@ -40,9 +41,14 @@ export interface MargePreview {
     | "Move card"
     | "Add link"
     | "Create draft broadcast"
-    | "Edit draft broadcast";
+    | "Edit draft broadcast"
+    | "Create memo"
+    | "Edit memo section"
+    | "Link memo to company";
   target?: string;
   fields: { label: string; before?: string; after: string }[];
   warnings: string[];
   expectedUpdatedAt?: string;
+  /** Memo edits (Part 40): the section or memo version the preview was built from. */
+  expectedVersion?: number;
 }

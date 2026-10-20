@@ -2,14 +2,18 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 import { margeMcpMode, verifyAssertion, claimJti, resolvePrincipal } from "@/lib/marge-auth";
-import { margeHandler, auditDenied, type MargeCall } from "@/lib/marge-tools/server";
-import { MARGE_TOOLS } from "@/lib/marge-tools/tiers";
+import { margeHandler, auditDenied, MARGE_MEMO_MAX_BODY, type MargeCall } from "@/lib/marge-tools/server";
+import { MARGE_TOOLS, isMemoToolName, margeMemoToolsEnabled } from "@/lib/marge-tools/tiers";
 
 // Part 39 (WS123). Public in route-access.ts for exactly this path; the signed assertion is the
 // real gate. Order matters: the kill switch, then the body size, then the signature, and only
 // then (for tools/call) any database access.
 
 const MAX_BODY = 64_000;
+// Part 40 (WS129, JC-MM-F): a full memo travels in one call (twice: preview, then apply), so with
+// memo tools on the ceiling is 400,000 characters. With MARGE_MEMO_TOOLS unset it stays 64,000: no
+// tool that could use more exists then, and the limit unsigned traffic can hit does not change.
+const maxBody = () => (margeMemoToolsEnabled() ? MARGE_MEMO_MAX_BODY : MAX_BODY);
 
 const PRINCIPAL_MESSAGES = {
   unknown_user: "Molly doesn't know your Google account. Sign in to molly.dfs.vc with Google once.",
@@ -29,7 +33,7 @@ export async function POST(req: Request) {
   if (margeMcpMode() === "off") return Response.json({ error: "Not found" }, { status: 404 });
 
   const raw = await req.text();
-  if (raw.length > MAX_BODY) return Response.json({ error: "Too large" }, { status: 413 });
+  if (raw.length > maxBody()) return Response.json({ error: "Too large" }, { status: 413 });
 
   const v = await verifyAssertion(req.headers.get("authorization")); // no DB access before this line
   if (!v.ok) return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,7 +52,7 @@ export async function POST(req: Request) {
     const who = await resolvePrincipal(v.claims);
     if (!who.ok) {
       const name = (body as { params?: { name?: unknown } })?.params?.name;
-      const tool = typeof name === "string" && name in MARGE_TOOLS ? name : "unknown";
+      const tool = typeof name === "string" && (name in MARGE_TOOLS || isMemoToolName(name)) ? name : "unknown";
       await auditDenied({ email: v.claims.email }, v.claims, tool, who.reason);
       return toolErrorResponse(body, PRINCIPAL_MESSAGES[who.reason]);
     }
