@@ -314,6 +314,15 @@ describe("deck (JC-NI-H)", () => {
   });
 });
 
+describe("splitMode (dry-run table only)", () => {
+  it("names the heading level, the bold fallback, or a single section", () => {
+    expect(draftOf(page([], `### Team\n\n${filler(300)}\n\n### Product\n\nx`)).splitMode).toBe("###");
+    expect(draftOf(page([], `## Team\n\n${filler(300)}\n\n## Product\n\nx`)).splitMode).toBe("##");
+    expect(draftOf(page([], `**Team**\n\n${filler(300)}\n\n**Product**\n\nx`)).splitMode).toBe("bold");
+    expect(draftOf(page([], filler(300))).splitMode).toBe("single");
+  });
+});
+
 describe("a whole page", () => {
   it("warnings never contain body text (canary)", () => {
     const C = "CANARY-77aa";

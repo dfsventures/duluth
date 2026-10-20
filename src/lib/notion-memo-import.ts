@@ -86,6 +86,7 @@ export interface NotionMemoDraft {
   introCalls: MemoIntroCall[];
   sections: (MemoSectionInput & { includeInShare: boolean })[];
   deck: { kind: "url"; url: string } | { kind: "file"; path: string } | null;
+  splitMode: SplitMode; // for the dry-run table only
   warnings: string[]; // shown in the dry run; never contain body text
 }
 export type NotionParse =
@@ -367,8 +368,16 @@ function trimRules(lines: string[]): string {
 
 const sectionTitle = (t: string) => (t || "Section").slice(0, MEMO_LIMITS.sectionTitle).trim();
 
+type Split = { title: string; markdown: string; preamble: boolean }[];
+/** How a page was split, for the dry run: "###" (the heading level), "bold" (bold-line fallback) or "single". */
+export type SplitMode = string;
+
 /** JC-NI-C. Split cleaned markdown into sections at the inferred heading level. */
-export function splitSections(markdown: string): { title: string; markdown: string; preamble: boolean }[] {
+export function splitSections(markdown: string): Split {
+  return splitWithMode(markdown).sections;
+}
+
+function splitWithMode(markdown: string): { sections: Split; mode: SplitMode } {
   const lines = markdown.split("\n");
   const headings = findHeadings(lines);
 
@@ -391,14 +400,14 @@ export function splitSections(markdown: string): { title: string; markdown: stri
     : [];
 
   if (starts.length) {
-    const result: { title: string; markdown: string; preamble: boolean }[] = [];
+    const result: Split = [];
     const pre = trimRules(lines.slice(0, starts[0].line));
     if (pre.trim()) result.push({ title: "Introduction", markdown: pre, preamble: true });
     starts.forEach((h, i) => {
       const end = i + 1 < starts.length ? starts[i + 1].line : lines.length;
       result.push({ title: sectionTitle(h.title), markdown: trimRules(lines.slice(h.line + 1, end)), preamble: false });
     });
-    return result;
+    return { sections: result, mode: "#".repeat(level) };
   }
 
   // No usable ATX headings: bold-only lines after a blank line, when there are at least two.
@@ -411,16 +420,16 @@ export function splitSections(markdown: string): { title: string; markdown: stri
     if (m && (i === 0 || lines[i - 1].trim() === "")) bold.push({ line: i, title: cleanTitle(m[1]) });
   });
   if (bold.length >= 2) {
-    const result: { title: string; markdown: string; preamble: boolean }[] = [];
+    const result: Split = [];
     const pre = trimRules(lines.slice(0, bold[0].line));
     if (pre.trim()) result.push({ title: "Introduction", markdown: pre, preamble: true });
     bold.forEach((h, i) => {
       const end = i + 1 < bold.length ? bold[i + 1].line : lines.length;
       result.push({ title: sectionTitle(h.title), markdown: trimRules(lines.slice(h.line + 1, end)), preamble: false });
     });
-    return result;
+    return { sections: result, mode: "bold" };
   }
-  return [{ title: "Memo", markdown: trimRules(lines), preamble: false }];
+  return { sections: [{ title: "Memo", markdown: trimRules(lines), preamble: false }], mode: "single" };
 }
 
 function uniqueKey(base: string, used: Set<string>): string {
@@ -547,7 +556,8 @@ export function parseNotionPage(fileName: string, text: string): NotionParse {
   // Split, key, share-default, then split any over-long section.
   const used = new Set<string>();
   const sections: (MemoSectionInput & { includeInShare: boolean })[] = [];
-  for (const s of splitSections(cleaned.markdown)) {
+  const split = splitWithMode(cleaned.markdown);
+  for (const s of split.sections) {
     const { key, matched } = keyForHeading(s.title, used);
     const aliasKey = matched ? (ALIAS_LOOKUP.get(normalizeHeading(s.title)) ?? null) : null;
     const includeInShare = shareDefault(s.title, aliasKey, s.preamble);
@@ -580,6 +590,7 @@ export function parseNotionPage(fileName: string, text: string): NotionParse {
     introCalls,
     sections,
     deck,
+    splitMode: split.mode,
     warnings,
   };
 

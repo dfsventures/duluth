@@ -10,6 +10,7 @@ import type { Actor, Via } from "@/lib/board-actions";
 import { currentTemplate } from "@/lib/memo-template";
 import { normalizeCompanyName } from "@/lib/portco-match";
 import { mollyOrigin } from "@/lib/marge-tools/types";
+import type { NotionMemoDraft } from "@/lib/notion-memo-import";
 import {
   MEMO_ERRORS,
   MEMO_DECISIONS,
@@ -175,6 +176,106 @@ export async function createMemo(actor: Actor, body: Record<string, unknown>, vi
     metadata: { memoId: memo.id, sectionCount: sections.length, draftedByMarge: !!via, ...viaMeta(via) },
   });
   return { ok: true, value: { id: memo.id, version: memo.version, duplicate: false } };
+}
+
+// ── import (Part 41) ──────────────────────────────────────────────────────────────────────
+
+export interface ImportedMemo {
+  id: string | null;
+  duplicate: boolean;
+  linkedCompany: boolean;
+}
+
+/**
+ * Part 41. One Notion page -> one TEAM memo owned by `actor`, written by the one-off importer
+ * (scripts/import-notion-memos.ts). A page already imported (same notionId, archived or not) is skipped.
+ * Same rules as the other writes: validate with the shared validators, allowlist, write, audit ids only.
+ * `createMemo` cannot set status, visibility, decision, an external id or dates, hence this function.
+ */
+export async function importMemo(actor: Actor, draft: NotionMemoDraft, opts: { status: MemoStatus }): Promise<MemoResult<ImportedMemo>> {
+  const meta = validateMemoMeta({
+    title: draft.title,
+    source: draft.source,
+    tags: draft.tags,
+    introDate: draft.introDate,
+    websiteUrl: draft.websiteUrl,
+    introCalls: draft.introCalls,
+  });
+  if (!meta.ok) return fail(400, meta.error);
+  const sections = validateSections(draft.sections);
+  if (!sections.ok) return fail(400, sections.error);
+  if (draft.decision !== null && !(MEMO_DECISIONS as readonly unknown[]).includes(draft.decision)) return fail(400, MEMO_ERRORS.badDecision);
+  if (!(MEMO_STATUSES as readonly unknown[]).includes(opts.status)) return fail(400, "Invalid status");
+  if (!/^[0-9a-f]{32}$/.test(draft.notionId)) return fail(400, "A Notion id is required.");
+
+  const existing = await db.memo.findUnique({ where: { notionId: draft.notionId }, select: { id: true } });
+  if (existing) return { ok: true, value: { id: existing.id, duplicate: true, linkedCompany: false } };
+
+  const company = await suggestCompany(draft.title);
+  const m = meta.value;
+  const share = draft.sections.map((s) => s.includeInShare !== false);
+  const data = {
+    title: m.title,
+    companyId: company?.id ?? null,
+    companyNamePending: company ? null : m.title,
+    ownerId: actor.id,
+    status: opts.status,
+    visibility: "TEAM",
+    decision: draft.decision,
+    notionId: draft.notionId,
+    draftedByMarge: false,
+    source: m.source,
+    tags: m.tags,
+    introDate: m.introDate,
+    websiteUrl: m.websiteUrl,
+    introCalls: m.introCalls as object[],
+    templateVersion: null,
+    ...(draft.lastEdited ? { createdAt: draft.lastEdited, updatedAt: draft.lastEdited } : {}),
+    sections: {
+      create: sections.value.map((s, i) => ({
+        key: s.key,
+        title: s.title,
+        markdown: s.markdown,
+        citations: s.citations as object[],
+        position: i,
+        includeInShare: share[i],
+        updatedById: actor.id,
+        updatedVia: "notion",
+        revisions: {
+          create: [
+            {
+              version: 1,
+              title: s.title,
+              markdown: s.markdown,
+              citations: s.citations as object[],
+              includeInShare: share[i],
+              editedById: actor.id,
+              via: "notion",
+            },
+          ],
+        },
+      })),
+    },
+  };
+
+  let memo: { id: string };
+  try {
+    memo = await db.memo.create({ data, select: { id: true } });
+  } catch (err) {
+    // A parallel run imported the same page between the check and the write: the unique notionId decides.
+    if ((err as { code?: string })?.code === "P2002") {
+      const winner = await db.memo.findUnique({ where: { notionId: draft.notionId }, select: { id: true } });
+      if (winner) return { ok: true, value: { id: winner.id, duplicate: true, linkedCompany: false } };
+    }
+    throw err;
+  }
+
+  await logAdminAction(actor, "MEMO_IMPORTED", {
+    targetType: "Memo",
+    targetId: memo.id,
+    metadata: { memoId: memo.id, sectionCount: sections.value.length, linkedCompany: !!company, source: "notion" },
+  });
+  return { ok: true, value: { id: memo.id, duplicate: false, linkedCompany: !!company } };
 }
 
 // ── metadata, status, visibility, archive ─────────────────────────────────────────────────
