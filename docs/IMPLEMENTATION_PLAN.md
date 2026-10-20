@@ -13514,3 +13514,385 @@ Sanitize update bodies on render (`/share/[token]`, `/updates/[id]`, admin updat
 **Handoff status: APPROVED 2026-10-20. Ready for Alvin: WS125 → WS126 → WS127 → WS128 → WS129, plus WS130; WS131 rollout steps are the owner's.**
 
 ---
+
+# Part 41 — Notion memo import (WS132–WS135, F131–F134, Q126–Q130, 2026-10-20)
+
+> **Status: APPROVED 2026-10-20.** The owner accepted every recommendation (Q126–Q130 all **A**: one-off script; Final for Invested/Passed/Later, In review for Memo/In Progress; combined risks+questions → key-risks, out of share; stop editing in Notion after import day; "Partner event"). Company linking for the 26 "Not in Molly yet" memos (F134) is a separate follow-up, not in this Part. The owner's decisions already made (one import run by an admin; the importer owns the memos and they are shared with the team; Notion's Decision becomes a memo field; Notion's source list replaces Molly's; only memos with real content; decks later) are written in as **confirmed**. Open questions are Q126–Q130; technical calls are `JC-NI-*`.
+>
+> **Numbering:** continues from Part 40 (WS131, F130, Q125). Checked 2026-10-20: no `WS132+`, `F131+`, `Q126+` or "Part 41" exists in `ROADMAP.md`, `README.md` or `docs/`.
+>
+> **Baseline:** `npx vitest run --exclude '.claude/**'` → 119 files, **1554/1554 passing** (run 2026-10-20 on `claude/dfs-portfolio-platform-TZMWC` @ `34b4cdf`, which holds all of Part 40, WS125–WS130).
+>
+> **Schema:** **additive only**: two nullable columns on `Memo` (`decision`, `notionId @unique`). Needs a `db push` by the owner **before** the WS132 deploy. No data-loss prompt.
+>
+> **Confidentiality:** the Notion export is real deal data (company names, partner-fund tags, call links, deck files). It stays outside the repo and is passed to the importer as a path at run time, the posture of `scripts/import-investment-tracker.ts` (WS16). This Part names no real company, fund or person; tests use synthetic pages (`Acme`, `Globex`, `Jane Founder`). Dry-run figures below are counts only.
+
+**What was asked for.** Bring the team's existing investment memos from Notion into Part 40's memos, once, run by an admin. Out of scope: deck files (a later step 2, see "Follow-up"), Notion sync, comments, pages outside the Investment Pipeline database.
+
+---
+
+## What the code and the export look like (verified 2026-10-20 at `34b4cdf`)
+
+**Memo model and writes.**
+- `Memo` (`prisma/schema.prisma:1122-1152`): `status` DRAFT/IN_REVIEW/FINAL, `visibility` PRIVATE/TEAM, `source String?` (comment: "one of MEMO_SOURCES"), `tags String[]`, `introDate`, `websiteUrl`, `introCalls Json`, `templateVersion Int?`, `createKey String? @unique` (Marge only), `createdAt @default(now())`, `updatedAt @updatedAt`. No decision field, no external id.
+- `MemoSection` (`:1154-1175`) and `MemoSectionRevision` (`:1178-1196`): the revision row has `via String?` documented as `"marge" | null` and **no free-text note column**.
+- `createMemo` (`src/lib/memo-actions.ts:92-177`) always writes `status` DRAFT (the column default), `visibility` PRIVATE (default), `draftedByMarge: !!via`, `templateVersion` = current template, and audits `MEMO_CREATED { memoId, sectionCount, draftedByMarge }`. It cannot set status, visibility, decision, an external id or dates, so the import needs its own write function (WS134), not a call to `createMemo`.
+- Source is checked in two places: `validateMemoMeta` (`src/lib/memos.ts:257`, against `MEMO_SOURCES` at `:17-26`) and `updateMemoMeta` (`memo-actions.ts:196-200`). `META_KEYS` (`:181`) is the list of fields the details PATCH accepts.
+- Company suggestion: `suggestCompany` (`memo-actions.ts:591-597`) = exactly one `Company` (both stages, `memoCompanyFilter`) whose `normalizeCompanyName(name)` or an alias equals the pending name's.
+
+**Renderer.** `markdown-it` with `html: false` (`src/lib/memo-render.ts:38`); images render as their alt text (`:79`). A scratch run of the real renderer (2026-10-20, outside the working tree) confirms: a Notion `<aside>` renders as the literal text `&lt;aside&gt;`; GFM pipe tables render as `<table>`, **also inside a `> ` blockquote**.
+
+**Memos list and page.** `GET /api/admin/memos` filters by scope, company, status, unlinked and `q` (`src/app/api/admin/memos/route.ts:11-45`); `memoSummarySelect` (`src/lib/memo-route.ts:15-30`) is the row shape; the list's Status column and filter are in `memos-client.tsx:100-105`, `:182-189`. The memo page shows status at `memo-client.tsx:141-147`, the "Drafted by Marge" line at `:156-158`, Source at `:197`. The history dialog prints "via Marge" when `r.via === "marge"` (`src/components/admin/memos/history-dialog.tsx:106`). The public share page (`src/lib/memo-share-page.ts`) shows title, company, website, status and "Last updated" only: **no tags, source or (later) decision**.
+
+**Marge.** `memo_create`'s input has `source: z.string().max(100).optional()` (`src/lib/marge-tools/memos.ts:95`) with no list of allowed values; the check happens in `validateMemoMeta` and fails with "That source isn't one of the options." `memo_list` rows (`:234-246`) and the `memo_get` header (`:290-310`) are built from hand-picked fields; tests assert them with `toMatchObject` (`marge-memo-tools.test.ts:372`), so an added output field does not break them.
+
+**Production (read-only query, 2026-10-20).** 1 memo in total: archived, `source` null, DRAFT, TEAM. 0 template rows (the built-in default is in use). 13 `Company` rows, all ACTIVE; 54 `PortfolioCompany` rows. **No memo uses a Part 40 source value, so replacing the list needs no data fix.**
+
+**Pre-commit hook.** `scripts/hooks/pre-commit` blocks staged additions that contain a term from the gitignored `.confidential-terms`, matched as a whole word, case-insensitive (`grep -iqwF`). One Notion source value and one recurring section heading contain a partner-fund name, so the code must match them **without the literal** (JC-NI-M, JC-NI-E).
+
+**The export** (inspected outside the repo, 2026-10-20):
+- One database folder: two CSVs (53 rows each, the same rows), one `<Name> <32-hex id>.md` per row, and per-row subfolders holding deck files (PDF, one PPTX) and two inline images. About 252 MB in all; **the 53 `.md` files are 460 KB together**.
+- Each `.md`: line 1 `# <title>`, a blank line, a property block (`Tags`, `Decision`, `Intro Date`, `Deck`, `Intro Call Notes`, `Last Edit`, `Source`, `URL`; only the properties a row has), a blank line, then the body. **A property can continue onto the next line** (one row has two intro-call URLs on two lines), so the block ends at the first blank line, not at the first line without `Key:`.
+- The CSV adds nothing the `.md` lacks, and its `Name` differs from the page title for one row (the folder name is sanitised). The `.md` files are the source; the CSV is a row-count cross-check only (JC-NI-A).
+- Decision values: Passed 20, Invested 19, In Progress 10, Memo 4 (Later: 0). Source values: empty 32, Founder Intro 8, VC Intro 5, Operator Intro 3, Cold Outreach 2, Warm Outreach 2, and 1 row with "<partner-fund name> Event".
+- Deck: 27 relative file paths, 8 URLs (DocSend, Pitch, Canva, a bit.ly), 18 empty. Intro Call Notes: 37 empty, 12 bare Granola URLs, 1 Google Docs URL, 3 in a "Label (date): URL | Label (date): URL" or "Label — date: URL" form, 1 with two URLs on two lines. URL: 21 set, 5 without a scheme, one with a trailing space.
+- Bodies: **23 pages have an empty body** (property block only); the other 30 have 1,250 to 29,769 characters. Nothing lies in between.
+- Raw HTML: only `<aside>` (40 callouts in 12 pages, each with a `notion://custom_emoji` `<img>`; one callout has a unicode emoji line instead). No `<details>`, `<span>`, `<br>`, colour spans, code fences or math. Markdown images: 2 (`![image.png](<folder>/image.png)`). Relative links to deck files inside the body: 2.
+
+---
+
+## Findings
+
+## F131 — ROADMAP still calls Part 40 "building" (docs drift)
+
+`ROADMAP.md:184` reads "APPROVED … building", but WS125–WS130 are committed (`282e57f`…`34b4cdf`) and the owner reports memos live on 2026-10-20. Annotated in the roadmap entry in this change; moving Part 40 into "Existing Features" is left to the owner's end-of-session roadmap update.
+
+## F132 — Marge is never told which source values are allowed (contract gap, pre-existing)
+
+`memo_create` takes `source` as free text (`marge-tools/memos.ts:95`); the allowed values exist only in `MEMO_SOURCES`. Changing the list (decision 4) therefore changes Marge's contract silently: a value Marge learned from the old list now fails with "That source isn't one of the options." WS132 adds a `.describe()` to the field built from the constant, and the Marge handoff lists the change.
+
+## F133 — The details sheet always sends `source`, so a memo with a retired value could not save its details (LOW; no affected data)
+
+`meta-sheet.tsx:37` sends `source` on every save; a stored value missing from `MEMO_SOURCES` would make the whole save fail with 400. Production has no memo with a source today (query above), so nothing is affected. WS132 keeps a stored value that is no longer in the list as an extra option marked "(old option)" and lets the server accept an **unchanged** value, so this cannot arise later either.
+
+## F134 — Most imported memos will show "Not in Molly yet" (expected, worth knowing)
+
+Memos link only to `Company` (Part 40, Q118-A), and production has 13 `Company` rows against 54 deal-ledger rows. Against the real export, **4 of the 30 memos link automatically**; 26 import with `companyNamePending` set to the page title. Most "Invested" memos describe companies that exist in the ledger but not as `Company`. The existing "Link to company" control works once a company is added; nothing new is proposed here.
+
+---
+
+## Design in one paragraph
+
+A pure parser (`src/lib/notion-memo-import.ts`) turns one Notion `.md` page into a memo draft: properties mapped to memo fields, the body cleaned of Notion HTML and split into sections at an inferred heading level, each section given a template key through an alias map or a slug, with share defaults and per-memo warnings. A shared write function, `importMemo` in `memo-actions.ts`, validates with the same `validateMemoMeta` / `validateSections` the web and Marge use, skips a page whose Notion id is already imported, and creates the memo (owner = the importer, TEAM, status per Q127, decision, `notionId`, Notion's last-edit date) with one revision per section marked "imported from Notion", then audits `MEMO_IMPORTED` with ids only. A CLI, `scripts/import-notion-memos.ts`, reads the export folder from a path outside the repo, prints a dry-run table, can write a local HTML preview rendered by the real renderer, and writes only with `--write` (Q126-A). Memos gain a nullable `decision` (filter and column on the list, badge on the page, select in the details sheet; never on share links), and `MEMO_SOURCES` becomes Notion's list.
+
+---
+
+## Confirmed decisions (the owner, 2026-10-20; not reopened)
+
+| | Decision |
+|---|---|
+| D1 | One import, run by an admin. The mechanism is Q126. |
+| D2 | Imported memos are owned by the importer and visible to the team (`visibility: "TEAM"`). |
+| D3 | Notion's Decision becomes a nullable memo field: In Progress, Memo, Invested, Later, Passed. Filterable on the list, shown on the page, settable in the UI. Status stays Draft / In review / Final. Marge cannot set it; `memo_get` and `memo_list` return it (output only). |
+| D4 | `MEMO_SOURCES` becomes Notion's list: Cold Outreach, Founder Intro, VC Intro, Conference, Operator Intro, Warm Outreach, plus the partner-event value under a generic label (Q130). |
+| D5 | Only pages with real memo content are imported. |
+| D6 | Deck files are a later step; deck URLs are kept as links (JC-NI-H). |
+
+---
+
+## Technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-NI-A** | The `.md` files are the source of truth (title from `# `, properties from the block, id from the filename's 32-hex). The CSV is read only to compare row counts; a mismatch is a warning. | Read properties from the CSV joined on title |
+| **JC-NI-B** | **Content threshold: at least 200 non-whitespace characters of body after the property block.** In the real export, stubs have 0 and the shortest real memo has 1,250, so any threshold between 1 and 1,250 gives the same 30; 200 keeps out a future "TBD" or a one-line note. | Change one constant |
+| **JC-NI-C** | **Split rule.** Headings are ATX lines (`#`–`######`) outside code fences and outside callouts; bold markers are stripped from titles. The split level `L` is the level with the most headings that match the alias map (ties: the level with more headings; then the shallower). Every heading at level `L` **or shallower** starts a section; deeper headings stay inside their section (the renderer shifts them to h3/h4). A level-`L` heading whose text ends in ":" stays inside (it is a label, e.g. "Recent performance:"). Text before the first section heading becomes an "Introduction" section. **No ATX headings:** if two or more lines consist only of `**bold text**` (≤ 80 characters, after a blank line), split there; otherwise one section titled "Memo". | Use "shallowest repeating level" (fails on 3 real layouts, see the dry run); or always one "Memo" section when there are no ATX headings |
+| **JC-NI-D** | **Keys.** A normalised title (lowercase, bold and trailing colon removed, `&` → "and", a leading "The " and any "(…)" tail dropped, punctuation → spaces) is looked up in the alias map below. A match takes the template key and **keeps its own Notion title**. No match → `slugifyKey(title)` (empty → `section`). A key already used in the memo gets `-2`, `-3`. Sections keep the page's order; missing template sections are not added. | Edit the alias table |
+| **JC-NI-E** | **Share defaults** (only matter once someone creates a share link): template default by key (`open-questions` off, others on); also **off** for the "Introduction" preamble (in the export these are status and open-question callouts), for any heading that mentions "question", and for internal-view headings: team thoughts, internal view…, investment decision, DFS notes, due diligence…, and `potential … integration` (matched by pattern, so the partner name is never written in code). | Edit `NOTION_INTERNAL_HEADINGS` |
+| **JC-NI-F** | **Body cleaning, before splitting:** a line `<aside>` … `</aside>` block becomes a `> ` blockquote (every inner line prefixed; tables survive, verified); `<img src="notion://…">` lines are dropped; any other `<img>` and every markdown image become `[Image not imported: <alt or file name>]`; a link whose target is not `http(s):`, `mailto:` or `#` becomes `<text> (file not imported)`; trailing and leading `---` rules in a section are trimmed. Any other raw HTML tag left after cleaning is a **warning** in the dry run (none in the real export). | Drop a rule |
+| **JC-NI-G** | **Limits.** A section over 20,000 characters is split at the last blank line before 19,900 into "<title> (continued 2)", and so on (no truncation, no lost text). A memo over 150,000 characters or with more than 30 sections after splitting is **not imported**; the dry run lists it as an error. The real export hits neither (largest section 5,063, largest memo 28,136, most sections 15). | Truncate with a note instead |
+| **JC-NI-H** | **Deck.** A URL becomes a citation `{ label: "Deck", kind: "deck", url }` on the first section. Kind "deck" means the URL never appears on a share link (`shareableCitations` keeps URLs for kind "web" only). A file path is skipped and counted in the dry run as "deck file (step 2)". | Put deck URLs in `introCalls` labelled "Deck" |
+| **JC-NI-I** | **Dates.** `Last Edit` becomes the memo's `createdAt` and `updatedAt` (date at 12:00 UTC; Notion exports local time with no zone, and noon keeps the date in any zone), so the list's "updated" order reflects real recency and the share page's "Last updated" is honest. Revisions are stamped with the import time. `Intro Date` → `introDate` (date only, `parseDateOnly` convention). Prisma honours an explicit `updatedAt` on create; WS134 step 0 asserts it in a test. | Leave both at import time |
+| **JC-NI-J** | **"Imported from Notion" without a schema change:** sections get `updatedVia: "notion"` and revision 1 gets `via: "notion"`; the history dialog adds "· imported from Notion" next to the existing "· via Marge". The memo page shows "Imported from Notion." where it shows "Drafted by Marge" (from `notionId != null`). | Plain revisions with no marker |
+| **JC-NI-K** | `templateVersion: null` for imports (they follow Notion's headings, not the template). `draftedByMarge: false`. | Set the current version |
+| **JC-NI-L** | **Decision in the UI:** a badge next to the status badge on the memo page, a "Decision" select in the existing "Memo details" sheet (sent through `updateMemoMeta`, so it uses the metadata version check), a "Decision" column and filter on the list. **Never on the share page or in print-to-share.** | A header select like status |
+| **JC-NI-M** | **Sources:** Notion values map case-insensitively to the new list; any other value **containing the word "event"** maps to "Partner event"; anything else maps to `null` with a warning. The partner name is never written in code. | Add explicit entries |
+| **JC-NI-N** | **Company:** `suggestCompany(title)` (exactly one normalised match, both stages); otherwise `companyNamePending = title`. | Always pending, link by hand |
+| **JC-NI-O** | **Website:** trimmed; a value with no scheme gets `https://`; anything `validateWebUrl` rejects is dropped with a warning. **Tags:** split on commas, through `validateTags` (≤ 20, ≤ 40 characters; all real rows pass). Partner-fund tags are data and stay. | — |
+| **JC-NI-P** | **Intro calls:** split `Intro Call Notes` on new lines and " \| "; each part's first `http(s)` URL is the link; text before it (minus a trailing ":" and a trailing "(Mon D, YYYY)" or "— Mon D, YYYY") is the label, else "Intro call" (numbered when there are several); the date is parsed from the label, else the intro date for the first bare URL. Text with no URL becomes a label-only call. | Label everything "Intro call" |
+
+**Alias map (template key ← normalised Notion headings).**
+
+| Template key | Notion headings that map to it |
+|---|---|
+| `open-questions` | open questions |
+| `company-overview` | company overview, overview |
+| `product` | product, product and solution, product overview, product and technology |
+| `market-opportunity` | market opportunity, market sizing, market |
+| `traction` | traction, traction and roadmap |
+| `business-model` | business model, business model and unit economics |
+| `go-to-market-hook` | go to market, go to market strategy, go to market hook, go to market strategy hook |
+| `competition-status-quo` | competition, competitive landscape, competition status quo |
+| `team` | team, founder and team, founders |
+| `round-investment-terms` | ask, round, deal, funding, fundraising, funding and use of funds, fundraising and use of funds, round investment terms |
+| `key-risks` | key risks, risks, future concerns, risks and considerations, key risks future concerns, key risks and open questions (Q128), risks concerns and open questions (Q128) |
+| `exit-opportunities` | exit opportunities |
+
+Not mapped on purpose (they become extra sections with their own slug): Problem, Differentiation (and Advantage), Strategic Advantages, Why This Works, Team Thoughts, Internal View & Recommendation, Investment Decision, Financial Model & Assumptions, Partnerships, Regulatory & Compliance Strategy, Due Diligence Checks / Call Notes. "Differentiation" is not "Competition", and mapping it would collide in memos that have both.
+
+---
+
+## Dry run against the real export (2026-10-20, throwaway script outside the repo, real renderer and real validators)
+
+| Measure | Result |
+|---|---|
+| Pages | 53 (both CSVs 53 rows) |
+| Would import | **30** (Invested 14, Passed 11, Memo 4, In Progress 1) |
+| Skipped as stubs | 23 (all with an empty body) |
+| Split mode | 24 at level `###`, 3 at level `##`, 2 by bold-line fallback, 1 single "Memo" section |
+| Sections per memo | 1 to 15 (median 11); 306 in total |
+| Sections out of share links by default | 1 to 3 in 24 memos, 0 in 6 |
+| Over 20,000 characters (section) / 150,000 (memo) / 30 sections | **none / none / none** (max 5,063 / 28,136 / 15) |
+| `validateSections` and `validateMemoMeta` (sources aside) | 30/30 pass |
+| Tables | every pipe table renders as `<table>` (including those inside converted callouts) |
+| Literal HTML left after cleaning | 0 |
+| Images replaced / relative links replaced | 2 / 2 |
+| Intro calls parsed | 14 memos, 16 calls, all valid |
+| Deck | 18 files skipped (step 2), 5 URLs kept as citations, 7 none |
+| Company auto-link | 4 linked, 26 pending (F134) |
+| Source after mapping | 17 set (1 of them "Partner event"), 13 empty |
+| Unmatched headings (become extra sections) | 26 distinct titles, 41 occurrences; the most common: "Team Thoughts" ×8, "Problem" ×4, then ×2 each for financial model, internal view, investment decision, due diligence checks and the partner-integration heading; the rest appear once (including all 4 bold-line titles of each fallback memo) |
+| Duplicate keys suffixed | 1 memo (two "Business Model" and two "Traction" sections: an older draft pasted below the newer one; both kept, the second as `business-model-2` / `traction-2`) |
+
+Why the split rule needs alias scoring: in the export, one memo uses `##` for the first three sections and `###` for the other eight; one uses `###` sections with two stray `##` sections pasted inside; two use `###` throughout with a single `##` at the end; one uses `##` sections with `###` subsections. "Split at the shallowest repeating level" gets three of these wrong; the rule in JC-NI-C gets all of them right.
+
+---
+
+## WS132 — Schema, decision field, new source list, Marge output, ~0.75 day (APPROVED 2026-10-20)
+
+**WS132.1 — `prisma/schema.prisma`**, `model Memo` (additive):
+
+```prisma
+  decision           String? // one of MEMO_DECISIONS (src/lib/memos.ts); Notion's pipeline stage. Never on share links.
+  notionId           String?   @unique // Notion page id (32 hex) of an imported memo; null otherwise (Part 41)
+```
+
+**WS132.2 — `src/lib/memos.ts`:**
+
+```ts
+// Part 41 (D4). Notion's list. The partner-event value is stored under a generic label (Q130).
+export const MEMO_SOURCES = [
+  "Cold Outreach",
+  "Founder Intro",
+  "VC Intro",
+  "Conference",
+  "Operator Intro",
+  "Warm Outreach",
+  "Partner event",
+] as const;
+
+// Part 41 (D3). Notion's Decision. Separate from status (the memo's own lifecycle).
+export const MEMO_DECISIONS = ["IN_PROGRESS", "MEMO", "INVESTED", "LATER", "PASSED"] as const;
+export type MemoDecision = (typeof MEMO_DECISIONS)[number];
+export const MEMO_DECISION_LABELS: Record<MemoDecision, string> = {
+  IN_PROGRESS: "In Progress",
+  MEMO: "Memo",
+  INVESTED: "Invested",
+  LATER: "Later",
+  PASSED: "Passed",
+};
+```
+
+`MEMO_ERRORS.badDecision = "That decision isn't one of the options."` `validateMemoMeta` is **not** changed (it serves Marge's `memo_create`, which may not set a decision, D3).
+
+**WS132.3 — `src/lib/memo-actions.ts`:** `META_KEYS` gains `"decision"`; `updateMemoMeta` accepts `decision` (`null`/`""` clears; else must be in `MEMO_DECISIONS`). Source check (F133): accept a value in `MEMO_SOURCES` **or equal to the memo's stored value** (load `source` with the head). `createMemo` is unchanged.
+
+**WS132.4 — list:** `memo-route.ts` `memoSummarySelect` adds `decision: true`; `GET /api/admin/memos` adds `decision` to its filters (`if (decision && MEMO_DECISIONS.includes(decision)) and.push({ decision })`); `memos-client.tsx` adds a "Decision" column after Status (`Badge variant="secondary"`, sort by `MEMO_DECISIONS.indexOf`, "—" when null) and an "Any decision" select beside "Any status", included in the "filtered" state and "Clear filters".
+
+**WS132.5 — page:** `[id]/page.tsx` passes `decision` and `importedFromNotion: memo.notionId !== null`; `memo-client.tsx` shows the decision badge next to the status badge and, in the Details card, a "Decision" row; "Imported from Notion." under the header in the "Drafted by Marge" style (`memo-no-print` not needed: it is useful in print). `meta-sheet.tsx`: a "Decision" `Select` ("Not set" + `MEMO_DECISIONS`); the Source `Select` adds the stored value as `"<value> (old option)"` when it is not in the list (F133). History dialog: `{r.via === "notion" && " · imported from Notion"}`. Share page: **unchanged** (it never selects `decision`).
+
+**WS132.6 — Marge (additive output only; inputs unchanged):** `HEAD_SELECT` adds `decision: true`; `memo_list` rows and the `memo_get` header add `decision` (label via `MEMO_DECISION_LABELS`, `null` when not set); the `memo_get` text line becomes "Source: … · Decision: … · Tags: …" and `memo_list` lines add "· <Decision>" when set. `memoCreateInput.source` gains `.describe(\`one of: ${MEMO_SOURCES.join(", ")}\`)` (F132); this changes the tool's input-schema description text, not its shape or name. **The 13 Part 39 tools are untouched.**
+
+**Tests:** `memos.test.ts` (the existing loop over `MEMO_SOURCES` covers the new list; "Billboard" still fails); `memo-routes.test.ts` additions (PATCH `decision` set, clear, invalid → 400 with the sentence; list filter by decision; an unchanged legacy source saves, a different invalid one fails); `marge-memo-tools.test.ts` additions (`memo_get` and `memo_list` include `decision`; `memo_create` with a `decision` key → zod strips it and Prisma never receives it). **No existing test edited.**
+
+**Acceptance:** schema pushes with no data-loss prompt; tests green. **UX impact:** the Source options change for admins (no memo in production holds an old value); a new optional Decision column, filter, badge and details field; nothing changes for founders, LPs or link recipients. **Cost impact:** none.
+
+---
+
+## WS133 — Pure parser and mapping library, ~1.0 day (APPROVED 2026-10-20)
+
+**`src/lib/notion-memo-import.ts`** (new, pure, no database or file access):
+
+```ts
+// Part 41 (WS133). One Notion page (.md export) -> a memo draft for importMemo. Pure.
+// Real export data never enters the repo: tests use synthetic pages (Acme, Globex).
+export const NOTION_IMPORT_MIN_BODY = 200; // JC-NI-B: non-whitespace characters after the property block
+export const NOTION_HEADING_ALIASES: Record<string, string[]> = { /* the alias table above */ };
+export const NOTION_INTERNAL_HEADINGS: RegExp[] = [
+  /^team thoughts$/, /^internal view/, /^investment decision$/, /^dfs notes$/, /^due diligence/,
+  /^potential .+ integration$/, // a recurring heading names a partner fund; matched without the name
+];
+export const NOTION_DECISIONS: Record<string, MemoDecision> = {
+  "in progress": "IN_PROGRESS", memo: "MEMO", invested: "INVESTED", later: "LATER", passed: "PASSED",
+};
+
+export interface NotionMemoDraft {
+  notionId: string;            // 32 lowercase hex from the file name
+  title: string;               // from "# ", ≤ 200
+  decision: MemoDecision | null;
+  source: MemoSource | null;
+  tags: string[];
+  introDate: string | null;    // YYYY-MM-DD
+  lastEdited: Date | null;     // JC-NI-I, 12:00 UTC
+  websiteUrl: string | null;
+  introCalls: MemoIntroCall[];
+  sections: (MemoSectionInput & { includeInShare: boolean })[];
+  deck: { kind: "url"; url: string } | { kind: "file"; path: string } | null;
+  warnings: string[];          // shown in the dry run; never contain body text
+}
+export type NotionParse =
+  | { kind: "memo"; draft: NotionMemoDraft }
+  | { kind: "stub"; notionId: string; title: string }
+  | { kind: "error"; notionId: string | null; title: string; error: string };
+
+export function parseNotionPage(fileName: string, text: string): NotionParse;
+// building blocks, exported for tests:
+export function readPropertyBlock(lines: string[]): { props: Record<string, string>; bodyStart: number };
+export function cleanNotionBody(body: string): { markdown: string; warnings: string[] };   // JC-NI-F
+export function splitSections(markdown: string): { title: string; markdown: string; preamble: boolean }[]; // JC-NI-C
+export function keyForHeading(title: string, used: Set<string>): { key: string; matched: boolean };   // JC-NI-D
+export function parseIntroCalls(raw: string | undefined, introDate: string | null): MemoIntroCall[];   // JC-NI-P
+export function parseNotionDate(raw: string | undefined): string | null; // "January 26, 2026" -> "2026-01-26"
+export function mapSource(raw: string | undefined): { source: MemoSource | null; warning?: string };  // JC-NI-M
+```
+
+Rules exactly as JC-NI-A…P. `parseNotionPage` ends by running `validateSections` and `validateMemoMeta` (with `source`, not `decision`) and returns `kind: "error"` with the validator's sentence if either fails, so the CLI and `importMemo` see the same verdict.
+
+**Tests (`notion-memo-import.test.ts`, synthetic pages only):** property block with a continuation line; a page with no body → stub; 199 vs 200 characters; `###` sections; `##` sections with `###` subsections kept inside; mixed (`##` ×3 then `###` ×8) → 11 sections; `###` sections with a single trailing `##` → split there too; a heading ending in ":" stays inside; bold-only fallback; no headings → one "Memo" section; preamble → "Introduction", share off; duplicate heading → `-2`; alias match keeps the Notion title; `potential acme integration` → share off; "Key Risks & Open Questions" per Q128; callout → blockquote with a table inside that renders as `<table>` through `renderMemoMarkdown`; `notion://` image dropped; markdown image → placeholder; relative link → "(file not imported)"; a leftover `<span>` → warning; 25,000-character section → two sections, no text lost; 160,000-character memo → error; dates; intro-call forms (bare URL, two lines, " | " with labels and dates, "— Mon D, YYYY"); website with no scheme; source mapping (exact, "Acme Event" → "Partner event", unknown → null + warning); decision mapping; warnings never contain body text (canary string).
+
+**Acceptance:** green; no route, page or script yet. **UX impact:** none. **Cost impact:** none (no new package: no zip library, CSV not parsed beyond a row count with a few lines of code).
+
+---
+
+## WS134 — `importMemo` and the CLI, ~0.75 day (APPROVED 2026-10-20)
+
+**WS134.1 — `src/lib/memo-actions.ts`, `importMemo(actor, draft, opts)`** (new, after `createMemo`; same rules: allowlist, validate, write, audit ids only):
+
+```ts
+export interface ImportedMemo { id: string | null; duplicate: boolean; linkedCompany: boolean }
+
+/** Part 41. One Notion page -> one TEAM memo owned by `actor`. A page already imported (same notionId) is skipped. */
+export async function importMemo(
+  actor: Actor,
+  draft: NotionMemoDraft,
+  opts: { status: MemoStatus }
+): Promise<MemoResult<ImportedMemo>> {
+  // 1. validateMemoMeta(...) and validateSections(draft.sections) again (defence in depth; same sentences)
+  // 2. existing = db.memo.findUnique({ where: { notionId } }) -> { id, duplicate: true } (archived counts as imported)
+  // 3. company = await suggestCompany(draft.title)
+  // 4. db.memo.create({ data: { title, companyId | companyNamePending, ownerId: actor.id, status: opts.status,
+  //      visibility: "TEAM", decision, notionId, draftedByMarge: false, source, tags, introDate, websiteUrl,
+  //      introCalls, templateVersion: null, createdAt: lastEdited ?? undefined, updatedAt: lastEdited ?? undefined,
+  //      sections: { create: sections.map((s, i) => ({ key, title, markdown, citations, position: i,
+  //        includeInShare, updatedById: actor.id, updatedVia: "notion",
+  //        revisions: { create: [{ version: 1, title, markdown, citations, includeInShare, editedById: actor.id, via: "notion" }] } })) } } })
+  //    P2002 on notionId (a parallel run) -> { duplicate: true }
+  // 5. logAdminAction(actor, "MEMO_IMPORTED", { targetType: "Memo", targetId: id,
+  //      metadata: { memoId: id, sectionCount, linkedCompany: !!company, source: "notion" } })
+}
+```
+
+`status` comes from Q127 (`statusForDecision(decision)`, exported from `notion-memo-import.ts`). The deck URL (JC-NI-H) is added to the first section's citations by the parser, so `importMemo` writes no special case.
+
+**WS134.2 — `scripts/import-notion-memos.ts`** (new; the WS16 importer's conventions):
+
+```
+Usage:
+  # dry run (default): parses, validates, prints the table; reads the database only to check for
+  # already-imported pages and company matches; writes nothing
+  npx tsx scripts/import-notion-memos.ts "<export>/Investment Pipeline" --owner-email=<you>
+
+  # optional: a local HTML preview of every memo, rendered by renderMemoMarkdown (path outside the repo)
+  ... --preview-html=<path outside the repo>/notion-preview.html
+
+  # one memo first, then all (prod env pulled per the house procedure; delete the file after)
+  DATABASE_URL="<from the pulled env>" npx tsx scripts/import-notion-memos.ts "<dir>" --owner-email=<you> --write --only=<32-hex id>
+  DATABASE_URL="<from the pulled env>" npx tsx scripts/import-notion-memos.ts "<dir>" --owner-email=<you> --write
+```
+
+- Refuses a path inside the repo, and a `.zip` ("Unzip the export first; only the .md files are read."). Reads the `*.md` files directly in the database folder whose names end in a 32-hex id; never opens deck files.
+- `--owner-email` must resolve to an approved `ADMIN` (`requireAdmin` semantics); that user is the `actor`, so the audit log shows the person who ran it.
+- Dry-run table, one line per page: short id, decision, mode, sections, sections out of share links, characters, company "linked" or "pending", deck "url" / "file (step 2)" / "—", warnings count, and "would import" / "already imported" / "stub" / "error: <sentence>". **Titles are printed on screen only** (as WS16 does with real numbers); never paste the output anywhere.
+- `--write` imports in file-name order, one memo per `importMemo` call, and prints "imported / already imported / errors" totals. Re-running prints 0 imported, N already imported.
+- Uses `@/lib/...` imports (tsx resolves `tsconfig.json` paths from the repo root; verified in a scratch run 2026-10-20 that `memo-render.ts` and its `@/lib` imports load under tsx).
+
+**Tests:** `memo-import.test.ts` (fake database in the `memo-routes.test.ts` style): creates a TEAM memo owned by the actor with the given status, decision, `notionId`, `templateVersion: null`, `draftedByMarge: false`, `updatedAt` = Notion date; one revision per section with `via: "notion"`; second import of the same `notionId` → `duplicate: true` and no second row; P2002 race → duplicate; unique company match links, otherwise pending; audit metadata has no title, text or company name (canary); `MEMO_CREATED` is **not** emitted. The CLI is a thin shell over tested functions and is exercised by the rollout dry run.
+
+**Acceptance:** green; dry run on a synthetic folder prints the table. **UX impact:** none until run. **Cost impact:** none.
+
+---
+
+## WS135 — Rollout, ~0.25 day (APPROVED 2026-10-20; the owner runs every schema change and every production write)
+
+1. Before deploy: re-run the read-only check "memos with a non-null source" (expected 0).
+2. `db push` (additive) → deploy WS132–WS134.
+3. Dry run against the export folder with the production `DATABASE_URL` from a pulled env file (reads only). Expect 30 to import, 23 stubs, 0 errors.
+4. `--preview-html` to a path outside the repo; open it and skim a few memos (callouts, tables, sections).
+5. `--write --only=<one id>`; open it in Molly (`/admin/memos`, Shared with team): badge, decision, sections, history "imported from Notion", "Last updated" = Notion date.
+6. `--write` for the rest. Re-run: 0 imported, 30 already imported. `/admin/audit` shows 30 `MEMO_IMPORTED`.
+7. Delete the pulled env file. Tell the team the memos are in Molly (Q129).
+8. **Marge handoff (MWS note):** `memo_create`'s accepted `source` values changed to the new list (the old eight now fail with "That source isn't one of the options."); the field now describes its options; `memo_get` and `memo_list` return `decision` (output only; Marge cannot set it). No tool added, renamed or removed; `tools/list` names unchanged.
+
+---
+
+## Follow-up (not in this Part): deck files, step 2
+
+18 of the 30 imported memos reference a deck file in the export (PDF or PPTX). A later Part can attach them, most likely by reusing the company documents storage on S3 (no new service), keyed by the same `notionId`. Open points for then: whether decks attach to the memo or to the company, who can see them, and whether a share link may ever include one. Until then the dry run lists them as "deck file (step 2)".
+
+---
+
+## Open product decisions (the owner's call, each with a recommendation)
+
+| | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q126** | How is the one import run? | **(A)** A one-off script (`scripts/import-notion-memos.ts`), run by the owner against production: dry run by default, a local HTML preview, `--only` for a one-memo trial, `--write` to import. **(B)** An admin upload page `/admin/memos/import`: pick the extracted export **folder** (the browser reads only the `.md` files, 460 KB here, so the 4.5 MB Vercel body limit is not hit; a zip upload would need a client unzip library or a hand-written zip reader), preview table and rendered preview, then "Import 30 memos" in batches of 5; hidden behind an env flag. About **+1.5 days**. | **(A).** It is a single import of confidential data, which is exactly what Molly's two importer scripts already do (WS16 and the rounds backfill: external file path, dry run, `--write`, the owner runs it with a pulled env file). It adds no permanent upload route for confidential files, no body-size or timeout handling, no zip code and no flag to remove later. The preview the page would give is covered by the dry-run table, the HTML preview rendered by the real renderer, and a one-memo trial in production. Choose (B) if teammates will import their own Notion pages later; WS133 and WS134 are shared, so (B) only adds the page and two routes. |
+| **Q127** | What status do imported memos get? | **(A)** Final for Invested, Passed and Later; In review for Memo and In Progress (5 of the 30). **(B)** Final for all. | **(A),** narrowly. The 5 "Memo" / "In Progress" pages are live work (one was edited in Notion today), and "Final" on them would be misleading. Status does not lock editing, so either option is safe; (B) is a one-line change. |
+| **Q128** | Where does a combined "Key Risks & Open Questions" heading go (3 memos; plus 1 "Risks, Concerns & Open Questions")? | **(A)** `key-risks`, out of share links by default. **(B)** `open-questions` (out of share links by default). **(C)** `key-risks`, in share links. | **(A).** The text is mostly risks and sits where Key Risks sits in the template, but it also holds the internal open questions that Part 40 keeps out of share links by default. Out by default costs nothing: nothing is shared until an owner makes a link, and the toggle is one click. |
+| **Q129** | What happens to these pages in Notion after the import? | **(A)** Molly becomes the place for them: the team stops editing them in Notion; a re-run only adds pages not yet imported. **(B)** Re-runs also update imported memos that nobody has edited in Molly (needs a "pristine" check per section, about +0.5 day). | **(A).** One import was the decision; a two-way period invites lost edits. Pick an import day and tell the team. |
+| **Q130** | The partner-event source value contains a confidential partner name | **(A)** Store and show it as "Partner event". **(B)** Keep a generic stored value and show the real name from an environment variable. | **(A).** (B) would need a `NEXT_PUBLIC_` variable for the client-side Select, which puts the partner name into a public JavaScript bundle anyone can download; that is worse than the repo text the hook protects. |
+
+---
+
+## Part 41 sequencing, deploys and effort
+
+**Order:** WS132 (needs `db push` first) → WS133 → WS134 → WS135. WS133 can be built in parallel with WS132.
+
+| Workstream | Effort |
+|---|---|
+| WS132 | 0.75 |
+| WS133 | 1.0 |
+| WS134 | 0.75 |
+| WS135 | 0.25 (owner) |
+| **Total (Molly)** | **≈ 2.75 days** (+1.5 if Q126 = B; +0.5 if Q129 = B) |
+
+**New env vars:** none. **New packages:** none. **Schema:** two nullable `Memo` columns. **New secrets:** none.
+
+**Do not touch in this Part:** the 13 Part 39 tools and `MARGE_TOOLS`; Marge memo tool **inputs** (only output fields and one description are added); `createMemo`; the share page and `shareableCitations`; the template.
+
+## Part 41 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **D1–D6** | See "Confirmed decisions" | **Confirmed by the owner 2026-10-20** |
+| **Q126–Q130** | See the table above | **DECIDED 2026-10-20: A, A, A, A, A** |
+| **JC-NI-A…P** | See the judgment-calls table | **Proposed**, each with a reversal |
+| **F131** | ROADMAP calls Part 40 "building" | Annotated in ROADMAP |
+| **F132** | Marge not told the allowed source values | WS132.6 |
+| **F133** | Details save fails on a retired source value | WS132.3, WS132.5 (no affected data) |
+| **F134** | 26 of 30 imported memos will be "Not in Molly yet" | Recorded |
+
+**Constraints honored:** **no new cost line** (no service, no package; the existing database and Vercel); **additive schema** (two nullable columns); **no UX regression** (Source options change with no memo holding an old value; everything else is a new optional field or a new marker; founders, LPs and link recipients see nothing new); the 13 Marge tools unchanged; no partner or company name in repo text.
+
+**Handoff status: APPROVED 2026-10-20. Ready for Alvin: WS132 → WS133 → WS134; WS135 rollout is the owner's.**
+
+---
