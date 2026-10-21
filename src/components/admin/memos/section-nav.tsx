@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 const CONTROL =
-  "h-8 w-full rounded-ctl border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-8 w-full rounded-ctl border border-input bg-card py-0 pl-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 // Part 44 (WS146.4): the section list tracks the section in view; phones get a Jump to select.
 export function SectionNav({ sections }: { sections: { key: string; title: string }[] }) {

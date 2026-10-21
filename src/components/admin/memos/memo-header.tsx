@@ -20,7 +20,7 @@ import { sameName } from "@/lib/memo-board";
 import { STATUS_VARIANT, ownerLabel, readError, type MemoDecision, type MemoStatus, type MemoView } from "@/components/admin/memos/types";
 
 const CONTROL =
-  "h-8 w-auto rounded-ctl border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
+  "h-8 w-auto rounded-ctl border border-input bg-card py-0 pl-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60";
 const ICON_LINK = "inline-flex items-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 interface Props {

@@ -5,7 +5,7 @@ import { targetValue, type LinkTargets } from "@/components/admin/memos/types";
 
 /** F145: the DataTable toolbar control height and type size. */
 const SELECT =
-  "h-8 w-auto rounded-ctl border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  "h-8 w-auto rounded-ctl border border-input bg-card py-0 pl-3 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 export interface MemoFilterValues {
   companyId: string;
