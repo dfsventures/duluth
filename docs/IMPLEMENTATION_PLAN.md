@@ -14217,3 +14217,352 @@ Usage:
 **Handoff status: APPROVED 2026-10-21. Ready for Alvin: WS136 → WS137 → WS138 → WS139; WS140 rollout is the owner's.**
 
 ---
+
+# Part 43 — Memo board view (WS141–WS143, F138–F142, Q137–Q138, 2026-10-21)
+
+> **Status: APPROVED 2026-10-21 (owner's decisions 1–6 below; Q137 A, Q138 A confirmed by the owner).** The owner decided the shape (Board / List switch, columns, card contents, drag with Undo, filters, Marge unchanged). Open questions are Q137–Q138, each with a recommendation; technical calls are `JC-MB-*`, each with a cheap reversal.
+>
+> **Numbering:** continues from Part 42 (WS140, F137, Q136). Checked 2026-10-21: no `WS141+`, `F138+`, `Q137+` or "Part 43" exists in `ROADMAP.md`, `README.md` or `docs/`.
+>
+> **Baseline:** `npx vitest run --exclude '.claude/**'` → 122 files, **1659/1659 passing** (run 2026-10-21 on `claude/dfs-portfolio-platform-TZMWC` @ `2a63c6c`, which holds all of Part 42).
+>
+> **Schema:** **none.** `Memo.decision String?` (`prisma/schema.prisma:1134`) and `Memo.version Int` (`:1141`) already exist; the board orders cards by `updatedAt`, so no position column is needed (JC-MB-C). No `db push`.
+>
+> **Packages:** **none.** The team board drags with the browser's native HTML5 drag and drop (`draggable`, `onDragStart`/`onDragOver`/`onDrop` in `src/components/admin/board/board-card.tsx:103-106` and `board-column.tsx:85-112`); there is no drag library in the repo, and this Part adds none.
+>
+> **Confidentiality:** no company, deal or person name appears below. Tests use `Acme`, `Globex`, `Initech`.
+
+**What was asked for.** A Notion-style board for investment memos on `/admin/memos`: one column per Memo Decision, cards you can drag between columns to change the decision (with audit and Undo), the existing table kept one click away.
+
+## Owner decisions (approved 2026-10-21; not reopened)
+
+1. `/admin/memos` gets a **Board / List** switch. The table stays. Default = Board. The viewer's last choice is remembered (JC-MB-A).
+2. Columns = Memo Decision, in order **In Progress, Memo, Invested, Later, Passed**, plus **No decision**. Passed starts collapsed with a count.
+3. Cards show title, company (Part 42 conventions), status (Draft / In review / Final), owner, last updated, tags. Clicking opens the memo.
+4. Dragging a card to another column changes its Decision; only people who may edit the decision today can drag (see F139: that is the owner **or any admin on a team-shared memo**); others get a read-only card. Each move is audit-logged and has Undo. Drag, the "Move to…" menu and Undo follow `/admin/board`, so it works on touch and phone.
+5. Existing filters (scope, company, status, unlinked, search) apply on top of the board; the Decision filter is redundant there (handled in WS142.3).
+6. Marge unchanged: reads decision, never sets it. Whether a move bumps "Last updated" is Q137.
+
+---
+
+## What the code looks like (verified 2026-10-21 at `2a63c6c`)
+
+**The list page.** `src/app/admin/memos/page.tsx:9-13` is a server wrapper (approved admin, else `/login`) that passes `loadLinkTargets()` to `memos-client.tsx`. The client keeps the scope tab in `?tab=` (`memos-client.tsx:39`, `parseTab`), and company / status / decision / unlinked in component state (`:44-47`), and fetches `GET /api/admin/memos?scope=…` on every change (`:49-70`) with **no stale-response guard** (F142). Search is **not** the API's `q`: it is `DataTable`'s client-side `searchText` (title + company name, `:174`), whose text lives in the URL as `?q=` (`src/lib/data-table.ts:3-5`, `:65-66`; `urlState` defaults to true, `data-table.tsx:161`) and is matched by `matchesQuery` (`data-table.ts:55-63`). The filters are `DataTable`'s `toolbarExtra` (`memos-client.tsx:180-225`). The Company cell renders company/ledger name plain, pending as name + `Badge variant="neutral"` "Not linked", none as muted "None" (`:93-103`).
+
+**The list API.** `GET /api/admin/memos` (`src/app/api/admin/memos/route.ts:11-53`): `memoVisibleWhere(user.id)` (own, or `visibility: "TEAM"`, archived excluded: `src/lib/memos.ts:324-326`), scope, `companyId` (→ `memoForCompanyWhere`), `portfolioCompanyId`, `status`, `decision`, `unlinked`, `q`; `select: memoSummarySelect` (`src/lib/memo-route.ts:15-33`: includes `decision`, `tags`, `version`, `updatedAt`, `visibility`, `owner {id,name,email}`, company and ledger); `orderBy: { updatedAt: "desc" }, take: 200`, **no pagination and no "there is more" signal** (F140). The only caller is `memos-client.tsx:59`. Production has 31 memos (Part 42), so today the list returns everything.
+
+**Who may change a decision.** Only through `PATCH /api/admin/memos/[id]` with a metadata body (`[id]/route.ts:42-56`; `"decision"` is in `META_KEYS`, `src/lib/memo-actions.ts:327`) → `updateMemoMeta` (`:330-396`): `canEditMemo` (`:333`) = **owner, or anyone once the memo is TEAM** (`memos.ts:328-330`, Q116-A), `version` required (`:334`), decision `null`/`""` → null, else must be in `MEMO_DECISIONS` (`:348-352`, `memos.ts:30-38`), then `db.memo.updateMany({ where: { id, version }, data: { ...data, version: { increment: 1 } } })` (`:388`), 409 `MEMO_MESSAGES.staleMemo` "This memo changed since you loaded it. Reload and try again." on a miss (`:389`, `:57`), audit `MEMO_UPDATED { memoId, version, fields }` (`:390-394`). The `updateMany` does not set `updatedAt`, so Prisma's `@updatedAt` (`schema.prisma:1145`) stamps now: **a decision change in Memo details bumps both `version` and "Last updated"** (F141). The UI is "Edit details" (shown when `memo.canEdit`, `[id]/memo-client.tsx:211-216`) → `MetaSheet`, which sends every field on every save (`meta-sheet.tsx:37-49`, F136).
+
+**Concurrency.** `Memo.version` is the metadata version. It is bumped by `updateMemoMeta`, `setMemoStatus` (`:405`, no version check), `setMemoVisibility` (`:421`), `linkTarget` (`:767-768`) and `unlinkCompany` (`:796-797`). Section saves do **not** bump it (they touch `updatedAt` only, `:487`), so editing memo text never makes a board card stale; changing details, status, visibility or the company link does. `linkTarget`/`unlinkCompany` already keep `updatedAt` by putting it in both `where` and `data` (Q135-A), and the test fake supports that (`memo-routes.test.ts:562-572`).
+
+**Marge.** `src/lib/marge-tools/memos.ts:151-152` prints decision as a label, "Output only: Marge cannot set it"; `marge-memo-tools.test.ts:732-739` asserts the tools module never references `updateMemoMeta` and other web-only writes.
+
+**Audit.** `logAdminAction(actor, action: string, …)` (`src/lib/audit.ts:7-25`) takes free-form action names; there is no enum to extend. Memo actions in use: `MEMO_CREATED`, `MEMO_IMPORTED`, `MEMO_UPDATED`, `MEMO_STATUS_CHANGED`, `MEMO_VISIBILITY_CHANGED`, `MEMO_ARCHIVED`, `MEMO_SECTION_UPDATED`, `MEMO_SECTION_RESTORED`, `MEMO_COMPANY_LINKED`, `MEMO_COMPANY_UNLINKED`, `MEMO_TEMPLATE_UPDATED`, `MEMO_SHARE_LINK_*`. The team board's move audits `BOARD_CARD_MOVED { status }` (`src/lib/board-actions.ts:231-235`).
+
+**The team board (`src/app/admin/board/board-client.tsx`, `src/components/admin/board/*`).**
+- **Layout split at `md`:** desktop is a 4-column grid of `BoardColumn` (`board-client.tsx:498-513`); below `md` it is stacked `<details>` sections with counts, some open by default (`:515-534`). The card's `desktop` prop switches behaviour (`board-card.tsx:27-28`).
+- **Desktop drag:** native. The card sets `draggable={desktop}` (`board-card.tsx:103`); `onDragStart` sets `effectAllowed = "move"`, `setData("text/plain", id)` and `draggingId` (`board-client.tsx:347-356`); the column's body handles `onDragOver` (preventDefault, `dropEffect = "move"`), `onDragLeave`, `onDrop` and draws a tone ring on the target (`board-column.tsx:85-118`). Insertion maths (`insertionIndex`, `neighboursForIndex`, `isNoopMove`) exist only because team cards have positions.
+- **Card menu (desktop):** a "…" `DropdownMenu` with a "Move to" label and one item per other column with its tone dot (`board-card.tsx:136-189`); the trigger is visible on hover, focus, or always on `hover:none` devices (`:146`). Keyboard: `m` opens the menu, Alt+Left/Right moves a column (`:76-98`, `adjacentStatus`).
+- **Touch / phone:** a native `<select>` "Move to…" on each card (`board-card.tsx:261-277`), the accessible path "since there is no drag on touch".
+- **Optimistic move + Undo:** snapshot, `loadSeq.current.invalidate()`, local update, `flashLanded` (`animate-land`), an `aria-live` announcement, POST, merge the saved row, then `toast.undo("Moved … to X.", () => move(back…, { undo: true }))`; on failure restore the snapshot and `toast.error(msg, { retry })` (`board-client.tsx:187-258`, `:395-397`). Refs (`dataRef`) keep Undo from acting on a stale render (`:82-85`). `createSequencer` (`src/lib/board-client.ts:10-21`) guards loads.
+- **Reusable as-is:** `createSequencer`, `initials` (`board-client.ts:146`), `toast.undo` / `toast.error` with `action` (`src/lib/toast.ts:104-117`), `statusTone` / `TONE_CLASSES` / `TONES` / `tileTone` (`src/lib/status-tone.ts`), `DropdownMenu*` (`src/components/ui/dropdown-menu.tsx`), the `animate-land` keyframe (`tailwind.config`), and the chip button classes with `aria-pressed` (`data-table.tsx:529-538`). **Not reusable without changing them:** `BoardColumn` and `BoardCard` are typed to `BoardStatus` and carry quick-add, nudge, owner tiles and review markers (JC-MB-B).
+
+---
+
+## Findings
+
+## F138 — ROADMAP names a real company in the Part 42 Existing Features line (MEDIUM, confidentiality; unpushed)
+
+`ROADMAP.md:64` (added in `2a63c6c`, which is **one commit ahead of origin, not pushed**) names the near-match company Part 42 kept out of the repo ("counts only; names in the owner's report"). Replaced in the working tree with "the one near match" in this change. **The text is still inside commit `2a63c6c`;** the caller should amend or squash that commit before pushing if the name must not reach the remote history. Nothing else in `ROADMAP.md`, `README.md` or `docs/` carries it (grep 2026-10-21).
+
+## F139 — "Who can change a decision" is not the owner: every admin who can see a memo can change it (informational; shapes decision 4)
+
+`canEditMemo` = owner **or** `visibility === "TEAM"` (`memos.ts:328-330`), and an admin can only see a memo that is their own or TEAM (`memoVisibleWhere`, `:324-326`). So for every memo on the board, the viewer can edit its decision today; the "read-only board" case in decision 4 is **unreachable** with today's rules. All 30 imported memos are TEAM (`importMemo` sets `visibility: "TEAM"`, `memo-actions.ts:267`), so every approved admin will be able to drag them. The plan still computes `canEdit` per card on the server (cheap, and correct if the rule ever narrows). Q138 asks whether that is what the owner wants.
+
+## F140 — The memo list silently stops at 200 (LOW today; would make board counts wrong later)
+
+`take: 200` (`route.ts:46`) with no pagination or truncation signal. At 31 memos nothing is cut, but a board that silently drops the oldest memos would under-count Passed with no hint. WS141 fetches 201, returns the first 200 and sets an `X-Memos-Truncated: 1` response header; both views show "Showing the 200 most recently updated memos. Use the filters to narrow." when it is set (JC-MB-F). The response body stays an array.
+
+## F141 — A decision change bumps "Last updated", unlike other filing changes (LOW; drives Q137)
+
+`updateMemoMeta` lets Prisma stamp `updatedAt` (`memo-actions.ts:388`), so changing Decision in Memo details moves the memo to the top of the list and changes the share page's "Last updated" (`memo-share-page.ts:147`), even though decision is never shown on share links (`schema.prisma:1134`). Part 42 decided the opposite for company links (Q135-A: "a link is filing, not editing", `memo-actions.ts:726-728`). On a board, bumping would also make Undo leave every touched memo "updated just now". Q137.
+
+## F142 — The memo list can show an older response after a quick filter change (LOW)
+
+`load()` (`memos-client.tsx:49-67`) writes whichever response arrives last. Two quick filter changes can render the older one. The team board guards this with `createSequencer` (`board-client.tsx:105-120`). WS142 adds the same guard, which the board needs anyway so a slow load cannot undo an optimistic move.
+
+---
+
+## Design in one paragraph
+
+`/admin/memos` gains a two-button **Board / List** switch under the scope tabs. Both views read the same `GET /api/admin/memos` rows (plus a server-computed `canEdit`) and the same filters; search is the same `?q=` both views share. The board groups the rows by decision into six columns (No decision last), cards sorted by `updatedAt` desc, Passed collapsed to a narrow rail with its count. A card's title links to the memo. If the viewer can edit the card (`canEdit`), they can drag it to another column (desktop, native drag, as the team board), pick "Move to…" from its "…" menu (desktop, keyboard `m`, Alt+Left/Right) or from a native select (phone). A move is optimistic, calls a new `POST /api/admin/memos/[id]/decision { decision, expectedVersion }`, audits `MEMO_DECISION_CHANGED { memoId, from, to, version, source: "board" }`, and shows an Undo toast; a version conflict puts the card back and offers Reload. Marge is untouched.
+
+---
+
+## Technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-MB-A** | **Remembering the view.** `?view=board|list` wins when present (shareable, back button works); with no param, `localStorage["molly.memos.view"]` (read and written inside `try/catch`, as the sidebar does, `sidebar.tsx:163-186`); else Board. Switching writes both (`router.replace`, `scroll: false`, other params kept). `TabBar` keeps other params (`url-tab.ts:8-15`), so changing scope keeps the view. Until the stored value is read (first effect), the page shows the existing loading state, so there is no Board-then-List flash. Per browser, not per account: no schema, no API. | Drop the storage read (URL only), or move it to a user preference column later |
+| **JC-MB-B** | **New memo-board components, team board untouched.** `MemoBoardColumn` and `MemoBoardCard` copy the team board's markup, classes, drag handlers, menu and mobile patterns, and import its pure helpers (`createSequencer`, `initials`, tones, toast). `BoardColumn`/`BoardCard` are not generalised: they are typed to `BoardStatus` and full of team-only features, and changing them risks the team board. | Extract a shared `KanbanColumn` later once both are stable |
+| **JC-MB-C** | **No order inside a column.** Cards sort by `updatedAt` desc (the list's default). A drop anywhere in a column means "this decision"; no insertion line, no Move up/down, no position column. | Add `Memo.boardPosition Float?` (additive) if the team asks to rank memos |
+| **JC-MB-D** | **A dedicated action and route** (`setMemoDecision`, `POST /api/admin/memos/[id]/decision`) instead of reusing `PATCH` metadata: it carries `expectedVersion` like the other single-purpose memo writes (`link-company/route.ts:7`), can keep `updatedAt` (Q137), and audits from/to (`MEMO_UPDATED` lists only field names). Same permission (`canEditMemo`) and validation as the details sheet. `PATCH` and Memo details are unchanged. | Call `PATCH { decision, version }` from the board (loses from/to and Q137-A) |
+| **JC-MB-E** | **"No decision" is the last column**, read literally from decision 2 ("plus"). Memos created in Molly start there (`createMemo` sets no decision). Dropping a card on it clears the decision (the details sheet allows clearing too, `memo-actions.ts:349`). | Move `"NONE"` to the front of `DECISION_COLUMNS` (one line) |
+| **JC-MB-F** | **Truncation signal as a header** (F140): 201 fetched, 200 returned, `X-Memos-Truncated: 1`. The body shape is unchanged for the one caller. The cap stays 200. | Raise the cap; or paginate if memos ever pass a few hundred |
+| **JC-MB-G** | **Passed collapse is not remembered**: it starts collapsed on every visit (decision 2). The rail still accepts drops; dropping there leaves it collapsed and the count goes up (plus the announcement and Undo toast). | Persist it under a second `localStorage` key |
+| **JC-MB-H** | **Card company line = the list's rendering** (name; pending → name + "Not linked"; none → "No company"), moved into one shared `MemoCompanyLabel` so list and board cannot drift. No "Deal Ledger" badge on cards (the list has none; the memo page keeps its own). | A `showLedger` prop |
+| **JC-MB-I** | **Undo is a second move**, audited like the first with `undo: true` in metadata, using the version the first move returned. | Skip auditing the Undo |
+
+---
+
+## WS141 — Decision write, list API additions, ~0.5 day
+
+**WS141.1 — `src/lib/memo-actions.ts`:** add next to `setMemoStatus` (`:398`), same ordering as the file header (`:3-4`): load, permission, validate, write, audit.
+
+```ts
+/**
+ * Part 43. The board's move: change only the decision. Same permission and values as Memo details
+ * (canEditMemo, MEMO_DECISIONS or null), but version-checked on `expectedVersion` like the link writes,
+ * and audited with from/to. Q137-A: filing, not editing, so `updatedAt` is kept.
+ */
+export async function setMemoDecision(
+  actor: Actor,
+  id: string,
+  body: Record<string, unknown>
+): Promise<MemoResult<{ id: string; decision: MemoDecision | null; version: number }>> {
+  const memo = await loadVisible(actor.id, id, { ...HEAD, decision: true, version: true, updatedAt: true });
+  if (!memo) return fail(404, MEMO_MESSAGES.notFound);
+  if (!canEditMemo(memo as never, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
+  if (!isVersion(body.expectedVersion)) return fail(400, MEMO_MESSAGES.expectedVersion);
+  let to: MemoDecision | null;
+  if (body.decision === null || body.decision === "") to = null;
+  else if ((MEMO_DECISIONS as readonly unknown[]).includes(body.decision)) to = body.decision as MemoDecision;
+  else return fail(400, MEMO_ERRORS.badDecision);
+  if (memo.version !== body.expectedVersion) return fail(409, MEMO_MESSAGES.staleMemo);
+  if (memo.decision === to) return { ok: true, value: { id, decision: to, version: memo.version } }; // no write, no audit
+  const r = await db.memo.updateMany({
+    where: { id, version: body.expectedVersion, updatedAt: memo.updatedAt },
+    data: { decision: to, updatedAt: memo.updatedAt, version: { increment: 1 } }, // Q137-B: drop updatedAt from both
+  });
+  if (r.count === 0) return fail(409, MEMO_MESSAGES.staleMemo);
+  await logAdminAction(actor, "MEMO_DECISION_CHANGED", {
+    targetType: "Memo",
+    targetId: id,
+    metadata: { memoId: id, from: memo.decision ?? null, to, version: body.expectedVersion + 1, source: "board", ...(body.undo === true ? { undo: true } : {}) },
+  });
+  return { ok: true, value: { id, decision: to, version: body.expectedVersion + 1 } };
+}
+```
+
+Import `MemoDecision` from `@/lib/memos` (the file's existing `import { … } from "@/lib/memos"` block). Decision codes are not confidential; the metadata still carries no title or company (the audit canary test covers it).
+
+**WS141.2 — `src/app/api/admin/memos/[id]/decision/route.ts`** (new), a copy of `link-company/route.ts`'s POST shape:
+
+```ts
+export const dynamic = "force-dynamic";
+import { NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/auth-guard";
+import { setMemoDecision } from "@/lib/memo-actions";
+import { memoResponse, readObjectBody } from "@/lib/memo-route";
+
+// Part 43: { decision: one of MEMO_DECISIONS | null, expectedVersion, undo? }. Whoever may edit the memo (canEditMemo).
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const { user, error } = await requireAdmin();
+    if (error) return error;
+    const body = await readObjectBody(request);
+    if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+    return memoResponse(await setMemoDecision(user!, id, body));
+  } catch (err) {
+    console.error("POST /api/admin/memos/[id]/decision error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+```
+
+**WS141.3 — `GET /api/admin/memos` (`route.ts:42-48`):** additive only.
+
+```ts
+export const MEMO_LIST_CAP = 200; // F140 (in src/lib/memos.ts, next to MEMO_LIMITS)
+const found = await db.memo.findMany({ where: { AND: and }, select: memoSummarySelect, orderBy: { updatedAt: "desc" }, take: MEMO_LIST_CAP + 1 });
+const memos = found.slice(0, MEMO_LIST_CAP);
+return NextResponse.json(
+  memos.map((m) => ({ ...m, companyRef: memoCompanyRef(m), canEdit: canEditMemo({ ownerId: m.owner.id, visibility: m.visibility }, user!.id) })),
+  found.length > MEMO_LIST_CAP ? { headers: { "X-Memos-Truncated": "1" } } : undefined
+);
+```
+
+All existing query params keep working (the board simply does not send `decision`).
+
+**WS141.4 — `src/components/admin/memos/types.ts`:** `MemoRow` gains `tags: string[]` (already in the response, missing from the type) and `canEdit: boolean`.
+
+**Tests (`src/lib/__tests__/memo-routes.test.ts`, new `describe("decision move (Part 43)")`, using the existing fake db and `ctx`/`req` helpers):**
+- owner on a private memo: `{ decision: "INVESTED", expectedVersion: 1 }` → 200 `{ id, decision: "INVESTED", version: 2 }`; stored decision changed; **`updatedAt` unchanged** (Q137-A; set a fixed stamp first, as `:559` does).
+- non-owner on a TEAM memo → 200 (F139); non-owner on someone's private memo → 404 (not visible).
+- `decision: null` clears; `""` clears; `"Invested"` (label, not code) → 400 `MEMO_ERRORS.badDecision`.
+- missing / non-integer `expectedVersion` → 400; stale `expectedVersion` → 409 with `MEMO_MESSAGES.staleMemo`; nothing written.
+- same decision → 200 with the unchanged version, **no** audit call.
+- audit: `MEMO_DECISION_CHANGED` with `{ memoId, from, to, version, source: "board" }`; `undo: true` only when sent; metadata contains no title (extend the canary in `describe("audit metadata carries ids, never content")`).
+- list: every row has `canEdit` (true for own and TEAM rows); with 201 fake memos the response has 200 rows and `X-Memos-Truncated: 1`; with 2, no header.
+
+**`src/lib/__tests__/marge-memo-tools.test.ts:737`:** add `"setMemoDecision"` to the banned list (additive; asserts Marge can never set a decision).
+
+**Acceptance:** new tests green; all 1659 existing tests pass unchanged apart from the one banned-list entry. **UX impact:** none (no UI yet; `PATCH` and Memo details behave exactly as before). **Cost impact:** none.
+
+---
+
+## WS142 — Board view on `/admin/memos`, ~1.5 days
+
+**WS142.1 — `src/lib/memo-board.ts`** (new, pure, no React; unit-tested):
+
+```ts
+import { MEMO_DECISIONS, MEMO_DECISION_LABELS, type MemoDecision } from "@/lib/memos";
+import type { Tone } from "@/lib/status-tone";
+
+export type ColumnKey = MemoDecision | "NONE";
+/** Owner decision 2; "NONE" last (JC-MB-E). */
+export const DECISION_COLUMNS: readonly ColumnKey[] = [...MEMO_DECISIONS, "NONE"];
+export const COLUMN_LABELS: Record<ColumnKey, string> = { ...MEMO_DECISION_LABELS, NONE: "No decision" };
+/** Collapsed on first render (decision 2). */
+export const COLLAPSED_BY_DEFAULT: readonly ColumnKey[] = ["PASSED"];
+/** Header dot / ring colour. Decorative; Nisat may retune. Never clay (status-tone.ts:37-39 rule). */
+export const COLUMN_TONE: Record<ColumnKey, Tone> = { IN_PROGRESS: "sky", MEMO: "sand", INVESTED: "sage", LATER: "amber", PASSED: "stone", NONE: "stone" };
+
+export const columnOf = (d: MemoDecision | null): ColumnKey => d ?? "NONE";
+export const decisionOf = (k: ColumnKey): MemoDecision | null => (k === "NONE" ? null : k);
+
+/** Rows grouped into every column (empty ones included), each sorted by updatedAt desc. */
+export function groupByDecision<T extends { decision: MemoDecision | null; updatedAt: string }>(rows: readonly T[]): Record<ColumnKey, T[]>;
+
+export type MemoView = "board" | "list";
+/** JC-MB-A: URL param, else stored value, else board. Unknown values are ignored. */
+export function resolveView(param: string | null, stored: string | null): MemoView;
+
+/** Optimistic local update: the row's decision (and version, once the server answers). */
+export function applyDecision<T extends { id: string; decision: MemoDecision | null; version: number }>(rows: readonly T[], id: string, decision: MemoDecision | null, version?: number): T[];
+
+/** Alt+Left/Right on a card: the neighbouring column, or null at the edges. */
+export function adjacentColumn(k: ColumnKey, dir: "left" | "right"): ColumnKey | null;
+```
+
+**WS142.2 — Shared pieces out of `memos-client.tsx`** (moves, no behaviour change to the list):
+- `src/components/admin/memos/memo-company-label.tsx`: the Company cell body from `memos-client.tsx:93-103` (JC-MB-H). The list's column `cell` calls it.
+- `src/components/admin/memos/memo-filters.tsx`: the company select (with its two optgroups), status select, decision select and "Not linked to a company" checkbox from `:181-223`, as a controlled component `{ targets, companyId, status, decision, unlinked, showDecision, onChange }`. The list passes `showDecision` true (so `toolbarExtra` renders exactly what it does today); the board passes false.
+- `src/components/admin/memos/memos-empty.tsx`: the two `EmptyState`s from `:226-258` (`filtered`, `scope`, `onClear`).
+
+**WS142.3 — `memos-client.tsx`:**
+- **View state:** `const [view, setView] = useState<MemoView | null>(null)`; an effect resolves it once with `resolveView(searchParams.get("view"), readStoredView())`, and re-resolves when `?view=` changes (back button). `readStoredView` / `writeStoredView` wrap `localStorage` in `try/catch`. `switchView(v)`: `setView(v)`, `writeStoredView(v)`, `router.replace` with `view=v` added to the current params (`{ scroll: false }`). While `view === null`, render the list/board loading state.
+- **Switch control:** a `div role="group" aria-label="Memo view"` with two buttons ("Board", "List"; `LayoutGrid` / `List` icons from `lucide-react`), `aria-pressed`, the chip classes from `data-table.tsx:535-538`; placed directly under `TabBar`, right-aligned on desktop, full-width 50/50 under `sm`.
+- **Decision filter (decision 5):** hidden in board view (`showDecision={view === "list"}`) and **not sent** to the API there: `const apiDecision = view === "list" ? decision : ""` is what `load` reads and depends on. Its value is kept, so switching back to List restores it. `filtered` for the board's empty state ignores it. "Clear filters" clears it too (as today).
+- **Load guard (F142):** `const loadSeq = useRef(createSequencer())`; `load` takes a token and only the current one writes `rows` / `loading` / `error`; it also reads `res.headers.get("X-Memos-Truncated") === "1"` into `truncated` state, shown above either view as a muted line: "Showing the 200 most recently updated memos. Use the filters to narrow."
+- **Rows ref:** `rowsRef.current = rows` each render (the team board's `dataRef` pattern) for Undo and Retry.
+- **Render:** `view === "list"` → the existing `DataTable` unchanged (now using the shared pieces). `view === "board"` → the filter row (a search `Input` bound to `?q=`, debounced 250 ms through `router.replace` like `DataTable` does, `data-table.tsx:255-262`; then `MemoFilters` without decision) and `<MemoBoard … />`. Rows passed to the board are filtered client-side with `matchesQuery([m.title, companyName], q)` (the same haystack as the list's `searchText`, `:174`), so search behaves identically in both views.
+
+**WS142.4 — `src/components/admin/memos/memo-board.tsx`** (new): props `{ rows, me, onMove(id, to: ColumnKey) }`. Owns only view state: `draggingId`, `dropColumn`, `expanded: Set<ColumnKey>` (starts empty, so Passed is collapsed; other columns are never collapsed on desktop), `landedId`.
+- **Desktop (`hidden md:flex`):** a horizontal row of columns, `flex gap-4 overflow-x-auto pb-2`; each open column `w-64 shrink-0 lg:flex-1 lg:min-w-[13rem]`; the collapsed Passed column is a `w-12` rail: a button (`aria-expanded={false}`, `aria-label="Show Passed, 12 memos"`) with the tone dot, the count chip and the label rotated (`[writing-mode:vertical-rl]`); expanded, its header gets a "Collapse" icon button. Every column (rail included) is a drop target when the dragged card's `canEdit`: `onDragOver` → `preventDefault`, `dropEffect = "move"`, set `dropColumn`; `onDragLeave` (relatedTarget outside) → clear; `onDrop` → `onMove(draggingId, key)` unless it is the card's own column. Target ring as `board-column.tsx:113` with `TONES[COLUMN_TONE[key]].dot`. Header: `font-mono text-xs uppercase tracking-label` label, dot, count chip with `aria-label="N memos"` (copy `board-column.tsx:73-84`). Empty body: "Empty" as `:121-123`.
+- **Mobile (`md:hidden`):** stacked `<details>` per column as `board-client.tsx:516-534`; `open` for every column except Passed.
+- **Screen readers:** the page-level `<p role="status" aria-live="polite" className="sr-only">` announcement, as `board-client.tsx:395-397`.
+
+**WS142.5 — `src/components/admin/memos/memo-board-card.tsx`** (new): props `{ memo: MemoRow, me, desktop, dragging, landed, onMoveTo(k), onDragStart?, onDragEnd? }`.
+- **Face:** title as a Next `Link` to `/admin/memos/<id>` (`data-card-title`, `draggable={false}` so the card, not the link, is what drags; full-width hit area, `hover:underline`); a row with `MemoCompanyLabel`; a meta row with the status `Badge` (`STATUS_VARIANT`, `MEMO_STATUS_LABELS`), the owner (initials tile via `initials()` + `tileTone()`, `aria-label="Owner: You"` or the `ownerLabel`), and `relativeTime(updatedAt)` with the full date in `title`; tags as `bg-tone-stone px-1.5 py-0.5 font-mono text-[11px]` chips (the team board's project tag, `board-card.tsx:244-246`), at most 3 then "+N" with the rest in `title`.
+- **Editable (`memo.canEdit`):** desktop: `draggable`, `cursor-grab`, `dragging && "opacity-35"`, `landed && "animate-land …"` (copy `board-card.tsx:108-114`); "…" `DropdownMenu` with "Move to" + the five other columns (tone dots) + separator + "Open memo"; keyboard `m` opens it, Alt+Left/Right calls `onMoveTo(adjacentColumn(…))`. Phone: the native "Move to…" `<select>` (copy `board-card.tsx:261-277`, `h-10`, labels from `COLUMN_LABELS`), no up/down arrows (JC-MB-C).
+- **Read-only (`!memo.canEdit`):** not draggable, no "Move to" anywhere; the "…" menu holds only "Open memo". Unreachable today (F139) but rendered correctly.
+
+**WS142.6 — Moves, Undo, conflicts (in `memos-client.tsx`, `move(id, to, opts: { undo?: boolean } = {})`):**
+1. `row = rowsRef.current.find(id)`; return if missing, `!row.canEdit`, or `columnOf(row.decision) === to`.
+2. `snapshot = rowsRef.current`; `loadSeq.current.invalidate()`; `setRows(applyDecision(rows, id, decisionOf(to)))`; flash landed; announce `Moved "<title>" to <label>.`.
+3. `POST /api/admin/memos/<id>/decision` `{ decision: decisionOf(to), expectedVersion: row.version, ...(opts.undo ? { undo: true } : {}) }`.
+4. **200:** `setRows(applyDecision(current, id, saved.decision, saved.version))`. Unless `opts.undo`: `toast.undo(\`Moved "<title>" to <label>.\`, () => void move(id, columnOf(row.decision), { undo: true }))`. Undo reads the fresh version from `rowsRef` (step 1), so it never sends a stale one.
+5. **409 (someone changed the memo: details, status, visibility, link, or another board move):** restore `snapshot`; `toast.error(<server sentence>, { action: { label: "Reload", onClick: () => void load() } })`. No Retry: the same version would fail again.
+6. **403 / 404:** restore; `toast.error(<server sentence>)`; `load()` (the memo was made private, archived or moved out of reach).
+7. **Network / 500:** restore; `toast.error("Couldn't move that memo.", { retry: () => void move(id, to, opts) })` (safe: a retry after a lost success gets a 409 and lands in step 5).
+
+Undo after a list reload, filter change or navigation is simply gone with the toast, as on the team board.
+
+**Tests:**
+- `src/lib/__tests__/memo-board.test.ts` (new): `groupByDecision` returns all six keys in order, nulls in `NONE`, newest first; `resolveView` (param wins, stored next, default board, junk ignored on both); `applyDecision` with and without a version; `adjacentColumn` at both edges; `COLUMN_LABELS.NONE === "No decision"`; `COLLAPSED_BY_DEFAULT` is `["PASSED"]`.
+- `src/lib/__tests__/memo-components.test.tsx` (extend; it already server-renders memo components with `next/navigation` mocked): `MemoBoardCard` editable on desktop has `draggable="true"` and a menu trigger `aria-label` containing the title; read-only has neither and no "Move to"; phone variant has the select with the five other columns and not its own; pending company shows "Not linked"; four tags render three chips and "+1"; the owner reads "You" for `me`. `MemoBoard` with one Passed row renders the rail label "Show Passed, 1 memo" and no Passed card markup until expanded; the No decision column renders with `aria-label="0 memos"` when empty.
+- The client-side flow (optimistic move, Undo, 409 revert) is exercised in the WS143 checks; its decisions live in the pure helpers above.
+
+**Acceptance (manual, desktop and phone):**
+- [ ] `/admin/memos` with no param and fresh storage opens Board; switching to List shows today's table with today's filters; reload keeps List; `/admin/memos?view=board` opens Board; the scope tabs keep the view.
+- [ ] Columns read In Progress, Memo, Invested, Later, Passed (collapsed, count matches the list's Decision = Passed count), No decision. Counts equal the list filtered by each decision with the same scope/company/status/unlinked/search.
+- [ ] Search typed in Board is still there in List (and back).
+- [ ] The Decision filter is hidden on Board; a decision chosen in List comes back on return.
+- [ ] Drag Acme from Memo to Invested: lands at once, toast "Moved "Acme" to Invested." with Undo; Undo puts it back; `/admin/audit` shows two `MEMO_DECISION_CHANGED` rows, the second with `undo: true`; the memo page shows the new decision; its "Updated" date and its place in the list are unchanged (Q137-A).
+- [ ] Drop on the collapsed Passed rail works; the count goes up.
+- [ ] Phone (or narrow window): sections stack, Passed closed, "Move to…" on each card moves it with the same toast.
+- [ ] Keyboard: Tab to a card title, `m` opens the menu, Alt+Right moves one column, focus stays on the card.
+- [ ] Conflict: open the memo in a second tab, save its details, then drag its card in the first tab: the card returns, the error toast offers Reload, Reload shows the fresh state.
+- [ ] Clicking a card title opens the memo; dragging from the title drags the card, not a link.
+- [ ] Marge `memo_list` / `memo_get` print the new decision; no Marge tool can set it.
+
+**UX impact:** additive for admins: a Board view becomes the default on `/admin/memos`, with the table one click away and remembered once chosen; the list itself is unchanged (same columns, filters, search, empty states). A one-time surprise: admins land on Board on their first visit after deploy. Founders, LPs, investor-link and memo share-link recipients: nothing changes (decision is never on share pages; Q137-A keeps "Last updated" honest). **Cost impact:** none (no package, service, env var or table; one extra row fetched per list load).
+
+---
+
+## WS143 — Rollout, ~0.25 day
+
+Push = production deploy (Vercel). No schema, no env var, no data step.
+
+1. Merge WS141 and WS142 together (WS142 calls the new route; WS141 alone is invisible and safe to ship first if split).
+2. After deploy, run the WS142 acceptance list on production with one test move on a memo you own, then Undo (two audit rows; the decision ends where it started).
+3. Tell the team: Board is the default; "List" is remembered per browser; dragging changes Decision and can be undone from the toast.
+4. **Rollback:** revert the WS142 commit (List-only page as today). The route and audit rows are harmless to leave. No data to undo beyond decisions people changed, each in the audit log with from/to.
+5. Optional reviews before or after: Nisat (column tones, rail), Nosa (copy: "No decision", the truncation line, toasts).
+
+---
+
+## Conflicts with how Molly works
+
+1. **"Owner-only" assumption (F139).** Decision is a team-editable field on shared memos. The board follows today's rule; Q138 if the owner wants it narrower.
+2. **"Last updated" semantics (F141).** The board keeps it; Memo details still bumps it. Q137 explains the trade.
+3. **Default view change.** Board becomes the default for everyone at once; one click (remembered) restores the table. No feature of the list is removed.
+4. **Two kanban implementations** (team board, memo board) share helpers but not components (JC-MB-B). Acceptable for now; a shared column component is a later refactor.
+5. **Not a conflict:** Marge, share pages, the details sheet and the `PATCH` route are unchanged; no schema change.
+
+---
+
+## Open product decisions (the owner's call, each with a recommendation)
+
+| | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q137** | Does moving a card change the memo's "Updated" date? | **(A)** No: a board move keeps `updatedAt` (bumps `version` only). Memo details keeps today's behaviour. **(B)** Yes: same as changing Decision in Memo details today (F141). | **(A).** Same rule Part 42 chose for company links (Q135-A, "filing, not editing"). With (B), every drag (and every Undo) moves the memo to the top of the list as "updated just now" and changes "Last updated" on its share links, though the decision is never shown there; after a triage session the list's order would mean nothing. Memo details stays as is because it sends every field on every save (F136), so it cannot tell a decision-only edit from a real one without extra work. Switching to (B) is deleting `updatedAt` from one `where` and one `data`. |
+| **Q138** | Who can drag cards (change a decision on the board)? | **(A)** Today's rule: the owner, or any admin once the memo is shared with the team (`canEditMemo`). In practice everyone who can see a memo, including all 30 imported ones (F139). **(B)** Owner only on the board; Memo details unchanged (anyone on a shared memo). **(C)** Owner only everywhere (narrows Memo details too). | **(A).** It is what decision 4 asks for ("allowed today") and matches how the team used Notion (anyone moved cards). (B) is inconsistent: the same person could change it in Memo details. (C) takes an ability away from teammates, and one person owns all 30 imported memos, so nobody else could triage them. Every move is audited with from/to and undoable. |
+
+---
+
+## Part 43 sequencing, deploys and effort
+
+**Order:** WS141 → WS142 → deploy → WS143. One deploy is enough.
+
+| Workstream | Effort |
+|---|---|
+| WS141 | 0.5 |
+| WS142 | 1.5 |
+| WS143 | 0.25 (owner, with Alvin) |
+| **Total** | **≈ 2.25 days** (Q137-B: no change; Q138-B/C: +0.1 day) |
+
+**New env vars:** none. **New packages:** none. **Schema:** none. **New secrets:** none.
+
+**Do not touch in this Part:** `src/components/admin/board/*`, `src/app/admin/board/*`, `src/lib/board-client.ts` (import only); `updateMemoMeta` and `PATCH /api/admin/memos/[id]`; `meta-sheet.tsx`; `src/lib/marge-tools/**`; the share page; `prisma/schema.prisma`.
+
+## Part 43 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **Owner decisions 1–6** | Board / List switch, columns, cards, drag + Undo, filters, Marge unchanged | **APPROVED 2026-10-21** |
+| **Q137–Q138** | See the table above | **Answered 2026-10-21: A, A** |
+| **JC-MB-A…I** | See the judgment-calls table | **Proposed**, each with a reversal |
+| **F138** | Real company name in ROADMAP (unpushed commit `2a63c6c`) | Fixed in the working tree; amend before push |
+| **F139** | Decision is editable by every admin who can see the memo | Recorded; Q138 |
+| **F140** | List silently capped at 200 | WS141 (header + notice) |
+| **F141** | Decision edits bump "Last updated" | Q137 |
+| **F142** | List can render a stale response | WS142 (sequencer) |
+
+**Constraints honored:** **no new cost line** (no service, package or table); **no schema change**; **no UX regression** (the table, its filters and search are unchanged and one click away; founders, LPs and share-link recipients see nothing new); Marge unchanged and asserted unable to set a decision; no company, fund or person name in repo text.
+
+**Handoff status: APPROVED 2026-10-21 (Q137 A, Q138 A). Ready for Alvin: WS141 → WS142; WS143 rollout with the owner.**
+
+---
