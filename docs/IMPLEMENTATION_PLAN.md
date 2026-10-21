@@ -13896,3 +13896,324 @@ Usage:
 **Handoff status: APPROVED 2026-10-20. Ready for Alvin: WS132 → WS133 → WS134; WS135 rollout is the owner's.**
 
 ---
+
+# Part 42 — Memos link to deal-ledger companies (WS136–WS140, F135–F137, Q131–Q136, 2026-10-21)
+
+> **Status: APPROVED 2026-10-21.** The owner accepted every recommendation (Q131 A+D, Q132–Q136 A, including Change company / Unlink for the owner). Open questions are Q131–Q136, each with a recommendation; technical calls are `JC-ML-*`, each with a cheap reversal. This is the follow-up Part 41 left open (F134).
+>
+> **Numbering:** continues from Part 41 (WS135, F134, Q130). Checked 2026-10-21: no `WS136+`, `F135+`, `Q131+` or "Part 42" exists in `ROADMAP.md`, `README.md` or `docs/`.
+>
+> **Baseline:** `npx vitest run --exclude '.claude/**'` → 121 files, **1618/1618 passing** (run 2026-10-21 on `claude/dfs-portfolio-platform-TZMWC` @ `1da2c5c`, which holds all of Part 41, WS132–WS134).
+>
+> **Schema:** **additive only**: one nullable column, one relation and one index on `Memo` (`portfolioCompanyId`), and the back-relation on `PortfolioCompany`. Needs a `db push` by the owner **before** the WS136 deploy. No data-loss prompt.
+>
+> **Confidentiality:** deal names are confidential. This Part gives counts only; the per-memo analysis (names) went to the owner in the planning report and stays outside the repo. Tests use `Acme`, `Globex`, `Initech`.
+
+**What was asked for.** Imported memos stop showing "Not in Molly yet". Memos can link to the companies Molly actually knows about, and the plan still works for a deal that is in no table at all (most Passed deals). Plus a dry-run-first backfill the owner runs for the 26 pending imported memos.
+
+---
+
+## What the code and production look like (verified 2026-10-21 at `1da2c5c`)
+
+**Two company models, and memos can only reach one of them.**
+- `Company` (`prisma/schema.prisma:87-133`) is the operational record: founders, updates, metrics, documents, reminders, `stage` DILIGENCE/ACTIVE, `aliases String[]`, and `portfolioCompany PortfolioCompany?` (`:128`). Creating one has side effects: it appears on `/admin/companies`, the admin dashboard, the cadence and alert crons and Marge's `companies_find`; admin creation always adds an OWNER membership and, for DILIGENCE, a diligence record and a founder invite (`src/app/api/companies/route.ts:103-183`).
+- `PortfolioCompany` (`:756-774`) is the deal ledger: `name @unique`, `country`, optional `companyId @unique` (the Part 31 link to a `Company`, set from `/admin/portfolio/[id]` with `PortcoLinkDialog`), deals, rounds, marks, contacts. It has **no aliases**. Every production row has at least one deal, so the ledger is the record of companies DFS invested in.
+- `Memo` (`:1122-1155`) has `companyId` (to `Company`, `onDelete: SetNull`, `:1145`) and `companyNamePending`. Nothing points at the ledger.
+
+**Where a memo's company shows and is chosen.**
+- Memo page: `companyLine` links a `Company` to `/admin/companies/<id>`, else prints "Not in Molly yet: <name>", else "No company" (`src/app/admin/memos/[id]/memo-client.tsx:95-103`). "Link to company" shows only to the owner and only while `!memo.company` (`:184-189`). The banner "<name> is now in Molly. Link it?" (`:166-176`) comes from `GET /api/admin/memos/[id]/company-suggestion` (`company-suggestion/route.ts:19`), fetched only for the owner (`:44`).
+- The link dialog is a native `Select` of `Company` rows (`src/components/admin/memos/link-company-dialog.tsx:54-61`), fed by `db.company.findMany({ where: memoCompanyFilter })` in the server page (`[id]/page.tsx:33`). `memoCompanyFilter` = both stages, minus a founder signup still pending (`src/lib/memos.ts:349-351`).
+- List: the Company column prints the same "Not in Molly yet: …" (`memos-client.tsx:88-99`); the company filter is a `Company` select (`:179-190`); "Not linked to a company" sends `unlinked=true` (`:208`), which the API turns into `companyId: null` (`src/app/api/admin/memos/route.ts:28`). Search covers title, pending name and `company.name` (`:30-36`).
+- New memo form: a `Company` select plus "Company isn't in Molly yet" (`new/new-memo-form.tsx:31-32`, `:63-70`).
+- Details sheet: sends `companyNamePending` only while `!memo.company` (`meta-sheet.tsx:48`); the server refuses it once `companyId` is set (`memo-actions.ts:335-336`).
+- Share page: company **name only**, `m.company?.name ?? m.companyNamePending` (`src/app/share/m/[token]/route.ts:51-52`, `:71`), printed as plain text (`memo-share-page.ts:142`). No internal link exists there today.
+
+**The writes.**
+- `linkCompany` (`memo-actions.ts:670-696`): owner only (`canManageMemo`, Q117-A), `expectedVersion`, refuses a second link, `loadCompany` (`:77-79`), then `updateMany` on `{ id, version, companyId: null }` setting `companyId`, clearing `companyNamePending`, bumping `version`; audits `MEMO_COMPANY_LINKED { memoId, companyId }`.
+- `suggestCompany` (`:699-705`): exactly one `Company` whose `normalizeCompanyName` (`src/lib/portco-match.ts:98-109`) of name or alias equals the pending name's. **It never looks at the ledger**, so a ledger row that is already linked to a `Company` under a different name is invisible to it (2 of the 26, below).
+- `importMemo` calls `suggestCompany(draft.title)` (`:214`), which is why Part 41 linked only 4.
+
+**Marge (`src/lib/marge-tools/memos.ts`).** `memo_link_company` takes `{ memoId, expectedVersion, company: "company id or exact name" }` (`:115-120`), resolves through `resolveCompanyFilter` (`:197-215`: id via `loadCompany`, else case-insensitive exact name, else "No company called …. Closest: …"), and returns `structured: { memoId, companyId, version, url }` (`:560`; asserted with `toEqual` in `marge-memo-tools.test.ts`). `memo_create` takes `companyId` (a `Company` id, checked by `loadCompany`, `:376-380`) or `companyNamePending`; its preview warns when `suggestCompany` finds one match and puts `{ id, name }` in `structured.suggestedCompany` (`:401-430`; `toEqual` in the tests). `memo_list` and `memo_get` print `pendingLabel` = "Not in Molly yet: X" (`:127`, `:175-177`), also in the `memo_list` description (`server.ts:158`) and in the tests. **`companies_find` uses `approvedCompanyFilter`, which hides DILIGENCE companies (`src/lib/company-filters.ts:10-15`, `read.ts:96`); the memo tools do not use it** (they use `memoCompanyFilter`, both stages).
+
+**Timestamps.** `Memo.updatedAt` is `@updatedAt`; Part 41 set it to Notion's last-edit date on import (JC-NI-I) so the list order and the share page's "Last updated" (`memo-share-page.ts:147`) are honest. Prisma also stamps `@updatedAt` on `updateMany` unless the data sets it, so today's `linkCompany` moves an imported memo to "updated today" (F137).
+
+**Production (read-only queries, 2026-10-21, pulled env deleted afterwards).** 31 memos: the 30 imported ones (one owner, none archived) plus the archived test memo. 4 imported memos are linked, **26 pending**. 13 `Company` rows, all ACTIVE, none with aliases, 11 of them linked to a ledger row. 54 ledger rows, 11 linked to a `Company`, every one with at least one deal. 0 DILIGENCE companies.
+
+### The 26 pending memos (counts only; names in the owner's report)
+
+Match = `normalizeCompanyName` equality against `Company` name and aliases and ledger names; "near" = equal after also removing spaces, or one name's word set contains the other's.
+
+| Decision | Pending | Exact ledger match, ledger row already linked to a `Company` | Exact ledger match, no `Company` | Near match only | No match anywhere |
+|---|---|---|---|---|---|
+| Invested | 10 | 2 | 7 | 1 | 0 |
+| Passed | 12 | 0 | 0 | 0 | 12 |
+| Memo | 3 | 0 | 0 | 0 | 3 |
+| In Progress | 1 | 0 | 0 | 0 | 1 |
+| **Total** | **26** | **2** | **7** | **1** | **16** |
+
+- **No pending name matches a `Company` directly.** The 2 in the first column reach a `Company` only through the ledger: one `Company` carries a suffix word the memo title lacks, and one was renamed (the memo, the Notion page and the ledger use the old name, the `Company` the new one).
+- **Every pending Invested memo has a ledger counterpart** (9 exact, 1 differs only by a space). **Every non-Invested pending memo has nothing to link to**, as expected for Passed deals.
+- The 4 already linked are Invested 3, Memo 1.
+
+---
+
+## Findings
+
+## F135 — ROADMAP still calls Part 41 "building" (docs drift)
+
+`ROADMAP.md:3` and the Part 41 entry read "APPROVED, building", but WS132–WS134 are committed (`cb5a9c8`, `8b4082d`, `1da2c5c`) and production holds 30 memos with `notionId` set and 30 `MEMO_IMPORTED` audit rows (2026-10-21, 08:08–08:10 UTC). Annotated in the Part 41 roadmap entry in this change; moving Parts 40 and 41 into "Existing Features" is the owner's end-of-session update.
+
+## F136 — Production decision counts differ from the Part 41 dry run; the details sheet makes the audit unable to say why (LOW, informational)
+
+Part 41's dry run counted Invested 14, Passed 11; production now has Invested 13, Passed 12 (Memo 4, In Progress 1 unchanged). One imported memo was edited in "Memo details" four minutes after the import (one `MEMO_UPDATED`, version 2), which likely explains it. The audit cannot confirm: the details sheet sends every field on every save (`meta-sheet.tsx:35-48`), so `metadata.fields` always lists all eight. Not fixed here; noted because the counts in this Part are production's, not the dry run's.
+
+## F137 — Linking a memo resets its "Last updated" date, which would overwrite the Notion dates on imported memos (MEDIUM for the backfill; LOW otherwise)
+
+`linkCompany`'s `updateMany` does not set `updatedAt`, so Prisma stamps the current time (`memo-actions.ts:685-688`). A backfill through it would move every linked imported memo to the top of the list as "updated today" and change "Last updated" on any share link, undoing Part 41's JC-NI-I for those memos. WS139's backfill keeps `updatedAt` unchanged (JC-ML-F). A person's own link click keeps today's behaviour (Q135 asks whether it should too).
+
+---
+
+## Options
+
+| | (A) Memo links to a `Company` **or** a ledger row | (B) Create or promote a `Company` from the ledger row when linking | (C) A new "prospect" record for deals in neither table | (D) The pending name is the prospect; stop calling it a defect |
+|---|---|---|---|---|
+| **Schema** | `Memo.portfolioCompanyId String?` → `PortfolioCompany` (`SetNull`), index; back-relation. At most one of `companyId` / `portfolioCompanyId` is set. | None (uses `Company` + `PortfolioCompany.companyId`). | New table `Prospect { id, name, normalizedName, website, createdById, … }` + `Memo.prospectId`. | None. |
+| **Fixes the 10 Invested** | **Yes, all 10** (9 by backfill, 1 by a click). 2 resolve to their existing `Company`. | Yes, but 8 new `Company` rows. | No (they are not prospects). | No. |
+| **Fixes the 16 with no company** | No. | No (unless Passed deals become `Company` rows, which is wrong: see below). | Yes, by giving each a record. | **Yes, as display:** name shown plainly with a quiet "Not linked" tag. |
+| **Side effects** | None outside memos. The ledger page is admin-only; the memo already showed the same name as plain text. | Each new `Company` appears on `/admin/companies`, the dashboard "Needs attention" list, the cadence and alert crons and Marge's `companies_find`, with no founder and no updates, so it reads as overdue. As DILIGENCE it enters the diligence queue instead. This is the "onboard this company to Molly" decision, not memo plumbing. | A third company concept to keep in sync with the other two; promotion rules when a prospect is later invested in; nothing else in Molly uses it. Each Passed deal has exactly one memo today, so the record would hold one name per memo, which `companyNamePending` already holds. | Copy only. |
+| **Effort** | ≈ 3.25 days with the backfill (below). | ≈ 2 days plus product decisions on onboarding. | ≈ 3 days on top of (A) if both. | Included in (A). |
+
+**Recommendation: (A) + (D).** It follows how Molly already models deals: the ledger is where Molly records the companies DFS invested in, and every pending Invested memo matches it; `Company` is the founder-reporting record and should be created when DFS onboards a company, not as a by-product of linking a memo. For deals in no table, `companyNamePending` already is the lightweight prospect record; what is wrong today is only the wording, which reads as a missing step. (C) is worth revisiting if a deal-pipeline Part ever needs one record per prospect across several memos, board cards or notes; nothing needs it now, and an additive `prospectId` can be added then without touching (A). (B) stays available as a separate, deliberate action ("Add to Molly" from a ledger row), outside this Part.
+
+**Why "Not in Molly yet" goes away under (A) + (D):** the 9 confident matches link (2 to `Company`, 7 to the ledger); the 1 near match links after one click by the owner; the 16 show "<name>" with a "Not linked" tag. The phrase remains only in Marge's text output, where tests pin it (JC-ML-H).
+
+---
+
+## Design in one paragraph
+
+A memo's company becomes one of four things, computed by one pure helper, `memoCompanyRef`: a **company** (`Memo.companyId`, or a linked ledger row's own `Company`), a **ledger entry** (new `Memo.portfolioCompanyId`), a **pending name** (`companyNamePending`), or **none**. One pure matcher, `matchMemoCompany`, compares a name with `Company` names and aliases and ledger names by `normalizeCompanyName`, folds a ledger row that is linked to a `Company` into that `Company`, and returns a confident target only when exactly one remains; it also reports near matches. The banner, the import, Marge's create preview and the backfill all use it. Linking accepts a `Company` or a ledger row (a ledger row with a `Company` links the `Company`); the dialog, the list filter and the new-memo form offer `Company` rows and unlinked ledger rows in two groups. Company names link to `/admin/companies/<id>`, ledger names to `/admin/portfolio/<id>`; the share page prints the name only. The two Marge memo tools that name a company accept ledger rows by id or exact name with no input-shape change; the 13 Part 39 tools are untouched. A dry-run-first script links the confident matches as the memo owner, keeps `updatedAt`, reports near and ambiguous matches, and leaves the rest pending.
+
+---
+
+## Technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-ML-A** | **One target per memo.** At most one of `companyId` / `portfolioCompanyId` is set; every write path enforces it, and every "is linked" check reads both. | Allow both and prefer `companyId` on read |
+| **JC-ML-B** | **A ledger row linked to a `Company` resolves to the `Company`.** Linking to such a row stores `companyId` (the richer page). A ledger-linked memo whose row is linked to a `Company` later shows the `Company` through the relation, with no data change. If that `Company` fails `memoCompanyFilter` (a pending signup), the memo links to the ledger row instead. | Store `portfolioCompanyId` always and resolve on read only |
+| **JC-ML-C** | **Matching.** Confident = exactly one target after `normalizeCompanyName` equality on `Company` name, `Company` aliases and ledger name, with ledger rows folded into their `Company` (so a ledger row and its own `Company` count once). Near = equal with spaces also removed, or one normalised word set (words of 3+ letters) contains the other's (the `portco-match.ts` token rule). Near matches are **never** auto-linked or offered in the banner; the backfill lists them. | Add near matches to the banner as "Did you mean …?" |
+| **JC-ML-D** | **Picker shape.** One native `Select` with two `optgroup`s, "Companies in Molly" and "Deal Ledger", values `c:<id>` / `p:<id>`; ledger rows already linked to a `Company` are not listed separately (their `Company` is). About 13 + 43 options today; a native select stays usable and keyboard-searchable at that size. | A search combobox if the list passes ~150 |
+| **JC-ML-E** | **Ledger delete keeps the name.** `DELETE /api/admin/portfolio-companies/[id]` (allowed only with no deals and no report mentions, `route.ts:88-95`) first sets `companyNamePending = <ledger name>, portfolioCompanyId = null` on memos linked to it, so they fall back to "<name> · Not linked" instead of "No company". | Leave `SetNull` alone |
+| **JC-ML-F** | **The backfill keeps `updatedAt`** (sets it to the memo's current value in the same `updateMany`) and bumps `version` as any link does. Audit metadata adds `source: "backfill"`. | Let it stamp the run time |
+| **JC-ML-G** | **Response shapes stay exact for `Company` links.** The web link response stays `{ id, companyId, version }` and Marge's `structured` stays `{ memoId, companyId, version, url }` for a `Company`; a ledger link returns `portfolioCompanyId` **instead of** `companyId`. The suggestion stays `{ id, name }` for a `Company` and is `{ id, name, kind: "ledger" }` for a ledger row. Existing `toEqual` assertions keep passing. | Always return both keys (edits two test assertions) |
+| **JC-ML-H** | **Marge's pending text is unchanged.** `pendingLabel` ("Not in Molly yet: X"), the `memo_list` description and their tests stay as they are; a ledger-linked memo prints "<name> (deal ledger)". The web UI changes per Q132. | Align Marge's text with the web copy in a later Marge handoff |
+| **JC-ML-I** | **Test doubles.** The fake `db` in `memo-routes.test.ts` and `marge-memo-tools.test.ts` gains a `portfolioCompany` stub that returns no rows (new code queries the ledger). Setup only: **no existing assertion is edited.** | — |
+
+---
+
+## WS136 — Schema, matcher, link and suggestion functions, ~1.0 day (APPROVED 2026-10-21)
+
+**WS136.1 — `prisma/schema.prisma`** (additive):
+
+```prisma
+// model Memo
+  portfolioCompanyId String? // Part 42: deal-ledger row when the company isn't a Molly Company. At most one of companyId / portfolioCompanyId (JC-ML-A).
+  portfolioCompany   PortfolioCompany? @relation(fields: [portfolioCompanyId], references: [id], onDelete: SetNull)
+  @@index([portfolioCompanyId])
+
+// model PortfolioCompany
+  memos            Memo[]
+```
+
+**WS136.2 — `src/lib/memos.ts`** (pure):
+
+```ts
+// Part 42. What a memo's company is, for every surface (page, list, share page, Marge).
+export type MemoCompanyRef =
+  | { kind: "company"; id: string; name: string }
+  | { kind: "ledger"; id: string; name: string }
+  | { kind: "pending"; name: string }
+  | { kind: "none" };
+
+export const memoCompanySelect = {
+  companyId: true,
+  portfolioCompanyId: true,
+  companyNamePending: true,
+  company: { select: { id: true, name: true } },
+  portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
+} as const;
+
+export function memoCompanyRef(m: { company: { id: string; name: string } | null; portfolioCompany?: { id: string; name: string; company: { id: string; name: string } | null } | null; companyNamePending: string | null }): MemoCompanyRef {
+  if (m.company) return { kind: "company", ...m.company };
+  if (m.portfolioCompany?.company) return { kind: "company", ...m.portfolioCompany.company }; // JC-ML-B
+  if (m.portfolioCompany) return { kind: "ledger", id: m.portfolioCompany.id, name: m.portfolioCompany.name };
+  if (m.companyNamePending) return { kind: "pending", name: m.companyNamePending };
+  return { kind: "none" };
+}
+export const memoCompanyName = (r: MemoCompanyRef) => (r.kind === "none" ? null : r.name);
+
+/** "Not linked to a company": neither target set. */
+export const memoUnlinkedWhere: Prisma.MemoWhereInput = { companyId: null, portfolioCompanyId: null };
+/** "By company": memos on the Company itself or on its ledger row. */
+export const memoForCompanyWhere = (companyId: string): Prisma.MemoWhereInput => ({ OR: [{ companyId }, { portfolioCompany: { companyId } }] });
+
+export interface LinkCandidate { kind: "company" | "ledger"; id: string; name: string }
+export interface CompanyMatch { confident: LinkCandidate | null; exact: LinkCandidate[]; near: LinkCandidate[] }
+
+/** JC-ML-C. Pure: callers pass Company rows (memoCompanyFilter) and ledger rows. */
+export function matchMemoCompany(
+  name: string,
+  companies: { id: string; name: string; aliases: string[] }[],
+  ledger: { id: string; name: string; companyId: string | null }[]
+): CompanyMatch;
+```
+
+`matchMemoCompany` folds a ledger row with a `companyId` present in `companies` into that `Company` (JC-ML-B), dedupes by target, and returns `confident` only when `exact` has length 1. Near rule as JC-ML-C (a small local `tokens` helper; `portco-match.ts` is not changed).
+
+**WS136.3 — `src/lib/memo-actions.ts`:**
+- `loadLinkCandidates()` → `{ companies, ledger }` (`Company` with `memoCompanyFilter`; ledger `select { id, name, companyId }`), one place for the two queries.
+- `suggestCompany(pendingName)` → `matchMemoCompany(...).confident` mapped to `{ id, name }` for a `Company` or `{ id, name, kind: "ledger" }` (JC-ML-G). `importMemo` (`:214`) uses the same result and writes `companyId` **or** `portfolioCompanyId`, so a future re-run links ledger matches too.
+- `linkCompany(actor, memoId, body, via?)` accepts exactly one of `companyId` / `portfolioCompanyId` ("Choose a company." otherwise). Ledger path: load the row; if its `companyId` passes `loadCompany`, link that `Company` (JC-ML-B), else set `portfolioCompanyId`. Refusal "This memo is already linked to <name>." reads `memoCompanyRef`. The `updateMany` guard becomes `{ id, version, companyId: null, portfolioCompanyId: null }`. Audit `MEMO_COMPANY_LINKED { memoId, companyId }` or `{ memoId, portfolioCompanyId }` (ids only). A shared inner `linkTarget(actor, memoId, target, expectedVersion, opts: { keepUpdatedAt?: Date; source?: "backfill" }, via?)` is what WS139 calls.
+- If Q134 = A: `unlinkCompany(actor, memoId, { expectedVersion })`, owner only: sets both ids null and `companyNamePending` to the current name (so the memo shows "<name> · Not linked", not "No company"); audit `MEMO_COMPANY_UNLINKED { memoId }`.
+- `createMemo`: the **web** body may carry `portfolioCompanyId` (validated in `createMemo`, not in the shared `validateMemoMeta`, so Marge's `memo_create`, whose zod schema strips unknown keys, cannot reach it). Same both-given refusal (`MEMO_ERRORS.bothCompanies`).
+- `updateMemoMeta`: the `companyNamePending` refusal (`:336`) also fires when `portfolioCompanyId` is set.
+
+**WS136.4 — routes:** `POST /api/admin/memos/[id]/link-company` passes `portfolioCompanyId` through (allowlist); if Q134 = A, `DELETE` on the same route unlinks. `GET /api/admin/memos`: `companyId` filter → `memoForCompanyWhere(id)`; new `portfolioCompanyId` filter; `unlinked=true` → `memoUnlinkedWhere`; `q` also matches `portfolioCompany.name`. `memoSummarySelect` (`memo-route.ts:15-30`) adds `portfolioCompanyId` and `portfolioCompany`. `DELETE /api/admin/portfolio-companies/[id]`: JC-ML-E in the same request, before the delete.
+
+**Tests (new cases; JC-ML-I stubs only in existing files):** `memos.test.ts`: `memoCompanyRef` for all four kinds and the ledger-with-`Company` case; `matchMemoCompany`: exact on name, alias, ledger; a ledger row and its own `Company` count once; two distinct exact targets → not confident; "Acme Labs" vs "AcmeLabs" → near only; "Acme" vs "Acme Pay" → near only; legal suffix ("Acme Ltd") → exact. `memo-routes.test.ts`: link to a ledger row → `{ id, portfolioCompanyId, version }`, pending cleared; link to a ledger row that has a `Company` → stores `companyId`; both ids → 400; second link (either kind) → 400 with the name; `unlinked` excludes ledger-linked memos; `companyId` filter includes a memo linked through that company's ledger row; suggestion `{ id, name, kind: "ledger" }`; details save on a ledger-linked memo refuses `companyNamePending`; ledger delete restores the pending name; audit metadata has no names (canary).
+
+**Acceptance:** schema pushes with no data-loss prompt; all existing tests pass unchanged apart from the stubs; new tests green. **UX impact:** none yet (no UI). **Cost impact:** none.
+
+---
+
+## WS137 — Memo pages: picker, display, filters, banner, share page, ~1.0 day (APPROVED 2026-10-21)
+
+- **`src/components/admin/memos/types.ts`:** `MemoRow` and `MemoView` gain `companyRef: MemoCompanyRef` (computed on the server); `CompanyOption` gains `kind`; new `LinkTargets = { companies: CompanyOption[]; ledger: CompanyOption[] }`.
+- **`[id]/page.tsx`, `page.tsx`, `new/page.tsx`:** select `memoCompanySelect`; load link targets with `loadLinkCandidates()` (ledger rows **without** a `companyId` only, JC-ML-D).
+- **`[id]/memo-client.tsx` `companyLine`** (`:95-103`): company → `Link` to `/admin/companies/<id>` (today); ledger → `Link` to `/admin/portfolio/<id>` with a muted "Deal Ledger" `Badge variant="secondary"`; pending → per Q132 (A: `<name>` in body text plus a muted `Badge variant="neutral"` "Not linked"); none → "No company" (today). Print shows the name (badges are `memo-no-print`). "Link to company" shows while `companyRef.kind` is `pending` or `none`; if Q134 = A, the owner also sees "Change company" when linked (the same dialog with an "Unlink" secondary button).
+- **Banner** (`:166-176`): `kind: "ledger"` → "<name> is in the deal ledger. Link it?"; a `Company` keeps "<name> is now in Molly. Link it?". The button preselects `p:<id>` / `c:<id>`.
+- **`link-company-dialog.tsx`:** two `optgroup`s (JC-ML-D); posts `companyId` or `portfolioCompanyId`; helper line under the select: "Deal-ledger companies link to their ledger page until they're added to Molly." Title stays "Link to company".
+- **`memos-client.tsx`:** Company column via `companyRef` (same rendering as the page, without links; sort by name); company filter with the two groups (value `c:` → `companyId`, `p:` → `portfolioCompanyId`); "Not linked to a company" unchanged in wording, now meaning neither target; search text includes the ledger name.
+- **`new/new-memo-form.tsx`:** the Company select gains the "Deal Ledger" group; "Company isn't in Molly yet" becomes "Not in Molly (type the name)" only if Q132 = A (copy, Nosa to review); body sends `portfolioCompanyId` for a ledger choice.
+- **`meta-sheet.tsx`:** the "Company (not in Molly yet)" field (`:72`) shows only for `pending`/`none` (today it keys on `!memo.company`, which would wrongly show it for a ledger-linked memo); label "Company name (not linked)" if Q132 = A.
+- **Share page (`src/app/share/m/[token]/route.ts:51-52`, `:71`):** select `portfolioCompany { name, company { name } }`; `companyName: memoCompanyName(memoCompanyRef(m))`. Name only, no link, no "Not linked" tag, no "Deal Ledger" label. `memo-share-page.ts` unchanged.
+
+**Tests:** share-route test: a ledger-linked memo shows the ledger name, a ledger row with a `Company` shows the `Company` name, and the HTML contains neither `/admin/portfolio` nor "Deal Ledger" nor "Not linked". Pages are exercised in the rollout check.
+
+**Acceptance:** the 4 states render on page, list and print; filters and search behave as above; the share page shows the name only. **UX impact:** additive for admins: a second group in three pickers, ledger names become links, and (Q132-A) "Not in Molly yet: X" becomes "X" with a "Not linked" tag. Founders, LPs and link recipients: nothing changes (recipients see the same name they saw before, or the real company name once linked). **Cost impact:** none.
+
+---
+
+## WS138 — Marge memo tools, additive, ~0.5 day (APPROVED 2026-10-21; invisible unless `MARGE_MEMO_TOOLS=on`)
+
+**No tool added, renamed or removed; no input field added or removed; the 13 Part 39 tools, `MARGE_TOOLS` and their tests are untouched.**
+
+- **`resolveCompanyFilter` → `resolveLinkTarget(raw)`** (`memos.ts:197-215`): `Company` id (`loadCompany`) → ledger id → case-insensitive exact name over `Company` names and ledger names, ledger rows folded into their `Company` (JC-ML-B) → one target, else the existing ambiguous sentence ("“Acme” matches 2 companies: …. Use the id.") or "No company called “Acme”. Closest: …" with closest names drawn from both tables. Exact name, not normalised, as today: Marge is told to pass an id or the exact name.
+- **`memo_link_company`:** `company` description becomes "company id, deal-ledger id, or exact name". Preview after-value "<name> (deal ledger)" for a ledger row. Apply calls `linkCompany` with `portfolioCompanyId` for a ledger row. `structured` per JC-ML-G (`portfolioCompanyId` instead of `companyId` for a ledger link). Error sentences unchanged; "This memo is already linked to X." also fires for a ledger link.
+- **`memo_list`:** the `company` filter uses `resolveLinkTarget` (`Company` → `memoForCompanyWhere`, ledger → `portfolioCompanyId`); `unlinked` → `memoUnlinkedWhere`; `query` also matches the ledger name. Rows: `company` label "<name> (deal ledger)" for a ledger link (pending text unchanged, JC-ML-H); `structured` rows add `portfolioCompanyId` and `companyKind` (`"company" | "ledger" | "pending" | "none"`); `companyNamePending` is `null` when either target is set.
+- **`memo_get`:** the same label and the same two added header fields.
+- **`memo_create`:** **inputs unchanged**; `companyId` stays a `Company` id. The preview's suggestion uses the new matcher: the warning sentence is unchanged ("Acme looks like it is already in Molly. Link it to keep things together.", true for a ledger row too), and `structured.suggestedCompany` is `{ id, name }` for a `Company` or `{ id, name, kind: "ledger" }` for a ledger row. Marge links a ledger company after creating with `memo_link_company` by name.
+- **`companies_find` hiding DILIGENCE: does not matter here.** The memo tools never use it (they resolve with `memoCompanyFilter`, both stages, plus the ledger), production has 0 DILIGENCE companies, and ledger rows are not in `companies_find` either way. Marge should pass a name or id straight to the memo tools rather than look it up with `companies_find` first. `companies_find` is a Part 39 tool and is not changed.
+
+**Tests (`marge-memo-tools.test.ts`, new cases):** link by ledger exact name and by ledger id; a ledger row with a `Company` links the `Company` and returns `companyId`; ambiguous across tables; `memo_list` filter by a ledger name and `unlinked` excluding ledger-linked memos; `memo_get` label "(deal ledger)"; `memo_create` preview `suggestedCompany` with `kind: "ledger"`; tier map and `tools/list` unchanged (existing tests).
+
+**Marge handoff (MWS note):** `memo_link_company.company` also accepts a deal-ledger id or exact ledger name (description text changed, shape unchanged); its `structured` result has `portfolioCompanyId` **instead of** `companyId` when it links a ledger row; `memo_list` and `memo_get` add `portfolioCompanyId` and `companyKind` and may print "<name> (deal ledger)"; `memo_create.structured.suggestedCompany` may carry `kind: "ledger"`, in which case link after creating; `memo_list`'s `company` filter accepts ledger names. No new tool, no `tools/list` change.
+
+**Acceptance:** green; with `MARGE_MEMO_TOOLS` off nothing is visible. **UX impact:** Marge can link the 7 ledger-only companies by name; existing replies read the same. **Cost impact:** none.
+
+---
+
+## WS139 — Backfill script, dry run first, ~0.5 day (APPROVED 2026-10-21; the owner runs it)
+
+**`scripts/link-memo-companies.ts`** (new; the `import-notion-memos.ts` conventions: `EXPLICIT_DATABASE_URL` read before Prisma loads, `@/lib` imports under tsx, names on screen only):
+
+```
+Usage:
+  # dry run (default): reads only; prints one line per pending memo and the totals
+  DATABASE_URL="<from the pulled env>" npx tsx scripts/link-memo-companies.ts --owner-email=<you>
+
+  # one memo first, then every confident match
+  DATABASE_URL="<from the pulled env>" npx tsx scripts/link-memo-companies.ts --owner-email=<you> --write --only=<memo id>
+  DATABASE_URL="<from the pulled env>" npx tsx scripts/link-memo-companies.ts --owner-email=<you> --write
+```
+
+- **Scope:** non-archived memos owned by `--owner-email` (must be an approved `ADMIN`; that user is the `actor`, because linking is owner-only, Q117-A) with `companyNamePending` set and neither target set. `--imported-only` narrows to `notionId != null`. Memos owned by someone else are counted as "owned by someone else, skipped" (0 today).
+- **Per memo:** `matchMemoCompany(companyNamePending, …)` → **link** (confident; shows "→ company" or "→ deal ledger"), **check by hand** (more than one exact target, or near matches only; lists the candidates), or **leave pending** (nothing).
+- **`--write`:** links only the "link" rows, one `linkTarget(..., { keepUpdatedAt: memo.updatedAt, source: "backfill" })` call each, with the memo's current `version` as `expectedVersion` (a memo edited meanwhile fails with the stale sentence and is counted, never forced). Prints "linked / check by hand / left pending / stale" totals. Re-running is safe: linked memos are out of scope.
+- **Expected against production today:** link **9** (2 to a `Company`, 7 to a ledger row), check by hand **1**, leave pending **16** (12 Passed, 3 Memo, 1 In Progress). The owner should look twice at the renamed one in the dry run: the memo title and the `Company` name differ, which is correct (the ledger already links them).
+
+**Tests (`memo-link-backfill.test.ts`, fake database):** classification of confident / ambiguous / near / none; `--write` links confident only; `updatedAt` unchanged and `version` bumped; a stale version is reported, not retried; another owner's memo is skipped; audit metadata `{ memoId, companyId | portfolioCompanyId, source: "backfill" }` with no names (canary). The CLI is a thin shell over these.
+
+**Acceptance:** the dry run's totals match the line above (or the owner understands any difference); re-run after `--write` reports 0 to link. **UX impact:** 9 memos show their company; their "Updated" date and list order stay as Notion's. **Cost impact:** none.
+
+---
+
+## WS140 — Rollout, ~0.25 day (APPROVED 2026-10-21; the owner runs every schema change and every production write)
+
+1. `db push` (additive) → deploy WS136–WS138.
+2. Spot-check `/admin/memos`: pending memos read per Q132; the company filter has the "Deal Ledger" group; a memo page's "Link to company" lists both groups.
+3. Pull the production env (house procedure), run WS139's dry run, compare with "9 / 1 / 16".
+4. `--write --only=<one id>`; open it: company line, link target, "Updated" date unchanged. Then `--write`. Re-run: 0 to link. `/admin/audit` shows 9 `MEMO_COMPANY_LINKED` rows.
+5. Link the 1 near match by hand from its memo page (the banner will not offer it, JC-ML-C).
+6. Delete the pulled env file.
+7. Marge handoff (WS138 note).
+
+---
+
+## Conflicts with how Molly works
+
+1. **Two company models.** A memo's "company" becomes a union; `Company.memos` no longer lists every memo about a company (ledger-linked memos hang off `PortfolioCompany.memos`). Every memo query goes through `memoCompanyRef`, `memoForCompanyWhere` and `memoUnlinkedWhere` so this stays in one place.
+2. **Owner-only linking (Q117-A) meets one importer owning all 30.** Only the owner sees the banner and "Link to company", so teammates who wrote these memos in Notion cannot link them. The backfill clears most of it; Q133 asks whether to relax it.
+3. **`updatedAt` and Notion dates (F137).** Handled for the backfill (JC-ML-F); Q135 for clicks.
+4. **Ledger deletes.** Handled (JC-ML-E).
+5. **A renamed company.** One memo links (through the ledger) to a `Company` whose name differs from the memo title. Correct, but visible.
+6. **Marge result shape.** `companyId` is absent from a ledger link's result (JC-ML-G); recorded in the handoff.
+7. **Not a conflict:** the deal ledger is admin-only financial data, but a memo shows only the ledger **name**, which it already showed as the pending name; the share page shows no more than before.
+
+---
+
+## Open product decisions (the owner's call, each with a recommendation)
+
+| | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q131** | How do memos link to companies? | **(A)+(D)** `Company` or ledger row; the pending name stays the record for deals in neither table, shown without the "missing" wording. **(B)** Create a `Company` from the ledger row when linking. **(C)** A new prospect record for deals in neither table. | **(A)+(D).** See "Options": it fixes all 10 Invested memos with no side effects outside memos; (B) puts founder-less companies on the dashboards, crons and Marge's `companies_find`; (C) adds a third company concept that holds one name per memo today. |
+| **Q132** | What does a memo with no company link show? | **(A)** "<name>" with a muted "Not linked" tag (page, list); share page shows the name only (as today). **(B)** Keep "Not in Molly yet: <name>". **(C)** Decision-aware: "<name> · Passed deal" for Passed, "Not linked" otherwise. | **(A).** "Not in Molly yet" implies a step someone forgot; for a Passed deal there is no such step. (C) repeats the Decision badge that is already beside it. |
+| **Q133** | Who can link a memo to a company? | **(A)** The owner only (Part 40, Q117-A). **(B)** Also any admin who can edit a team-shared memo. | **(A)** for now. After the backfill only 1 memo needs a click, and the owner of all 30 is the person who will make it. Revisit if teammates start owning memos. |
+| **Q134** | Can a link be changed or removed? | **(A)** Yes: the owner gets "Change company" with "Unlink" (back to "<name> · Not linked"). Web only; Marge cannot unlink. **(B)** No (today: once linked, fixed). | **(A).** The backfill makes links nobody clicked; without this, a wrong one needs a production SQL fix. About +0.25 day. |
+| **Q135** | Does a person's own link click change the memo's "Updated" date? | **(A)** No: linking keeps `updatedAt` everywhere (web, Marge, backfill). **(B)** Yes for clicks, no for the backfill (today's behaviour plus JC-ML-F). | **(A).** A company link is filing, not editing; the share page's "Last updated" should mean the text changed. One argument in `linkTarget`. |
+| **Q136** | Show a company's memos on the company and ledger pages ("Memos" list on `/admin/companies/<id>` and `/admin/portfolio/<id>`)? | **(A)** Not in this Part; the memo list's company filter covers it. **(B)** Yes, a read-only list on both pages. | **(A).** Additive and easy later (≈ +0.5 day); not needed to stop "Not in Molly yet". |
+
+---
+
+## Part 42 sequencing, deploys and effort
+
+**Order:** `db push` → WS136 → WS137 and WS138 (parallel) → deploy → WS139 dry run and write → WS140.
+
+| Workstream | Effort |
+|---|---|
+| WS136 | 1.0 |
+| WS137 | 1.0 |
+| WS138 | 0.5 |
+| WS139 | 0.5 |
+| WS140 | 0.25 (owner) |
+| **Total (Molly)** | **≈ 3.25 days** (+0.25 if Q134 = A; +0.5 if Q136 = B; Marge side: reading two optional fields, ≈ 0.25 day) |
+
+**New env vars:** none. **New packages:** none. **Schema:** one nullable `Memo` column, its relation and index. **New secrets:** none.
+
+**Do not touch in this Part:** the 13 Part 39 tools, `MARGE_TOOLS` and `companies_find`; Marge memo tool **input shapes**; `portco-match.ts`; `approvedCompanyFilter`; how `Company` rows are created; the share page renderer.
+
+## Part 42 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **Q131–Q136** | See the table above | **DECIDED 2026-10-21: A+D, A, A, A, A, A** |
+| **JC-ML-A…I** | See the judgment-calls table | **Proposed**, each with a reversal |
+| **F135** | ROADMAP calls Part 41 "building" | Annotated in ROADMAP |
+| **F136** | Decision counts differ from the dry run; the details audit lists every field | Recorded |
+| **F137** | Linking resets "Last updated" | JC-ML-F (backfill); Q135 |
+
+**Constraints honored:** **no new cost line** (no service, no package; the existing database and Vercel); **additive schema** (one nullable column); **no UX regression** (new picker group, new links, softer wording for unlinked memos; founders, LPs and link recipients see nothing new); the 13 Marge tools unchanged and memo tool inputs unchanged; no company, fund or person name in repo text.
+
+**Handoff status: APPROVED 2026-10-21. Ready for Alvin: WS136 → WS137 → WS138 → WS139; WS140 rollout is the owner's.**
+
+---
