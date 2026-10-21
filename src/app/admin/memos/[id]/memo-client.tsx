@@ -22,18 +22,21 @@ import {
   formatDateOnly,
   ownerLabel,
   readError,
-  type CompanyOption,
+  refValue,
+  type LinkTargets,
   type MemoStatus,
   type MemoView,
 } from "@/components/admin/memos/types";
 
-export default function MemoClient({ memo, companies }: { memo: MemoView; companies: CompanyOption[] }) {
+type Suggestion = { id: string; name: string; kind?: "ledger" };
+
+export default function MemoClient({ memo, targets }: { memo: MemoView; targets: LinkTargets }) {
   const router = useRouter();
   const confirm = useConfirm();
   const [showMeta, setShowMeta] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [linking, setLinking] = useState(false);
-  const [suggestion, setSuggestion] = useState<CompanyOption | null>(null);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
 
@@ -41,7 +44,7 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
 
   // "Acme is now in Molly. Link it?": only the owner can act on it, so only the owner is asked.
   useEffect(() => {
-    if (!memo.canManage || memo.company || !memo.companyNamePending) return;
+    if (!memo.canManage || memo.companyRef.kind !== "pending") return;
     let cancelled = false;
     (async () => {
       try {
@@ -56,7 +59,7 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
     return () => {
       cancelled = true;
     };
-  }, [memo.id, memo.canManage, memo.company, memo.companyNamePending, memo.version]);
+  }, [memo.id, memo.canManage, memo.companyRef.kind, memo.version]);
 
   async function changeStatus(status: MemoStatus) {
     setSavingStatus(true);
@@ -92,15 +95,33 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
     router.push("/admin/memos");
   }
 
-  const companyLine = memo.company ? (
-    <Link href={`/admin/companies/${memo.company.id}`} className="text-primary underline-offset-4 hover:underline">
-      {memo.company.name}
-    </Link>
-  ) : memo.companyNamePending ? (
-    <span className="text-muted-foreground">Not in Molly yet: {memo.companyNamePending}</span>
-  ) : (
-    <span className="text-muted-foreground">No company</span>
-  );
+  const ref = memo.companyRef;
+  const linked = ref.kind === "company" || ref.kind === "ledger";
+  // The four states (Part 42). Badges are screen-only; print shows the name.
+  const companyLine =
+    ref.kind === "company" ? (
+      <Link href={`/admin/companies/${ref.id}`} className="text-primary underline-offset-4 hover:underline">
+        {ref.name}
+      </Link>
+    ) : ref.kind === "ledger" ? (
+      <span className="inline-flex items-center gap-2">
+        <Link href={`/admin/portfolio/${ref.id}`} className="text-primary underline-offset-4 hover:underline">
+          {ref.name}
+        </Link>
+        <Badge variant="neutral" className="memo-no-print">
+          Deal Ledger
+        </Badge>
+      </span>
+    ) : ref.kind === "pending" ? (
+      <span className="inline-flex items-center gap-2">
+        <span className="text-foreground">{ref.name}</span>
+        <Badge variant="neutral" className="memo-no-print">
+          Not linked
+        </Badge>
+      </span>
+    ) : (
+      <span className="text-muted-foreground">No company</span>
+    );
 
   const hasDetails = memo.source || memo.decision || memo.tags.length || memo.introDate || memo.websiteUrl || memo.introCalls.length;
 
@@ -165,7 +186,7 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
 
         {suggestion && !dismissed && (
           <div className="memo-no-print mb-6 flex flex-wrap items-center justify-between gap-3 border border-edge bg-muted/40 p-3 text-sm">
-            <span>{suggestion.name} is now in Molly. Link it?</span>
+            <span>{suggestion.kind === "ledger" ? `${suggestion.name} is in the deal ledger. Link it?` : `${suggestion.name} is now in Molly. Link it?`}</span>
             <span className="flex gap-2">
               <Button size="sm" onClick={() => setLinking(true)}>
                 Link {suggestion.name}
@@ -181,10 +202,10 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
           <div className="mb-3 flex items-center justify-between gap-2">
             <h2 className="font-display text-sm font-semibold text-foreground">Details</h2>
             <div className="memo-no-print flex gap-1">
-              {memo.canManage && !memo.company && (
+              {memo.canManage && (
                 <Button size="sm" variant="ghost" onClick={() => setLinking(true)}>
                   <Link2 className="h-4 w-4" />
-                  Link to company
+                  {linked ? "Change company" : "Link to company"}
                 </Button>
               )}
               {memo.canEdit && (
@@ -275,8 +296,9 @@ export default function MemoClient({ memo, companies }: { memo: MemoView; compan
         <LinkCompanyDialog
           memoId={memo.id}
           version={memo.version}
-          companies={companies}
-          initialCompanyId={suggestion?.id}
+          targets={targets}
+          initialValue={suggestion && !linked ? `${suggestion.kind === "ledger" ? "p" : "c"}:${suggestion.id}` : undefined}
+          currentValue={linked ? refValue(ref) : undefined}
           onClose={() => setLinking(false)}
           onLinked={refresh}
         />

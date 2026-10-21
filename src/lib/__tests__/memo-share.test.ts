@@ -257,6 +257,29 @@ describe("the public page", () => {
     expect(html).not.toMatch(/DFS Lab/);
   });
 
+  it("Part 42: a ledger-linked memo shows the ledger name, a ledger row with a Company shows the Company name, and nothing internal leaks", async () => {
+    const link = await newLink();
+    const m = state.memos.find((x) => x.id === "m1")!;
+    const names = async () => (await (await getPage(link.token)).text());
+    m.companyNamePending = null;
+    m.portfolioCompany = { id: "l1", name: "Globex", company: null };
+    let html = await names();
+    expect(html).toContain("Globex");
+    m.portfolioCompany = { id: "l1", name: "Globex", company: { id: "c1", name: "Initech" } };
+    html = await names();
+    expect(html).toContain("Initech");
+    expect(html).not.toContain("Globex");
+    m.portfolioCompany = { id: "l1", name: "Globex", company: null };
+    m.companyNamePending = "Hooli";
+    m.portfolioCompany = null;
+    html = await names();
+    expect(html).toContain("Hooli");
+    for (const bad of ["/admin/portfolio", "Deal Ledger", "Not linked"]) expect(html).not.toContain(bad);
+    m.portfolioCompany = { id: "l1", name: "Globex", company: null };
+    html = await names();
+    for (const bad of ["/admin/portfolio", "Deal Ledger", "Not linked"]) expect(html).not.toContain(bad);
+  });
+
   it("looks the link up by hash only", async () => {
     const link = await newLink();
     await getPage(link.token);

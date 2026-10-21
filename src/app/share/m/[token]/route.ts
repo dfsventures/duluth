@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { sha256Hex } from "@/lib/memo-actions";
-import { readCitations } from "@/lib/memos";
+import { memoCompanyName, memoCompanyRef, readCitations } from "@/lib/memos";
 import { renderMemoSharePage, renderShareStatePage, shareCsp, type ShareState } from "@/lib/memo-share-page";
 
 // Part 40 (WS128). The public memo page. A route handler, not a page, because a page cannot answer
@@ -49,7 +49,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
             draftedByMarge: true,
             websiteUrl: true,
             companyNamePending: true,
-            company: { select: { name: true } },
+            company: { select: { id: true, name: true } },
+            portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
             sections: {
               where: { includeInShare: true },
               orderBy: { position: "asc" },
@@ -68,7 +69,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ toke
     const html = renderMemoSharePage(
       {
         title: m.title,
-        companyName: m.company?.name ?? m.companyNamePending,
+        companyName: memoCompanyName(memoCompanyRef(m)), // name only: no link, no tag, no label
         websiteUrl: m.websiteUrl,
         status: m.status,
         updatedAt: m.updatedAt,

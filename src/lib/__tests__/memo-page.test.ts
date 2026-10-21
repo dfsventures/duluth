@@ -17,6 +17,7 @@ vi.mock("next/navigation", () => nav);
 const m = vi.hoisted(() => ({
   memo: { findFirst: vi.fn() },
   company: { findMany: vi.fn() },
+  portfolioCompany: { findMany: vi.fn() },
   memoTemplate: { findFirst: vi.fn() },
 }));
 vi.mock("@/lib/db", () => ({ db: m }));
@@ -71,6 +72,7 @@ beforeEach(() => {
   auth.mockResolvedValue(session("u1"));
   m.memo.findFirst.mockResolvedValue(memoRow());
   m.company.findMany.mockResolvedValue([]);
+  m.portfolioCompany.findMany.mockResolvedValue([]);
   m.memoTemplate.findFirst.mockResolvedValue(null);
 });
 
@@ -119,6 +121,28 @@ describe("the memo page", () => {
     const el = (await call()) as unknown as { props: { memo: { canEdit: boolean; canManage: boolean } } };
     expect(el.props.memo.canEdit).toBe(true);
     expect(el.props.memo.canManage).toBe(false);
+  });
+
+  it("Part 42: computes companyRef for the four states and offers ledger rows without a Company as link targets", async () => {
+    const ref = async (over: Record<string, unknown>) => {
+      m.memo.findFirst.mockResolvedValue(memoRow(over));
+      return ((await call()) as unknown as { props: { memo: { companyRef: unknown } } }).props.memo.companyRef;
+    };
+    expect(await ref({ company: { id: "c1", name: "Acme" } })).toEqual({ kind: "company", id: "c1", name: "Acme" });
+    expect(await ref({ portfolioCompany: { id: "l1", name: "Globex", company: null } })).toEqual({ kind: "ledger", id: "l1", name: "Globex" });
+    expect(await ref({ companyNamePending: "Initech" })).toEqual({ kind: "pending", name: "Initech" });
+    expect(await ref({})).toEqual({ kind: "none" });
+
+    m.company.findMany.mockResolvedValue([{ id: "c1", name: "Acme", aliases: [] }]);
+    m.portfolioCompany.findMany.mockResolvedValue([
+      { id: "l1", name: "Globex", companyId: null },
+      { id: "l2", name: "Acme Holdings", companyId: "c1" },
+      { id: "l3", name: "Hooli", companyId: "gone" }, // its Company is not offered (a pending signup): the row itself is
+    ]);
+    const el = (await call()) as unknown as { props: { targets: { companies: { id: string }[]; ledger: { id: string; kind: string }[] } } };
+    expect(el.props.targets.companies.map((c) => c.id)).toEqual(["c1"]);
+    expect(el.props.targets.ledger.map((l) => l.id)).toEqual(["l1", "l3"]);
+    expect(el.props.targets.ledger[0].kind).toBe("ledger");
   });
 
   it("empty sections carry the template guidance", async () => {

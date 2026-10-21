@@ -10,11 +10,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { MEMO_LIMITS } from "@/lib/memos";
-import { readError, type CompanyOption } from "@/components/admin/memos/types";
+import { readError, targetValue, type LinkTargets } from "@/components/admin/memos/types";
 
 const NOT_IN_MOLLY = "__pending__";
 
-export default function NewMemoForm({ companies }: { companies: CompanyOption[] }) {
+export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
@@ -29,7 +29,8 @@ export default function NewMemoForm({ companies }: { companies: CompanyOption[] 
     try {
       const body: Record<string, unknown> = { title };
       if (company === NOT_IN_MOLLY) body.companyNamePending = pending;
-      else if (company) body.companyId = company;
+      else if (company.startsWith("p:")) body.portfolioCompanyId = company.slice(2);
+      else if (company) body.companyId = company.slice(2);
       const res = await fetch("/api/admin/memos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -62,12 +63,21 @@ export default function NewMemoForm({ companies }: { companies: CompanyOption[] 
           />
           <Select id="memo-company" label="Company" value={company} onChange={(e) => setCompany(e.target.value)}>
             <option value="">No company yet</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value={NOT_IN_MOLLY}>Company isn&apos;t in Molly yet</option>
+            <optgroup label="Companies in Molly">
+              {targets.companies.map((c) => (
+                <option key={targetValue(c)} value={targetValue(c)}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Deal Ledger">
+              {targets.ledger.map((c) => (
+                <option key={targetValue(c)} value={targetValue(c)}>
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+            <option value={NOT_IN_MOLLY}>Not in Molly (type the name)</option>
           </Select>
           {company === NOT_IN_MOLLY && (
             <Input

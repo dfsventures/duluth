@@ -22,6 +22,8 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
   const [calls, setCalls] = useState<MemoIntroCall[]>(memo.introCalls);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // Only a memo with no company link has a typed name to edit (a ledger link counts as linked).
+  const showPending = memo.companyRef.kind === "pending" || memo.companyRef.kind === "none";
 
   function patchCall(i: number, p: Partial<MemoIntroCall>) {
     setCalls((cs) => cs.map((c, j) => (j === i ? { ...c, ...p } : c)));
@@ -45,7 +47,7 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
         websiteUrl: websiteUrl.trim() || null,
         introCalls: calls.map((c) => ({ ...c, label: c.label.trim() })),
       };
-      if (!memo.company) body.companyNamePending = pending;
+      if (showPending) body.companyNamePending = pending;
       const res = await fetch(`/api/admin/memos/${memo.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -66,10 +68,10 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
     <ModalSheet title="Memo details" onClose={onClose}>
       <form onSubmit={save} className="space-y-4">
         <Input id="meta-title" label="Title" value={title} maxLength={MEMO_LIMITS.title} onChange={(e) => setTitle(e.target.value)} required />
-        {!memo.company && (
+        {showPending && (
           <Input
             id="meta-pending"
-            label="Company (not in Molly yet)"
+            label="Company name (not linked)"
             value={pending}
             maxLength={MEMO_LIMITS.title}
             onChange={(e) => setPending(e.target.value)}

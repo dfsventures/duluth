@@ -14,7 +14,7 @@ import { TabBar } from "@/components/ui/tab-bar";
 import { parseTab } from "@/lib/url-tab";
 import { relativeTime } from "@/lib/relative-time";
 import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_STATUSES, MEMO_STATUS_LABELS } from "@/lib/memos";
-import { STATUS_VARIANT, ownerLabel, type CompanyOption, type MemoRow } from "@/components/admin/memos/types";
+import { STATUS_VARIANT, ownerLabel, targetValue, type LinkTargets, type MemoRow } from "@/components/admin/memos/types";
 
 const SCOPES = ["mine", "team", "all"] as const;
 type Scope = (typeof SCOPES)[number];
@@ -24,15 +24,15 @@ const TABS = [
   { key: "all" as const, label: "All I can see" },
 ];
 
-export default function MemosClient({ companies }: { companies: CompanyOption[] }) {
+export default function MemosClient({ targets }: { targets: LinkTargets }) {
   return (
     <Suspense fallback={null}>
-      <MemosInner companies={companies} />
+      <MemosInner targets={targets} />
     </Suspense>
   );
 }
 
-function MemosInner({ companies }: { companies: CompanyOption[] }) {
+function MemosInner({ targets }: { targets: LinkTargets }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
@@ -51,7 +51,8 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
     setError(null);
     try {
       const params = new URLSearchParams({ scope });
-      if (companyId) params.set("companyId", companyId);
+      if (companyId.startsWith("c:")) params.set("companyId", companyId.slice(2));
+      else if (companyId.startsWith("p:")) params.set("portfolioCompanyId", companyId.slice(2));
       if (status) params.set("status", status);
       if (decision) params.set("decision", decision);
       if (unlinked) params.set("unlinked", "true");
@@ -87,13 +88,16 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
       {
         key: "company",
         header: "Company",
-        sortValue: (m) => (m.company?.name ?? m.companyNamePending ?? "").toLowerCase(),
+        sortValue: (m) => (m.companyRef.kind === "none" ? "" : m.companyRef.name).toLowerCase(),
         mobile: "meta",
         cell: (m) =>
-          m.company ? (
-            m.company.name
-          ) : m.companyNamePending ? (
-            <span className="text-muted-foreground">Not in Molly yet: {m.companyNamePending}</span>
+          m.companyRef.kind === "company" || m.companyRef.kind === "ledger" ? (
+            m.companyRef.name
+          ) : m.companyRef.kind === "pending" ? (
+            <span className="inline-flex flex-wrap items-center gap-2">
+              {m.companyRef.name}
+              <Badge variant="neutral">Not linked</Badge>
+            </span>
           ) : (
             <span className="text-muted-foreground">None</span>
           ),
@@ -167,7 +171,7 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
         columns={columns}
         rowHref={(m) => `/admin/memos/${m.id}`}
         defaultSort={{ key: "updated", dir: "desc" }}
-        searchText={(m) => [m.title, m.company?.name, m.companyNamePending]}
+        searchText={(m) => [m.title, m.companyRef.kind === "none" ? null : m.companyRef.name]}
         searchPlaceholder="Search memos"
         loading={loading}
         error={error}
@@ -182,11 +186,20 @@ function MemosInner({ companies }: { companies: CompanyOption[] }) {
               onChange={(e) => setCompanyId(e.target.value)}
             >
               <option value="">All companies</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
+              <optgroup label="Companies in Molly">
+                {targets.companies.map((c) => (
+                  <option key={targetValue(c)} value={targetValue(c)}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Deal Ledger">
+                {targets.ledger.map((c) => (
+                  <option key={targetValue(c)} value={targetValue(c)}>
+                    {c.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
             <select aria-label="Status" className="input-field w-auto" value={status} onChange={(e) => setStatus(e.target.value)}>
               <option value="">Any status</option>

@@ -1,9 +1,10 @@
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { loadLinkTargets } from "@/lib/memo-actions";
 import { currentTemplate } from "@/lib/memo-template";
 import { renderMemoMarkdown } from "@/lib/memo-render";
-import { canEditMemo, canManageMemo, memoCompanyFilter, memoVisibleWhere, readCitations, readIntroCalls } from "@/lib/memos";
+import { canEditMemo, canManageMemo, memoCompanyRef, memoVisibleWhere, readCitations, readIntroCalls } from "@/lib/memos";
 import type { MemoDecision, MemoStatus, MemoView } from "@/components/admin/memos/types";
 import MemoClient from "./memo-client";
 
@@ -22,16 +23,14 @@ export default async function MemoPage({ params }: { params: Promise<{ id: strin
     where: { id, ...memoVisibleWhere(userId) },
     include: {
       company: { select: { id: true, name: true } },
+      portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
       owner: { select: { id: true, name: true, email: true } },
       sections: { orderBy: { position: "asc" } },
     },
   });
   if (!memo) notFound();
 
-  const [template, companies] = await Promise.all([
-    currentTemplate(),
-    db.company.findMany({ where: memoCompanyFilter, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-  ]);
+  const [template, targets] = await Promise.all([currentTemplate(), loadLinkTargets()]);
   const guidance = new Map(template.sections.map((s) => [s.key, s.guidance]));
 
   const view: MemoView = {
@@ -51,6 +50,7 @@ export default async function MemoPage({ params }: { params: Promise<{ id: strin
     updatedAt: memo.updatedAt.toISOString(),
     companyNamePending: memo.companyNamePending,
     company: memo.company,
+    companyRef: memoCompanyRef(memo),
     owner: memo.owner,
     canEdit: canEditMemo(memo, userId),
     canManage: canManageMemo(memo, userId),
@@ -66,5 +66,5 @@ export default async function MemoPage({ params }: { params: Promise<{ id: strin
     })),
   };
 
-  return <MemoClient memo={view} companies={companies} />;
+  return <MemoClient memo={view} targets={targets} />;
 }

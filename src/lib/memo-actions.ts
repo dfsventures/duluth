@@ -96,6 +96,17 @@ export async function loadLinkCandidates() {
   return { companies, ledger };
 }
 
+/** Part 42 (JC-ML-D): what the pickers offer. Companies, and ledger rows that have no usable Company of their own. */
+export async function loadLinkTargets(): Promise<{ companies: { id: string; name: string; kind: "company" }[]; ledger: { id: string; name: string; kind: "ledger" }[] }> {
+  const { companies, ledger } = await loadLinkCandidates();
+  const known = new Set(companies.map((c) => c.id));
+  const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name);
+  return {
+    companies: companies.map((c) => ({ id: c.id, name: c.name, kind: "company" as const })).sort(byName),
+    ledger: ledger.filter((l) => !l.companyId || !known.has(l.companyId)).map((l) => ({ id: l.id, name: l.name, kind: "ledger" as const })).sort(byName),
+  };
+}
+
 // ── create ────────────────────────────────────────────────────────────────────────────────
 
 export interface CreatedMemo {

@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { createMemo } from "@/lib/memo-actions";
 import { memoResponse, memoSummarySelect, readObjectBody } from "@/lib/memo-route";
-import { MEMO_DECISIONS, MEMO_STATUSES, memoForCompanyWhere, memoUnlinkedWhere, memoVisibleWhere } from "@/lib/memos";
+import { MEMO_DECISIONS, MEMO_STATUSES, memoCompanyRef, memoForCompanyWhere, memoUnlinkedWhere, memoVisibleWhere } from "@/lib/memos";
 
 // GET: every memo the signed-in admin may read, with filters. POST: create from the template.
 export async function GET(request: Request) {
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
       orderBy: { updatedAt: "desc" },
       take: 200,
     });
-    return NextResponse.json(memos);
+    return NextResponse.json(memos.map((m) => ({ ...m, companyRef: memoCompanyRef(m) })));
   } catch (err) {
     console.error("GET /api/admin/memos error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

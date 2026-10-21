@@ -1,12 +1,23 @@
 // Part 40 (WS127). Shapes the memo pages pass between server and client. Dates are ISO strings.
-import type { CitationKind, MemoCitation, MemoDecision, MemoIntroCall, MemoStatus } from "@/lib/memos";
+import type { CitationKind, MemoCitation, MemoCompanyRef, MemoDecision, MemoIntroCall, MemoStatus } from "@/lib/memos";
 
-export type { MemoCitation, MemoDecision, MemoIntroCall, MemoStatus, CitationKind };
+export type { MemoCitation, MemoCompanyRef, MemoDecision, MemoIntroCall, MemoStatus, CitationKind };
 
 export interface CompanyOption {
   id: string;
   name: string;
+  kind: "company" | "ledger";
 }
+
+/** Part 42: what a memo can link to. Ledger rows here have no Molly Company of their own. */
+export interface LinkTargets {
+  companies: CompanyOption[];
+  ledger: CompanyOption[];
+}
+
+/** Picker values: "c:<id>" for a Company, "p:<id>" for a deal-ledger row. */
+export const targetValue = (o: { kind: "company" | "ledger"; id: string }) => `${o.kind === "company" ? "c" : "p"}:${o.id}`;
+export const refValue = (r: MemoCompanyRef) => (r.kind === "company" || r.kind === "ledger" ? targetValue(r) : "");
 
 export interface MemoRow {
   id: string;
@@ -20,6 +31,7 @@ export interface MemoRow {
   version: number;
   updatedAt: string;
   company: { id: string; name: string } | null;
+  companyRef: MemoCompanyRef;
   owner: { id: string; name: string | null; email: string };
 }
 
@@ -53,6 +65,7 @@ export interface MemoView {
   updatedAt: string;
   companyNamePending: string | null;
   company: { id: string; name: string } | null;
+  companyRef: MemoCompanyRef;
   owner: { id: string; name: string | null; email: string };
   sections: MemoSectionView[];
   canEdit: boolean;
