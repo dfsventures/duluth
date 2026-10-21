@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { History, Pencil } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { EyeOff, History, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,12 +28,15 @@ export function SectionCard({
   canEdit,
   canManage,
   onChanged,
+  onOpenShare,
 }: {
   memoId: string;
   section: MemoSectionView;
   canEdit: boolean;
   canManage: boolean;
   onChanged: () => void;
+  /** Opens the Share panel from the "Hidden from share links" note. */
+  onOpenShare?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(section.title);
@@ -139,11 +141,27 @@ export function SectionCard({
   }
 
   return (
-    <section id={`section-${section.key}`} className="memo-section scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0">
+    <section id={`section-${section.key}`} className="memo-section scroll-mt-24 lg:scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="font-display text-lg font-semibold text-foreground">{section.title}</h2>
-          {!section.includeInShare && <Badge className="memo-no-print">Not in share links</Badge>}
+          {!section.includeInShare &&
+            (onOpenShare ? (
+              <button
+                type="button"
+                onClick={onOpenShare}
+                title="Left out of share links. The owner changes this when editing the section."
+                className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <EyeOff aria-hidden className="h-3.5 w-3.5" />
+                Hidden from share links
+              </button>
+            ) : (
+              <span className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <EyeOff aria-hidden className="h-3.5 w-3.5" />
+                Hidden from share links
+              </span>
+            ))}
         </div>
         {!editing && (
           <div className="memo-no-print flex gap-1">

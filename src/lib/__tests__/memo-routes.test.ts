@@ -859,6 +859,15 @@ describe("decision move (Part 43)", () => {
     expect(JSON.stringify(calls)).not.toContain("Team memo");
   });
 
+  it("Part 44: source \"page\" audits as page; a bogus or absent source audits as board", async () => {
+    find("team").decision = "MEMO";
+    await move("team", { decision: "INVESTED", expectedVersion: 1, source: "page" });
+    await move("team", { decision: "LATER", expectedVersion: 2, source: "bogus" });
+    await move("team", { decision: "PASSED", expectedVersion: 3 });
+    const calls = audit.logAdminAction.mock.calls.filter((c) => c[1] === "MEMO_DECISION_CHANGED");
+    expect(calls.map((c) => c[2].metadata.source)).toEqual(["page", "board", "board"]);
+  });
+
   it("the list rows carry canEdit; at the cap the response is cut with X-Memos-Truncated, below it there is no header", async () => {
     const list = async () => listGET(new Request("https://molly.dfs.vc/api/admin/memos"));
     const first = await list();

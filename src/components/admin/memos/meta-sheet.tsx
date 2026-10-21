@@ -7,14 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ModalSheet } from "@/components/ui/sheet";
 import { toast } from "@/lib/toast";
-import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_DECISION_NOUN, MEMO_LIMITS, MEMO_SOURCES } from "@/lib/memos";
+import { MEMO_LIMITS, MEMO_SOURCES } from "@/lib/memos";
 import { readError, type MemoIntroCall, type MemoView } from "./types";
 
 /** Edit the memo's details (title, source, tags, intro date, website, intro calls). Carries the memo `version`; a 409 says so. */
 export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(memo.title);
   const [source, setSource] = useState(memo.source ?? "");
-  const [decision, setDecision] = useState(memo.decision ?? "");
   const [tags, setTags] = useState(memo.tags.join(", "));
   const [introDate, setIntroDate] = useState(memo.introDate ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(memo.websiteUrl ?? "");
@@ -38,7 +37,6 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
         version: memo.version,
         title,
         source: source || null,
-        decision: decision || null,
         tags: tags
           .split(",")
           .map((t) => t.trim())
@@ -85,14 +83,6 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
           {MEMO_SOURCES.map((s) => (
             <option key={s} value={s}>
               {s}
-            </option>
-          ))}
-        </Select>
-        <Select id="meta-decision" label={MEMO_DECISION_NOUN} value={decision} onChange={(e) => setDecision(e.target.value)}>
-          <option value="">None yet</option>
-          {MEMO_DECISIONS.map((d) => (
-            <option key={d} value={d}>
-              {MEMO_DECISION_LABELS[d]}
             </option>
           ))}
         </Select>

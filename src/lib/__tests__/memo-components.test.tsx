@@ -9,7 +9,10 @@ import { CitationChips } from "@/components/admin/memos/citation-chips";
 import { CitationsEditor } from "@/components/admin/memos/citations-editor";
 import { MemoBoardCard } from "@/components/admin/memos/memo-board-card";
 import { MemoBoard } from "@/components/admin/memos/memo-board";
-import type { MemoRow, MemoSectionView } from "@/components/admin/memos/types";
+import { MemoDetails } from "@/components/admin/memos/memo-details";
+import { SectionNav } from "@/components/admin/memos/section-nav";
+import { MemoHeader } from "@/components/admin/memos/memo-header";
+import type { MemoRow, MemoSectionView, MemoView } from "@/components/admin/memos/types";
 
 const section = (over: Partial<MemoSectionView> = {}): MemoSectionView => ({
   key: "team",
@@ -41,10 +44,25 @@ describe("SectionCard", () => {
     expect(html).toContain('aria-label="History of Team"');
   });
   it("marks a section left out of share links, and shows the guidance while empty", () => {
-    expect(render(section({ includeInShare: false }))).toContain("Not in share links");
+    expect(render(section({ includeInShare: false }))).toContain("Hidden from share links");
+    expect(render(section({ includeInShare: false }))).not.toContain("Not in share links");
     const empty = render(section({ html: "", markdown: "", citations: [] }));
     expect(empty).toContain("No text yet.");
     expect(empty).toContain("Founders and key hires.");
+  });
+});
+
+describe("SectionCard share hint (Part 44)", () => {
+  const withShare = (onOpenShare?: () => void) =>
+    renderToStaticMarkup(
+      <SectionCard memoId="m1" section={section({ includeInShare: false })} canEdit canManage onChanged={() => {}} onOpenShare={onOpenShare} />
+    );
+  it("is a button with onOpenShare and a plain span without", () => {
+    const btn = withShare(() => {});
+    expect(btn).toMatch(/<button[^>]*title="Left out of share links/);
+    const span = withShare();
+    expect(span).toContain("<span class=\"memo-no-print inline-flex");
+    expect(span).not.toMatch(/<button[^>]*title="Left out/);
   });
 });
 
@@ -171,5 +189,102 @@ describe("MemoBoard", () => {
   it("on a phone only the first non-empty section is open", () => {
     const html = board([memoRow({ id: "a", title: "Acme", decision: "MEMO" }), memoRow({ id: "b", title: "Globex", decision: "LATER" })]);
     expect(html.match(/<details[^>]* open/g)).toHaveLength(1);
+  });
+});
+
+// Part 44 (WS146): the memo page pieces. Placeholder names only.
+const memoView = (over: Partial<MemoView> = {}): MemoView => ({
+  id: "m1",
+  title: "Acme",
+  status: "FINAL",
+  visibility: "TEAM",
+  draftedByMarge: false,
+  importedFromNotion: false,
+  decision: "MEMO",
+  source: null,
+  tags: [],
+  introDate: null,
+  websiteUrl: null,
+  introCalls: [],
+  version: 1,
+  updatedAt: "2026-10-01T10:00:00.000Z",
+  companyNamePending: null,
+  company: null,
+  companyRef: { kind: "none" } as MemoView["companyRef"],
+  owner: { id: "u1", name: "Sam Example", email: "sam@example.com" },
+  sections: [],
+  canEdit: true,
+  canManage: true,
+  ...over,
+});
+const details = (m: MemoView) => renderToStaticMarkup(<MemoDetails memo={m} linked={false} onEditDetails={() => {}} onChangeCompany={() => {}} />);
+
+describe("MemoDetails", () => {
+  it("has no Stage row, and tags are plain text", () => {
+    const html = details(memoView({ source: "Founder Intro", tags: ["AI", "Payments"] }));
+    expect(html).not.toContain("Stage");
+    expect(html).not.toContain("Decision");
+    expect(html).toContain("AI, Payments");
+    expect(html).not.toContain("bg-tone");
+  });
+  it("is collapsed with 3 or more filled fields and open with 2", () => {
+    const three = details(memoView({ source: "Founder Intro", introDate: "2026-08-10", tags: ["AI"] }));
+    expect(three).toContain('aria-expanded="false"');
+    expect(three).toMatch(/<dl id="memo-details-body" class="[^"]*\bhidden print:grid/);
+    const two = details(memoView({ source: "Founder Intro", tags: ["AI"] }));
+    expect(two).toContain('aria-expanded="true"');
+    expect(two).not.toMatch(/<dl[^>]*\bhidden print:grid/);
+  });
+  it("the owner gets the Edit menu; an editor gets a plain Edit button and no Change company", () => {
+    const owner = details(memoView({ source: "x" }));
+    expect(owner).toContain("Edit");
+    expect(owner).toContain('aria-haspopup="menu"');
+    const editor = renderToStaticMarkup(
+      <MemoDetails memo={memoView({ source: "x", canManage: false })} linked={false} onEditDetails={() => {}} onChangeCompany={() => {}} />
+    );
+    expect(editor).toContain("Edit");
+    expect(editor).not.toContain('aria-haspopup="menu"');
+    expect(editor).not.toContain("Change company");
+    expect(editor).not.toContain("Link to company");
+  });
+});
+
+describe("SectionNav", () => {
+  it("marks the first section current and lists a Jump to select", () => {
+    const html = renderToStaticMarkup(<SectionNav sections={[{ key: "team", title: "Team" }, { key: "market", title: "Market" }]} />);
+    expect(html).toMatch(/href="#section-team"[^>]*aria-current="location"|aria-current="location"[^>]*href="#section-team"/);
+    expect(html).not.toMatch(/href="#section-market"[^>]*aria-current/);
+    const select = html.slice(html.indexOf('<select id="memo-jump"'), html.indexOf("</select>"));
+    expect(select).toBeTruthy();
+    expect((select.match(/<option/g) ?? []).length).toBe(2);
+  });
+});
+
+describe("MemoHeader", () => {
+  const header = (m: MemoView) => renderToStaticMarkup(<MemoHeader memo={m} onOpenShare={() => {}} onArchive={() => {}} onChanged={() => {}} />);
+  it("shows Stage only in its select and prints it as text", () => {
+    const html = header(memoView());
+    expect(html).toContain('id="memo-stage"');
+    expect(html).toContain('id="memo-status"');
+    expect(html).not.toContain("<span class=\"inline-flex items-center rounded");
+    expect(html).toContain("Stage: Writing memo · Memo status: Final");
+  });
+  it("the facts line says From Notion, not the old sentence", () => {
+    const html = header(memoView({ importedFromNotion: true }));
+    expect(html).toContain("From Notion");
+    expect(html).not.toContain("Imported from Notion.");
+    expect(html).toContain("Owned by Sam Example");
+  });
+  it("hides the company name when it equals the title but keeps an icon link", () => {
+    const html = header(memoView({ companyRef: { kind: "company", id: "c1", name: "Acme" } as MemoView["companyRef"] }));
+    expect(html).toContain('aria-label="Open Acme in Molly"');
+    expect(html).not.toContain('class="text-primary underline-offset-4 hover:underline"');
+    const other = header(memoView({ companyRef: { kind: "company", id: "c1", name: "Globex" } as MemoView["companyRef"] }));
+    expect(other).toContain("Globex");
+    expect(other).not.toContain("Open Globex in Molly");
+  });
+  it("a read-only viewer has no Stage select", () => {
+    const html = header(memoView({ canEdit: false, canManage: false }));
+    expect(html).not.toContain("<select");
   });
 });

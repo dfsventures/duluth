@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth-guard";
 import { setMemoDecision } from "@/lib/memo-actions";
 import { memoResponse, readObjectBody } from "@/lib/memo-route";
 
-// Part 43: { decision: one of MEMO_DECISIONS | null, expectedVersion, undo? }. Whoever may edit the memo (canEditMemo).
+// Part 43: { decision: one of MEMO_DECISIONS | null, expectedVersion, undo?, source?: "page" }. Whoever may edit the memo (canEditMemo).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;

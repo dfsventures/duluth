@@ -437,10 +437,11 @@ export async function setMemoDecision(
     data: { decision: to, updatedAt: memo.updatedAt, version: { increment: 1 } }, // Q137-B: drop updatedAt from both
   });
   if (r.count === 0) return fail(409, MEMO_MESSAGES.staleMemo);
+  const source = body.source === "page" ? "page" : "board"; // Part 44 (JC-MP-I): anything else audits as a board move
   await logAdminAction(actor, "MEMO_DECISION_CHANGED", {
     targetType: "Memo",
     targetId: id,
-    metadata: { memoId: id, from: memo.decision ?? null, to, version: body.expectedVersion + 1, source: "board", ...(body.undo === true ? { undo: true } : {}) },
+    metadata: { memoId: id, from: memo.decision ?? null, to, version: body.expectedVersion + 1, source, ...(body.undo === true ? { undo: true } : {}) },
   });
   return { ok: true, value: { id, decision: to, version: body.expectedVersion + 1 } };
 }
