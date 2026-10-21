@@ -29,13 +29,17 @@ export type MemoSource = (typeof MEMO_SOURCES)[number];
 // Part 41 (D3). Notion's Decision. Separate from status (the memo's own lifecycle).
 export const MEMO_DECISIONS = ["IN_PROGRESS", "MEMO", "INVESTED", "LATER", "PASSED"] as const;
 export type MemoDecision = (typeof MEMO_DECISIONS)[number];
+// Part 44 display labels (the owner may retune them: labels only; stored values never change).
 export const MEMO_DECISION_LABELS: Record<MemoDecision, string> = {
-  IN_PROGRESS: "In Progress",
-  MEMO: "Memo",
+  IN_PROGRESS: "Evaluating",
+  MEMO: "Writing memo",
   INVESTED: "Invested",
   LATER: "Later",
   PASSED: "Passed",
 };
+/** Part 44 (JC-MP-J): what the UI calls the two axes. */
+export const MEMO_DECISION_NOUN = "Stage";
+export const MEMO_STATUS_NOUN = "Memo status";
 
 export const CITATION_KINDS = ["call", "deck", "tracker", "web", "other"] as const;
 export type CitationKind = (typeof CITATION_KINDS)[number];

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { ModalSheet } from "@/components/ui/sheet";
 import { toast } from "@/lib/toast";
-import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_LIMITS, MEMO_SOURCES } from "@/lib/memos";
+import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_DECISION_NOUN, MEMO_LIMITS, MEMO_SOURCES } from "@/lib/memos";
 import { readError, type MemoIntroCall, type MemoView } from "./types";
 
 /** Edit the memo's details (title, source, tags, intro date, website, intro calls). Carries the memo `version`; a 409 says so. */
@@ -88,15 +88,15 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
             </option>
           ))}
         </Select>
-        <Select id="meta-decision" label="Decision" value={decision} onChange={(e) => setDecision(e.target.value)}>
-          <option value="">Not set</option>
+        <Select id="meta-decision" label={MEMO_DECISION_NOUN} value={decision} onChange={(e) => setDecision(e.target.value)}>
+          <option value="">None yet</option>
           {MEMO_DECISIONS.map((d) => (
             <option key={d} value={d}>
               {MEMO_DECISION_LABELS[d]}
             </option>
           ))}
         </Select>
-        <Input id="meta-tags" label="Tags (comma separated)" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="fintech, seed" />
+        <Input id="meta-tags" label="Tags (comma separated)" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. AI, Infrastructure" />
         <Input id="meta-intro" label="Intro date" type="date" value={introDate} onChange={(e) => setIntroDate(e.target.value)} />
         <Input
           id="meta-website"

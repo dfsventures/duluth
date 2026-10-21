@@ -12,6 +12,8 @@ export interface TabDef<T extends string> {
   icon?: React.ReactNode;
   /** Mono numeral after the label. */
   count?: number;
+  /** Tooltip (title) on the tab link. */
+  hint?: string;
 }
 
 /**
@@ -60,6 +62,7 @@ export function TabBar<T extends string>({
               replace
               scroll={false}
               aria-current={isActive ? "page" : undefined}
+              title={t.hint}
               className={cn(
                 "tab-link flex shrink-0 items-center gap-2 whitespace-nowrap py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"

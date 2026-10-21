@@ -69,10 +69,10 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error(await readError(res, "Couldn't change the status."));
+      if (!res.ok) throw new Error(await readError(res, "Couldn't change the memo status."));
       refresh();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't change the status.");
+      toast.error(e instanceof Error ? e.message : "Couldn't change the memo status.");
     } finally {
       setSavingStatus(false);
     }
@@ -218,7 +218,7 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
           </div>
           {hasDetails ? (
             <dl className="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
-              {memo.decision && <Detail label="Decision">{MEMO_DECISION_LABELS[memo.decision]}</Detail>}
+              {memo.decision && <Detail label="Stage">{MEMO_DECISION_LABELS[memo.decision]}</Detail>}
               {memo.source && <Detail label="Source">{memo.source}</Detail>}
               {memo.introDate && <Detail label="Intro date">{formatDateOnly(memo.introDate)}</Detail>}
               {memo.websiteUrl && (

@@ -16,7 +16,7 @@ import { parseTab } from "@/lib/url-tab";
 import { relativeTime } from "@/lib/relative-time";
 import { createSequencer } from "@/lib/board-client";
 import { matchesQuery } from "@/lib/data-table";
-import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_STATUSES, MEMO_STATUS_LABELS } from "@/lib/memos";
+import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_DECISION_NOUN, MEMO_STATUSES, MEMO_STATUS_LABELS, MEMO_STATUS_NOUN } from "@/lib/memos";
 import { COLUMN_LABELS, applyDecision, columnOf, decisionOf, resolveView, type ColumnKey, type MemoView } from "@/lib/memo-board";
 import { STATUS_VARIANT, ownerLabel, readError, type LinkTargets, type MemoRow } from "@/components/admin/memos/types";
 import { MemoBoard } from "@/components/admin/memos/memo-board";
@@ -43,9 +43,9 @@ function writeStoredView(v: MemoView) {
 const SCOPES = ["mine", "team", "all"] as const;
 type Scope = (typeof SCOPES)[number];
 const TABS = [
-  { key: "mine" as const, label: "Mine" },
-  { key: "team" as const, label: "Shared with team" },
-  { key: "all" as const, label: "All I can see" },
+  { key: "mine" as const, label: "Mine", hint: "Memos you own, private or shared." },
+  { key: "team" as const, label: "Team", hint: "Every memo shared with the team, yours included." },
+  { key: "all" as const, label: "Everything", hint: "Your private memos plus everything shared with the team." },
 ];
 
 export default function MemosClient({ targets }: { targets: LinkTargets }) {
@@ -183,7 +183,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
     setLoading(false);
     setRows(applyDecision(snapshot, id, decisionOf(to)));
     flashLanded(id);
-    setAnnouncement(`Moved "${row.title}" to ${label}.`);
+    setAnnouncement(`"${row.title}" moved to ${label}.`);
     try {
       const res = await fetch(`/api/admin/memos/${id}/decision`, {
         method: "POST",
@@ -194,24 +194,25 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
         const saved: { decision: MemoRow["decision"]; version: number } = await res.json();
         setRows((cur) => applyDecision(cur, id, saved.decision, saved.version));
         if (!opts.undo) {
-          toast.undo(`Moved "${row.title}" to ${label}.`, () => void move(id, columnOf(row.decision), { undo: true }));
+          toast.undo(`"${row.title}" moved to ${label}.`, () => void move(id, columnOf(row.decision), { undo: true }));
         }
         return;
       }
-      const message = await readError(res, "Couldn't move that memo.");
+      const failed = `Couldn't move "${row.title}". Check your connection and try again.`;
+      const message = await readError(res, failed);
       setRows(snapshot);
       if (res.status === 409) {
         // Someone changed the memo meanwhile. The same version would fail again, so no Retry.
-        toast.error(message, { action: { label: "Reload", onClick: () => void load() } });
+        toast.error(`Someone else just updated "${row.title}". Reload to see the latest, then move it again.`, { action: { label: "Reload", onClick: () => void load() } });
       } else if (res.status === 403 || res.status === 404) {
         toast.error(message);
         void load(); // made private, archived or moved out of reach
       } else {
-        toast.error("Couldn't move that memo.", { retry: () => void move(id, to, opts) });
+        toast.error(`Couldn't move "${row.title}". Check your connection and try again.`, { retry: () => void move(id, to, opts) });
       }
     } catch {
       setRows(snapshot);
-      toast.error("Couldn't move that memo.", { retry: () => void move(id, to, opts) });
+      toast.error(`Couldn't move "${row.title}". Check your connection and try again.`, { retry: () => void move(id, to, opts) });
     }
   }
 
@@ -237,14 +238,14 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
       },
       {
         key: "status",
-        header: "Status",
+        header: MEMO_STATUS_NOUN,
         sortValue: (m) => MEMO_STATUSES.indexOf(m.status),
         mobile: "badge",
         cell: (m) => <Badge variant={STATUS_VARIANT[m.status]}>{MEMO_STATUS_LABELS[m.status]}</Badge>,
       },
       {
         key: "decision",
-        header: "Decision",
+        header: MEMO_DECISION_NOUN,
         sortValue: (m) => (m.decision ? MEMO_DECISIONS.indexOf(m.decision) : MEMO_DECISIONS.length),
         mobile: "meta",
         cell: (m) => (m.decision ? <Badge variant="neutral">{MEMO_DECISION_LABELS[m.decision]}</Badge> : <span className="text-muted-foreground">—</span>),
@@ -279,12 +280,12 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
     <AppShell>
       <PageHeader
         title="Memos"
-        description="Investment memos. Private to you until you share them with the team."
+        description="Your team's deal pipeline and investment memos. New memos are private until the owner shares them."
         action={
           <div className="flex flex-wrap gap-3">
             <Button variant="secondary" onClick={() => router.push("/admin/memos/template")}>
               <Settings2 className="h-4 w-4" />
-              Template
+              Memo template
             </Button>
             <Button onClick={() => router.push("/admin/memos/new")}>
               <Plus className="h-4 w-4" />

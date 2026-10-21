@@ -367,7 +367,7 @@ export async function memoGet(input: z.infer<typeof memoGetInput>, p: Principal)
   const lines = [
     `Memo [${header.id}] ${header.title}`,
     `Company: ${header.company} · Status: ${MEMO_STATUS_LABELS[header.status as MemoStatus] ?? header.status} · ${header.visibility === "TEAM" ? "Shared with team" : "Private"} · Owner: ${header.owner}${header.ownerIsYou ? " (you)" : ""} · Memo version ${header.version}${header.draftedByMarge ? " · Drafted by Marge" : ""}`,
-    `Source: ${header.source ?? "not set"} · Decision: ${header.decision ?? "not set"} · Tags: ${header.tags.length ? header.tags.join(", ") : "none"} · Intro date: ${header.introDate ?? "not set"} · Website: ${header.websiteUrl ?? "not set"}`,
+    `Source: ${header.source ?? "not set"} · Stage: ${header.decision ?? "not set"} · Tags: ${header.tags.length ? header.tags.join(", ") : "none"} · Intro date: ${header.introDate ?? "not set"} · Website: ${header.websiteUrl ?? "not set"}`,
   ];
   if (calls.length) lines.push(`Intro calls: ${calls.map((c) => [c.label, c.date, c.url].filter(Boolean).join(" · ")).join("; ")}`);
   lines.push(`Link: ${header.url}`);

@@ -62,7 +62,9 @@ describe("columns", () => {
     expect(adjacentColumn("PASSED", "right")).toBe("NONE");
   });
   it("labels, defaults and conversions", () => {
-    expect(COLUMN_LABELS.NONE).toBe("No decision");
+    expect(COLUMN_LABELS.NONE).toBe("Unsorted");
+    expect(COLUMN_LABELS.IN_PROGRESS).toBe("Evaluating");
+    expect(COLUMN_LABELS.MEMO).toBe("Writing memo");
     expect(DECISION_COLUMNS.at(-1)).toBe("NONE");
     expect(COLLAPSED_BY_DEFAULT).toEqual(["PASSED"]);
     expect(columnOf(null)).toBe("NONE");

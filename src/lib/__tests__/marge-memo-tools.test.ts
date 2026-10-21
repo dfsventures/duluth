@@ -829,15 +829,21 @@ describe("decision and sources (Part 41, WS132)", () => {
     state.memos.find((m) => m.id === "team")!.decision = "INVESTED";
     const own = await tools.memoGet({ memoId: "own" }, P);
     expect(own.structured.memo).toMatchObject({ decision: null });
-    expect(own.text).toContain("Decision: not set");
+    expect(own.text).toContain("Stage: not set");
     const team = await tools.memoGet({ memoId: "team" }, P);
     expect(team.structured.memo).toMatchObject({ decision: "Invested" });
-    expect(team.text).toMatch(/Source: not set · Decision: Invested · Tags: none/);
+    expect(team.text).toMatch(/Source: not set · Stage: Invested · Tags: none/);
     const list = await tools.memoList({}, P);
     const rows = list.structured.memos as Row[];
     expect(rows.find((m) => m.id === "team")).toMatchObject({ decision: "Invested" });
     expect(rows.find((m) => m.id === "own")).toMatchObject({ decision: null });
     expect(list.text).toContain("· Invested · owner Jane Partner");
+  });
+
+  it("Part 44: the stored IN_PROGRESS value reads as its new label in Marge's output", async () => {
+    state.memos.find((m) => m.id === "team")!.decision = "IN_PROGRESS";
+    const team = await tools.memoGet({ memoId: "team" }, P);
+    expect(team.structured.memo).toMatchObject({ decision: "Evaluating" });
   });
 
   it("memo_create has no decision input: zod strips it and Prisma never receives it", async () => {

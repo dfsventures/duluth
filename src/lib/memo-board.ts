@@ -5,7 +5,7 @@ import type { Tone } from "@/lib/status-tone";
 export type ColumnKey = MemoDecision | "NONE";
 /** Owner decision 2; "NONE" last (JC-MB-E). */
 export const DECISION_COLUMNS: readonly ColumnKey[] = [...MEMO_DECISIONS, "NONE"];
-export const COLUMN_LABELS: Record<ColumnKey, string> = { ...MEMO_DECISION_LABELS, NONE: "No decision" };
+export const COLUMN_LABELS: Record<ColumnKey, string> = { ...MEMO_DECISION_LABELS, NONE: "Unsorted" };
 /** Collapsed on first render (decision 2). */
 export const COLLAPSED_BY_DEFAULT: readonly ColumnKey[] = ["PASSED"];
 /** Header dot / ring colour. Decorative. Never clay (status-tone.ts rule: clay = needs intervention). */

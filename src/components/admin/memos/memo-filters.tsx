@@ -1,4 +1,4 @@
-import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_STATUSES, MEMO_STATUS_LABELS } from "@/lib/memos";
+import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_DECISION_NOUN, MEMO_STATUSES, MEMO_STATUS_LABELS, MEMO_STATUS_NOUN } from "@/lib/memos";
 import { targetValue, type LinkTargets } from "@/components/admin/memos/types";
 
 export interface MemoFilterValues {
@@ -37,8 +37,8 @@ export function MemoFilters({
           ))}
         </optgroup>
       </select>
-      <select aria-label="Status" className="input-field w-auto" value={status} onChange={(e) => onChange({ status: e.target.value })}>
-        <option value="">Any status</option>
+      <select aria-label={MEMO_STATUS_NOUN} className="input-field w-auto" value={status} onChange={(e) => onChange({ status: e.target.value })}>
+        <option value="">Any memo status</option>
         {MEMO_STATUSES.map((s) => (
           <option key={s} value={s}>
             {MEMO_STATUS_LABELS[s]}
@@ -46,8 +46,8 @@ export function MemoFilters({
         ))}
       </select>
       {showDecision && (
-        <select aria-label="Decision" className="input-field w-auto" value={decision} onChange={(e) => onChange({ decision: e.target.value })}>
-          <option value="">Any decision</option>
+        <select aria-label={MEMO_DECISION_NOUN} className="input-field w-auto" value={decision} onChange={(e) => onChange({ decision: e.target.value })}>
+          <option value="">Any stage</option>
           {MEMO_DECISIONS.map((d) => (
             <option key={d} value={d}>
               {MEMO_DECISION_LABELS[d]}

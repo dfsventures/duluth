@@ -67,7 +67,7 @@ export default function TemplateEditor({ version, sections }: { version: number;
 
   return (
     <AppShell>
-      <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "Template" }]} />
+      <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "Memo template" }]} />
       <PageHeader
         title="Memo template"
         description={`Version ${version}. The sections every new memo starts with.`}

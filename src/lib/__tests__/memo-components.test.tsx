@@ -105,7 +105,7 @@ describe("MemoBoardCard", () => {
     const html = card(memoRow(), false);
     expect(html).not.toContain('draggable="true"');
     const select = html.slice(html.indexOf("<select"), html.indexOf("</select>"));
-    for (const label of ["In Progress", "Invested", "Later", "Passed", "No decision"]) expect(select).toContain(`>${label}<`);
+    for (const label of ["Evaluating", "Invested", "Later", "Passed", "Unsorted"]) expect(select).toContain(`>${label}<`);
     expect(select).not.toContain('value="MEMO"');
     expect((select.match(/<option/g) ?? []).length).toBe(6); // placeholder + five
   });
@@ -132,9 +132,9 @@ describe("MemoBoard", () => {
     expect(html).toContain('aria-label="Show Passed, 1 memo"');
     expect(html).not.toContain("Initech");
   });
-  it("an empty No decision column is present with a zero count", () => {
+  it("an empty Unsorted column is present with a zero count", () => {
     const html = renderToStaticMarkup(<MemoBoard rows={[memoRow()]} me="u1" onMove={() => {}} />);
-    expect(html).toContain("No decision");
+    expect(html).toContain("Unsorted");
     expect(html).toContain('aria-label="0 memos"');
   });
 });

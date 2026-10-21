@@ -13,7 +13,7 @@ import { CitationsEditor } from "./citations-editor";
 import { HistoryDialog } from "./history-dialog";
 import { readError, type MemoCitation, type MemoSectionView } from "./types";
 
-const CONFLICT = "Someone else saved this section while you were editing. Copy your text, then reload.";
+const CONFLICT = "Someone else saved this section while you were editing. Copy your text, reload, then paste it back.";
 
 const sameCitations = (a: MemoCitation[], b: MemoCitation[]) => JSON.stringify(a) === JSON.stringify(b);
 
