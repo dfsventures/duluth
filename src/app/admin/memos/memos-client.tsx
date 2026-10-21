@@ -17,7 +17,7 @@ import { relativeTime } from "@/lib/relative-time";
 import { createSequencer } from "@/lib/board-client";
 import { matchesQuery } from "@/lib/data-table";
 import { MEMO_DECISIONS, MEMO_DECISION_LABELS, MEMO_DECISION_NOUN, MEMO_STATUSES, MEMO_STATUS_LABELS, MEMO_STATUS_NOUN } from "@/lib/memos";
-import { COLUMN_LABELS, applyDecision, columnOf, decisionOf, resolveView, type ColumnKey, type MemoView } from "@/lib/memo-board";
+import { COLUMN_LABELS, applyDecision, columnOf, decisionOf, isIdle, resolveView, summaryCounts, type ColumnKey, type MemoView } from "@/lib/memo-board";
 import { STATUS_VARIANT, ownerLabel, readError, type LinkTargets, type MemoRow } from "@/components/admin/memos/types";
 import { MemoBoard } from "@/components/admin/memos/memo-board";
 import { MemoCompanyLabel } from "@/components/admin/memos/memo-company-label";
@@ -39,6 +39,9 @@ function writeStoredView(v: MemoView) {
     /* not persisted */
   }
 }
+
+const SEGMENT =
+  "underline-offset-4 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 const SCOPES = ["mine", "team", "all"] as const;
 type Scope = (typeof SCOPES)[number];
@@ -122,7 +125,8 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
   }, [load, view]);
 
   const me = session?.user?.id;
-  const filtered = !!(companyId || status || unlinked || (view === "list" && decision));
+  const [idleOnly, setIdleOnly] = useState(false);
+  const filtered = !!(companyId || status || unlinked || (view === "list" && decision) || (view === "board" && idleOnly));
   const applyFilters = (patch: Partial<{ companyId: string; status: string; decision: string; unlinked: boolean }>) => {
     if (patch.companyId !== undefined) setCompanyId(patch.companyId);
     if (patch.status !== undefined) setStatus(patch.status);
@@ -134,6 +138,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
     setStatus("");
     setDecision("");
     setUnlinked(false);
+    setIdleOnly(false);
   };
 
   // Board search: the same ?q= and haystack as the list's DataTable, so it carries across views.
@@ -162,6 +167,9 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
     () => rows.filter((m) => matchesQuery([m.title, m.companyRef.kind === "none" ? null : m.companyRef.name], q)),
     [rows, q]
   );
+
+  const counts = useMemo(() => summaryCounts(boardRows), [boardRows]);
+  const shownRows = useMemo(() => (idleOnly ? boardRows.filter((m) => isIdle(m)) : boardRows), [boardRows, idleOnly]);
 
   // WS142.6: optimistic move with Undo. Undo is a second move that reads the fresh version from rowsRef.
   const [announcement, setAnnouncement] = useState("");
@@ -295,10 +303,9 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
         }
       />
 
-      <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" />
-
-      <div className="mb-4 flex sm:justify-end">
-        <div role="group" aria-label="Memo view" className="flex w-full gap-1.5 sm:w-auto">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border">
+        <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" className="mb-0 border-b-0" />
+        <div role="group" aria-label="Memo view" className="flex gap-1.5 pb-1.5">
           {(
             [
               { key: "board", label: "Board", Icon: LayoutGrid },
@@ -311,7 +318,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
               aria-pressed={view === key}
               onClick={() => switchView(key)}
               className={cn(
-                "inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-none",
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 view === key
                   ? "border-foreground bg-foreground text-background"
                   : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground"
@@ -335,8 +342,8 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
 
       {view === "board" ? (
         <>
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[200px] max-w-sm flex-1 basis-56">
+          <div className="mb-3 flex flex-wrap items-center gap-2 lg:flex-nowrap">
+            <div className="relative min-w-[200px] flex-1 basis-56">
               <label htmlFor="memo-board-search" className="sr-only">
                 Search memos
               </label>
@@ -363,6 +370,37 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
               onChange={applyFilters}
             />
           </div>
+          {!(loading && rows.length === 0) && !error && boardRows.length > 0 && (
+            <p className="mb-3 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+              <span>{`${counts.total} ${counts.total === 1 ? "memo" : "memos"}`}</span>
+              {(counts.inReview > 0 || status === "IN_REVIEW") && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <button
+                    type="button"
+                    aria-pressed={status === "IN_REVIEW"}
+                    onClick={() => applyFilters({ status: status === "IN_REVIEW" ? "" : "IN_REVIEW" })}
+                    className={cn(SEGMENT, status === "IN_REVIEW" && "font-medium text-foreground")}
+                  >
+                    {counts.inReview} in review
+                  </button>
+                </>
+              )}
+              {(counts.idle > 0 || idleOnly) && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <button
+                    type="button"
+                    aria-pressed={idleOnly}
+                    onClick={() => setIdleOnly((v) => !v)}
+                    className={cn(SEGMENT, idleOnly && "font-medium text-foreground")}
+                  >
+                    {counts.idle} idle
+                  </button>
+                </>
+              )}
+            </p>
+          )}
           {loading && rows.length === 0 ? (
             <p role="status" className="py-10 text-center text-sm text-muted-foreground">
               Loading memos…
@@ -374,10 +412,10 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
                 Try again
               </Button>
             </div>
-          ) : boardRows.length === 0 ? (
+          ) : shownRows.length === 0 ? (
             <MemosEmpty filtered={filtered || !!q} scope={scope} onClear={() => { clearFilters(); setQInput(""); }} />
           ) : (
-            <MemoBoard rows={boardRows} me={me} onMove={(id, to) => void move(id, to)} landedId={landedId} />
+            <MemoBoard rows={shownRows} me={me} showOwner={scope !== "mine"} onMove={(id, to) => void move(id, to)} landedId={landedId} />
           )}
         </>
       ) : (
