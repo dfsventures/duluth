@@ -17,6 +17,8 @@ import {
   createMemo,
   linkCompany,
   loadCompany,
+  loadLinkCandidates,
+  loadPortfolioCompany,
   saveSection,
   suggestCompany,
 } from "@/lib/memo-actions";
@@ -29,7 +31,9 @@ import {
   MEMO_SOURCES,
   MEMO_STATUSES,
   MEMO_STATUS_LABELS,
-  memoCompanyFilter,
+  memoCompanyRef,
+  memoForCompanyWhere,
+  memoUnlinkedWhere,
   memoVisibleWhere,
   readCitations,
   readIntroCalls,
@@ -115,7 +119,7 @@ export const memoUpdateSectionInput = z.object({
 export const memoLinkCompanyInput = z.object({
   memoId: z.string().min(1).max(100),
   expectedVersion: z.number().int(),
-  company: z.string().min(1).max(200).describe("company id or exact name"),
+  company: z.string().min(1).max(200).describe("company id, deal-ledger id, or exact name"),
   dryRun: z.boolean().default(true),
 });
 
@@ -156,10 +160,12 @@ const HEAD_SELECT = {
   draftedByMarge: true,
   decision: true,
   companyId: true,
+  portfolioCompanyId: true,
   companyNamePending: true,
   version: true,
   updatedAt: true,
   company: { select: { id: true, name: true } },
+  portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
   owner: { select: { name: true } },
 } as const;
 
@@ -172,8 +178,24 @@ async function loadVisibleMemo<T extends object>(memoId: string, p: Principal, e
   return memo;
 }
 
-function companyLabel(m: { company: { name: string } | null; companyNamePending: string | null }): string {
-  return m.company?.name ?? (m.companyNamePending ? pendingLabel(m.companyNamePending) : "none");
+type CompanyFields = Parameters<typeof memoCompanyRef>[0];
+
+/** Text label (JC-ML-H: the pending wording is unchanged; a ledger link reads "<name> (deal ledger)"). */
+function companyLabel(m: CompanyFields): string {
+  const r = memoCompanyRef(m);
+  return r.kind === "company" ? r.name : r.kind === "ledger" ? `${r.name} (deal ledger)` : r.kind === "pending" ? pendingLabel(r.name) : "none";
+}
+
+/** The company fields every memo_list row and memo_get header carries (companyKind and portfolioCompanyId are new, Part 42). */
+function companyFields(m: CompanyFields & { companyId: string | null; portfolioCompanyId: string | null }) {
+  const r = memoCompanyRef(m);
+  return {
+    company: companyLabel(m),
+    companyId: r.kind === "company" ? r.id : m.companyId,
+    portfolioCompanyId: m.portfolioCompanyId ?? null,
+    companyKind: r.kind,
+    companyNamePending: m.companyId || m.portfolioCompanyId ? null : m.companyNamePending,
+  };
 }
 
 // ── memo_template_get ─────────────────────────────────────────────────────────────────────
@@ -194,33 +216,53 @@ export async function memoTemplateGet(_input: z.infer<typeof memoTemplateGetInpu
 }
 
 // ── memo_list ─────────────────────────────────────────────────────────────────────────────
-async function resolveCompanyFilter(raw: string): Promise<{ id: string; name: string }> {
+type LinkTarget = { kind: "company" | "ledger"; id: string; name: string };
+
+/**
+ * A company id, a deal-ledger id, or an exact name (case-insensitive, over Company names and ledger
+ * names) to one target. A ledger row that has a Company resolves to the Company (JC-ML-B), so a ledger
+ * row and its own Company count once.
+ */
+async function resolveLinkTarget(raw: string): Promise<LinkTarget> {
   const byId = await loadCompany(raw);
-  if (byId) return { id: byId.id, name: byId.name };
-  const matches = await db.company.findMany({
-    where: { AND: [memoCompanyFilter, { name: { equals: raw, mode: "insensitive" } }] },
-    select: { id: true, name: true },
-    take: 6,
-  });
-  if (matches.length === 1) return matches[0];
-  if (matches.length > 1) {
-    throw new ToolError(`“${raw}” matches ${matches.length} companies: ${matches.map((c) => c.name).join(", ")}. Use the id.`);
+  if (byId) return { kind: "company", id: byId.id, name: byId.name };
+  const { companies, ledger } = await loadLinkCandidates();
+  const known = new Map(companies.map((c) => [c.id, c]));
+  const row = await loadPortfolioCompany(raw);
+  if (row) {
+    const folded = row.companyId ? known.get(row.companyId) : undefined;
+    return folded ? { kind: "company", id: folded.id, name: folded.name } : { kind: "ledger", id: row.id, name: row.name };
   }
-  const close = await db.company.findMany({
-    where: { AND: [memoCompanyFilter, { name: { contains: raw.slice(0, 50), mode: "insensitive" } }] },
-    select: { id: true, name: true },
-    take: 5,
-  });
-  throw new ToolError(`No company called “${raw}”.${close.length ? ` Closest: ${close.map((c) => c.name).join(", ")}.` : ""}`);
+  // Names, with each ledger row folded into its Company.
+  const targets = new Map<string, { target: LinkTarget; names: string[] }>();
+  for (const c of companies) targets.set(`c:${c.id}`, { target: { kind: "company", id: c.id, name: c.name }, names: [c.name] });
+  for (const l of ledger) {
+    const folded = l.companyId ? targets.get(`c:${l.companyId}`) : undefined;
+    if (folded) folded.names.push(l.name);
+    else targets.set(`p:${l.id}`, { target: { kind: "ledger", id: l.id, name: l.name }, names: [l.name] });
+  }
+  const want = raw.toLowerCase();
+  const exact = [...targets.values()].filter((t) => t.names.some((nm) => nm.toLowerCase() === want)).map((t) => t.target);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) {
+    throw new ToolError(`“${raw}” matches ${exact.length} companies: ${exact.map((c) => c.name).join(", ")}. Use the id.`);
+  }
+  const needle = raw.slice(0, 50).toLowerCase();
+  const close = [...targets.values()].filter((t) => t.names.some((nm) => nm.toLowerCase().includes(needle))).map((t) => t.target.name);
+  const closest = [...new Set(close)].slice(0, 5);
+  throw new ToolError(`No company called “${raw}”.${closest.length ? ` Closest: ${closest.join(", ")}.` : ""}`);
 }
 
 export async function memoList(input: z.infer<typeof memoListInput>, p: Principal): Promise<ToolOutput> {
   const and: object[] = [memoVisibleWhere(p.id)];
   if (input.scope === "mine") and.push({ ownerId: p.id });
   else if (input.scope === "team") and.push({ visibility: "TEAM" });
-  if (input.company) and.push({ companyId: (await resolveCompanyFilter(input.company.trim())).id });
+  if (input.company) {
+    const t = await resolveLinkTarget(input.company.trim());
+    and.push(t.kind === "company" ? memoForCompanyWhere(t.id) : { portfolioCompanyId: t.id });
+  }
   if (input.status) and.push({ status: input.status });
-  if (input.unlinked) and.push({ companyId: null });
+  if (input.unlinked) and.push(memoUnlinkedWhere);
   const q = input.query?.trim();
   if (q) {
     and.push({
@@ -228,6 +270,7 @@ export async function memoList(input: z.infer<typeof memoListInput>, p: Principa
         { title: { contains: q, mode: "insensitive" } },
         { companyNamePending: { contains: q, mode: "insensitive" } },
         { company: { name: { contains: q, mode: "insensitive" } } },
+        { portfolioCompany: { name: { contains: q, mode: "insensitive" } } },
       ],
     });
   }
@@ -240,9 +283,7 @@ export async function memoList(input: z.infer<typeof memoListInput>, p: Principa
   const memos = rows.map((m) => ({
     id: m.id,
     title: m.title,
-    company: companyLabel(m),
-    companyId: m.companyId,
-    companyNamePending: m.companyId ? null : m.companyNamePending,
+    ...companyFields(m),
     status: m.status,
     owner: ownerName(m.owner),
     visibility: m.visibility,
@@ -297,9 +338,7 @@ export async function memoGet(input: z.infer<typeof memoGetInput>, p: Principal)
   const header = {
     id: memo.id,
     title: memo.title,
-    company: companyLabel(memo),
-    companyId: memo.companyId,
-    companyNamePending: memo.companyId ? null : memo.companyNamePending,
+    ...companyFields(memo),
     status: memo.status,
     owner: ownerName(memo.owner),
     ownerIsYou: memo.ownerId === p.id,
@@ -397,7 +436,7 @@ export async function memoCreate(input: z.infer<typeof memoCreateInput>, p: Prin
     const totalCitations = sections.value.reduce((t, s) => t + s.citations.length, 0);
     const warnings = ["Private to you until you share it in Molly."];
     if (missing.length) warnings.push(`Missing required sections: ${missing.join(", ")}.`);
-    let suggested: { id: string; name: string } | null = null;
+    let suggested: { id: string; name: string; kind?: "ledger" } | null = null;
     if (meta.value.companyNamePending) {
       suggested = await suggestCompany(meta.value.companyNamePending);
       if (suggested) warnings.push(`${suggested.name} looks like it is already in Molly. Link it to keep things together.`);
@@ -533,21 +572,23 @@ export async function memoLinkCompany(
 ): Promise<ToolOutput> {
   const memo = await loadVisibleMemo(input.memoId, p, {});
   if (memo.ownerId !== p.id) throw new ToolError(MEMO_SENTENCES.ownerOnly);
-  if (memo.company) throw new ToolError(`This memo is already linked to ${memo.company.name}.`);
+  const current = memoCompanyRef(memo);
+  if (current.kind === "company" || current.kind === "ledger") throw new ToolError(`This memo is already linked to ${current.name}.`);
   if (memo.version !== input.expectedVersion) throw new ToolError(MEMO_SENTENCES.staleMemo, "conflict");
-  const company = await resolveCompanyFilter(input.company.trim()); // id or exact name, either stage
+  const company = await resolveLinkTarget(input.company.trim()); // Company id, ledger id or exact name
 
   if (opts.dryRun) {
     return previewOutput({
       action: "Link memo to company",
       target: memo.title,
-      fields: [{ label: "Company", before: memo.companyNamePending ? pendingLabel(memo.companyNamePending) : "none", after: company.name }],
+      fields: [{ label: "Company", before: memo.companyNamePending ? pendingLabel(memo.companyNamePending) : "none", after: company.kind === "ledger" ? `${company.name} (deal ledger)` : company.name }],
       warnings: [],
       expectedVersion: memo.version,
     });
   }
 
-  const r = await linkCompany(p, memo.id, { expectedVersion: input.expectedVersion, companyId: company.id }, requireVia(opts));
+  const target = company.kind === "ledger" ? { portfolioCompanyId: company.id } : { companyId: company.id };
+  const r = await linkCompany(p, memo.id, { expectedVersion: input.expectedVersion, ...target }, requireVia(opts));
   if (!r.ok) {
     if (r.status === 409) throw new ToolError(MEMO_SENTENCES.staleMemo, "conflict");
     if (r.status === 403) throw new ToolError(MEMO_SENTENCES.ownerOnly);
@@ -557,7 +598,8 @@ export async function memoLinkCompany(
   const url = memoUrl(memo.id);
   return {
     text: `Linked “${memo.title}” to ${company.name}. ${url}`,
-    structured: { memoId: memo.id, companyId: company.id, version: r.value.version, url },
+    // JC-ML-G: `companyId` for a Company, `portfolioCompanyId` instead of it for a ledger row.
+    structured: { memoId: memo.id, ...("companyId" in r.value ? { companyId: r.value.companyId } : { portfolioCompanyId: r.value.portfolioCompanyId }), version: r.value.version, url },
     count: 1,
   };
 }

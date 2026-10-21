@@ -37,6 +37,10 @@ vi.mock("@/lib/db", () => {
   const view = (m: Row, select?: Row): Row => {
     const out: Row = { ...m, company: m.companyId ? state.companies.find((c) => c.id === m.companyId) ?? null : null };
     out.owner = state.users.find((u) => u.id === m.ownerId);
+    if (m.portfolioCompanyId) {
+      const l = state.ledger.find((x) => x.id === m.portfolioCompanyId);
+      out.portfolioCompany = l ? { id: l.id, name: l.name, companyId: l.companyId, company: state.companies.find((c) => c.id === l.companyId) ?? null } : null;
+    }
     if (select?.sections?.select) {
       out.sections = [...m.sections]
         .sort((a: Row, b: Row) => a.position - b.position)
@@ -49,12 +53,12 @@ vi.mock("@/lib/db", () => {
     rateLimitCounter: { create: vi.fn(async () => ({})) },
     memo: {
       findFirst: vi.fn(async ({ where, select }: Row) => {
-        const m = state.memos.find((x) => matches(where, x));
+        const m = state.memos.find((x) => matches(where, view(x)));
         return m ? view(m, select) : null;
       }),
       findMany: vi.fn(async ({ where, take, select }: Row) =>
         state.memos
-          .filter((x) => matches(where, x))
+          .filter((x) => matches(where, view(x)))
           .sort((a, b) => b.updatedAt - a.updatedAt)
           .slice(0, take)
           .map((m) => view(m, select))
@@ -186,6 +190,7 @@ function seed() {
   state.writes = 0;
   state.revisions = [];
   state.templates = [];
+  state.ledger = [];
   state.companies = [
     { id: "c1", name: "Acme", aliases: [] },
     { id: "c2", name: "Beta Co", aliases: [] },
@@ -602,6 +607,88 @@ describe("memo_link_company", () => {
     state.memos[0].version = 2;
     await expect(tools.memoLinkCompany(link(), P, APPLY)).rejects.toThrow("This memo changed since I showed it to you. Ask me again.");
     expect(state.memos[0].companyId).toBeNull();
+  });
+});
+
+describe("deal-ledger companies (Part 42, WS138)", () => {
+  const link = (over: Record<string, unknown> = {}) => tools.memoLinkCompanyInput.parse({ memoId: "own", expectedVersion: 1, company: "Globex", ...over });
+  beforeEach(() => {
+    state.ledger = [
+      { id: "l1", name: "Globex", companyId: null },
+      { id: "l2", name: "Beta Holdings", companyId: "c2" }, // the ledger row of a Company, under an older name
+      { id: "l3", name: "Gamma", companyId: null }, // same name as two Companies
+    ];
+  });
+
+  it("link by ledger exact name: preview says '(deal ledger)'; apply stores the ledger id and returns portfolioCompanyId instead of companyId", async () => {
+    const pv = await tools.memoLinkCompany(link({ company: "globex" }), P, DRY);
+    expect(pv.structured.preview).toMatchObject({ fields: [{ label: "Company", before: "Not in Molly yet: Acme", after: "Globex (deal ledger)" }] });
+    const out = await tools.memoLinkCompany(link(), P, APPLY);
+    expect(out.structured).toEqual({ memoId: "own", portfolioCompanyId: "l1", version: 2, url: "https://molly.dfs.vc/admin/memos/own" });
+    expect(state.memos[0]).toMatchObject({ companyId: null, portfolioCompanyId: "l1", companyNamePending: null, version: 2 });
+    expect(audit.logAdminAction).toHaveBeenCalledWith(P, "MEMO_COMPANY_LINKED", expect.objectContaining({ metadata: { memoId: "own", portfolioCompanyId: "l1", via: "marge", margeActionId: "act1" } }));
+    await expect(tools.memoLinkCompany(link({ expectedVersion: 2, company: "Acme" }), P, DRY)).rejects.toThrow("This memo is already linked to Globex.");
+  });
+
+  it("link by ledger id", async () => {
+    const out = await tools.memoLinkCompany(link({ company: "l1" }), P, APPLY);
+    expect(out.structured).toMatchObject({ portfolioCompanyId: "l1" });
+    expect(state.memos[0].portfolioCompanyId).toBe("l1");
+  });
+
+  it("a ledger row that has a Company links the Company, by id or by the ledger's own name, and returns companyId", async () => {
+    const byName = await tools.memoLinkCompany(link({ company: "Beta Holdings" }), P, DRY);
+    expect(byName.structured.preview).toMatchObject({ fields: [{ after: "Beta Co" }] });
+    const out = await tools.memoLinkCompany(link({ company: "l2" }), P, APPLY);
+    expect(out.structured).toEqual({ memoId: "own", companyId: "c2", version: 2, url: "https://molly.dfs.vc/admin/memos/own" });
+    expect(state.memos[0]).toMatchObject({ companyId: "c2", portfolioCompanyId: null });
+  });
+
+  it("ambiguous across the two tables, and closest names come from both", async () => {
+    await expect(tools.memoLinkCompany(link({ company: "Gamma" }), P, DRY)).rejects.toThrow("“Gamma” matches 3 companies: Gamma, Gamma, Gamma. Use the id.");
+    await expect(tools.memoLinkCompany(link({ company: "Glob" }), P, DRY)).rejects.toThrow("No company called “Glob”. Closest: Globex.");
+    expect(state.writes).toBe(0);
+  });
+
+  it("memo_list: filter by a ledger name, by a Company that owns a ledger row, and unlinked excludes ledger-linked memos", async () => {
+    state.memos[0].portfolioCompanyId = "l1";
+    state.memos[0].companyNamePending = null;
+    state.memos[2].companyId = null; // team memo: linked to nothing but the ledger row of Beta Co
+    state.memos[2].portfolioCompanyId = "l2";
+    const ids = async (input: Row) => ((await tools.memoList(input, P)).structured.memos as Row[]).map((m) => m.id);
+    expect(await ids({ company: "Globex" })).toEqual(["own"]);
+    expect(await ids({ company: "Beta Co" })).toEqual(["team"]);
+    expect(await ids({ unlinked: true })).toEqual([]);
+    expect(await ids({ query: "globex" })).toEqual(["own"]);
+  });
+
+  it("memo_list and memo_get label a ledger link '(deal ledger)' and add portfolioCompanyId and companyKind; pending text is unchanged", async () => {
+    const before = await tools.memoList({}, P);
+    expect((before.structured.memos as Row[])[0]).toMatchObject({ company: "Not in Molly yet: Acme", companyKind: "pending", portfolioCompanyId: null, companyNamePending: "Acme" });
+    state.memos[0].portfolioCompanyId = "l1";
+    state.memos[0].companyNamePending = null;
+    const out = await tools.memoList({}, P);
+    expect(out.text).toContain("Globex (deal ledger)");
+    expect((out.structured.memos as Row[])[0]).toMatchObject({ company: "Globex (deal ledger)", companyId: null, portfolioCompanyId: "l1", companyKind: "ledger", companyNamePending: null });
+    const got = await tools.memoGet({ memoId: "own" }, P);
+    expect(got.text).toContain("Company: Globex (deal ledger)");
+    expect(got.structured.memo).toMatchObject({ company: "Globex (deal ledger)", portfolioCompanyId: "l1", companyKind: "ledger" });
+    const linked = await tools.memoList({ company: "Beta Co" }, P);
+    expect((linked.structured.memos as Row[])[0]).toMatchObject({ companyKind: "company", companyId: "c2", portfolioCompanyId: null });
+  });
+
+  it("memo_create preview: suggestedCompany carries kind 'ledger' for a ledger match; a Company match is unchanged", async () => {
+    const out = await tools.memoCreate(tools.memoCreateInput.parse(createArgs({ companyNamePending: "Globex" })), P, DRY);
+    expect(out.structured.suggestedCompany).toEqual({ id: "l1", name: "Globex", kind: "ledger" });
+    expect((out.structured.preview as { warnings: string[] }).warnings).toContain("Globex looks like it is already in Molly. Link it to keep things together.");
+    const acme = await tools.memoCreate(tools.memoCreateInput.parse(createArgs()), P, DRY);
+    expect(acme.structured.suggestedCompany).toEqual({ id: "c1", name: "Acme" });
+  });
+
+  it("memo_create has no way to set a ledger id: the input has no such field and a smuggled one is stripped", () => {
+    const parsed = tools.memoCreateInput.parse(createArgs({ portfolioCompanyId: "l1" })) as Row;
+    expect(parsed.portfolioCompanyId).toBeUndefined();
+    expect(tools.memoLinkCompanyInput.shape.company.description).toBe("company id, deal-ledger id, or exact name");
   });
 });
 

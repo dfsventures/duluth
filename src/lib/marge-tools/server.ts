@@ -183,7 +183,7 @@ export const MEMO_TOOL_DEFS: ToolDef[] = [
   },
   {
     name: "memo_link_company",
-    description: "Link the requester's own memo to a company that is now in Molly (id or exact name). Needs expectedVersion (the memo version from memo_get). dryRun defaults to true. DM only.",
+    description: "Link the requester's own memo to a company that is now in Molly or in the deal ledger (company id, deal-ledger id, or exact name). Needs expectedVersion (the memo version from memo_get). dryRun defaults to true. DM only.",
     inputSchema: memos.memoLinkCompanyInput,
     tier: MARGE_MEMO_TOOLS.memo_link_company,
     fn: w(memos.memoLinkCompany),
