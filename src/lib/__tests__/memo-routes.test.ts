@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
   memos: [] as Row[],
   revisions: [] as Row[],
   companies: [] as Row[],
+  ledger: [] as Row[],
   templates: [] as Row[],
   calls: 0,
 }));
@@ -68,6 +69,10 @@ vi.mock("@/lib/db", () => {
     const out: Row = { ...m };
     if (select.sections?.where) out.sections = m.sections.filter((s: Row) => matches(select.sections.where, s));
     if (m.companyId) out.company = state.companies.find((c) => c.id === m.companyId) ?? null;
+    if (m.portfolioCompanyId) {
+      const l = state.ledger.find((x) => x.id === m.portfolioCompanyId);
+      out.portfolioCompany = l ? { id: l.id, name: l.name, company: state.companies.find((c) => c.id === l.companyId) ?? null } : null;
+    }
     return out;
   };
   const memo = {
@@ -130,6 +135,14 @@ vi.mock("@/lib/db", () => {
       findFirst: vi.fn(async ({ where }: Row) => state.companies.find((c) => c.id === where.id) ?? null),
       findMany: vi.fn(async () => state.companies),
     },
+    portfolioCompany: {
+      findUnique: vi.fn(async ({ where }: Row) => {
+        const l = state.ledger.find((x) => x.id === where.id);
+        return l ? { companyId: null, ...l, _count: { deals: l.deals ?? 0, mentions: 0 } } : null;
+      }),
+      findMany: vi.fn(async () => state.ledger),
+      delete: vi.fn(async ({ where }: Row) => void (state.ledger = state.ledger.filter((x) => x.id !== where.id))),
+    },
     memoTemplate: {
       findFirst: vi.fn(async () => [...state.templates].sort((a, b) => b.version - a.version)[0] ?? null),
       create: vi.fn(async ({ data }: Row) => void state.templates.push(data)),
@@ -146,8 +159,9 @@ import { GET as oneGET, PATCH as onePATCH, DELETE as oneDELETE } from "@/app/api
 import { POST as secPOST, PATCH as secReorder } from "@/app/api/admin/memos/[id]/sections/route";
 import { PATCH as secPATCH, DELETE as secDELETE } from "@/app/api/admin/memos/[id]/sections/[key]/route";
 import { GET as revGET, POST as revPOST } from "@/app/api/admin/memos/[id]/sections/[key]/revisions/route";
-import { POST as linkPOST } from "@/app/api/admin/memos/[id]/link-company/route";
 import { GET as suggestGET } from "@/app/api/admin/memos/[id]/company-suggestion/route";
+import { DELETE as linkDELETE, POST as linkPOST } from "@/app/api/admin/memos/[id]/link-company/route";
+import { DELETE as ledgerDELETE } from "@/app/api/admin/portfolio-companies/[id]/route";
 import { POST as previewPOST } from "@/app/api/admin/memos/preview/route";
 import { GET as tplGET, PUT as tplPUT } from "@/app/api/admin/memos/template/route";
 import { createMemo } from "@/lib/memo-actions";
@@ -180,6 +194,7 @@ function seed() {
     { sectionId: "t-a", version: 3, title: "a", markdown: "text", citations: [], includeInShare: true, editedById: "u1", via: null, restoredFrom: null },
   ];
   state.companies = [{ id: "c1", name: "Acme", aliases: [] }, { id: "c2", name: "Beta Co", aliases: ["Beta"] }];
+  state.ledger = [];
   state.templates = [];
   state.calls = 0;
 }
@@ -531,6 +546,147 @@ describe("company link and suggestion", () => {
     state.companies.push({ id: "c3", name: "ACME", aliases: [] });
     expect(await json(await suggestGET(req("GET"), ctx("private")))).toEqual({ suggestion: null }); // ambiguous
     expect(await json(await suggestGET(req("GET"), ctx("team")))).toEqual({ suggestion: null }); // no pending name
+  });
+});
+
+describe("deal-ledger links (Part 42)", () => {
+  const stamp = new Date("2026-03-01T10:00:00Z");
+  beforeEach(() => {
+    state.ledger = [
+      { id: "l1", name: "Globex", companyId: null },
+      { id: "l2", name: "Initech Holdings", companyId: "c2" },
+    ];
+    state.memos[0].updatedAt = stamp;
+  });
+
+  it("links a ledger row: { id, portfolioCompanyId, version }, pending cleared, updatedAt kept", async () => {
+    const r = await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "l1" }), ctx("private"));
+    expect(r.status).toBe(200);
+    expect(await json(r)).toEqual({ id: "private", portfolioCompanyId: "l1", version: 2 });
+    expect(state.memos[0]).toMatchObject({ companyId: null, portfolioCompanyId: "l1", companyNamePending: null, version: 2, updatedAt: stamp });
+    expect(audit.logAdminAction).toHaveBeenCalledWith(U1, "MEMO_COMPANY_LINKED", expect.objectContaining({ metadata: { memoId: "private", portfolioCompanyId: "l1" } }));
+  });
+
+  it("a Company link keeps updatedAt too (Q135-A)", async () => {
+    await linkPOST(req("POST", { expectedVersion: 1, companyId: "c1" }), ctx("private"));
+    expect(state.memos[0].updatedAt).toBe(stamp);
+  });
+
+  it("a ledger row that has a Company links the Company", async () => {
+    const r = await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "l2" }), ctx("private"));
+    expect(await json(r)).toEqual({ id: "private", companyId: "c2", version: 2 });
+    expect(state.memos[0]).toMatchObject({ companyId: "c2", portfolioCompanyId: null });
+  });
+
+  it("both ids, neither id, or an unknown ledger id is a 400", async () => {
+    const both = await linkPOST(req("POST", { expectedVersion: 1, companyId: "c1", portfolioCompanyId: "l1" }), ctx("private"));
+    expect(both.status).toBe(400);
+    expect((await json(both)).error).toBe("Choose a company.");
+    expect((await linkPOST(req("POST", { expectedVersion: 1 }), ctx("private"))).status).toBe(400);
+    expect((await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "nope" }), ctx("private"))).status).toBe(400);
+    expect(state.memos[0].companyId ?? null).toBeNull();
+    expect(state.memos[0].portfolioCompanyId ?? null).toBeNull();
+  });
+
+  it("a second link of either kind is refused with the name", async () => {
+    await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "l1" }), ctx("private"));
+    const again = await linkPOST(req("POST", { expectedVersion: 2, companyId: "c1" }), ctx("private"));
+    expect(again.status).toBe(400);
+    expect((await json(again)).error).toBe("This memo is already linked to Globex.");
+    const again2 = await linkPOST(req("POST", { expectedVersion: 2, portfolioCompanyId: "l1" }), ctx("private"));
+    expect((await json(again2)).error).toBe("This memo is already linked to Globex.");
+  });
+
+  it("only the owner links or unlinks a team memo", async () => {
+    as(U2);
+    expect((await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "l1" }), ctx("team"))).status).toBe(403);
+    expect((await linkDELETE(req("DELETE", { expectedVersion: 1 }), ctx("team"))).status).toBe(403);
+  });
+
+  it("suggests a ledger-only match as { id, name, kind: 'ledger' } and a Company match unchanged", async () => {
+    state.memos[0].companyNamePending = "Globex Inc";
+    expect(await json(await suggestGET(req("GET"), ctx("private")))).toEqual({ suggestion: { id: "l1", name: "Globex", kind: "ledger" } });
+    state.memos[0].companyNamePending = "Acme";
+    expect(await json(await suggestGET(req("GET"), ctx("private")))).toEqual({ suggestion: { id: "c1", name: "Acme" } });
+  });
+
+  it("suggests the Company for a ledger row linked to a Company, even under the old name", async () => {
+    state.memos[0].companyNamePending = "Initech Holdings";
+    expect(await json(await suggestGET(req("GET"), ctx("private")))).toEqual({ suggestion: { id: "c2", name: "Beta Co" } });
+  });
+
+  it("no suggestion once a ledger row is linked", async () => {
+    state.memos[0].portfolioCompanyId = "l1";
+    state.memos[0].companyNamePending = "Globex";
+    expect(await json(await suggestGET(req("GET"), ctx("private")))).toEqual({ suggestion: null });
+  });
+
+  it("details save refuses the pending name on a ledger-linked memo", async () => {
+    state.memos[0].portfolioCompanyId = "l1";
+    const r = await onePATCH(req("PATCH", { companyNamePending: "Other", version: 1 }), ctx("private"));
+    expect(r.status).toBe(400);
+  });
+
+  it("unlink keeps the name as the pending name, bumps the version, keeps updatedAt, audits ids only", async () => {
+    await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "l1" }), ctx("private"));
+    const stale = await linkDELETE(req("DELETE", { expectedVersion: 1 }), ctx("private"));
+    expect(stale.status).toBe(409);
+    const r = await linkDELETE(req("DELETE", { expectedVersion: 2 }), ctx("private"));
+    expect(r.status).toBe(200);
+    expect(await json(r)).toEqual({ id: "private", version: 3 });
+    expect(state.memos[0]).toMatchObject({ companyId: null, portfolioCompanyId: null, companyNamePending: "Globex", version: 3, updatedAt: stamp });
+    expect(audit.logAdminAction).toHaveBeenCalledWith(U1, "MEMO_COMPANY_UNLINKED", expect.objectContaining({ metadata: { memoId: "private" } }));
+    expect(JSON.stringify(audit.logAdminAction.mock.calls)).not.toContain("Globex");
+    const again = await linkDELETE(req("DELETE", { expectedVersion: 3 }), ctx("private"));
+    expect(again.status).toBe(400); // nothing to unlink
+  });
+
+  it("unlinking a Company link also works", async () => {
+    await linkPOST(req("POST", { expectedVersion: 1, companyId: "c1" }), ctx("private"));
+    await linkDELETE(req("DELETE", { expectedVersion: 2 }), ctx("private"));
+    expect(state.memos[0]).toMatchObject({ companyId: null, companyNamePending: "Acme" });
+  });
+
+  it("web create can carry a ledger id; with a Company id or a pending name it is a 400", async () => {
+    const ok = await createPOST(req("POST", { title: "T", portfolioCompanyId: "l1" }));
+    expect(ok.status).toBe(201);
+    const { id } = await json(ok);
+    expect(state.memos.find((m) => m.id === id)).toMatchObject({ companyId: null, portfolioCompanyId: "l1" });
+    const viaCompany = await createPOST(req("POST", { title: "T", portfolioCompanyId: "l2" }));
+    expect(state.memos.find((m) => m.id === (state.memos.at(-1) as Row).id)).toMatchObject({ companyId: "c2", portfolioCompanyId: null });
+    expect(viaCompany.status).toBe(201);
+    expect((await createPOST(req("POST", { title: "T", portfolioCompanyId: "l1", companyId: "c1" }))).status).toBe(400);
+    const both = await createPOST(req("POST", { title: "T", portfolioCompanyId: "l1", companyNamePending: "X" }));
+    expect((await json(both)).error).toBe(MEMO_ERRORS.bothCompanies);
+    expect((await createPOST(req("POST", { title: "T", portfolioCompanyId: "nope" }))).status).toBe(400);
+  });
+
+  it("list: unlinked excludes ledger-linked memos; the company filter includes a ledger row's Company; the ledger filter and search work", async () => {
+    state.memos[0].portfolioCompanyId = "l1";
+    state.memos[0].portfolioCompany = { id: "l1", name: "Globex", companyId: null };
+    state.memos[1].portfolioCompanyId = "l2";
+    state.memos[1].portfolioCompany = { id: "l2", name: "Initech Holdings", companyId: "c2" };
+    const get = async (q: string) => ((await json(await listGET(new Request(`https://molly.dfs.vc/api/admin/memos?${q}`)))) as Row[]).map((m) => m.id);
+    expect(await get("unlinked=true")).toEqual([]);
+    expect(await get("companyId=c2")).toEqual(["team"]);
+    expect(await get("portfolioCompanyId=l1")).toEqual(["private"]);
+    expect(await get("q=globex")).toEqual(["private"]);
+  });
+
+  it("deleting a ledger row keeps its name on the memos linked to it", async () => {
+    await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "l1" }), ctx("private"));
+    const r = await ledgerDELETE(req("DELETE"), ctx("l1"));
+    expect(r.status).toBe(200);
+    expect(state.memos[0]).toMatchObject({ portfolioCompanyId: null, companyNamePending: "Globex" });
+    expect(state.ledger.map((l) => l.id)).toEqual(["l2"]);
+  });
+
+  it("audit rows hold ids only (canary)", async () => {
+    const C = "CANARY-77ab";
+    state.ledger.push({ id: "l9", name: `Ledger ${C}`, companyId: null });
+    await linkPOST(req("POST", { expectedVersion: 1, portfolioCompanyId: "l9" }), ctx("private"));
+    await linkDELETE(req("DELETE", { expectedVersion: 2 }), ctx("private"));
+    expect(JSON.stringify(audit.logAdminAction.mock.calls)).not.toContain("CANARY");
   });
 });
 

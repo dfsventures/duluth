@@ -2,6 +2,7 @@
 // "who can read a memo". Pure except for the Prisma type import; no database access here.
 // The sentences are the contract shared with Marge (docs/IMPLEMENTATION_PLAN.md, Part 40).
 import type { Prisma } from "@prisma/client";
+import { normalizeCompanyName } from "@/lib/portco-match";
 
 export const MEMO_STATUSES = ["DRAFT", "IN_REVIEW", "FINAL"] as const;
 export type MemoStatus = (typeof MEMO_STATUSES)[number];
@@ -349,3 +350,88 @@ export function readIntroCalls(json: unknown): MemoIntroCall[] {
 export const memoCompanyFilter: Prisma.CompanyWhereInput = {
   NOT: { createdBy: { status: "PENDING", approvalToken: null } },
 };
+
+// ── a memo's company, for every surface (Part 42) ─────────────────────────────────────────
+
+/** What a memo's company is: a Molly Company, a deal-ledger row, a typed name, or nothing. */
+export type MemoCompanyRef =
+  | { kind: "company"; id: string; name: string }
+  | { kind: "ledger"; id: string; name: string }
+  | { kind: "pending"; name: string }
+  | { kind: "none" };
+
+export const memoCompanySelect = {
+  companyId: true,
+  portfolioCompanyId: true,
+  companyNamePending: true,
+  company: { select: { id: true, name: true } },
+  portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
+} as const;
+
+export function memoCompanyRef(m: {
+  company: { id: string; name: string } | null;
+  portfolioCompany?: { id: string; name: string; company: { id: string; name: string } | null } | null;
+  companyNamePending: string | null;
+}): MemoCompanyRef {
+  if (m.company) return { kind: "company", id: m.company.id, name: m.company.name };
+  // A ledger row that has since been linked to a Company shows that Company (JC-ML-B).
+  if (m.portfolioCompany?.company) return { kind: "company", id: m.portfolioCompany.company.id, name: m.portfolioCompany.company.name };
+  if (m.portfolioCompany) return { kind: "ledger", id: m.portfolioCompany.id, name: m.portfolioCompany.name };
+  if (m.companyNamePending) return { kind: "pending", name: m.companyNamePending };
+  return { kind: "none" };
+}
+export const memoCompanyName = (r: MemoCompanyRef): string | null => (r.kind === "none" ? null : r.name);
+
+/** "Not linked to a company": neither target set. */
+export const memoUnlinkedWhere: Prisma.MemoWhereInput = { companyId: null, portfolioCompanyId: null };
+/** "By company": memos on the Company itself or on its ledger row. */
+export const memoForCompanyWhere = (companyId: string): Prisma.MemoWhereInput => ({
+  OR: [{ companyId }, { portfolioCompany: { companyId } }],
+});
+
+export interface LinkCandidate {
+  kind: "company" | "ledger";
+  id: string;
+  name: string;
+}
+export interface CompanyMatch {
+  confident: LinkCandidate | null;
+  exact: LinkCandidate[];
+  near: LinkCandidate[];
+}
+
+const normalizeName = normalizeCompanyName;
+const words = (n: string) => n.split(" ").filter((t) => t.length >= 3);
+const containsAll = (a: string[], b: string[]) => a.length > 0 && b.length > 0 && a.every((t) => new Set(b).has(t));
+
+/**
+ * JC-ML-C. Pure: callers pass Company rows (already filtered by memoCompanyFilter) and ledger rows.
+ * A ledger row linked to one of those Companies is folded into it, so the pair counts once. `confident`
+ * is set only when exactly one target matches exactly; `near` lists targets that match loosely (spaces
+ * removed, or one name's words contain the other's) and are never linked automatically.
+ */
+export function matchMemoCompany(
+  name: string,
+  companies: { id: string; name: string; aliases: string[] }[],
+  ledger: { id: string; name: string; companyId: string | null }[]
+): CompanyMatch {
+  const wanted = normalizeName(name);
+  if (!wanted) return { confident: null, exact: [], near: [] };
+  const targets = new Map<string, { cand: LinkCandidate; names: string[] }>();
+  for (const c of companies) targets.set(`c:${c.id}`, { cand: { kind: "company", id: c.id, name: c.name }, names: [c.name, ...c.aliases] });
+  for (const l of ledger) {
+    const folded = l.companyId ? targets.get(`c:${l.companyId}`) : undefined;
+    if (folded) folded.names.push(l.name);
+    else targets.set(`p:${l.id}`, { cand: { kind: "ledger", id: l.id, name: l.name }, names: [l.name] });
+  }
+  const wantedTight = wanted.replace(/ /g, "");
+  const wantedWords = words(wanted);
+  const exact: LinkCandidate[] = [];
+  const near: LinkCandidate[] = [];
+  for (const t of targets.values()) {
+    const norms = t.names.map(normalizeName).filter(Boolean);
+    if (norms.some((n) => n === wanted)) exact.push(t.cand);
+    else if (norms.some((n) => n.replace(/ /g, "") === wantedTight || containsAll(wantedWords, words(n)) || containsAll(words(n), wantedWords))) near.push(t.cand);
+  }
+  return { confident: exact.length === 1 ? exact[0] : null, exact, near };
+}

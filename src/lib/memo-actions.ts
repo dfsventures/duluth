@@ -8,7 +8,6 @@ import { db } from "@/lib/db";
 import { logAdminAction } from "@/lib/audit";
 import type { Actor, Via } from "@/lib/board-actions";
 import { currentTemplate } from "@/lib/memo-template";
-import { normalizeCompanyName } from "@/lib/portco-match";
 import { mollyOrigin } from "@/lib/marge-tools/types";
 import type { NotionMemoDraft } from "@/lib/notion-memo-import";
 import {
@@ -21,7 +20,9 @@ import {
   canEditMemo,
   canManageMemo,
   isValidKey,
+  matchMemoCompany,
   memoCompanyFilter,
+  memoCompanyRef,
   memoVisibleWhere,
   parseDateOnly,
   readCitations,
@@ -34,6 +35,7 @@ import {
   validateTags,
   validateTitle,
   validateWebUrl,
+  type LinkCandidate,
   type MemoCitation,
   type MemoSectionInput,
   type MemoStatus,
@@ -59,6 +61,8 @@ export const MEMO_MESSAGES = {
   expectedVersion: "expectedVersion is required.",
   nothing: "Nothing to change.",
   noCompany: "No company with that id in Molly. Use companyNamePending for a company that isn't in Molly yet.",
+  chooseCompany: "Choose a company.",
+  notLinked: "This memo isn't linked to a company.",
 } as const;
 
 class Conflict extends Error {}
@@ -76,6 +80,20 @@ const HEAD = { id: true, ownerId: true, visibility: true } as const;
 
 export async function loadCompany(id: string) {
   return db.company.findFirst({ where: { id, ...memoCompanyFilter }, select: { id: true, name: true, aliases: true } });
+}
+
+/** Part 42: a deal-ledger row, with the Company it is linked to (if any). */
+export async function loadPortfolioCompany(id: string) {
+  return db.portfolioCompany.findUnique({ where: { id }, select: { id: true, name: true, companyId: true } });
+}
+
+/** Part 42: the two lists a memo can link to, in one place. */
+export async function loadLinkCandidates() {
+  const [companies, ledger] = await Promise.all([
+    db.company.findMany({ where: memoCompanyFilter, select: { id: true, name: true, aliases: true } }),
+    db.portfolioCompany.findMany({ select: { id: true, name: true, companyId: true } }),
+  ]);
+  return { companies, ledger };
 }
 
 // ── create ────────────────────────────────────────────────────────────────────────────────
@@ -115,12 +133,26 @@ export async function createMemo(actor: Actor, body: Record<string, unknown>, vi
     sections = template.sections.map((s) => ({ key: s.key, title: s.title, markdown: "", citations: [] }));
   }
 
+  // Part 42: only the web body can carry a ledger id (it is read here, not in the shared validateMemoMeta,
+  // so Marge's memo_create, whose zod schema strips unknown keys, cannot reach it).
+  const ledgerId = typeof body.portfolioCompanyId === "string" && body.portfolioCompanyId.trim() ? body.portfolioCompanyId.trim() : undefined;
+  if (ledgerId && (meta.value.companyId || meta.value.companyNamePending)) return fail(400, MEMO_ERRORS.bothCompanies);
   if (meta.value.companyId && !(await loadCompany(meta.value.companyId))) return fail(400, MEMO_MESSAGES.noCompany);
+  let linkedCompanyId = meta.value.companyId ?? null;
+  let linkedLedgerId: string | null = null;
+  if (ledgerId) {
+    const row = await loadPortfolioCompany(ledgerId);
+    if (!row) return fail(400, MEMO_MESSAGES.noCompany);
+    // JC-ML-B: a ledger row with a usable Company links the Company.
+    if (row.companyId && (await loadCompany(row.companyId))) linkedCompanyId = row.companyId;
+    else linkedLedgerId = row.id;
+  }
 
   const m = meta.value;
   const data = {
     title: m.title,
-    companyId: m.companyId ?? null,
+    companyId: linkedCompanyId,
+    portfolioCompanyId: linkedLedgerId,
     companyNamePending: m.companyNamePending ?? null,
     ownerId: actor.id,
     draftedByMarge: !!via,
@@ -216,7 +248,8 @@ export async function importMemo(actor: Actor, draft: NotionMemoDraft, opts: { s
   const share = draft.sections.map((s) => s.includeInShare !== false);
   const data = {
     title: m.title,
-    companyId: company?.id ?? null,
+    companyId: company && company.kind !== "ledger" ? company.id : null,
+    portfolioCompanyId: company?.kind === "ledger" ? company.id : null,
     companyNamePending: company ? null : m.title,
     ownerId: actor.id,
     status: opts.status,
@@ -284,7 +317,7 @@ const META_KEYS = ["title", "source", "decision", "tags", "introDate", "websiteU
 export const isMetaBody = (b: Record<string, unknown>) => META_KEYS.some((k) => k in b);
 
 export async function updateMemoMeta(actor: Actor, id: string, body: Record<string, unknown>): Promise<MemoResult<{ id: string; version: number }>> {
-  const memo = await loadVisible(actor.id, id, { ...HEAD, companyId: true, source: true, version: true });
+  const memo = await loadVisible(actor.id, id, { ...HEAD, companyId: true, portfolioCompanyId: true, source: true, version: true });
   if (!memo) return fail(404, MEMO_MESSAGES.notFound);
   if (!canEditMemo(memo as never, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
   if (!isVersion(body.version)) return fail(400, "version is required.");
@@ -333,7 +366,7 @@ export async function updateMemoMeta(actor: Actor, id: string, body: Record<stri
     data.introCalls = c.value as object[];
   }
   if ("companyNamePending" in body) {
-    if (memo.companyId) return fail(400, "This memo is linked to a company already.");
+    if (memo.companyId || memo.portfolioCompanyId) return fail(400, "This memo is linked to a company already.");
     const n = typeof body.companyNamePending === "string" ? body.companyNamePending.trim() : "";
     if (n.length > MEMO_LIMITS.title) return fail(400, MEMO_ERRORS.title);
     data.companyNamePending = n || null;
@@ -666,42 +699,106 @@ export async function reorderSections(actor: Actor, memoId: string, keys: unknow
 
 // ── company link ──────────────────────────────────────────────────────────────────────────
 
-/** Owner only (Q117). Sets the company, clears the pending name, and expects the memo's own version. */
-export async function linkCompany(
+export type LinkResult = { id: string; version: number } & ({ companyId: string } | { portfolioCompanyId: string });
+const LINKED_SELECT = {
+  ...HEAD,
+  version: true,
+  updatedAt: true,
+  companyId: true,
+  portfolioCompanyId: true,
+  companyNamePending: true,
+  company: { select: { id: true, name: true } },
+  portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
+} as const;
+
+/**
+ * Owner only (Q117). Links to a Company or a deal-ledger row (exactly one of `companyId` /
+ * `portfolioCompanyId`), clears the pending name, and expects the memo's own version. Q135-A: a link is
+ * filing, not editing, so `updatedAt` is kept (the share page's "Last updated" and the list order stay honest).
+ * `opts.source` marks the backfill in the audit row. Shared by the web route, Marge and scripts/link-memo-companies.ts.
+ */
+export async function linkTarget(
   actor: Actor,
   memoId: string,
-  body: Record<string, unknown>,
+  target: { companyId?: unknown; portfolioCompanyId?: unknown },
+  expectedVersion: unknown,
+  opts: { source?: "backfill" } = {},
   via?: Via
-): Promise<MemoResult<{ id: string; companyId: string; version: number }>> {
-  const memo = await loadVisible(actor.id, memoId, { ...HEAD, version: true, companyId: true, company: { select: { name: true } } });
+): Promise<MemoResult<LinkResult>> {
+  const memo = await loadVisible(actor.id, memoId, LINKED_SELECT);
   if (!memo) return fail(404, MEMO_MESSAGES.notFound);
   if (!canManageMemo(memo, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
-  if (!isVersion(body.expectedVersion)) return fail(400, MEMO_MESSAGES.expectedVersion);
-  if (memo.companyId) return fail(400, `This memo is already linked to ${(memo.company as { name: string } | null)?.name ?? "a company"}.`);
-  if (typeof body.companyId !== "string" || !body.companyId) return fail(400, MEMO_MESSAGES.noCompany);
-  if (memo.version !== body.expectedVersion) return fail(409, MEMO_MESSAGES.staleMemo);
-  const company = await loadCompany(body.companyId);
-  if (!company) return fail(400, MEMO_MESSAGES.noCompany);
+  if (!isVersion(expectedVersion)) return fail(400, MEMO_MESSAGES.expectedVersion);
+  if (memo.companyId || memo.portfolioCompanyId) {
+    const ref = memoCompanyRef(memo as never);
+    return fail(400, `This memo is already linked to ${ref.kind === "none" || ref.kind === "pending" ? "a company" : ref.name}.`);
+  }
+  const wantCompany = typeof target.companyId === "string" && target.companyId !== "";
+  const wantLedger = typeof target.portfolioCompanyId === "string" && target.portfolioCompanyId !== "";
+  if (wantCompany === wantLedger) return fail(400, MEMO_MESSAGES.chooseCompany);
+  if (memo.version !== expectedVersion) return fail(409, MEMO_MESSAGES.staleMemo);
+
+  let companyId: string | null = null;
+  let portfolioCompanyId: string | null = null;
+  if (wantCompany) {
+    const company = await loadCompany(target.companyId as string);
+    if (!company) return fail(400, MEMO_MESSAGES.noCompany);
+    companyId = company.id;
+  } else {
+    const row = await loadPortfolioCompany(target.portfolioCompanyId as string);
+    if (!row) return fail(400, MEMO_MESSAGES.noCompany);
+    // JC-ML-B: a ledger row with a usable Company links the richer page; otherwise the row itself.
+    if (row.companyId && (await loadCompany(row.companyId))) companyId = row.companyId;
+    else portfolioCompanyId = row.id;
+  }
+
   const r = await db.memo.updateMany({
-    where: { id: memoId, version: body.expectedVersion, companyId: null },
-    data: { companyId: company.id, companyNamePending: null, version: { increment: 1 } },
+    where: { id: memoId, version: expectedVersion, companyId: null, portfolioCompanyId: null, updatedAt: memo.updatedAt },
+    data: { companyId, portfolioCompanyId, companyNamePending: null, updatedAt: memo.updatedAt, version: { increment: 1 } },
   });
   if (r.count === 0) return fail(409, MEMO_MESSAGES.staleMemo);
   await logAdminAction(actor, "MEMO_COMPANY_LINKED", {
     targetType: "Memo",
     targetId: memoId,
-    metadata: { memoId, companyId: company.id, ...viaMeta(via) },
+    metadata: { memoId, ...(companyId ? { companyId } : { portfolioCompanyId }), ...(opts.source ? { source: opts.source } : {}), ...viaMeta(via) },
   });
-  return { ok: true, value: { id: memoId, companyId: company.id, version: body.expectedVersion + 1 } };
+  const version = expectedVersion + 1;
+  return { ok: true, value: companyId ? { id: memoId, companyId, version } : { id: memoId, portfolioCompanyId: portfolioCompanyId!, version } };
 }
 
-/** "Acme is now in Molly. Link it?": at most one strong match for a pending name, else null. */
-export async function suggestCompany(pendingName: string | null | undefined): Promise<{ id: string; name: string } | null> {
-  const wanted = normalizeCompanyName(pendingName ?? "");
-  if (!wanted) return null;
-  const all = await db.company.findMany({ where: memoCompanyFilter, select: { id: true, name: true, aliases: true } });
-  const hits = all.filter((c) => normalizeCompanyName(c.name) === wanted || c.aliases.some((a) => normalizeCompanyName(a) === wanted));
-  return hits.length === 1 ? { id: hits[0].id, name: hits[0].name } : null;
+export const linkCompany = (actor: Actor, memoId: string, body: Record<string, unknown>, via?: Via) =>
+  linkTarget(actor, memoId, body, body.expectedVersion, {}, via);
+
+/**
+ * Q134-A. Owner only. Removes the link; the memo keeps the company's current name as its pending name,
+ * so it reads "<name> · Not linked" instead of "No company". `updatedAt` is kept (Q135-A).
+ */
+export async function unlinkCompany(actor: Actor, memoId: string, body: Record<string, unknown>): Promise<MemoResult<{ id: string; version: number }>> {
+  const memo = await loadVisible(actor.id, memoId, LINKED_SELECT);
+  if (!memo) return fail(404, MEMO_MESSAGES.notFound);
+  if (!canManageMemo(memo, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
+  if (!isVersion(body.expectedVersion)) return fail(400, MEMO_MESSAGES.expectedVersion);
+  const ref = memoCompanyRef(memo as never);
+  if (ref.kind !== "company" && ref.kind !== "ledger") return fail(400, MEMO_MESSAGES.notLinked);
+  if (memo.version !== body.expectedVersion) return fail(409, MEMO_MESSAGES.staleMemo);
+  const r = await db.memo.updateMany({
+    where: { id: memoId, version: body.expectedVersion, updatedAt: memo.updatedAt },
+    data: { companyId: null, portfolioCompanyId: null, companyNamePending: ref.name, updatedAt: memo.updatedAt, version: { increment: 1 } },
+  });
+  if (r.count === 0) return fail(409, MEMO_MESSAGES.staleMemo);
+  await logAdminAction(actor, "MEMO_COMPANY_UNLINKED", { targetType: "Memo", targetId: memoId, metadata: { memoId } });
+  return { ok: true, value: { id: memoId, version: body.expectedVersion + 1 } };
+}
+
+export type CompanySuggestion = { id: string; name: string; kind?: "ledger" };
+
+/** "Acme is now in Molly. Link it?": at most one strong match for a pending name, else null. A ledger row is `kind: "ledger"` (JC-ML-G). */
+export async function suggestCompany(pendingName: string | null | undefined): Promise<CompanySuggestion | null> {
+  if (!(pendingName ?? "").trim()) return null;
+  const { companies, ledger } = await loadLinkCandidates();
+  const hit: LinkCandidate | null = matchMemoCompany(pendingName ?? "", companies, ledger).confident;
+  if (!hit) return null;
+  return hit.kind === "ledger" ? { id: hit.id, name: hit.name, kind: "ledger" } : { id: hit.id, name: hit.name };
 }
 
 // ── template ──────────────────────────────────────────────────────────────────────────────

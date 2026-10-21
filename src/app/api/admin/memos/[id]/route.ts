@@ -16,6 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       where: { id, ...memoVisibleWhere(user!.id) },
       include: {
         company: { select: { id: true, name: true, website: true } },
+        portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
         owner: { select: { id: true, name: true, email: true } },
         sections: { orderBy: { position: "asc" } },
       },

@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   memos: [] as Row[],
   revisions: [] as Row[],
   companies: [] as Row[],
+  ledger: [] as Row[],
   templates: [] as Row[],
   users: [] as Row[],
   writes: 0,
@@ -108,6 +109,10 @@ vi.mock("@/lib/db", () => {
         const f = (c: Row) => (where?.AND ? where.AND.every((x: Row) => !x.name || matches(x, c)) : true);
         return state.companies.filter(f).slice(0, take ?? 100);
       }),
+    },
+    portfolioCompany: {
+      findUnique: vi.fn(async ({ where }: Row) => state.ledger.find((l) => l.id === where.id) ?? null),
+      findMany: vi.fn(async () => state.ledger),
     },
     memoTemplate: { findFirst: vi.fn(async () => null) },
     $transaction: vi.fn(async (fn: (t: Row) => unknown) => fn(db)),

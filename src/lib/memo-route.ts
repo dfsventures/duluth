@@ -16,6 +16,7 @@ export const memoSummarySelect = {
   id: true,
   title: true,
   companyId: true,
+  portfolioCompanyId: true,
   companyNamePending: true,
   status: true,
   visibility: true,
@@ -27,5 +28,6 @@ export const memoSummarySelect = {
   createdAt: true,
   updatedAt: true,
   company: { select: { id: true, name: true } },
+  portfolioCompany: { select: { id: true, name: true, company: { select: { id: true, name: true } } } },
   owner: { select: { id: true, name: true, email: true } },
 } as const;

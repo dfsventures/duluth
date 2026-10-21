@@ -92,6 +92,8 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       );
     }
 
+    // Part 42: memos linked to this ledger row keep its name as their pending name ("<name> · Not linked").
+    await db.memo.updateMany({ where: { portfolioCompanyId: id }, data: { companyNamePending: existing.name, portfolioCompanyId: null } });
     await db.portfolioCompany.delete({ where: { id } });
 
     await logAdminAction(user!, "PORTCO_DELETED", { targetType: "PortfolioCompany", targetId: id, metadata: { name: existing.name } });

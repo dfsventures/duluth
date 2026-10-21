@@ -41,6 +41,7 @@ vi.mock("@/lib/db", () => {
     db: {
       memo,
       company: { findMany: vi.fn(async () => state.companies) },
+      portfolioCompany: { findMany: vi.fn(async () => []) }, // Part 42: the ledger is queried too; no rows here
     },
   };
 });

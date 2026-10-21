@@ -3,6 +3,11 @@ import {
   MEMO_ERRORS,
   MEMO_LIMITS,
   MEMO_SOURCES,
+  matchMemoCompany,
+  memoCompanyName,
+  memoCompanyRef,
+  memoForCompanyWhere,
+  memoUnlinkedWhere,
   slugifyKey,
   isValidKey,
   validateMemoInput,
@@ -199,5 +204,71 @@ describe("visibility helpers", () => {
   it("canManageMemo: owner only (Q117-A)", () => {
     expect(canManageMemo({ ownerId: "u1" }, "u1")).toBe(true);
     expect(canManageMemo({ ownerId: "u1" }, "u2")).toBe(false);
+  });
+});
+
+describe("memoCompanyRef (Part 42)", () => {
+  const company = { id: "c1", name: "Acme" };
+  const ledger = (c: typeof company | null = null) => ({ id: "l1", name: "Globex", company: c });
+  it("returns the four kinds", () => {
+    expect(memoCompanyRef({ company, portfolioCompany: null, companyNamePending: "x" })).toEqual({ kind: "company", id: "c1", name: "Acme" });
+    expect(memoCompanyRef({ company: null, portfolioCompany: ledger(), companyNamePending: null })).toEqual({ kind: "ledger", id: "l1", name: "Globex" });
+    expect(memoCompanyRef({ company: null, portfolioCompany: null, companyNamePending: "Initech" })).toEqual({ kind: "pending", name: "Initech" });
+    expect(memoCompanyRef({ company: null, companyNamePending: null })).toEqual({ kind: "none" });
+  });
+  it("a ledger row linked to a Company shows the Company", () => {
+    expect(memoCompanyRef({ company: null, portfolioCompany: ledger(company), companyNamePending: null })).toEqual({ kind: "company", id: "c1", name: "Acme" });
+  });
+  it("memoCompanyName", () => {
+    expect(memoCompanyName({ kind: "none" })).toBeNull();
+    expect(memoCompanyName({ kind: "pending", name: "Initech" })).toBe("Initech");
+  });
+  it("where helpers", () => {
+    expect(memoUnlinkedWhere).toEqual({ companyId: null, portfolioCompanyId: null });
+    expect(memoForCompanyWhere("c1")).toEqual({ OR: [{ companyId: "c1" }, { portfolioCompany: { companyId: "c1" } }] });
+  });
+});
+
+describe("matchMemoCompany (Part 42)", () => {
+  const companies = [
+    { id: "c1", name: "Acme", aliases: ["Acme Payments"] },
+    { id: "c2", name: "Initech Group", aliases: [] },
+  ];
+  const ledger = [
+    { id: "l1", name: "Globex", companyId: null },
+    { id: "l2", name: "Acme", companyId: "c1" },
+    { id: "l3", name: "Hooli Labs", companyId: null },
+    { id: "l4", name: "Initech Old Name", companyId: "c2" },
+  ];
+  const m = (n: string, c = companies, l = ledger) => matchMemoCompany(n, c, l);
+
+  it("exact on name, alias, ledger name; legal suffix ignored", () => {
+    expect(m("Acme").confident).toEqual({ kind: "company", id: "c1", name: "Acme" });
+    expect(m("acme payments").confident?.id).toBe("c1");
+    expect(m("Globex").confident).toEqual({ kind: "ledger", id: "l1", name: "Globex" });
+    expect(m("Globex Ltd").confident?.id).toBe("l1");
+  });
+  it("a ledger row and its own Company count once, and the ledger's old name reaches the Company", () => {
+    expect(m("Acme").exact).toHaveLength(1);
+    expect(m("Initech Old Name").confident).toEqual({ kind: "company", id: "c2", name: "Initech Group" });
+  });
+  it("two distinct exact targets are not confident", () => {
+    const r = m("Acme", companies, [...ledger, { id: "l5", name: "ACME", companyId: null }]);
+    expect(r.confident).toBeNull();
+    expect(r.exact.map((x) => x.id).sort()).toEqual(["c1", "l5"]);
+  });
+  it("near only: spaces removed, or one word set contains the other", () => {
+    const r = m("Hooli Labs Pay", companies, [{ id: "l3", name: "Hooli Labs", companyId: null }]);
+    expect(r.confident).toBeNull();
+    expect(r.near.map((x) => x.id)).toEqual(["l3"]);
+    const s = m("Glob ex", companies, [{ id: "l1", name: "Globex", companyId: null }]);
+    expect(s.confident).toBeNull();
+    expect(s.near.map((x) => x.id)).toEqual(["l1"]);
+    expect(matchMemoCompany("Acme Labs", [], [{ id: "x", name: "AcmeLabs", companyId: null }]).near).toHaveLength(1);
+    expect(matchMemoCompany("Acme", [], [{ id: "x", name: "Acme Pay", companyId: null }])).toMatchObject({ confident: null, near: [{ id: "x" }] });
+  });
+  it("nothing, or an empty name", () => {
+    expect(m("Umbrella")).toEqual({ confident: null, exact: [], near: [] });
+    expect(m("  ")).toEqual({ confident: null, exact: [], near: [] });
   });
 });

@@ -769,6 +769,7 @@ model PortfolioCompany {
   cashflows        FundCashflow[]
   contacts         PortfolioCompanyContact[]
   broadcastTargets CompanyBroadcastTarget[]
+  memos            Memo[]
 
   @@map("portfolio_companies")
 }
@@ -1124,6 +1125,7 @@ model Memo {
   title              String
   companyId          String?
   companyNamePending String? // the company isn't in Molly yet; cleared on link
+  portfolioCompanyId String? // Part 42: deal-ledger row when the company isn't a Molly Company. At most one of companyId / portfolioCompanyId.
   status             String    @default("DRAFT") // "DRAFT" | "IN_REVIEW" | "FINAL"
   visibility         String    @default("PRIVATE") // "PRIVATE" | "TEAM"
   ownerId            String
@@ -1142,14 +1144,16 @@ model Memo {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  company    Company?        @relation(fields: [companyId], references: [id], onDelete: SetNull)
-  owner      User            @relation("OwnedMemos", fields: [ownerId], references: [id])
-  sections   MemoSection[]
-  shareLinks ShareableLink[]
+  company          Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  portfolioCompany PortfolioCompany? @relation(fields: [portfolioCompanyId], references: [id], onDelete: SetNull)
+  owner            User              @relation("OwnedMemos", fields: [ownerId], references: [id])
+  sections         MemoSection[]
+  shareLinks       ShareableLink[]
 
   @@index([ownerId])
   @@index([visibility])
   @@index([companyId])
+  @@index([portfolioCompanyId])
   @@map("memos")
 }
 
