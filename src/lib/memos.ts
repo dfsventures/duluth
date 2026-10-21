@@ -40,6 +40,9 @@ export const MEMO_DECISION_LABELS: Record<MemoDecision, string> = {
 export const CITATION_KINDS = ["call", "deck", "tracker", "web", "other"] as const;
 export type CitationKind = (typeof CITATION_KINDS)[number];
 
+/** F140 (Part 43): the list returns at most this many memos and says so when it cut. */
+export const MEMO_LIST_CAP = 200;
+
 // JC-MM-E
 export const MEMO_LIMITS = {
   sectionChars: 20_000,

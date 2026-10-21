@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { createMemo } from "@/lib/memo-actions";
 import { memoResponse, memoSummarySelect, readObjectBody } from "@/lib/memo-route";
-import { MEMO_DECISIONS, MEMO_STATUSES, memoCompanyRef, memoForCompanyWhere, memoUnlinkedWhere, memoVisibleWhere } from "@/lib/memos";
+import { MEMO_DECISIONS, MEMO_LIST_CAP, MEMO_STATUSES, canEditMemo, memoCompanyRef, memoForCompanyWhere, memoUnlinkedWhere, memoVisibleWhere } from "@/lib/memos";
 
 // GET: every memo the signed-in admin may read, with filters. POST: create from the template.
 export async function GET(request: Request) {
@@ -39,13 +39,17 @@ export async function GET(request: Request) {
       });
     }
 
-    const memos = await db.memo.findMany({
+    const found = await db.memo.findMany({
       where: { AND: and },
       select: memoSummarySelect,
       orderBy: { updatedAt: "desc" },
-      take: 200,
+      take: MEMO_LIST_CAP + 1,
     });
-    return NextResponse.json(memos.map((m) => ({ ...m, companyRef: memoCompanyRef(m) })));
+    const memos = found.slice(0, MEMO_LIST_CAP);
+    return NextResponse.json(
+      memos.map((m) => ({ ...m, companyRef: memoCompanyRef(m), canEdit: canEditMemo({ ownerId: m.owner.id, visibility: m.visibility }, user!.id) })),
+      found.length > MEMO_LIST_CAP ? { headers: { "X-Memos-Truncated": "1" } } : undefined
+    );
   } catch (err) {
     console.error("GET /api/admin/memos error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

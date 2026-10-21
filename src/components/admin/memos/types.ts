@@ -28,11 +28,13 @@ export interface MemoRow {
   visibility: "PRIVATE" | "TEAM";
   draftedByMarge: boolean;
   decision: MemoDecision | null;
+  tags: string[];
   version: number;
   updatedAt: string;
   company: { id: string; name: string } | null;
   companyRef: MemoCompanyRef;
   owner: { id: string; name: string | null; email: string };
+  canEdit: boolean;
 }
 
 export interface MemoSectionView {

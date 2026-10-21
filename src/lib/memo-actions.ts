@@ -38,6 +38,7 @@ import {
   type LinkCandidate,
   type MemoCitation,
   type MemoSectionInput,
+  type MemoDecision,
   type MemoStatus,
   type MemoTemplateSection,
   type MemoVisibility,
@@ -409,6 +410,39 @@ export async function setMemoStatus(actor: Actor, id: string, status: unknown): 
     metadata: { memoId: id, from: memo.status, to },
   });
   return { ok: true, value: { id, status: to, version: memo.version + 1 } };
+}
+
+/**
+ * Part 43. The board's move: change only the decision. Same permission and values as Memo details
+ * (canEditMemo, MEMO_DECISIONS or null), but version-checked on `expectedVersion` like the link writes,
+ * and audited with from/to. Q137-A: filing, not editing, so `updatedAt` is kept.
+ */
+export async function setMemoDecision(
+  actor: Actor,
+  id: string,
+  body: Record<string, unknown>
+): Promise<MemoResult<{ id: string; decision: MemoDecision | null; version: number }>> {
+  const memo = await loadVisible(actor.id, id, { ...HEAD, decision: true, version: true, updatedAt: true });
+  if (!memo) return fail(404, MEMO_MESSAGES.notFound);
+  if (!canEditMemo(memo as never, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
+  if (!isVersion(body.expectedVersion)) return fail(400, MEMO_MESSAGES.expectedVersion);
+  let to: MemoDecision | null;
+  if (body.decision === null || body.decision === "") to = null;
+  else if ((MEMO_DECISIONS as readonly unknown[]).includes(body.decision)) to = body.decision as MemoDecision;
+  else return fail(400, MEMO_ERRORS.badDecision);
+  if (memo.version !== body.expectedVersion) return fail(409, MEMO_MESSAGES.staleMemo);
+  if (memo.decision === to) return { ok: true, value: { id, decision: to, version: memo.version } }; // no write, no audit
+  const r = await db.memo.updateMany({
+    where: { id, version: body.expectedVersion, updatedAt: memo.updatedAt },
+    data: { decision: to, updatedAt: memo.updatedAt, version: { increment: 1 } }, // Q137-B: drop updatedAt from both
+  });
+  if (r.count === 0) return fail(409, MEMO_MESSAGES.staleMemo);
+  await logAdminAction(actor, "MEMO_DECISION_CHANGED", {
+    targetType: "Memo",
+    targetId: id,
+    metadata: { memoId: id, from: memo.decision ?? null, to, version: body.expectedVersion + 1, source: "board", ...(body.undo === true ? { undo: true } : {}) },
+  });
+  return { ok: true, value: { id, decision: to, version: body.expectedVersion + 1 } };
 }
 
 export async function setMemoVisibility(actor: Actor, id: string, visibility: unknown): Promise<MemoResult<{ id: string; visibility: MemoVisibility; version: number }>> {

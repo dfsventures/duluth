@@ -81,9 +81,10 @@ vi.mock("@/lib/db", () => {
       const m = state.memos.find((x) => matches(where, x));
       return m ? view(m, select) : null;
     }),
-    findMany: vi.fn(async ({ where }: Row) => {
+    findMany: vi.fn(async ({ where, take }: Row) => {
       bump();
-      return state.memos.filter((x) => matches(where, x));
+      const rows = state.memos.filter((x) => matches(where, x)).map((x) => ({ owner: { id: x.ownerId }, ...x })); // the real select returns the owner
+      return take ? rows.slice(0, take) : rows;
     }),
     findUnique: vi.fn(async ({ where }: Row) => {
       bump();
@@ -161,11 +162,13 @@ import { PATCH as secPATCH, DELETE as secDELETE } from "@/app/api/admin/memos/[i
 import { GET as revGET, POST as revPOST } from "@/app/api/admin/memos/[id]/sections/[key]/revisions/route";
 import { GET as suggestGET } from "@/app/api/admin/memos/[id]/company-suggestion/route";
 import { DELETE as linkDELETE, POST as linkPOST } from "@/app/api/admin/memos/[id]/link-company/route";
+import { POST as decisionPOST } from "@/app/api/admin/memos/[id]/decision/route";
 import { DELETE as ledgerDELETE } from "@/app/api/admin/portfolio-companies/[id]/route";
 import { POST as previewPOST } from "@/app/api/admin/memos/preview/route";
 import { GET as tplGET, PUT as tplPUT } from "@/app/api/admin/memos/template/route";
 import { createMemo } from "@/lib/memo-actions";
 import { MEMO_ERRORS } from "@/lib/memos";
+import { MEMO_MESSAGES } from "@/lib/memo-actions";
 
 const U1 = { id: "u1", email: "sam@example.com", roles: ["ADMIN"] };
 const U2 = { id: "u2", email: "jane@example.com", roles: ["ADMIN"] };
@@ -744,10 +747,11 @@ describe("audit metadata carries ids, never content", () => {
     state.companies.push({ id: "c9", name: `Company ${C}`, aliases: [] });
     await linkPOST(req("POST", { expectedVersion: 4, companyId: "c9" }), ctx(id)); // meta, status and visibility each bumped the version
     await tplPUT(req("PUT", { sections: [{ title: `Tpl ${C}`, guidance: `Guide ${C}` }] }));
+    await decisionPOST(req("POST", { decision: "INVESTED", expectedVersion: 5 }), ctx(id)); // link bumped the version again
     await oneDELETE(req("DELETE"), ctx(id));
 
     const actions = audit.logAdminAction.mock.calls.map((c) => c[1]);
-    for (const a of ["MEMO_CREATED", "MEMO_UPDATED", "MEMO_SECTION_UPDATED", "MEMO_SECTION_RESTORED", "MEMO_STATUS_CHANGED", "MEMO_VISIBILITY_CHANGED", "MEMO_COMPANY_LINKED", "MEMO_TEMPLATE_UPDATED", "MEMO_ARCHIVED"]) {
+    for (const a of ["MEMO_CREATED", "MEMO_UPDATED", "MEMO_SECTION_UPDATED", "MEMO_SECTION_RESTORED", "MEMO_STATUS_CHANGED", "MEMO_VISIBILITY_CHANGED", "MEMO_COMPANY_LINKED", "MEMO_TEMPLATE_UPDATED", "MEMO_ARCHIVED", "MEMO_DECISION_CHANGED"]) {
       expect(actions, a).toContain(a);
     }
     expect(JSON.stringify(audit.logAdminAction.mock.calls.map((c) => [c[1], c[2]]))).not.toContain("CANARY");
@@ -785,5 +789,95 @@ describe("decision and source (Part 41, WS132)", () => {
     expect((await patch({ source: "Inbound", version: 2 })).status).toBe(400); // another retired value is not accepted
     expect((await patch({ source: "Founder Intro", version: 2 })).status).toBe(200);
     expect((await patch({ source: "Referral", version: 3 })).status).toBe(400); // no longer the stored value
+  });
+});
+
+describe("decision move (Part 43)", () => {
+  const stamp = new Date("2026-03-01T10:00:00Z");
+  const find = (id: string) => state.memos.find((m) => m.id === id)!;
+  const move = (id: string, body: Row) => decisionPOST(req("POST", body), ctx(id));
+  beforeEach(() => {
+    find("private").updatedAt = stamp;
+    find("team").updatedAt = stamp;
+  });
+
+  it("owner on a private memo: moves, bumps the version, keeps updatedAt (Q137-A)", async () => {
+    const r = await move("private", { decision: "INVESTED", expectedVersion: 1 });
+    expect(r.status).toBe(200);
+    expect(await json(r)).toEqual({ id: "private", decision: "INVESTED", version: 2 });
+    expect(find("private")).toMatchObject({ decision: "INVESTED", version: 2, updatedAt: stamp });
+  });
+
+  it("a non-owner may move a TEAM memo (F139) but cannot see someone's private one", async () => {
+    as(U2);
+    expect((await move("team", { decision: "LATER", expectedVersion: 1 })).status).toBe(200);
+    expect(find("team").decision).toBe("LATER");
+    expect((await move("private", { decision: "LATER", expectedVersion: 1 })).status).toBe(404);
+    expect(find("private").decision ?? null).toBeNull();
+  });
+
+  it("null and an empty string clear; a label instead of a code is a 400", async () => {
+    find("team").decision = "MEMO";
+    expect((await move("team", { decision: null, expectedVersion: 1 })).status).toBe(200);
+    expect(find("team").decision).toBeNull();
+    find("team").decision = "MEMO";
+    expect((await move("team", { decision: "", expectedVersion: 2 })).status).toBe(200);
+    expect(find("team").decision).toBeNull();
+    const bad = await move("team", { decision: "Invested", expectedVersion: 3 });
+    expect(bad.status).toBe(400);
+    expect((await json(bad)).error).toBe(MEMO_ERRORS.badDecision);
+  });
+
+  it("a missing or non-integer expectedVersion is a 400; a stale one is a 409 and writes nothing", async () => {
+    expect((await move("team", { decision: "MEMO" })).status).toBe(400);
+    expect((await move("team", { decision: "MEMO", expectedVersion: "1" })).status).toBe(400);
+    expect((await move("team", { decision: "MEMO", expectedVersion: 1.5 })).status).toBe(400);
+    const stale = await move("team", { decision: "MEMO", expectedVersion: 7 });
+    expect(stale.status).toBe(409);
+    expect((await json(stale)).error).toBe(MEMO_MESSAGES.staleMemo);
+    expect(find("team")).toMatchObject({ version: 1 });
+    expect(find("team").decision ?? null).toBeNull();
+    expect(audit.logAdminAction).not.toHaveBeenCalled();
+  });
+
+  it("the same decision is a 200 with the unchanged version and no audit", async () => {
+    find("team").decision = "MEMO";
+    const r = await move("team", { decision: "MEMO", expectedVersion: 1 });
+    expect(await json(r)).toEqual({ id: "team", decision: "MEMO", version: 1 });
+    expect(find("team").version).toBe(1);
+    expect(audit.logAdminAction).not.toHaveBeenCalled();
+  });
+
+  it("audits MEMO_DECISION_CHANGED with from/to and the source; undo only when sent; no title", async () => {
+    find("team").decision = "MEMO";
+    await move("team", { decision: "INVESTED", expectedVersion: 1 });
+    await move("team", { decision: "MEMO", expectedVersion: 2, undo: true });
+    const calls = audit.logAdminAction.mock.calls.filter((c) => c[1] === "MEMO_DECISION_CHANGED");
+    expect(calls).toHaveLength(2);
+    expect(calls[0][2].metadata).toEqual({ memoId: "team", from: "MEMO", to: "INVESTED", version: 2, source: "board" });
+    expect(calls[1][2].metadata).toEqual({ memoId: "team", from: "INVESTED", to: "MEMO", version: 3, source: "board", undo: true });
+    expect(JSON.stringify(calls)).not.toContain("Team memo");
+  });
+
+  it("the list rows carry canEdit; at the cap the response is cut with X-Memos-Truncated, below it there is no header", async () => {
+    const list = async () => listGET(new Request("https://molly.dfs.vc/api/admin/memos"));
+    const first = await list();
+    expect(first.headers.get("X-Memos-Truncated")).toBeNull();
+    const rows = (await json(first)) as Row[];
+    expect(rows.length).toBe(2);
+    expect(rows.every((m) => m.canEdit === true)).toBe(true);
+    as(U2);
+    const other = (await json(await list())) as Row[];
+    expect(other.map((m) => [m.id, m.canEdit])).toEqual([["team", true]]);
+
+    as(U1);
+    for (let i = 0; i < 199; i++) state.memos.push({ id: `bulk${i}`, title: "Acme", ownerId: "u1", visibility: "TEAM", status: "DRAFT", version: 1, archivedAt: null, companyId: null, sections: [] });
+    const exact = await list(); // 2 + 199 = 201 visible
+    expect(((await json(exact)) as Row[]).length).toBe(200);
+    expect(exact.headers.get("X-Memos-Truncated")).toBe("1");
+    state.memos.pop();
+    const at = await list(); // exactly 200: not truncated
+    expect(((await json(at)) as Row[]).length).toBe(200);
+    expect(at.headers.get("X-Memos-Truncated")).toBeNull();
   });
 });

@@ -734,7 +734,7 @@ describe("no tool or argument can change visibility, status, share links, archiv
     expect(exported).toEqual(["memoCreate", "memoGet", "memoLinkCompany", "memoList", "memoTemplateGet", "memoUpdateSection"]);
     expect(Object.keys(MARGE_MEMO_TOOLS)).toHaveLength(6);
     const src = (await import("node:fs")).readFileSync("src/lib/marge-tools/memos.ts", "utf8");
-    for (const banned of ["createShareLink", "revokeShareLink", "listShareLinks", "archiveMemo", "setMemoVisibility", "setMemoStatus", "restoreSection", "saveTemplate", "removeSection", "addSection", "reorderSections", "updateMemoMeta"]) {
+    for (const banned of ["createShareLink", "revokeShareLink", "listShareLinks", "archiveMemo", "setMemoVisibility", "setMemoStatus", "restoreSection", "saveTemplate", "removeSection", "addSection", "reorderSections", "updateMemoMeta", "setMemoDecision"]) {
       expect(src, banned).not.toMatch(new RegExp(`\\b${banned}\\b`));
     }
   });
