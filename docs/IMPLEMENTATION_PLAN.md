@@ -14566,3 +14566,511 @@ Push = production deploy (Vercel). No schema, no env var, no data step.
 **Handoff status: APPROVED 2026-10-21 (Q137 A, Q138 A). Ready for Alvin: WS141 → WS142; WS143 rollout with the owner.**
 
 ---
+
+# Part 44 — Memo board and memo page: design and copy polish (WS144–WS147, F143–F148, Q139, 2026-10-21)
+
+> **Status: APPROVED 2026-10-21 (owner accepted all recommendations from the Nisat design review and the Nosa copy review; decisions 1–13 below are not reopened).** One new question (Q139) has a recommendation. Technical calls are `JC-MP-*`, each with a cheap reversal.
+>
+> **Numbering:** continues from Part 43 (WS143, F142, Q138). Checked 2026-10-21: no `WS144+`, `F143+`, `Q139+` or "Part 44" in `ROADMAP.md`, `README.md` or `docs/*.md`.
+>
+> **Baseline:** `npx vitest run --exclude '.claude/**'` → 123 files, **1680/1680 passing** (2026-10-21, `claude/dfs-portfolio-platform-TZMWC` @ `be13f1b`, which holds WS141 and WS142 and is pushed: 0 ahead / 0 behind origin).
+>
+> **Schema:** **none.** Stored values (`Memo.decision` = `IN_PROGRESS | MEMO | INVESTED | LATER | PASSED | null`, `Memo.status` = `DRAFT | IN_REVIEW | FINAL`) do not change; only display labels do. No `db push`.
+>
+> **Packages:** **none.** Icons come from the installed `lucide-react@0.564.0` (`Link2Off`, `EyeOff`, `Building2`, `ChevronsRight`, `Users`, `Lock` all present).
+>
+> **Confidentiality:** the review screenshots carry real deal names and figures; none appear below. Examples use `Acme`, `Globex`, `Initech`.
+
+**What was asked for.** Polish of the Part 43 memo board and the memo page, from Nisat (design) and Nosa (copy): fix the owner-chip bug, a calmer card, collapsed empty columns, an idle cue, a tidier filter row, a phone-friendly card menu, consistent names for the two axes ("Stage" for the deal, "Memo status" for the document), a cleaner memo header with Stage editable in place, a compact Details box, an active section nav, and Nosa's remaining copy fixes.
+
+## Owner decisions (approved 2026-10-21; not reopened)
+
+1. **Owner chip bug.** Cards show "Y" because the card computes initials from the string "You". On the **Mine** tab the owner is hidden; elsewhere the chip shows real initials; "You" appears only in the tooltip / `aria-label`.
+2. **Card rebuilt.** Company line hidden when it equals the title (case-insensitive). Title, at most 2 lines. One muted footer line: status dot (Draft hollow, In review amber, Final green; Final shows no label) + updated time (relative up to 30 days, then "Aug 13") + owner initials on the right. One plain tag line, "AI · Payments +2" (first two, +N, tooltip with all). "Not linked" becomes a quiet icon with a tooltip on the title row; the words stay "Not linked" (Part 42 Q132 wording; **not** "Not in Molly yet").
+3. **Empty columns collapse** to slim rails like Passed, still drop targets, expand on click or drag-over. Passed rail made legible (label, count, chevron, hover, `title="Show N passed"`). Long column bodies capped (~70vh, internal scroll).
+4. **Idle cue.** Cards in Evaluating (`IN_PROGRESS`) and Writing memo (`MEMO`) untouched for 14+ days show an amber "Idle · 3 wk ago". Based on `updatedAt` only.
+5. **Layout.** Board / List toggle on the right of the tabs row; search and filters on one row; header, filters and board share one edge. "Not linked to a company" checkbox becomes a toggle chip. A clickable summary line under the filters ("30 memos · 4 in review · 2 idle"); segments filter. Drag feedback (insertion indicator, dim non-targets) only if cheap with native drag and drop.
+6. **Phone.** The per-card full-width "Move to…" select becomes a small ⋯ menu with Move to. The first non-empty section opens by default.
+7. **Labels (display only).** "Decision" → **"Stage"** everywhere user-facing. `IN_PROGRESS` → **"Evaluating"**, `MEMO` → **"Writing memo"** (a one-line label change if the owner tweaks it later); Invested / Later / Passed unchanged. "No decision" column → **"Unsorted"**. Document status is labelled **"Memo status"** where it sits next to Stage; values Draft / In review / Final unchanged.
+8. **Tabs:** Mine / Team / Everything, with accurate helper text.
+9. **Memo page header.** Title row: breadcrumb, title, company link only if it differs from the title, actions right (phone: actions in a ⋯ menu, Share kept visible). Controls row: Stage select (editable here, through the WS141 decision route with version / 409 handling, no `updatedAt` bump), Memo status select, Visibility as a neutral button opening the Share panel (owner-only rules unchanged). Facts line: owner · Updated date · "From Notion" (replaces the floating "Imported from Notion." sentence; "Drafted by Marge" the same way; print-only "Drafted with Marge" kept). Decision removed from Details and the duplicate header tag removed; print shows Stage as text.
+10. **Details box** compacted: 3-column definition list, tags as plain text, a single Edit entry (Change company and Edit details merged, both still reachable, company link still owner-only), collapsible with a summary line, collapsed by default when 3 or more fields are filled.
+11. **Section nav** shows the active section (IntersectionObserver, `scroll-margin-top`); phone gets a "Jump to" select.
+12. **"Not in share links"** → quiet "Hidden from share links" with an eye-off icon, linking to the Share panel.
+13. **Nosa's other copy items** applied where consistent with the above.
+
+**Out of scope:** check size / round / valuation fields (schema change, later).
+
+---
+
+## What the code looks like (verified 2026-10-21 at `be13f1b`)
+
+**Labels.** `MEMO_DECISION_LABELS` (`src/lib/memos.ts:32-38`: "In Progress", "Memo", …) is the one source for Stage labels. Consumers (grep `MEMO_DECISION_LABELS|COLUMN_LABELS`, all forms): `src/lib/memo-board.ts:8` (`COLUMN_LABELS = { ...MEMO_DECISION_LABELS, NONE: "No decision" }`), `memos-client.tsx:181` (toast and announcement), `:250` (list cell), `memo-board.tsx:102,113,122,130,164`, `memo-board-card.tsx:121,184`, `memo-filters.tsx:53`, `meta-sheet.tsx:95`, `[id]/memo-client.tsx:170` (header badge) and `:221` (Details row), and **`src/lib/marge-tools/memos.ts:152`** (`decisionLabel`, see F148). The Notion importer maps Notion's words through its own table (`src/lib/notion-memo-import.ts:66-67`, `NOTION_DECISIONS["in progress"]`), **not** through the labels, so relabelling cannot break a re-import. Server error `MEMO_ERRORS.badDecision` ("That decision isn't one of the options.", `memos.ts:112`) is part of the Marge contract file and is never shown by the UI paths in this Part; it stays.
+
+**Scopes (decision 8).** `GET /api/admin/memos` (`src/app/api/admin/memos/route.ts:17-20`) always applies `memoVisibleWhere` (own, or `visibility: "TEAM"`, not archived; `memos.ts:208-209`), then `scope=mine` → `ownerId = me`; `scope=team` → `visibility = "TEAM"` (**anyone's, including mine**); `scope=all` → nothing more. So **Mine** = memos I own, private or shared; **Team** = exactly "shared with the team", mine included; **Everything** = my private memos plus everything shared. "Team" is exactly "shared with team"; nothing to flag beyond saying "yours included" in the hint.
+
+**Board card (`src/components/admin/memos/memo-board-card.tsx`).** `:44` `const owner = memo.owner.id === me ? "You" : ownerLabel(memo.owner)` and `:150` `{initials(owner)}`: for my own cards `initials("You")` = "Y" (F143). Company line always rendered (`:138-140`), status as a `Badge` (`:143`), time via `relativeTime` (`:152`; `src/lib/relative-time.ts` switches to a full date with year after 14 days), up to 3 tag chips (`:38`, `:155-168`), phone `<select>` "Move to…" (`:171-189`); the ⋯ `DropdownMenu` renders only when `desktop` (`:91`).
+
+**Board (`memo-board.tsx`).** Only `COLLAPSED_BY_DEFAULT = ["PASSED"]` can be a rail (`:29`); empty columns render a full column with "Empty" (`:140-142`); the rail is `w-12` with a 2×2 dot, count and vertical label, no chevron, no `title` (`:96-116`). Column bodies grow unbounded (`:138`). Phone: `<details open={!isCollapsed(k)}>`, so every section but Passed is open (`:152-176`). Drop target ring exists (`:87`); there is no insertion line (Part 43 JC-MB-C: no order inside a column).
+
+**Page (`memos-client.tsx`).** Tabs `:45-49` ("Mine", "Shared with team", "All I can see"); subtitle `:282`; "Template" button `:285-288`; the Board / List toggle sits on its own row under the tabs (`:299-324`); board search is `h-8 … text-[13px]` (`:352`) while `MemoFilters` selects use `.input-field` = **`h-10 … text-sm`** (`memo-filters.tsx:23,40,49`; `globals.css:247-248`), and DataTable's own toolbar controls are `h-8 … text-[13px]` (`data-table.tsx:514,535,560`), so the filter row is misaligned in both views (F145). Toasts `:186,197,201,210,214`; the 409 branch shows the server sentence verbatim (`:205`; `MEMO_MESSAGES.staleMemo` = "This memo changed since you loaded it. Reload and try again.", `memo-actions.ts:61`).
+
+**Memo page (`src/app/admin/memos/[id]/memo-client.tsx`).** Header actions `:137-146`; meta row `:150-176` (company line, status select, hidden print badge, decision badge `:170`, visibility badge `:171-173`, "Owner: …" `:174`, "Updated …" `:175`); "Drafted by Marge for …" `:178-183`; "Imported from Notion." `:185`; Details card `:201-263` with two buttons (`:205-216`: "Change company"/"Link to company" when `canManage`; "Edit details" when `canEdit`) and a `sm:grid-cols-2` list whose first row is Decision (`:221`); section nav `:266-276` (no active state; desktop only, `hidden lg:block`). `SectionCard` renders `<section id="section-<key>" class="… scroll-mt-6">` (`section-card.tsx:143`) and the "Not in share links" badge (`:146`). `CONFLICT` copy `:16`.
+
+**Share semantics (decision 12).** The share page selects `sections: { where: { includeInShare: true } }` (`src/app/share/m/[token]/route.ts:55`). "Hidden from share links" is exactly `includeInShare === false`. The per-section switch lives in the section editor (`section-card.tsx:232`, owner only via `canManage`), not in the Share panel; the Share panel holds team visibility and link management (`share-panel.tsx:36-68`).
+
+**Stage writes.** `setMemoDecision` (`memo-actions.ts:420-446`): `canEditMemo`, `expectedVersion` required, 409 `staleMemo` on a version or `updatedAt` miss, keeps `updatedAt` (Q137-A), audits `MEMO_DECISION_CHANGED` with **`source: "board"` hard-coded** (`:443`, F147). `MetaSheet` also writes `decision` through `PATCH` → `updateMemoMeta` (`meta-sheet.tsx:17,41,91-98`; `memo-actions.ts:349-353`), which lets Prisma stamp `updatedAt` (F141, F146). `setMemoStatus` (`:399-411`) bumps `version` without a version check.
+
+**Print.** `globals.css:450-497`: `.memo-print-scope` flattens cards and badges, hides `.memo-no-print`. Any new collapsible must force its content visible in print.
+
+**Design system (admin Direction A+).** Square corners, mono uppercase labels (`.label` = `text-label font-semibold uppercase tracking-label font-mono`, `globals.css:252-254`), tinted tone pairs from `src/lib/status-tone.ts` (dots via `TONE_CLASSES[t].dot`, never clay for non-urgent states), toolbar controls `h-8 rounded-ctl … text-[13px]`, toggle chips with `aria-pressed` and the `data-table.tsx:535-538` classes. **No new `fontSize` role is introduced in this Part**, so `extendTailwindMerge` (`src/lib/utils.ts:8-15`) needs no change; if Alvin adds one, register it there in the same commit.
+
+**Tests that assert strings this Part changes** (all in `src/lib/__tests__/`):
+- `memo-board.test.ts:65` — `COLUMN_LABELS.NONE` is "No decision".
+- `memo-components.test.tsx:44` — "Not in share links".
+- `memo-components.test.tsx:104-111` — phone `<select>` with "In Progress" … "No decision" and 6 options.
+- `memo-components.test.tsx:116-122` — "four tags render three chips and +1".
+- `memo-components.test.tsx:135-139` — "an empty No decision column is present with a zero count" (it becomes a rail).
+- `marge-memo-tools.test.ts:832,835` — "Decision: not set", "Source: not set · Decision: Invested · Tags: none" (only if JC-MP-F stands).
+- Unaffected, checked: `notion-memo-import.test.ts:243` ("In Progress" is Notion's input word, mapped by `NOTION_DECISIONS`), `memo-routes.test.ts:772,828` (assert the constant `MEMO_ERRORS.badDecision`), `memo-share.test.ts:277,280` ("Not linked" must not appear on share pages; still true), `memo-components.test.tsx:112-115` and `:123-126` (still pass if the sr-only / `aria-label` text is kept as specified).
+
+---
+
+## Findings
+
+## F143 — Board cards show "Y" for the viewer's own memos (LOW, visible bug; owner decision 1)
+
+`memo-board-card.tsx:44` swaps the owner's name for "You" and `:150` runs `initials()` on that string. Every card on the Mine tab (and the viewer's cards elsewhere) shows "Y", and the chip colour (`tileTone(owner)`) is the same for every viewer's own cards. Fixed in WS145.
+
+## F144 — ROADMAP calls Part 43 "building", but WS141–WS142 are committed and pushed (LOW, doc drift)
+
+`ROADMAP.md:197` ends "…confirmed; building." `72c753f` (WS141) and `be13f1b` (WS142) are on the branch and pushed (0 ahead of origin), and a push is a production deploy. Annotated in this change as built and deployed with the WS143 production checks still with the owner; it moves into Existing Features once the owner signs off WS143.
+
+## F145 — Filter controls are 40px tall next to 32px search and toolbar controls (LOW, visible)
+
+`memo-filters.tsx` uses `.input-field` (`h-10`, `text-sm`); the board search (`memos-client.tsx:352`) and every DataTable toolbar control (`data-table.tsx:514,535,560`) are `h-8`, `text-[13px]`. This is the ragged filter row in the review screenshot, in Board and in List. WS145 gives `MemoFilters` the toolbar classes.
+
+## F146 — Two Stage editors with different "Last updated" rules once Stage is editable in the header (LOW; drives Q139)
+
+After decision 9, Stage can be changed in the header (decision route: keeps `updatedAt`) **and** in Memo details (`meta-sheet.tsx:91-98` → `PATCH`: bumps `updatedAt`, F141). The same change would then reset the Idle cue (decision 4) and the list order from one place and not the other. Q139.
+
+## F147 — The decision route labels every change as a board move (LOW, audit accuracy)
+
+`memo-actions.ts:443` writes `source: "board"` unconditionally. A Stage change from the memo header would be audited as a board move. WS146 adds an optional, validated `source: "page"` (additive; absent → "board", so the board and existing tests are unchanged).
+
+## F148 — Marge prints Stage labels, so the rename reaches Marge's output (informational; JC-MP-F)
+
+`marge-tools/memos.ts:152` maps stored values through `MEMO_DECISION_LABELS`; `memo_list` rows (`:291`, text `:297`) and `memo_get` (`:347`, text `:370` "… · Decision: <label> · …") carry the label. After WS144, `IN_PROGRESS` reads "Evaluating" and `MEMO` reads "Writing memo" in Marge's answers, automatically. The structured key stays `decision` and the stored values are untouched (Marge still cannot set it; `marge-memo-tools.test.ts:737` bans `setMemoDecision`). No tool description mentions decision values (`server.ts`, `tiers.ts`: no match). **Marge prompt impact:** none required; the Marge handoff note should say the labels and the "Stage:" text key changed so any prompt text quoting "In Progress" / "Memo" / "Decision:" is updated.
+
+---
+
+## Design in one paragraph
+
+Labels first (WS144): one constant change renames the Stage values and the Unsorted column everywhere, including Marge's output; the remaining copy follows Nosa. Then the board (WS145): a new pure helper set (`isIdle`, `boardTime`, `tagLine`, `sameName`, `landingIndex`, `summaryCounts`, `moveTargets`) drives a rebuilt card (title, optional company line, one footer line, one tag line), rails for empty columns with spring-open on drag, a landing line in the target column at the card's true sorted position, a summary line whose segments filter, a single toolbar row, the toggle on the tabs row, and a ⋯ menu on phones. Then the memo page (WS146): the header splits into a title row, a controls row (Stage select through the decision route with a page source, Memo status select, Visibility button) and a facts line; the Details box becomes a compact, collapsible 3-column list with one Edit entry; the section nav tracks the active section and phones get a Jump to select; "Hidden from share links" opens the Share panel. Rollout is one push (WS147).
+
+---
+
+## Technical judgment calls (flagged per protocol, each with a cheap reversal)
+
+| | Call | Reversal |
+|---|---|---|
+| **JC-MP-A** | **Card time is a new helper, not a change to `relativeTime`.** `boardTime(iso, now)` = `relativeTime` under 14 days, "N wk ago" from 14 to 30 days, then "Aug 13" in the current year or "Aug 13, 2025" for older years (a bare "Aug 13" for a 2025 memo would read as this year). `relativeTime` is used across the app and keeps its behaviour. | Drop the year branch, or use `relativeTime` |
+| **JC-MP-B** | **Insertion indicator = the card's true landing spot.** Cards sort by `updatedAt` and a move keeps `updatedAt` (Q137-A), so the line is drawn where the card will actually land (`landingIndex`), not under the cursor. Dim non-targets = the source column body at `opacity-60` while dragging. Native drag only; no library. | Delete the line and the dim class (two JSX expressions) |
+| **JC-MP-C** | **Spring-open on drag:** hovering a dragged card over a rail for 500 ms opens it; rails opened this way close again on drag end unless the card was dropped there and the column is no longer empty (Passed closes again, as JC-MB-G). Click toggles as today. | Remove the timer; rails stay drop targets |
+| **JC-MP-D** | **Phone ⋯ uses the existing Radix `DropdownMenu`** (works on touch; same component as desktop), not a new sheet. "Open memo" stays in the menu. | Swap the content for a `ModalSheet` |
+| **JC-MP-E** | **Summary line on Board only.** List has DataTable's own row count and search, so board-style counts would disagree with its search box. The "idle" segment filters client-side (no API change); "in review" sets the existing Memo status filter. | Render the same line above the List too |
+| **JC-MP-F** | **Marge text key "Decision:" → "Stage:"** in the `memo_get` text line (`marge-tools/memos.ts:370`); structured key `decision` and `memo_list` shape unchanged. Keeps Marge's wording in line with the UI. | One-line revert |
+| **JC-MP-G** | **Company stays reachable when the header hides it.** When the company name equals the title, the header shows a quiet icon after the title instead of the name: linked company → `Building2` link to the company page (`aria-label="Open Acme in Molly"`); ledger → same icon to the ledger page (`"Open Acme in the Deal Ledger"`); pending → `Link2Off` with `title="Not linked"`; none → nothing. Without this, hiding the duplicate name would remove the only header link to the company. | Always show the company name |
+| **JC-MP-H** | **Tab hints as `title` tooltips** via an optional `hint?: string` on `TabDef` (`src/components/ui/tab-bar.tsx`), rendered as `title` on the tab link. Additive; other TabBar callers unaffected. | Remove the prop |
+| **JC-MP-I** | **Audit source** for header Stage changes: `setMemoDecision` accepts `body.source === "page"`; anything else (or absent) audits `"board"` (F147). | Drop the field |
+| **JC-MP-J** | **Display nouns as constants:** `MEMO_DECISION_NOUN = "Stage"` and `MEMO_STATUS_NOUN = "Memo status"` in `memos.ts`, used by filters, list headers, header labels and toasts, so a later rename is one line like the values. | Inline the strings |
+
+---
+
+## WS144 — Labels and copy, ~0.5 day
+
+Display strings only. No stored value, route shape or schema changes.
+
+**WS144.1 — `src/lib/memos.ts:32-38`:**
+
+```ts
+// Part 41 (D3) values; Part 44 display labels (the owner may retune them: labels only).
+export const MEMO_DECISION_LABELS: Record<MemoDecision, string> = {
+  IN_PROGRESS: "Evaluating",
+  MEMO: "Writing memo",
+  INVESTED: "Invested",
+  LATER: "Later",
+  PASSED: "Passed",
+};
+/** Part 44 (JC-MP-J): what the UI calls the two axes. */
+export const MEMO_DECISION_NOUN = "Stage";
+export const MEMO_STATUS_NOUN = "Memo status";
+```
+
+**WS144.2 — `src/lib/memo-board.ts:8`:** `NONE: "Unsorted"`; update the comment on `:6` ("Unsorted" last).
+
+**WS144.3 — `src/app/admin/memos/memos-client.tsx`:**
+- `TABS` (`:45-49`): `{ key: "mine", label: "Mine", hint: "Memos you own, private or shared." }`, `{ key: "team", label: "Team", hint: "Every memo shared with the team, yours included." }`, `{ key: "all", label: "Everything", hint: "Your private memos plus everything shared with the team." }`. `?tab=` keys stay `mine|team|all` (old links keep working).
+- Subtitle (`:282`): "Your team's deal pipeline and investment memos. New memos are private until the owner shares them."
+- "Template" button (`:287`) → "Memo template".
+- List columns: `header: "Status"` (`:240`) → `MEMO_STATUS_NOUN`; `header: "Decision"` (`:247`) → `MEMO_DECISION_NOUN`.
+- Toasts and announcement in `move()` (`:186`, `:197`): `` `"${row.title}" moved to ${label}.` `` (Undo unchanged).
+- Failure (`:201`, `:210`, `:214`): `` `Couldn't move "${row.title}". Check your connection and try again.` `` (Retry unchanged; the `readError` fallback uses the same sentence).
+- 409 (`:205`): fixed copy instead of the server sentence: `` `Someone else just updated "${row.title}". Reload to see the latest, then move it again.` `` (Reload action unchanged). 403/404 keep the server sentence.
+
+**WS144.4 — `src/components/admin/memos/memo-filters.tsx`:** status select `aria-label={MEMO_STATUS_NOUN}`, first option "Any memo status"; decision select `aria-label={MEMO_DECISION_NOUN}`, first option "Any stage". (The checkbox becomes a chip in WS145.5.)
+
+**WS144.5 — `src/components/admin/memos/memos-empty.tsx`:**
+- Filtered: description "Try a different company, stage or memo status, or clear the filters."
+- `scope === "team"`: title "Nothing shared yet", description "Memos appear here when their owner shares them with the team."; keep the New memo button (a new memo can be shared from its page).
+- Mine / Everything: "No memos yet" and today's description.
+
+**WS144.6 — Memo page and sheets:**
+- `[id]/memo-client.tsx:72,75`: "Couldn't change the memo status."
+- `section-card.tsx:16` `CONFLICT`: "Someone else saved this section while you were editing. Copy your text, reload, then paste it back."
+- `meta-sheet.tsx:99` tags placeholder "e.g. AI, Infrastructure". (The Decision select is Q139; if the owner keeps it, its label becomes `MEMO_DECISION_NOUN` and its empty option "None yet".)
+- `template-editor.tsx:70` breadcrumb "Template" → "Memo template".
+
+**WS144.7 — Marge (`src/lib/marge-tools/memos.ts:370`, JC-MP-F):** `Decision: ${header.decision ?? "not set"}` → `Stage: ${header.decision ?? "not set"}`. Nothing else in Marge changes; the labels flow in through `decisionLabel` (F148).
+
+**Nosa items skipped (contradict decisions):** #6, #7, #19, #20 ("Not in Molly yet": decision 2 keeps "Not linked"); #8 ("Link to a Molly company": tied to the same rename); #9 "EMPTY" is handled by rails (WS145.3); #10, #11, #12 are absorbed by the header redesign (WS146); #21 by the card (WS145.2). Nosa's "Memo stage" for `MEMO` is superseded by the owner's "Writing memo".
+
+**Tests (update):**
+- `memo-board.test.ts:65` → `expect(COLUMN_LABELS.NONE).toBe("Unsorted")`; add `expect(COLUMN_LABELS.IN_PROGRESS).toBe("Evaluating")` and `expect(COLUMN_LABELS.MEMO).toBe("Writing memo")`.
+- `marge-memo-tools.test.ts:832` → `"Stage: not set"`; `:835` → `/Source: not set · Stage: Invested · Tags: none/`. Add: with `decision = "IN_PROGRESS"`, `structured.memo.decision === "Evaluating"` (proves the label flows; the stored value is untouched).
+- `memo-components.test.tsx:44` changes in WS146.
+
+**Acceptance:**
+- [ ] Every user-facing "Decision" on `/admin/memos`, the memo page and the details sheet reads "Stage"; "Status" next to it reads "Memo status". `grep -rn '"Decision"\|>Decision<\|Any decision\|No decision\|In Progress' src/app/admin/memos src/components/admin/memos` returns nothing.
+- [ ] Tabs read Mine / Team / Everything; hovering shows the hint; old `?tab=team` and `?tab=all` links still open the right tab.
+- [ ] Stored values unchanged: an audit row of a move still reads `to: "MEMO"`.
+- [ ] Marge `memo_get` on a `MEMO` memo prints "Stage: Writing memo".
+
+**UX impact:** words only; every control stays where it is in this workstream. Admins see "Evaluating", "Writing memo", "Unsorted", "Stage", "Memo status" and the new tab names. Founders, LPs and share-link recipients: nothing (share pages never show Stage or these labels). **Cost impact:** none.
+
+---
+
+## WS145 — Board card, columns, filter row, phone, ~1.5 days
+
+**WS145.1 — `src/lib/memo-board.ts` (pure; add):**
+
+```ts
+import { relativeTime } from "@/lib/relative-time";
+
+/** Decision 4. Stages where a quiet memo needs a nudge. */
+export const IDLE_STAGES: readonly MemoDecision[] = ["IN_PROGRESS", "MEMO"];
+export const IDLE_DAYS = 14;
+const DAY = 86_400_000;
+
+export function isIdle(m: { decision: MemoDecision | null; updatedAt: string }, now = new Date()): boolean {
+  if (!m.decision || !IDLE_STAGES.includes(m.decision)) return false;
+  return now.getTime() - new Date(m.updatedAt).getTime() >= IDLE_DAYS * DAY;
+}
+
+/** JC-MP-A. Relative up to 30 days, then "Aug 13" (year added when it is not this year). */
+export function boardTime(iso: string, now = new Date()): string {
+  const then = new Date(iso);
+  const days = Math.floor((now.getTime() - then.getTime()) / DAY);
+  if (days < 14) return relativeTime(then, now);
+  if (days <= 30) return `${Math.floor(days / 7)} wk ago`;
+  const sameYear = then.getFullYear() === now.getFullYear();
+  return then.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(sameYear ? {} : { year: "numeric" }) });
+}
+
+/** Decision 2: hide the company line when it repeats the title. */
+export const sameName = (a: string | null | undefined, b: string | null | undefined) =>
+  !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/** Decision 2: "AI · Payments" plus the hidden count. */
+export function tagLine(tags: readonly string[], shown = 2): { text: string; more: number } {
+  return { text: tags.slice(0, shown).join(" · "), more: Math.max(0, tags.length - shown) };
+}
+
+/** Columns a card can move to (menu items on desktop and phone). */
+export const moveTargets = (here: ColumnKey): ColumnKey[] => DECISION_COLUMNS.filter((k) => k !== here);
+
+/** JC-MP-B. Where a dropped card lands in a column sorted by updatedAt desc. */
+export function landingIndex(cards: readonly { id: string; updatedAt: string }[], dragged: { id: string; updatedAt: string }): number {
+  return cards.filter((c) => c.id !== dragged.id && c.updatedAt > dragged.updatedAt).length;
+}
+
+/** Decision 5: the summary line. Counts are over the rows the board is showing. */
+export function summaryCounts<T extends { status: string; decision: MemoDecision | null; updatedAt: string }>(rows: readonly T[], now = new Date()) {
+  return { total: rows.length, inReview: rows.filter((r) => r.status === "IN_REVIEW").length, idle: rows.filter((r) => isIdle(r, now)).length };
+}
+```
+
+**WS145.2 — `src/components/admin/memos/memo-board-card.tsx` (rebuild the face; drag, keyboard and menu logic stay):**
+- **Props:** add `showOwner: boolean`; drop the phone-only select. `desktop` keeps controlling `draggable` only.
+- **Owner (F143):** `const ownerName = ownerLabel(memo.owner); const ownerTip = memo.owner.id === me ? "You" : ownerName;` chip text `initials(ownerName)`, colour `tileTone(ownerName)`, `title={`Owner: ${ownerTip}`}`, `aria-label={`Owner: ${ownerTip}`}`. Rendered only when `showOwner`.
+- **Title row:** the `Link` gets `line-clamp-2` (full title in `title`); after it, when `memo.companyRef.kind === "pending"`, a quiet mark: `<span title="Not linked" className="mt-0.5 shrink-0 text-muted-foreground"><Link2Off aria-hidden className="h-3.5 w-3.5" /><span className="sr-only">Not linked</span></span>`; then the ⋯ menu (now rendered on desktop **and** phone; on phone always visible via the existing `[@media(hover:none)]:opacity-100`).
+- **Company line:** render `<p className="mt-0.5 truncate text-xs text-muted-foreground">` only when `companyRef.kind === "none"` ("No company") or `!sameName(companyRef.name, memo.title)`; pass `MemoCompanyLabel` a new `badge={false}` prop so the card does not repeat the "Not linked" badge (the icon carries it; the list keeps its badge).
+- **Footer line** (`mt-2 flex items-center gap-1.5 text-xs text-muted-foreground`):
+
+```tsx
+const idle = isIdle(memo);
+const dot = { DRAFT: "border border-[#8C897B] bg-transparent", IN_REVIEW: TONE_CLASSES.amber.dot, FINAL: TONE_CLASSES.sage.dot }[memo.status];
+<div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+  <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", dot)} />
+  {memo.status === "FINAL" ? <span className="sr-only">Final</span> : <span>{MEMO_STATUS_LABELS[memo.status]}</span>}
+  {memo.status !== "FINAL" && <span aria-hidden="true">·</span>}
+  <span title={new Date(memo.updatedAt).toLocaleString()} className={cn(idle && "text-tone-amber-ink")}>
+    {idle ? `Idle · ${boardTime(memo.updatedAt)}` : boardTime(memo.updatedAt)}
+  </span>
+  {showOwner && <span /* owner chip, ml-auto */ />}
+</div>
+```
+
+  Square dots (A+), amber = attention (never clay); `text-tone-amber-ink` is the AA ink of the amber pair.
+- **Tag line:** when tags exist, `<p className="mt-1 truncate text-xs text-muted-foreground" title={tags.join(", ")}>{text}{more > 0 && ` +${more}`}</p>` from `tagLine(tags)`; `<span className="sr-only">Tags: </span>` first.
+- **Menu (desktop and phone):** "Move to" items from `moveTargets(here)`; "Open memo" unchanged. Read-only cards keep only "Open memo".
+
+**WS145.3 — `src/components/admin/memos/memo-board.tsx`:**
+- **Props:** add `showOwner` (passed through to cards).
+- **Collapse rule:** `const isCollapsed = (k) => (COLLAPSED_BY_DEFAULT.includes(k) || grouped[k].length === 0) && !expanded.has(k);` The header's collapse button shows for Passed and for any open empty column.
+- **Rail (desktop):** keep the `<button>`; add `title={n ? `Show ${n} ${COLUMN_LABELS[k].toLowerCase()}` : `${COLUMN_LABELS[k]}: no memos`}`, keep `aria-label={`Show ${COLUMN_LABELS[k]}, ${countLabel(n)}`}`; add a `ChevronsRight` (h-3.5) at the top; label `text-foreground` on a `bg-well` with `hover:bg-muted` and a `border border-border` edge so it reads as a control; `w-12` stays.
+- **Spring-open (JC-MP-C):** `const springRef = useRef<{ key: ColumnKey; t: ReturnType<typeof setTimeout> } | null>(null); const springOpened = useRef(new Set<ColumnKey>());` In the rail's `onDragEnter` (when it accepts) start a 500 ms timer that adds `k` to `expanded` and to `springOpened`; clear it on `onDragLeave` / `onDrop`. In `endDrag`, remove `springOpened` keys from `expanded` and clear the set.
+- **Column body cap:** body classes add `md:max-h-[70vh] md:overflow-y-auto`.
+- **Landing line and dim (JC-MP-B):** in an accepting target column, compute `const at = dragged && dropColumn === k ? landingIndex(cards, dragged) : null` and render `<div aria-hidden className="h-0.5 shrink-0 bg-sky" />` before card `at` (or at the end); the source column body (`columnOf(dragged.decision) === k`) gets `opacity-60` while dragging.
+- **Empty open column:** "No memos here" (`text-xs text-muted-foreground`, sentence case), or "Drop a memo here" while an accepting drag is over it.
+- **Phone:** replace `open={!isCollapsed(k)}` with its own state: `const [phoneOpen, setPhoneOpen] = useState<Set<ColumnKey>>(() => { const first = DECISION_COLUMNS.find((k) => grouped[k].length > 0); return new Set(first ? [first] : []); });` `onToggle` adds/removes `k`; cards render only when `phoneOpen.has(k)`; empty sections say "No memos here".
+
+**WS145.4 — Tabs row and toggle (`memos-client.tsx:297-324`):** wrap `TabBar` and the toggle in `<div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border">`; `TabBar className="mb-0 border-b-0"`; toggle group `className="flex gap-1.5 pb-1.5"` (drop `w-full` / `flex-1`). `src/components/ui/tab-bar.tsx`: `TabDef` gains `hint?: string`; the tab `Link` gets `title={t.hint}` (JC-MP-H).
+
+**WS145.5 — Filter row (board) and toolbar classes (both views):**
+- `memo-filters.tsx`: replace `className="input-field w-auto"` on the three selects with the DataTable toolbar classes `h-8 w-auto rounded-ctl border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring` (F145). Replace the checkbox with a toggle chip: `<button type="button" aria-pressed={unlinked} onClick={() => onChange({ unlinked: !unlinked })} className={cn(<data-table.tsx:535-538 chip classes>)}><Link2Off aria-hidden className="h-3.5 w-3.5" />Not linked</button>`. The outer wrapper becomes `flex flex-wrap items-center gap-2`.
+- Board row (`memos-client.tsx:337-364`): `flex flex-wrap items-center gap-2 lg:flex-nowrap`; search wrapper `min-w-[200px] flex-1` (drop `max-w-sm`) so the row spans the same edge as the tabs and the board. No wrappers with their own horizontal padding: header, tabs row, filter row, summary and board are siblings inside `AppShell`'s content (one edge).
+- **Summary line** (board only, JC-MP-E), directly under the filter row, `mb-3 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground`:
+
+```tsx
+const [idleOnly, setIdleOnly] = useState(false);
+const counts = useMemo(() => summaryCounts(boardRows), [boardRows]);
+const shownRows = idleOnly ? boardRows.filter((m) => isIdle(m)) : boardRows;
+// "30 memos" (plain text) · "4 in review" (button, aria-pressed={status === "IN_REVIEW"}, toggles applyFilters({ status: pressed ? "" : "IN_REVIEW" }))
+// · "2 idle" (button, aria-pressed={idleOnly}, toggles idleOnly). A segment with 0 is omitted unless it is pressed.
+```
+
+  Buttons are text-styled (`underline-offset-4 hover:text-foreground hover:underline`, pressed = `text-foreground font-medium`). `filtered` (empty state) includes `idleOnly`; "Clear filters" resets it. Pass `shownRows` to `MemoBoard`.
+- `MemoBoard` gets `showOwner={scope !== "mine"}`.
+
+**Tests:**
+- `memo-board.test.ts` (add): `isIdle` (MEMO 14 days → true; 13 days → false; INVESTED 60 days → false; null → false); `boardTime` (3 d → "3 d ago"; 20 d → "2 wk ago"; 30 d → "4 wk ago"; 45 d same year → "Aug 13"-style without year; last year → with year), using a fixed `now`; `sameName` ("Acme" vs " acme " true; "Acme" vs "Acme AI" false; nulls false); `tagLine` (["AI","Payments","Fintech","Seed"] → text "AI · Payments", more 2; [] → "", 0); `moveTargets("MEMO")` has 5 entries and not MEMO; `landingIndex` (newer cards before, ignores itself); `summaryCounts`.
+- `memo-components.test.tsx` (update):
+  - `:104-111` → "phone has a ⋯ menu trigger and no select": `card(memoRow(), false)` contains `aria-label="Actions for &quot;Acme&quot;"` and no `<select`; not draggable.
+  - `:116-122` → "tags render as one line, two shown and +2": tags ["a1","b2","c3","d4"] → contains "a1 · b2" and "+2", not ">c3<"; `title="a1, b2, c3, d4"`.
+  - `:135-139` → "an empty Unsorted column is a rail": contains `aria-label="Show Unsorted, 0 memos"` and `title="Unsorted: no memos"`.
+  - `:130-134` keep, plus `title="Show 1 passed"`.
+  - add: owner chip for `me` shows initials "SE", not "Y", with `aria-label="Owner: You"`; `showOwner={false}` renders no `Owner:`; company line hidden when `companyRef` is `{ kind: "company", name: "ACME" }` and title "Acme"; Final renders `sr-only">Final<` and no visible "Final" text node outside it; Draft renders "Draft"; an idle MEMO card (updatedAt 20 days before a mocked `Date`, `vi.useFakeTimers().setSystemTime(...)`) contains "Idle · 2 wk ago"; a pending company renders `title="Not linked"`.
+  - `:112-115` and `:123-126` unchanged (still pass).
+
+**Acceptance (desktop 1280 and 1440, and a 375px phone):**
+- [ ] Mine tab: no owner chips. Team / Everything: real initials on every card, including mine; hovering my chip says "Owner: You".
+- [ ] A card whose company equals its title shows no company line; a card with a different company shows it; a pending company shows the quiet icon with "Not linked" on hover.
+- [ ] Footer: Draft hollow + "Draft", In review amber + "In review", Final green dot only; time "3 d ago", "2 wk ago", then "Aug 13" (with year only for past years); owner at the right.
+- [ ] An Evaluating or Writing memo card untouched 14+ days shows amber "Idle · 3 wk ago"; Invested / Later / Passed / Unsorted never do.
+- [ ] Empty columns are rails; clicking opens one ("No memos here"); dragging a card over a rail for half a second opens it; dropping there works, and rails opened by the drag close again afterwards if still empty.
+- [ ] Passed rail shows a chevron, label and count, highlights on hover, tooltip "Show 13 passed"-style.
+- [ ] A column with many cards scrolls inside itself (page does not grow past ~70vh per column).
+- [ ] While dragging: the source column dims; the target column shows a 2px line exactly where the card lands after the drop.
+- [ ] Board / List toggle sits at the right of the tabs row; search, company, memo status and the "Not linked" chip share one 32px row; left and right edges line up with the header and the board. List view's toolbar selects are 32px too.
+- [ ] Summary line counts match the cards; "in review" and "idle" toggle filters; "Clear filters" resets both.
+- [ ] Phone: only the first non-empty section is open; each card has a ⋯ with Move to and Open memo; no full-width select.
+- [ ] Undo, conflicts, keyboard (`m`, Alt+Left/Right) behave as in Part 43.
+
+**UX impact:** the board looks calmer and fixes a visible bug; nothing is removed: every card still shows title, company (when it adds information), status, time, owner (except on Mine, where it is always the viewer) and tags (all in the tooltip); moving works by drag, menu and keyboard as before; on phones the select becomes a menu. The List view gains only aligned control heights and a chip in place of a checkbox (same filter). Founders, LPs and share-link recipients: nothing. **Cost impact:** none (client-side only; no new request, package or table).
+
+---
+
+## WS146 — Memo page: header, Stage in place, Details, section nav, share hint, ~1.25 days
+
+**WS146.1 — Decision route source (F147, JC-MP-I), `src/lib/memo-actions.ts:443`:**
+
+```ts
+const source = body.source === "page" ? "page" : "board";
+// metadata: { memoId: id, from: memo.decision ?? null, to, version: body.expectedVersion + 1, source, ...(body.undo === true ? { undo: true } : {}) }
+```
+
+Update the route comment (`decision/route.ts:7`) to list `source?: "page"`. **Test** (`memo-routes.test.ts`, decision block): `source: "page"` audits `source: "page"`; `source: "bogus"` and absent audit `"board"`.
+
+**WS146.2 — New `src/components/admin/memos/memo-header.tsx`** (moves the header out of `memo-client.tsx:131-185`; props `{ memo, onOpenShare, onArchive, onChanged }`):
+- **Title row:** `Breadcrumb` (`memo-no-print`, unchanged), then `flex items-start justify-between gap-4`: left = `h1` (same classes as `PageHeader`) followed by the company: if `companyRef.kind === "none"` nothing; if `sameName(ref.name, memo.title)` the quiet icon of JC-MP-G; otherwise today's `companyLine` (`memo-client.tsx:101-124`, unchanged, below the title as `text-sm`). Right = actions: from `sm` up, "Print or save as PDF" and "Share" buttons as today; below `sm`, "Share" plus a ⋯ `DropdownMenu` (`aria-label="More actions"`) holding "Print or save as PDF" and, when `canManage`, "Archive memo" (the bottom Archive button stays).
+- **Controls row** (`memo-no-print mt-3 flex flex-wrap items-center gap-x-4 gap-y-2`), each control preceded by a `.label` caption bound with `htmlFor`:
+  - **Stage** (`memo.canEdit`): `<select id="memo-stage">` with "Unsorted" (`value=""`) + `MEMO_DECISIONS` / `MEMO_DECISION_LABELS`, toolbar classes. Read-only viewers see the label text.
+
+```tsx
+const [stage, setStage] = useState({ decision: memo.decision, version: memo.version });
+useEffect(() => setStage({ decision: memo.decision, version: memo.version }), [memo.decision, memo.version]);
+async function changeStage(next: MemoDecision | null) {
+  const prev = stage;
+  setStage({ ...prev, decision: next }); // optimistic
+  setSavingStage(true);
+  try {
+    const res = await fetch(`/api/admin/memos/${memo.id}/decision`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: next, expectedVersion: prev.version, source: "page" }),
+    });
+    if (res.ok) {
+      const saved: { decision: MemoDecision | null; version: number } = await res.json();
+      setStage(saved);
+      onChanged(); // router.refresh(): other controls pick up the new version
+      return;
+    }
+    setStage(prev);
+    if (res.status === 409) {
+      toast.error("Someone else just updated this memo. Reload to see the latest, then change the stage again.", {
+        action: { label: "Reload", onClick: onChanged },
+      });
+    } else toast.error(await readError(res, "Couldn't change the stage."));
+  } catch {
+    setStage(prev);
+    toast.error("Couldn't change the stage.", { retry: () => void changeStage(next) });
+  } finally {
+    setSavingStage(false);
+  }
+}
+```
+
+    No `updatedAt` bump (the route keeps it, Q137-A), so the facts line date does not move.
+  - **Memo status** (`memo.canEdit`): today's select (`memo-client.tsx:153-165`) with `id="memo-status"` and the "Memo status" caption; read-only viewers see the status `Badge`.
+  - **Visibility:** `<Button variant="secondary" size="sm" onClick={onOpenShare}>` with `Users` + "Shared with team" or `Lock` + "Private". Neutral styling (no info tint). The Share panel is unchanged: only the owner can change sharing there (`share-panel.tsx:45,57-59`).
+  - **Print-only line** (`hidden print:block text-sm`): `Stage: Writing memo · Memo status: Final` (Stage "Unsorted" when null).
+- **Facts line** (`mt-2 flex flex-wrap gap-x-2 text-sm text-muted-foreground`, printed), joined by `·`: `Owned by {ownerLabel(owner)}` · `Updated Oct 21, 2026` (today's format, `memo-client.tsx:175`) · `From Notion` when `importedFromNotion` · `Drafted by Marge` (`memo-no-print`) when `draftedByMarge`. Keep the print-only `<p className="hidden print:block">Drafted with Marge</p>`. Delete the "Drafted by Marge for …" sentence (`:180`), the "Imported from Notion." sentence (`:185`), the decision badge (`:170`) and the visibility badge (`:171-173`).
+
+**WS146.3 — New `src/components/admin/memos/memo-details.tsx`** (moves `memo-client.tsx:201-263`; props `{ memo, linked, onEditDetails, onChangeCompany }`):
+- **Fields:** Source, Intro date, Website, Tags, Intro calls (Decision removed). `filled` = count of non-empty fields.
+- **Header row:** `<button aria-expanded={open} aria-controls="memo-details-body">` with the `.label` "Details", the summary when collapsed (e.g. "Founder Intro · Intro Aug 10, 2026 · 4 tags · 1 intro call", built from filled fields, `truncate`), and a `ChevronDown` (`rotate-180` when open). `const [open, setOpen] = useState(filled < 3)`.
+- **Single Edit entry** (`memo-no-print`, right): `canManage && canEdit` → a `DropdownMenu` trigger "Edit" (`Pencil`) with "Edit details" and "Change company" / "Link to company" (`Link2`); `canEdit` only → a plain "Edit" button opening Edit details. Company linking stays owner-only (`canManage`), exactly as `memo-client.tsx:205`.
+- **Body:** `<dl id="memo-details-body" className={cn("mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3", !open && "hidden print:grid")}>`; Tags as plain text `memo.tags.join(", ")`; other rows as today (`Detail` helper moves with it). No details at all → today's empty sentence, no toggle.
+- `memo-client.tsx` passes `onChangeCompany={() => setLinking(true)}`, `onEditDetails={() => setShowMeta(true)}`.
+
+**WS146.4 — New `src/components/admin/memos/section-nav.tsx`** (moves `memo-client.tsx:266-276`; props `{ sections: { key: string; title: string }[] }`):
+
+```tsx
+const [active, setActive] = useState<string | null>(sections[0]?.key ?? null);
+useEffect(() => {
+  const els = sections.map((s) => document.getElementById(`section-${s.key}`)).filter((e): e is HTMLElement => !!e);
+  if (!els.length || typeof IntersectionObserver === "undefined") return;
+  const io = new IntersectionObserver(
+    (entries) => {
+      const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
+      if (top) setActive(top.target.id.replace(/^section-/, ""));
+    },
+    { rootMargin: "-96px 0px -60% 0px" }
+  );
+  els.forEach((el) => io.observe(el));
+  return () => io.disconnect();
+}, [sections]);
+```
+
+- **Desktop (`hidden lg:block`, sticky as today):** active link gets `aria-current="location"`, `text-foreground font-medium` and a 2px left rule (`border-l-2 border-foreground pl-2`; others `border-l-2 border-transparent pl-2`).
+- **Phone (`lg:hidden memo-no-print mb-4`):** `<label htmlFor="memo-jump" className="label">Jump to</label>` + `<select id="memo-jump">` (toolbar classes, full width) listing section titles, value = `active`; `onChange` → `document.getElementById(`section-${v}`)?.scrollIntoView({ behavior: "smooth", block: "start" })` (instant under reduced motion via the global guard) and `history.replaceState(null, "", `#section-${v}`)`.
+- `section-card.tsx:143`: `scroll-mt-6` → `scroll-mt-24 lg:scroll-mt-6` so a jumped-to heading is not under the phone top bar.
+
+**WS146.5 — "Hidden from share links" (`section-card.tsx:146`):** new optional prop `onOpenShare?: () => void`.
+
+```tsx
+{!section.includeInShare &&
+  (onOpenShare ? (
+    <button type="button" onClick={onOpenShare} title="Left out of share links. The owner changes this when editing the section."
+      className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <EyeOff aria-hidden className="h-3.5 w-3.5" />Hidden from share links
+    </button>
+  ) : (
+    <span className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground"><EyeOff aria-hidden className="h-3.5 w-3.5" />Hidden from share links</span>
+  ))}
+```
+
+`memo-client.tsx` passes `onOpenShare={() => setShowShare(true)}`. The tooltip says where the switch actually is (the section editor, owner only), since the Share panel itself has no per-section switch.
+
+**WS146.6 — `memo-client.tsx`** becomes the composition: `MemoHeader`, the suggestion banner (unchanged), `MemoDetails`, the two-column grid with `SectionNav` and the sections, Archive, and the three overlays (unchanged).
+
+**WS146.7 — Q139 (default A):** remove the Decision `Select` and `decision` state from `meta-sheet.tsx` (`:17`, `:41`, `:91-98`), so the header is the only Stage editor in the UI. `updateMemoMeta` keeps accepting `decision` (no API change). If the owner picks B, instead relabel it `MEMO_DECISION_NOUN` with "None yet".
+
+**Tests:**
+- `memo-components.test.tsx:44` → `toContain("Hidden from share links")`; add: with `onOpenShare` it renders a `<button`; without it, a `<span`.
+- add `MemoDetails` static renders: Decision row absent; tags as "AI, Payments" text, no chip markup; with 3 filled fields `aria-expanded="false"` and the body has `hidden`; with 2, `aria-expanded="true"`; `canManage` renders the Edit menu trigger, `canEdit` only renders a plain "Edit" button and no "Change company".
+- add `SectionNav` static render: first link `aria-current="location"`; a `<select id="memo-jump"` with one option per section.
+- add `MemoHeader` static renders: no Stage badge outside the select; facts line contains "From Notion" for an imported memo and no "Imported from Notion."; company name hidden and `aria-label="Open Acme in Molly"` present when the company equals the title; print-only "Stage: Writing memo" present.
+- `memo-page.test.ts` mocks `memo-client` (`:24`) and needs no change.
+
+**Acceptance:**
+- [ ] Header: title row (breadcrumb, title, company only when different, actions right); controls row Stage · Memo status · Visibility; facts line "Owned by … · Updated … · From Notion". No floating "Imported from Notion." and no duplicate Stage tag.
+- [ ] Changing Stage on the page saves at once, the "Updated" date does not change, the board shows the new column, `/admin/audit` shows `MEMO_DECISION_CHANGED` with `source: "page"`.
+- [ ] Conflict: change details in a second tab, then Stage in the first: the select reverts and the toast offers Reload.
+- [ ] Visibility button opens the Share panel; a non-owner sees the read-only state there.
+- [ ] Phone (375px): Share visible, ⋯ holds Print (and Archive for the owner); "Jump to" scrolls to the section with its heading visible.
+- [ ] Details: 3 columns on desktop, tags as text, one Edit entry; owner sees Change company in its menu, a teammate on a shared memo does not; collapsed by default when 3+ fields are filled, the summary line names them, clicking expands.
+- [ ] Desktop nav highlights the section in view while scrolling and after clicking a link.
+- [ ] A section left out of share links shows the eye-off "Hidden from share links"; clicking opens the Share panel.
+- [ ] Print preview: Details expanded, "Stage: … · Memo status: …" printed, facts line printed, "Drafted with Marge" for Marge memos, no controls, no nav.
+
+**UX impact:** the header shows the same information in a clearer order and lets admins change Stage where they read the memo; every action stays reachable (Print and Archive on phones move into ⋯; Change company moves into the Edit menu; Stage editing moves from Memo details to the header, per Q139); "Last updated" no longer moves when Stage changes. Printed memos keep every field. Share-link recipients see nothing new (share pages are untouched). **Cost impact:** none.
+
+---
+
+## WS147 — Rollout, ~0.25 day
+
+Push = production deploy (Vercel). No schema, no env var, no data step.
+
+1. Ship WS144 → WS145 → WS146 in one push (or WS144 alone first: it is words only and safe).
+2. `npx vitest run --exclude '.claude/**'` green, `npm run lint` and `npx tsc --noEmit` clean before pushing.
+3. After deploy, run the WS145 and WS146 acceptance lists on production; one Stage change from a memo page on a memo you own, then set it back (two audit rows with `source: "page"`).
+4. **Marge handoff note:** Stage labels now read "Evaluating" / "Writing memo"; `memo_get` text says "Stage:" instead of "Decision:"; structured field `decision` and all tool names and inputs unchanged; Marge still cannot set it.
+5. Tell the team: "Decision" is now "Stage"; In Progress is "Evaluating", Memo is "Writing memo", No decision is "Unsorted"; idle cards are amber after two weeks.
+6. **Rollback:** revert the WS146, WS145, WS144 commits (independent). The `source: "page"` audit rows are harmless to keep.
+
+---
+
+## Conflicts with how Molly works
+
+1. **Idle uses `updatedAt` only (decision 4).** A board move keeps `updatedAt` (Q137-A), so dragging an idle Evaluating card to Writing memo leaves it idle; editing a section, the details, the status or visibility clears it. This is the approved meaning ("untouched"), noted so it is not reported as a bug.
+2. **Two kanban implementations** (Part 43 JC-MB-B) stay separate; the landing line copies the team board's 2px style without sharing code.
+3. **"Not linked" stays** (Part 42 Q132) although Nosa proposed "Not in Molly yet"; the card shows it as an icon with that tooltip, the list and memo page keep the word.
+4. **Not a conflict:** stored values, routes (except one optional audit field), share pages, Marge's tool shapes and the schema are unchanged.
+
+---
+
+## Open product decisions (the owner's call, each with a recommendation)
+
+| | Question | Options | Recommendation |
+|---|---|---|---|
+| **Q139** | Once Stage is editable in the memo header, does Memo details keep its own Stage select? (F146) | **(A)** Remove it from Memo details; the header is the one place to change Stage on the memo page (the board stays the other). **(B)** Keep it, relabelled "Stage". | **(A).** Two editors with different rules confuse: the details sheet resets "Updated" and the Idle cue, the header does not (F141, Q137-A). Removing it takes no ability away, since the header select is one click and sits right above. Reverting is re-adding one `Select`. |
+
+---
+
+## Part 44 sequencing, deploys and effort
+
+**Order:** WS144 → WS145 → WS146 → push → WS147.
+
+| Workstream | Effort |
+|---|---|
+| WS144 Labels and copy | 0.5 |
+| WS145 Board card, columns, filter row, phone | 1.5 |
+| WS146 Memo page header, Stage in place, Details, nav, share hint | 1.25 |
+| WS147 Rollout | 0.25 (owner, with Alvin) |
+| **Total** | **≈ 3.5 days** (Q139-B: no change) |
+
+**New env vars:** none. **New packages:** none. **Schema:** none. **New secrets:** none.
+
+**Do not touch in this Part:** `prisma/schema.prisma`; the share page (`src/app/share/**`, `src/lib/memo-share-page.ts`); `updateMemoMeta` and `PATCH /api/admin/memos/[id]`; `src/components/admin/board/*`, `src/app/admin/board/*`, `src/lib/board-client.ts` (import only); `src/lib/relative-time.ts`; `src/lib/notion-memo-import.ts`; Marge beyond the one text key (WS144.7).
+
+## Part 44 — decisions summary
+
+| | Decision | Status |
+|---|---|---|
+| **Owner decisions 1–13** | Owner chip, card, rails, idle, layout, phone, labels, tabs, header, Details, nav, share hint, Nosa copy | **APPROVED 2026-10-21** |
+| **Q139** | Stage select in Memo details | **Answered 2026-10-21: A** |
+| **JC-MP-A…J** | See the judgment-calls table | **Proposed**, each with a reversal |
+| **F143** | Owner chip shows "Y" | WS145 |
+| **F144** | ROADMAP called Part 43 "building" after it shipped | Annotated in this change |
+| **F145** | Filter controls 40px vs 32px | WS145 |
+| **F146** | Two Stage editors with different "Updated" rules | Q139 |
+| **F147** | Decision audits always say "board" | WS146 |
+| **F148** | Marge prints the Stage labels | Handled (JC-MP-F, handoff note) |
+
+**Constraints honored:** **no new cost line**; **no schema change**; **no UX regression** (every field and action stays reachable; phone actions move into menus; words change; founders, LPs and share-link recipients see nothing new); stored enum values unchanged; Marge's tool shapes unchanged; no company, deal or person name in repo text.
+
+**Handoff status: APPROVED 2026-10-21 (decisions 1–13; Q139 A confirmed by the owner). Ready for Alvin: WS144 → WS145 → WS146; WS147 with the owner.**
+
+---
