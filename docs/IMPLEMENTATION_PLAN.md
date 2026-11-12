@@ -15201,7 +15201,7 @@ Everything else in Marge's table (tool names, tiers, inputs, returns, previews, 
 | **JC-FU-J** | The six input schemas, sentences, reason codes, preview action names and flag names live in one module with no DB import, `src/lib/marge-tools/portco-contract.ts`, so Marge copies one file. | — |
 | **JC-FU-K** | When an admin edits a filed update's figures on the web inside the 3-day window, the replaced values are stored as admin-entered (`enteredById`, `via null`): that is what happened. | Carry `via`/`quote` across the replace |
 
-## Questions for Joseph (Q140–Q142)
+## Questions for Joseph (Q140–Q142) — all answered A by Joseph on 2026-11-12
 
 - **Q140 — Investor links that were already sent.** (A, recommended) Keep them as they were: an update or figure Marge files shows on a link only if it was filed before the link was made, or if an admin picks it for a new link. People who already got a link see nothing change. (B) Treat filed updates like any other: a 2025 link sent earlier would start showing newly filed 2025 updates and newer figures. No code, but people who already got a link see it change. A costs ~0.25 day (WS152).
 - **Q141 — Companies with no founder that are behind on updates.** (A, recommended) Show their status as today, but replace the Remind button with a quiet "No founder in Molly" note, and make the remind route refuse with "Nobody to remind: this company has no founder in Molly." The team still sees which companies have gone quiet. (B) Leave them out of "behind on updates" and the dashboard's Needs attention until a founder joins: fewer rows, but a company that stopped emailing is never flagged. (C) No change: Remind says "Reminder sent" and emails nobody (F151).
@@ -15429,9 +15429,9 @@ Order: WS148 → WS149 → WS150 (Marge can build her FakeMolly from the contrac
 | Ref | Topic | State |
 |---|---|---|
 | Decisions 1–7 | From Marge D-M34, D-M35, Q-PU5, Q-PU9 (Joseph) | Confirmed |
-| **Q140** | Investor links already sent | Open: recommend A |
-| **Q141** | Companies with no founder that are behind | Open: recommend A |
-| **Q142** | Removing an update Marge filed | Open: recommend A |
+| **Q140** | Investor links already sent | **Answered 2026-11-12: A** (keep them as they were) |
+| **Q141** | Companies with no founder that are behind | **Answered 2026-11-12: A** (show status; "No founder in Molly" replaces Remind) |
+| **Q142** | Removing an update Marge filed | **Answered 2026-11-12: A** (admins can remove updates filed from email) |
 | **F149** | Link dialog offers the admin's own address as a contact | WS151 |
 | **F150** | `createdAt`-dated views would misread backfills | JC-FU-C |
 | **F151** | Remind on a memberless company sends nothing | WS151 / Q141 |
@@ -15447,6 +15447,6 @@ Order: WS148 → WS149 → WS150 (Marge can build her FakeMolly from the contrac
 
 **Constraints honored:** **no new cost line** (a Postgres advisory lock and row counts; no new service or package); **additive schema only** (nullable or defaulted columns; unique indexes only on new columns); **no UX regression** (existing companies, founder updates, founders' views and investor links look the same; labels appear only on the new states; Remind goes away only where it could never send); no company, deal or person name in repo text.
 
-**Handoff status: PLAN ONLY (2026-11-12). Waiting on Joseph: approval to build, and Q140–Q142.**
+**Handoff status: PLAN ONLY (2026-11-12). Q140–Q142 answered A (2026-11-12). Waiting on Joseph: approval to build.**
 
 ---
