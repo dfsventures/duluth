@@ -102,6 +102,28 @@ export async function POST(
       scheduledForDate = parsed;
     }
 
+    // F152: every metric definition must belong to this company.
+    const isAdmin = user!.roles.includes("ADMIN");
+    if (Array.isArray(metrics) && metrics.length > 0) {
+      const ids = Array.from(
+        new Set(metrics.map((m: { metricDefinitionId: string }) => m.metricDefinitionId))
+      ).filter((v): v is string => typeof v === "string");
+      const defs = await db.metricDefinition.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, companyId: true },
+      });
+      const owned = new Map(defs.map((d) => [d.id, d.companyId]));
+      const allOwn = metrics.every(
+        (m: { metricDefinitionId: string }) => owned.get(m.metricDefinitionId) === id
+      );
+      if (!allOwn) {
+        return NextResponse.json(
+          { error: "That metric belongs to another company." },
+          { status: 400 }
+        );
+      }
+    }
+
     const update = await db.$transaction(async (tx: TransactionClient) => {
       const newUpdate = await tx.update.create({
         data: {
@@ -124,6 +146,7 @@ export async function POST(
             value: m.value,
             date: new Date(m.date),
             updateId: newUpdate.id,
+            ...(isAdmin ? { enteredById: user!.id } : {}),
           })
         );
 

@@ -40,6 +40,12 @@ export function formatPeriod(period: string): string {
     return `${monthNames[parseInt(mMatch[2]) - 1]} ${mMatch[1]}`;
   }
 
+  // Part 45: "2025-H1" -> "H1 2025", bare "2025" -> "2025"
+  const hMatch = period.match(/^(\d{4})-H([12])$/);
+  if (hMatch) return `H${hMatch[2]} ${hMatch[1]}`;
+
+  if (/^\d{4}$/.test(period)) return period;
+
   return period;
 }
 

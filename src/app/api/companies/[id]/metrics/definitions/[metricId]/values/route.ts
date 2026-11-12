@@ -9,7 +9,7 @@ export async function POST(
 ) {
   try {
     const { id, metricId } = await params;
-    const { error } = await requireCompanyAccess(id);
+    const { user, error } = await requireCompanyAccess(id);
     if (error) return error;
 
     // Verify the metric definition belongs to this company
@@ -46,6 +46,7 @@ export async function POST(
         metricDefinitionId: metricId,
         value,
         date: new Date(date),
+        ...(user!.roles.includes("ADMIN") ? { enteredById: user!.id } : {}),
       },
       include: {
         metricDefinition: true,

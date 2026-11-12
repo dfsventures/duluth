@@ -115,6 +115,9 @@ model Company {
   createdById String
   createdBy   User   @relation("CreatedCompanies", fields: [createdById], references: [id])
 
+  createdVia String? // "marge" | null — Part 45: created through company_create / update_create.newCompany
+  createKey  String? @unique // sha256(creatorId:idempotencyKey), as Memo.createKey; Marge creates only
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -205,9 +208,16 @@ model Update {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
+  // Part 45 — updates filed from email by Marge. All additive.
+  source    String    @default("FOUNDER") // "FOUNDER" | "EMAIL_VIA_MARGE"
+  sourceRef Json? // { kind:"slack_email", channelId, messageTs, permalink, subject, fromName, fromDomain, forwardedBy, attachmentCount?, attachments?:[{filename,mimetype?,size?}] } — never an address
+  sourceKey String?   @unique // "slack:<channelId>:<messageTs>"
+  createKey String?   @unique // sha256(creatorId:idempotencyKey)
+  filedAt   DateTime? // when Marge filed it (createdAt is backdated to the email, JC-FU-C); null for every other update
+
   company                 Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
   createdBy               User                  @relation(fields: [createdById], references: [id])
-  comments                Comment[]
+  comments               Comment[]
   documents               Document[]
   metricValues            MetricValue[]
   shareableLinkSelections ShareableLinkUpdate[]
@@ -239,6 +249,11 @@ model MetricValue {
   date               DateTime // the date this metric is for
   updateId           String? // optionally linked to an update
   createdAt          DateTime @default(now())
+
+  // Part 45 — provenance. Additive; legacy rows read as founder-entered.
+  via         String? // "marge" | null
+  quote       String? @db.VarChar(300) // the founder's words the figure came from
+  enteredById String? // admin who confirmed (Marge) or entered it (web); null for founder entries and legacy rows
 
   metricDefinition MetricDefinition @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
   update           Update?          @relation(fields: [updateId], references: [id], onDelete: SetNull)

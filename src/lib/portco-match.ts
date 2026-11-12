@@ -119,13 +119,13 @@ export function emailDomain(email: string | null | undefined): string | null {
   return domain;
 }
 
-function nameTokens(normalized: string): string[] {
+export function nameTokens(normalized: string): string[] {
   return normalized.split(" ").filter((t) => t.length >= 3);
 }
 
 // After normalization, one name's token set is a subset of the other's
 // (order-independent — "Technologies Acme" still contains "acme").
-function tokensContain(aTokens: string[], bTokens: string[]): boolean {
+export function tokensContain(aTokens: string[], bTokens: string[]): boolean {
   if (aTokens.length === 0 || bTokens.length === 0) return false;
   const bSet = new Set(bTokens);
   return aTokens.every((t) => bSet.has(t));

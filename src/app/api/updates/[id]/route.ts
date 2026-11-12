@@ -136,7 +136,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Update not found" }, { status: 404 });
     }
 
-    const { error } = await requireCompanyAccess(existing.companyId);
+    const { user, error } = await requireCompanyAccess(existing.companyId);
     if (error) return error;
 
     // Published updates are editable for 3 days after sentAt
@@ -194,6 +194,28 @@ export async function PATCH(
       return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
     }
 
+    // F152: every metric definition must belong to this update's company.
+    const isAdmin = user!.roles.includes("ADMIN");
+    if (Array.isArray(body.metricValues) && body.metricValues.length > 0) {
+      const ids = Array.from(
+        new Set(body.metricValues.map((mv: { metricDefinitionId: string }) => mv.metricDefinitionId))
+      ).filter((v): v is string => typeof v === "string");
+      const defs = await db.metricDefinition.findMany({
+        where: { id: { in: ids } },
+        select: { id: true, companyId: true },
+      });
+      const owned = new Map(defs.map((d) => [d.id, d.companyId]));
+      const allOwn = body.metricValues.every(
+        (mv: { metricDefinitionId: string }) => owned.get(mv.metricDefinitionId) === existing.companyId
+      );
+      if (!allOwn) {
+        return NextResponse.json(
+          { error: "That metric belongs to another company." },
+          { status: 400 }
+        );
+      }
+    }
+
     // Update fields and optionally replace metric values in a transaction
     // (the publish flip itself happens after, via publishUpdate())
     let updated = await db.$transaction(async (tx) => {
@@ -211,6 +233,7 @@ export async function PATCH(
             value: mv.value,
             date: new Date(mv.date),
             updateId: id,
+            ...(isAdmin ? { enteredById: user!.id } : {}),
           })),
         });
       }
