@@ -1,6 +1,6 @@
 // Part 45 (WS149). The only code that creates a company without a founder (Part 45 decision 5) or files
-// an update from email. Sends no email of any kind: nothing here imports @/lib/email or @/lib/publish-update
-// (a test in WS154 checks the source). Shape: validated input in, { ok, value | error } out, a `via` marker,
+// an update from email. Sends no email of any kind: nothing here imports the mail or publish modules
+// (portco-contract.test.ts reads this file's source to prove it). Shape: validated input in, { ok, value | error } out, a `via` marker,
 // audits written right after the commit (logAdminAction never throws and never runs inside a transaction).
 // Audit metadata carries ids, counts and keys; NEVER a title, body, quote, figure prose or a person's name.
 //
@@ -434,6 +434,7 @@ export async function loadSamePeriod(client: Client, companyId: string, period: 
     title: u.title,
     sentAt: isoDate(u.sentAt),
     source: u.source,
+    createdBy: u.createdBy?.name?.trim() || "Unnamed",
     bodyPreview: htmlToPlainText(u.body, 300),
     url: companyUrl(companyId),
   }));
@@ -660,7 +661,6 @@ export interface PlannedMetricValue {
   decision: MetricDecision;
   /** the figure that will be shown as "before": the existing value in the window, if any. */
   before: { value: number; date: string; source: ValueSource } | null;
-  existingValueIdOnDate?: string;
 }
 
 /** READ ONLY. */

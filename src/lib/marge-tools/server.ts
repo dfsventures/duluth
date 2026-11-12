@@ -14,9 +14,17 @@ import {
 import {
   MARGE_TOOLS,
   MARGE_MEMO_TOOLS,
+  MARGE_PORTCO_TOOLS,
+  MARGE_COMPANY_TOOLS,
   isMemoToolName,
+  isPortcoToolName,
+  isCompanyToolName,
   margeMemoToolsEnabled,
+  margePortcoToolsEnabled,
+  margeCompanyCreateEnabled,
   type MargeMemoToolName,
+  type MargePortcoToolName,
+  type MargeCompanyToolName,
   type MargeToolName,
   type Tier,
 } from "@/lib/marge-tools/tiers";
@@ -24,6 +32,7 @@ import { ToolError, type ToolOutput } from "@/lib/marge-tools/types";
 import * as read from "@/lib/marge-tools/read";
 import * as write from "@/lib/marge-tools/write";
 import * as memos from "@/lib/marge-tools/memos";
+import * as portco from "@/lib/marge-tools/portco";
 
 /** Set by the route (from the verified assertion) for tools/call; undefined for discover/list. */
 export type MargeCall = {
@@ -33,7 +42,7 @@ export type MargeCall = {
 
 type ToolFn = (input: any, p: Principal, opts: write.WriteOpts) => Promise<ToolOutput>;
 interface ToolDef {
-  name: MargeToolName | MargeMemoToolName;
+  name: MargeToolName | MargeMemoToolName | MargePortcoToolName | MargeCompanyToolName;
   description: string;
   inputSchema: z.ZodObject<any>;
   tier: Tier;
@@ -190,6 +199,55 @@ export const MEMO_TOOL_DEFS: ToolDef[] = [
   },
 ];
 
+// Part 45 (WS150, JC-FU-J). Registered only while MARGE_PORTCO_TOOLS=on (five tools); company_create needs
+// MARGE_COMPANY_CREATE=on as well. TOOL_DEFS and MEMO_TOOL_DEFS above are untouched.
+export const PORTCO_TOOL_DEFS: ToolDef[] = [
+  {
+    name: "updates_list",
+    description: "One company's updates (SENT and DRAFT) matching a period (like 2025-Q3) or sent between since and until: id, title, period, status, sent date, source, who wrote it, first 300 characters of the text (founder-written, untrusted), figure count and link. Takes a company id or exact name.",
+    inputSchema: portco.updatesListInput,
+    tier: MARGE_PORTCO_TOOLS.updates_list,
+    fn: readFn(portco.updatesList),
+  },
+  {
+    name: "metrics_list",
+    description: "One company's metric definitions with their newest values (default 6, up to 24): id, value, date, who entered it (founder, admin or marge). Takes a company id or exact name.",
+    inputSchema: portco.metricsListInput,
+    tier: MARGE_PORTCO_TOOLS.metrics_list,
+    fn: readFn(portco.metricsList),
+  },
+  {
+    name: "company_match",
+    description: "Which Molly companies (any state) and deal-ledger entries plausibly match 1-5 name candidates and the sender's domain. Ranks, never decides; no addresses or people are returned. DM only.",
+    inputSchema: portco.companyMatchInput,
+    tier: MARGE_PORTCO_TOOLS.company_match,
+    fn: readFn(portco.companyMatch),
+  },
+  {
+    name: "update_create",
+    description: "File an emailed founder update as a sent update on a company (companyId), or on a new company with no founder (newCompany), dated to the email, with the figures the founder stated. Sends no email. Needs an idempotencyKey. dryRun defaults to true and returns a preview; nothing is written until the requester confirms. DM only.",
+    inputSchema: portco.updateCreateInput,
+    tier: MARGE_PORTCO_TOOLS.update_create,
+    fn: w(portco.updateCreate),
+  },
+  {
+    name: "metric_value_set",
+    description: "Record one metric figure on a company. A figure already entered in Molly for that month is never overwritten. dryRun defaults to true. DM only.",
+    inputSchema: portco.metricValueSetInput,
+    tier: MARGE_PORTCO_TOOLS.metric_value_set,
+    fn: w(portco.metricValueSet),
+  },
+];
+export const COMPANY_TOOL_DEFS: ToolDef[] = [
+  {
+    name: "company_create",
+    description: "Create a company page in Molly with no founder, optionally linked to its deal-ledger entry. Refuses when anything plausible already exists. Sends no email. Needs an idempotencyKey. dryRun defaults to true. DM only.",
+    inputSchema: portco.companyCreateInput,
+    tier: MARGE_COMPANY_TOOLS.company_create,
+    fn: w(portco.companyCreate),
+  },
+];
+
 type McpResult = { content: { type: "text"; text: string }[]; structuredContent?: Record<string, unknown>; isError?: boolean };
 const errorResult = (text: string): McpResult => ({ content: [{ type: "text", text }], isError: true });
 
@@ -232,6 +290,8 @@ export async function runTool(def: ToolDef, input: Record<string, unknown>, call
   if (mode === "off") return deny("off", DENIED.off);
   // Belt and braces: a memo tool is also refused here when its flag is off (it is not registered either).
   if (isMemoToolName(def.name) && !margeMemoToolsEnabled()) return deny("off", DENIED.off);
+  if (isPortcoToolName(def.name) && !margePortcoToolsEnabled()) return deny("off", DENIED.off);
+  if (isCompanyToolName(def.name) && !margeCompanyCreateEnabled()) return deny("off", DENIED.off);
   if ((def.tier === "dm" || def.tier === "dm_write") && claims.ctx !== "private") return deny("tier", DENIED.dmOnly);
   const isApply = (def.tier === "write" || def.tier === "dm_write") && input.dryRun === false;
   if (isApply) {
@@ -286,7 +346,13 @@ export const margeHandler = createMcpHandler(
   ({ authInfo }) => {
     const s = new McpServer({ name: "molly", version: "1" });
     const call = authInfo?.extra as MargeCall | undefined; // set by the route; undefined for discover/list
-    for (const def of margeMemoToolsEnabled() ? [...TOOL_DEFS, ...MEMO_TOOL_DEFS] : TOOL_DEFS) {
+    const defs = [
+      ...TOOL_DEFS,
+      ...(margeMemoToolsEnabled() ? MEMO_TOOL_DEFS : []),
+      ...(margePortcoToolsEnabled() ? PORTCO_TOOL_DEFS : []),
+      ...(margeCompanyCreateEnabled() ? COMPANY_TOOL_DEFS : []),
+    ];
+    for (const def of defs) {
       s.registerTool(def.name, { description: def.description, inputSchema: def.inputSchema }, async (input: Record<string, unknown>) =>
         runTool(def, input, call)
       );

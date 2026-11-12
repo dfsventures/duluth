@@ -1,3 +1,5 @@
+import { PORTCO_TOOL_TIERS, COMPANY_TOOL_TIERS, MARGE_PORTCO_FLAG, MARGE_COMPANY_CREATE_FLAG } from "@/lib/marge-tools/portco-contract";
+
 // Part 39 (WS121). The sensitivity tier of every Marge tool (Q108-A, locked 2026-10-16).
 //   team  = may answer a DM or a team channel
 //   dm    = DM only (deal terms, amounts, valuations, portfolio totals)
@@ -37,3 +39,18 @@ export type MargeMemoToolName = keyof typeof MARGE_MEMO_TOOLS;
 export const margeMemoToolsEnabled = (): boolean => process.env.MARGE_MEMO_TOOLS === "on";
 export const isMemoToolName = (name: unknown): name is MargeMemoToolName =>
   typeof name === "string" && Object.prototype.hasOwnProperty.call(MARGE_MEMO_TOOLS, name);
+
+// Part 45 (WS150, JC-FU-J). Founder-update tools: five behind MARGE_PORTCO_TOOLS=on, and company_create
+// only when MARGE_COMPANY_CREATE=on as well. MARGE_TOOLS and MARGE_MEMO_TOOLS are untouched. The tiers
+// are the contract's (portco-contract.ts); they are restated here with `satisfies Tier` so a typo fails typecheck.
+export const MARGE_PORTCO_TOOLS = PORTCO_TOOL_TIERS satisfies Record<string, Tier>;
+export const MARGE_COMPANY_TOOLS = COMPANY_TOOL_TIERS satisfies Record<string, Tier>;
+export type MargePortcoToolName = keyof typeof MARGE_PORTCO_TOOLS;
+export type MargeCompanyToolName = keyof typeof MARGE_COMPANY_TOOLS;
+export const margePortcoToolsEnabled = (): boolean => process.env[MARGE_PORTCO_FLAG] === "on";
+/** company_create needs BOTH flags: MARGE_COMPANY_CREATE alone does nothing. */
+export const margeCompanyCreateEnabled = (): boolean => margePortcoToolsEnabled() && process.env[MARGE_COMPANY_CREATE_FLAG] === "on";
+export const isPortcoToolName = (name: unknown): name is MargePortcoToolName =>
+  typeof name === "string" && Object.prototype.hasOwnProperty.call(MARGE_PORTCO_TOOLS, name);
+export const isCompanyToolName = (name: unknown): name is MargeCompanyToolName =>
+  typeof name === "string" && Object.prototype.hasOwnProperty.call(MARGE_COMPANY_TOOLS, name);

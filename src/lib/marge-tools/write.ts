@@ -1,7 +1,8 @@
 // Part 39 (WS122). The write tools: each is plan (validation + name resolution, READS ONLY) then
 // apply (the WS119 shared functions, with an explicit allowlisted body and a `via` marker).
 // A dry run returns after plan; nothing below that line runs, so a dry run can never write.
-// Never created here: people, projects, aliases, companies (JC-MG-J, Q100, Q113).
+// Never created here: people, projects, aliases, companies (JC-MG-J, Q100, Q113). The one exception is
+// Part 45's company_create / update_create.newCompany (portco.ts; owner-approved 2026-11-12).
 // Never accepted: HTML (broadcast text is converted from plain text, F123), `archived`, `status`
 // on an edit, or any key outside the allowlists.
 import { z } from "zod";

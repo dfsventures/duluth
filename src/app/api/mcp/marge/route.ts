@@ -3,7 +3,14 @@ export const maxDuration = 30;
 
 import { margeMcpMode, verifyAssertion, claimJti, resolvePrincipal } from "@/lib/marge-auth";
 import { margeHandler, auditDenied, MARGE_MEMO_MAX_BODY, type MargeCall } from "@/lib/marge-tools/server";
-import { MARGE_TOOLS, isMemoToolName, margeMemoToolsEnabled } from "@/lib/marge-tools/tiers";
+import {
+  MARGE_TOOLS,
+  isMemoToolName,
+  isPortcoToolName,
+  isCompanyToolName,
+  margeMemoToolsEnabled,
+  margePortcoToolsEnabled,
+} from "@/lib/marge-tools/tiers";
 
 // Part 39 (WS123). Public in route-access.ts for exactly this path; the signed assertion is the
 // real gate. Order matters: the kill switch, then the body size, then the signature, and only
@@ -13,7 +20,8 @@ const MAX_BODY = 64_000;
 // Part 40 (WS129, JC-MM-F): a full memo travels in one call (twice: preview, then apply), so with
 // memo tools on the ceiling is 400,000 characters. With MARGE_MEMO_TOOLS unset it stays 64,000: no
 // tool that could use more exists then, and the limit unsigned traffic can hit does not change.
-const maxBody = () => (margeMemoToolsEnabled() ? MARGE_MEMO_MAX_BODY : MAX_BODY);
+// Part 45 (F157): the same ceiling when the founder-update tools are on (a 40,000-character update can pass 64 KB as JSON).
+const maxBody = () => (margeMemoToolsEnabled() || margePortcoToolsEnabled() ? MARGE_MEMO_MAX_BODY : MAX_BODY);
 
 const PRINCIPAL_MESSAGES = {
   unknown_user: "Molly doesn't know your Google account. Sign in to molly.dfs.vc with Google once.",
@@ -52,7 +60,7 @@ export async function POST(req: Request) {
     const who = await resolvePrincipal(v.claims);
     if (!who.ok) {
       const name = (body as { params?: { name?: unknown } })?.params?.name;
-      const tool = typeof name === "string" && (name in MARGE_TOOLS || isMemoToolName(name)) ? name : "unknown";
+      const tool = typeof name === "string" && (name in MARGE_TOOLS || isMemoToolName(name) || isPortcoToolName(name) || isCompanyToolName(name)) ? name : "unknown";
       await auditDenied({ email: v.claims.email }, v.claims, tool, who.reason);
       return toolErrorResponse(body, PRINCIPAL_MESSAGES[who.reason]);
     }

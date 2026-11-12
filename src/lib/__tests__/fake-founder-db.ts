@@ -10,10 +10,12 @@ export interface FakeState {
   metricDefinition: Row[];
   metricValue: Row[];
   auditLog: Row[];
+  membership: Row[];
+  contact: Row[]; // portfolio-company contacts: { portfolioCompanyId, email }
 }
 
 export function emptyState(): FakeState {
-  return { users: [], company: [], portfolioCompany: [], update: [], metricDefinition: [], metricValue: [], auditLog: [] };
+  return { users: [], company: [], portfolioCompany: [], update: [], metricDefinition: [], metricValue: [], auditLog: [], membership: [], contact: [] };
 }
 
 function matches(row: Row, where: Row | undefined): boolean {
@@ -23,12 +25,19 @@ function matches(row: Row, where: Row | undefined): boolean {
     if (k === "AND") return (cond as Row[]).every((w) => matches(row, w));
     const v = row[k];
     if (cond && typeof cond === "object" && !(cond instanceof Date)) {
-      if ("in" in cond) return (cond.in as unknown[]).includes(v);
-      if ("gt" in cond) return v != null && v > cond.gt;
-      if ("gte" in cond) return v != null && v >= cond.gte;
-      if ("lt" in cond) return v != null && v < cond.lt;
-      if ("lte" in cond) return v != null && v <= cond.lte;
-      if ("not" in cond) return v !== cond.not;
+      const str = (x: unknown) => String(x ?? "").toLowerCase();
+      return Object.entries(cond).every(([op, arg]) => {
+        if (op === "mode") return true;
+        if (op === "in") return (arg as unknown[]).includes(v);
+        if (op === "gt") return v != null && v > (arg as any);
+        if (op === "gte") return v != null && v >= (arg as any);
+        if (op === "lt") return v != null && v < (arg as any);
+        if (op === "lte") return v != null && v <= (arg as any);
+        if (op === "not") return v !== arg;
+        if (op === "equals") return str(v) === str(arg);
+        if (op === "contains") return str(v).includes(str(arg));
+        return false;
+      });
     }
     return v === cond;
   });
@@ -43,8 +52,21 @@ export function makeFakeDb(state: FakeState) {
   };
 
   const withRelations = (table: keyof FakeState, r: Row): Row => {
-    if (table === "company") return { ...r, portfolioCompany: state.portfolioCompany.find((p) => p.companyId === r.id) ?? null };
-    if (table === "portfolioCompany") return { ...r, company: r.companyId ? state.company.find((c) => c.id === r.companyId) ?? null : null };
+    if (table === "company") {
+      return {
+        ...r,
+        portfolioCompany: state.portfolioCompany.find((p) => p.companyId === r.id) ?? null,
+        createdBy: state.users.find((u) => u.id === r.createdById) ?? { status: "APPROVED", approvalToken: null, roles: ["ADMIN"] },
+        memberships: state.membership.filter((m) => m.companyId === r.id).map((m) => ({ ...m, user: state.users.find((u) => u.id === m.userId) ?? { roles: [] } })),
+      };
+    }
+    if (table === "metricDefinition") {
+      const values = state.metricValue.filter((v) => v.metricDefinitionId === r.id).sort((a, b) => +b.date - +a.date);
+      return { ...r, values: values.map((v) => withRelations("metricValue", v)) };
+    }
+    if (table === "portfolioCompany") {
+      return { ...r, company: r.companyId ? state.company.find((c) => c.id === r.companyId) ?? null : null, contacts: (state.contact ?? []).filter((c) => c.portfolioCompanyId === r.id) };
+    }
     if (table === "metricValue") {
       const u = r.updateId ? state.update.find((x) => x.id === r.updateId) : null;
       const author = u ? state.users.find((x) => x.id === u.createdById) : null;
@@ -52,7 +74,7 @@ export function makeFakeDb(state: FakeState) {
     }
     if (table === "update") {
       const author = state.users.find((x) => x.id === r.createdById);
-      return { ...r, createdBy: author ?? { roles: [], name: null } };
+      return { ...r, createdBy: author ?? { roles: [], name: null }, _count: { metricValues: state.metricValue.filter((v) => v.updateId === r.id).length } };
     }
     return r;
   };
@@ -63,7 +85,10 @@ export function makeFakeDb(state: FakeState) {
       let rows = state[table].filter((r) => matches(r, args.where));
       if (args.orderBy?.createdAt === "desc") rows = [...rows].sort((a, b) => +b.createdAt - +a.createdAt);
       if (args.take) rows = rows.slice(0, args.take);
-      return rows.map((r) => withRelations(table, r));
+      const out = rows.map((r) => withRelations(table, r));
+      const take = args.select?.values?.take;
+      if (table === "metricDefinition" && typeof take === "number") out.forEach((d) => (d.values = d.values.slice(0, take)));
+      return out;
     },
     findFirst: async (args: Row = {}) => {
       bump(`${table}.findFirst`);

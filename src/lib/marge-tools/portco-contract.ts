@@ -70,6 +70,13 @@ export const MATCH_TIER_OF: Record<MatchReasonCode, MatchTierCode> = {
 };
 export const COMPANY_STATES = ["active", "pending_signup", "diligence"] as const;
 export type CompanyStateCode = (typeof COMPANY_STATES)[number];
+/**
+ * metricChecks[].action: "new" = a new figure on a definition given by id; "existing" = a new figure on a
+ * definition found by name (case-insensitive) or created earlier in the same call; "new_metric" = the
+ * definition will be created; "kept_founder" = a figure already in Molly for that period stays (it is in
+ * `existing`, and may have been entered by a founder or an admin); "replace" = a figure added via Marge
+ * earlier is replaced (`replaceValueId` was given).
+ */
 export const METRIC_CHECK_ACTIONS = ["new", "new_metric", "existing", "kept_founder", "replace"] as const;
 export type MetricCheckAction = (typeof METRIC_CHECK_ACTIONS)[number];
 export const VALUE_SOURCES = ["founder", "admin", "marge"] as const;
@@ -207,6 +214,7 @@ export const PORTCO_SENTENCES = {
   // shared with Part 40
   badIdempotency: "idempotencyKey must be 8-100 letters, digits, - or _.",
   // after-commit text
+  alreadyCreated: (name: string) => `Already created: ${name}.`,
   alreadyFiled: (title: string) => `Already filed from this email as “${title}”.`,
   samePeriod: (period: string, title: string, sent: string, by: string, preview: string) =>
     `Already an update for ${period}: “${title}” (sent ${sent}, by ${by}): ${preview}`,
@@ -255,6 +263,7 @@ export interface SamePeriodRow {
   title: string;
   sentAt: string | null;
   source: string;
+  createdBy: string; // a name, never an address
   bodyPreview: string;
   url: string;
 }
@@ -284,10 +293,11 @@ export interface UpdateCreateApplied {
   linkedLedgerId: string | null;
 }
 export interface MetricValueSetApplied {
-  valueId: string;
+  valueId: string; // when keptFounder is true: the id of the existing figure that was left as it is
   definitionId: string;
   url: string;
   replaced?: string;
+  keptFounder?: boolean; // true: nothing was written (a figure already in Molly stays)
 }
 export interface UpdatesListStructured {
   updates: {

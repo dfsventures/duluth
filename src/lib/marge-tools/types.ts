@@ -44,7 +44,11 @@ export interface MargePreview {
     | "Edit draft broadcast"
     | "Create memo"
     | "Edit memo section"
-    | "Link memo to company";
+    | "Link memo to company"
+    | "Add update"
+    | "Record metric"
+    | "Create company"
+    | "Create company and add update";
   target?: string;
   fields: { label: string; before?: string; after: string }[];
   warnings: string[];

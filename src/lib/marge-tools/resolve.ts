@@ -1,5 +1,5 @@
 // Part 39 (WS122.1, built with WS121 because board_cards needs it). Name -> id resolution for
-// the Marge tools. Never creates anything (JC-MG-J, Q100) and never guesses between two matches
+// the Marge tools. Never creates a person, project, alias or company (JC-MG-J, Q100; the one exception is Part 45's company_create / update_create.newCompany, owner-approved 2026-11-12) and never guesses between two matches
 // (F124: resolveEntity, used by Granola and paste, takes the first; this path refuses instead).
 import { db } from "@/lib/db";
 import { normalizeName, type Canonical } from "@/lib/board-reconcile";
