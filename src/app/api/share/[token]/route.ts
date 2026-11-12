@@ -95,6 +95,11 @@ export async function GET(
           companyId: { in: companyIds },
           status: "SENT",
           sentAt: { gte: link.periodStart, lte: periodEndInclusive },
+          // Part 45 (Q140 A, WS152): an update Marge files after this link was
+          // made does not appear on it. Written as an explicit OR because
+          // Prisma's NOT would also drop rows where filedAt is null (every
+          // ordinary update).
+          OR: [{ filedAt: null }, { filedAt: { lte: link.createdAt } }],
         },
         select: updateSelect,
         orderBy: { sentAt: "desc" },
@@ -117,6 +122,9 @@ export async function GET(
       where: {
         metricDefinition: { companyId: { in: companyIds } },
         ...metricDateFilter,
+        // Part 45 (Q140 A, WS152): figures Marge files after this link was made
+        // stay off it. Explicit OR for the same null reason as above.
+        AND: [{ OR: [{ via: null }, { createdAt: { lte: link.createdAt } }] }],
       },
       select: {
         id: true,
