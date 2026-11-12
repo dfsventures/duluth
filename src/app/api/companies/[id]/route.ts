@@ -164,7 +164,26 @@ export async function DELETE(
         ? [...new Set(existing.memberships.map((m) => m.userId))]
         : [];
 
+    // Part 45 (F154): the ledger row is unlinked by the FK (SetNull) and linked
+    // memos lose their company. Record the unlink, and keep the memos' name.
+    const linkedLedger = await db.portfolioCompany.findFirst({
+      where: { companyId: id },
+      select: { id: true },
+    });
+    await db.memo.updateMany({
+      where: { companyId: id },
+      data: { companyNamePending: existing.name },
+    });
+
     await db.company.delete({ where: { id } });
+
+    if (linkedLedger) {
+      await logAdminAction(user!, "PORTCO_UNLINKED", {
+        targetType: "PortfolioCompany",
+        targetId: linkedLedger.id,
+        metadata: { companyId: null, previousCompanyId: id },
+      });
+    }
 
     // Best-effort, deliberately NOT part of one hard DB transaction with
     // the delete above: a DD founder has full, non-blocking dashboard

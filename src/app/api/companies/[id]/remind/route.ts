@@ -33,7 +33,16 @@ export async function POST(
       return NextResponse.json({ error: "Company not found" }, { status: 404 });
     }
 
-    const lastUpdateDate = company.updates[0]?.sentAt ?? company.createdAt;
+    // Part 45 (Q141 A, F151): with nobody to send to, say so instead of
+    // reporting a reminder that went nowhere. Nothing is stamped.
+    if (company.memberships.length === 0) {
+      return NextResponse.json(
+        { error: "Nobody to remind: this company has no founder in Molly." },
+        { status: 409 }
+      );
+    }
+
+    const lastUpdateDate =company.updates[0]?.sentAt ?? company.createdAt;
     const daysSinceUpdate = Math.floor(
       (Date.now() - lastUpdateDate.getTime()) / 86_400_000
     );

@@ -18,7 +18,8 @@ export interface LinkableCompanyOption {
   name: string;
   createdAt: string;
   portfolioCompanyId: string | null;
-  ownerEmail: string;
+  // null when an admin created the company (Part 45, F149): no founder to add.
+  ownerEmail: string | null;
   ownerName: string | null;
 }
 
@@ -83,8 +84,9 @@ export function PortcoLinkDialog({
   const alreadyLinkedElsewhere = Boolean(
     selected?.portfolioCompanyId && selected.portfolioCompanyId !== portfolioCompanyId
   );
-  const ownerAlreadyContact = selected
-    ? existingContactEmails.some((e) => e.toLowerCase() === selected.ownerEmail.toLowerCase())
+  const ownerEmail = selected?.ownerEmail ?? null;
+  const ownerAlreadyContact = ownerEmail
+    ? existingContactEmails.some((e) => e.toLowerCase() === ownerEmail.toLowerCase())
     : false;
 
   async function handleConfirm() {
@@ -103,8 +105,8 @@ export function PortcoLinkDialog({
       }
 
       let contactNote: string | undefined;
-      if (addContact && selected && !ownerAlreadyContact) {
-        const result = await addPortcoContact(portfolioCompanyId, selected.ownerEmail, selected.ownerName);
+      if (addContact && selected && ownerEmail && !ownerAlreadyContact) {
+        const result = await addPortcoContact(portfolioCompanyId, ownerEmail, selected.ownerName);
         if (!result.ok) contactNote = result.error ?? "Linked, but failed to add the founder as a contact.";
       }
 
@@ -175,7 +177,7 @@ export function PortcoLinkDialog({
               {selected?.name} is already linked to a different portfolio company — unlink it there first.
             </p>
           )}
-          {selected && !alreadyLinkedElsewhere && !ownerAlreadyContact && (
+          {selected && ownerEmail && !alreadyLinkedElsewhere && !ownerAlreadyContact && (
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
               <input
                 type="checkbox"
@@ -183,7 +185,7 @@ export function PortcoLinkDialog({
                 onChange={(e) => setAddContact(e.target.checked)}
                 className="h-3.5 w-3.5 rounded-sm border-input"
               />
-              Also add {selected.ownerEmail} as a contact on {portfolioCompanyName}
+              Also add {ownerEmail} as a contact on {portfolioCompanyName}
             </label>
           )}
           {error && <p className="text-xs text-tone-clay-ink">{error}</p>}

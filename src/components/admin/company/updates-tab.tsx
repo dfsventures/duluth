@@ -57,6 +57,9 @@ export function UpdatesTab({ companyId, updates }: { companyId: string; updates:
                     <p className="truncate font-medium">{update.title}</p>
                     <p className="text-sm text-muted-foreground">
                       {update.period} &middot; {formatDate(update.createdAt)}
+                      {update.source === "EMAIL_VIA_MARGE" && (
+                        <> &middot; From email &middot; added by {update.createdBy?.name ?? "a teammate"} via Marge</>
+                      )}
                     </p>
                   </div>
                   <Badge

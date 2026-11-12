@@ -43,7 +43,7 @@ interface OrphanCompany {
   id: string;
   name: string;
   createdAt: string;
-  ownerEmail: string;
+  ownerEmail: string | null;
 }
 
 interface ContactsImportResult {
@@ -469,7 +469,7 @@ function AdminPortfolioContactsPageInner() {
                     <TableRow key={c.id}>
                       <td className="px-4 py-2.5 font-medium">{c.name}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap text-sm text-muted-foreground">{formatDate(c.createdAt)}</td>
-                      <td className="px-4 py-2.5 text-sm text-muted-foreground">{c.ownerEmail}</td>
+                      <td className="px-4 py-2.5 text-sm text-muted-foreground">{c.ownerEmail ?? "—"}</td>
                       <td className="px-4 py-2.5 text-right">
                         <Link href={`/admin/companies/${c.id}`} className="text-sm text-primary hover:underline">
                           View company

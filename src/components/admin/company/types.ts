@@ -32,6 +32,9 @@ export interface Update {
   period: string;
   status: "DRAFT" | "SENT";
   createdAt: string;
+  // Part 45 (WS151) — optional: only email-filed updates carry these.
+  source?: "FOUNDER" | "EMAIL_VIA_MARGE";
+  createdBy?: { id: string; name: string | null } | null;
 }
 
 export interface MetricDefinition {

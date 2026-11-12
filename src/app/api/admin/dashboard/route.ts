@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { approvedCompanyFilter } from "@/lib/company-filters";
 import { isCompanyOverdue, CADENCE_LOOKBACK } from "@/lib/update-cadence";
+import { companyHasFounder } from "@/lib/founder-updates";
 
 export async function GET() {
   try {
@@ -39,6 +40,7 @@ export async function GET() {
             fundingStage: true,
             createdAt: true,
             lastReminderSentAt: true,
+            memberships: { select: { user: { select: { roles: true } } } },
             updates: {
               where: { status: "SENT" },
               orderBy: { sentAt: "desc" },
@@ -64,7 +66,7 @@ export async function GET() {
 
     // Build overdue list and sector breakdown
     let companiesOverdue = 0;
-    const overdueList: { id: string; name: string; sector: string | null; daysSinceUpdate: number | null; lastReminderSentAt: string | null }[] = [];
+    const overdueList: { id: string; name: string; sector: string | null; daysSinceUpdate: number | null; lastReminderSentAt: string | null; hasFounder: boolean }[] = [];
     const sectorMap: Record<string, number> = {};
 
     const companiesData = companies.map((c) => {
@@ -77,7 +79,7 @@ export async function GET() {
       const overdue = isCompanyOverdue({ createdAt: c.createdAt, publishedUpdates });
       if (overdue) {
         companiesOverdue++;
-        overdueList.push({ id: c.id, name: c.name, sector: c.sector, daysSinceUpdate, lastReminderSentAt: c.lastReminderSentAt?.toISOString() ?? null });
+        overdueList.push({ id: c.id, name: c.name, sector: c.sector, daysSinceUpdate, lastReminderSentAt: c.lastReminderSentAt?.toISOString() ?? null, hasFounder: companyHasFounder(c.memberships) });
       }
 
       const sector = c.sector ?? "Uncategorized";

@@ -42,7 +42,7 @@ export async function GET() {
           name: true,
           aliases: true,
           createdAt: true,
-          createdBy: { select: { email: true } },
+          createdBy: { select: { email: true, roles: true } },
           portfolioCompany: { select: { id: true } },
         },
       }),
@@ -65,7 +65,12 @@ export async function GET() {
     const unlinkedCompanies = companies.filter((c) => !c.portfolioCompany);
     for (const company of unlinkedCompanies) {
       const matches = matchPortfolioCompanies(
-        { companyName: company.name, aliases: company.aliases, signupEmail: company.createdBy.email },
+        {
+          companyName: company.name,
+          aliases: company.aliases,
+          // Part 45 (F149): an admin who created the company is not its founder.
+          signupEmail: company.createdBy.roles.includes("ADMIN") ? null : company.createdBy.email,
+        },
         candidates
       );
       for (const m of matches) {
@@ -88,7 +93,7 @@ export async function GET() {
       id: c.id,
       name: c.name,
       createdAt: c.createdAt,
-      ownerEmail: c.createdBy.email,
+      ownerEmail: c.createdBy.roles.includes("ADMIN") ? null : c.createdBy.email,
     }));
 
     return NextResponse.json({ results, companiesWithoutPortfolioCompany });

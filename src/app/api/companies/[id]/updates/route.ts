@@ -12,7 +12,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { error } = await requireCompanyAccess(id);
+    const { user, error } = await requireCompanyAccess(id);
     if (error) return error;
 
     const { searchParams } = new URL(request.url);
@@ -39,6 +39,18 @@ export async function GET(
         },
       },
     });
+
+    // Part 45 (WS151): sourceRef (Slack link, sender domain) and filedAt are admin-only.
+    if (!user!.roles.includes("ADMIN")) {
+      return NextResponse.json(
+        updates.map((u) => {
+          const { sourceRef: _sourceRef, filedAt: _filedAt, ...rest } = u;
+          void _sourceRef;
+          void _filedAt;
+          return rest;
+        })
+      );
+    }
 
     return NextResponse.json(updates);
   } catch (err) {

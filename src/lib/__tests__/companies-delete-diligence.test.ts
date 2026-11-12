@@ -20,6 +20,8 @@ const mockUserFindUnique = vi.fn();
 const mockUserDelete = vi.fn();
 const mockShareableLinkFindMany = vi.fn();
 const mockShareableLinkDelete = vi.fn();
+const mockPortcoFindFirst = vi.fn();
+const mockMemoUpdateMany = vi.fn();
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -36,6 +38,9 @@ vi.mock("@/lib/db", () => ({
       findMany: (...args: unknown[]) => mockShareableLinkFindMany(...args),
       delete: (...args: unknown[]) => mockShareableLinkDelete(...args),
     },
+    // Part 45 (F154): the delete reads the ledger link and keeps memo names.
+    portfolioCompany: { findFirst: (...args: unknown[]) => mockPortcoFindFirst(...args) },
+    memo: { updateMany: (...args: unknown[]) => mockMemoUpdateMany(...args) },
   },
 }));
 
@@ -65,6 +70,34 @@ beforeEach(() => {
   mockRequireAdmin.mockResolvedValue({ user: ADMIN, error: null } as any);
   mockCompanyDelete.mockResolvedValue({});
   mockShareableLinkFindMany.mockResolvedValue([]); // most tests: founder created no ShareableLinks
+  mockPortcoFindFirst.mockReset();
+  mockMemoUpdateMany.mockReset();
+  mockPortcoFindFirst.mockResolvedValue(null);
+  mockMemoUpdateMany.mockResolvedValue({ count: 0 });
+});
+
+describe("DELETE /api/companies/[id] — ledger link and memos (Part 45, F154)", () => {
+  it("keeps linked memos' company name and audits the unlink when a ledger row was linked", async () => {
+    mockCompanyFindUnique.mockResolvedValue({ id: "company-1", name: "Acme", stage: "ACTIVE", memberships: [] });
+    mockPortcoFindFirst.mockResolvedValue({ id: "pc-1" });
+    const res = await DELETE(new Request("https://molly.dfslab.net"), params());
+    expect(res.status).toBe(200);
+    expect(mockMemoUpdateMany).toHaveBeenCalledWith({
+      where: { companyId: "company-1" },
+      data: { companyNamePending: "Acme" },
+    });
+    expect(mockLogAdminAction).toHaveBeenCalledWith(
+      ADMIN,
+      "PORTCO_UNLINKED",
+      expect.objectContaining({ targetType: "PortfolioCompany", targetId: "pc-1", metadata: { companyId: null, previousCompanyId: "company-1" } })
+    );
+  });
+
+  it("writes no PORTCO_UNLINKED when nothing was linked", async () => {
+    mockCompanyFindUnique.mockResolvedValue({ id: "company-1", name: "Acme", stage: "ACTIVE", memberships: [] });
+    await DELETE(new Request("https://molly.dfslab.net"), params());
+    expect(mockLogAdminAction).not.toHaveBeenCalledWith(ADMIN, "PORTCO_UNLINKED", expect.anything());
+  });
 });
 
 describe("DELETE /api/companies/[id] — DILIGENCE-stage founder cleanup (Q57, corrected)", () => {

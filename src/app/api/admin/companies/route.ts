@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { approvedCompanyFilter } from "@/lib/company-filters";
 import { CADENCE_LOOKBACK } from "@/lib/update-cadence";
+import { hasFounderWhere } from "@/lib/founder-updates";
 
 export async function GET(request: Request) {
   try {
@@ -29,18 +30,24 @@ export async function GET(request: Request) {
           name: true,
           createdAt: true,
           portfolioCompany: { select: { id: true } },
-          createdBy: { select: { email: true, name: true } },
+          createdBy: { select: { email: true, name: true, roles: true } },
         },
       });
+      // Part 45 (F149): when an admin created the company (Marge-made or by
+      // hand) the creator is not its founder, so never offer their address as
+      // a contact. Founder-created companies read exactly as before.
       return NextResponse.json(
-        companies.map((c) => ({
-          id: c.id,
-          name: c.name,
-          createdAt: c.createdAt,
-          portfolioCompanyId: c.portfolioCompany?.id ?? null,
-          ownerEmail: c.createdBy.email,
-          ownerName: c.createdBy.name,
-        }))
+        companies.map((c) => {
+          const creatorIsAdmin = c.createdBy.roles.includes("ADMIN");
+          return {
+            id: c.id,
+            name: c.name,
+            createdAt: c.createdAt,
+            portfolioCompanyId: c.portfolioCompany?.id ?? null,
+            ownerEmail: creatorIsAdmin ? null : c.createdBy.email,
+            ownerName: creatorIsAdmin ? null : c.createdBy.name,
+          };
+        })
       );
     }
 
@@ -83,6 +90,16 @@ export async function GET(request: Request) {
       publishedByCompany.set(u.companyId, arr);
     }
 
+    // Part 45 (JC-FU-A): companies with at least one non-admin member.
+    const withFounder = new Set(
+      (
+        await db.company.findMany({
+          where: { id: { in: companyIds }, ...hasFounderWhere },
+          select: { id: true },
+        })
+      ).map((c) => c.id)
+    );
+
     const result = companies.map((c) => ({
       id: c.id,
       name: c.name,
@@ -101,6 +118,9 @@ export async function GET(request: Request) {
       // Additive (Part 32, D1) — feeds cadenceStatus() on the companies list
       // page; not used anywhere else, and no existing field changed shape.
       recentPublishedUpdates: publishedByCompany.get(c.id) ?? [],
+      // Additive (Part 45, WS151) — labels on the companies list.
+      createdVia: c.createdVia,
+      hasFounder: withFounder.has(c.id),
     }));
 
     return NextResponse.json(result);

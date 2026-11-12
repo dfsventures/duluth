@@ -31,6 +31,9 @@ interface Company {
   lastUpdateDate: string | null;
   createdAt: string;
   recentPublishedUpdates: { sentAt: string | null }[];
+  // Part 45 (WS151) — additive.
+  createdVia?: string | null;
+  hasFounder?: boolean;
 }
 
 interface ImportResult {
@@ -184,6 +187,11 @@ export default function AdminCompaniesPage() {
         <>
           <NameTile name={r.name} />
           {r.name}
+          {r.hasFounder === false && (
+            <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+              {r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
+            </span>
+          )}
         </>
       ),
     },
@@ -303,7 +311,9 @@ export default function AdminCompaniesPage() {
         minWidth={820}
         actionsLabel="Row actions"
         rowActions={(r) =>
-          r.cadence === "behind" || r.cadence === "aging" ? (
+          (r.cadence === "behind" || r.cadence === "aging") && r.hasFounder === false ? (
+            <span className="px-2 text-xs text-muted-foreground">No founder in Molly</span>
+          ) : r.cadence === "behind" || r.cadence === "aging" ? (
             <Button variant="ghost" size="sm" loading={reminding[r.id]} onClick={() => sendReminder(r)}>
               <Bell className="h-3.5 w-3.5" />
               Remind

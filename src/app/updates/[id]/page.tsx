@@ -43,10 +43,16 @@ interface UpdateDetail {
   createdAt: string;
   updatedAt: string;
   companyId: string;
+  // Part 45 (WS151): email-filed updates. sourceRef is sent to admins only.
+  source?: "FOUNDER" | "EMAIL_VIA_MARGE";
+  sourceRef?: { permalink?: string } | null;
+  createdBy?: { id: string; name: string | null } | null;
   metricValues?: {
     id: string;
     value: number;
     date: string;
+    via?: string | null;
+    quote?: string | null;
     metricDefinition: {
       id: string;
       name: string;
@@ -180,6 +186,30 @@ export default function UpdateDetailPage() {
   }
 
   const confirm = useConfirm();
+  const isAdminUser = Boolean(session?.user?.roles?.includes("ADMIN"));
+  // Part 45 (Q142 A): admins can remove an update filed from email.
+  async function handleRemoveFiled() {
+    if (!update) return;
+    const ok = await confirm({
+      title: `Remove the ${formatPeriod(update.period)} update`,
+      description:
+        "This removes the update and the figures filed with it. It cannot be undone. You can ask Marge to file it again.",
+      confirmLabel: "Remove update",
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/updates/${update.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to remove update.");
+      }
+      router.push(`/admin/companies/${update.companyId}`);
+    } catch (err) {
+      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to remove update." });
+      setDeleting(false);
+    }
+  }
   async function handleDeleteDraft() {
     if (!update) return;
     // Unlike the list page's one-click delete, the draft's content is on
@@ -443,9 +473,29 @@ export default function UpdateDetailPage() {
                   Download PDF
                 </Button>
               </Link>
+              {isAdminUser && update.status === "SENT" && update.source === "EMAIL_VIA_MARGE" && (
+                <Button variant="secondary" size="sm" disabled={deleting} onClick={handleRemoveFiled}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove
+                </Button>
+              )}
             </div>
           }
         />
+      )}
+      {!editing && update.source === "EMAIL_VIA_MARGE" && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          From email &middot; added by {update.createdBy?.name ?? "a teammate"} via Marge
+          {isAdminUser && update.sourceRef?.permalink && /^https:\/\//.test(update.sourceRef.permalink) && (
+            <>
+              {" "}
+              &middot;{" "}
+              <a href={update.sourceRef.permalink} target="_blank" rel="noopener noreferrer" className="underline">
+                Open in Slack
+              </a>
+            </>
+          )}
+        </p>
       )}
 
 
@@ -632,7 +682,17 @@ export default function UpdateDetailPage() {
                   <tbody>
                     {update.metricValues.map((mv) => (
                       <tr key={mv.id} className="border-b last:border-0">
-                        <td className="py-2 font-medium">{mv.metricDefinition.name}</td>
+                        <td className="py-2 font-medium">
+                          {mv.metricDefinition.name}
+                          {isAdminUser && mv.via === "marge" && (
+                            <span
+                              className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground"
+                              title={mv.quote ?? undefined}
+                            >
+                              from email
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2">
                           {mv.value}
                           {mv.metricDefinition.unit ? ` ${mv.metricDefinition.unit}` : ""}

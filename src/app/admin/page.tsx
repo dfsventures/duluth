@@ -34,6 +34,8 @@ interface OverdueCompany {
   sector: string | null;
   daysSinceUpdate: number | null;
   lastReminderSentAt: string | null;
+  // Part 45: false for a company with no founder member (Remind can reach nobody).
+  hasFounder?: boolean;
 }
 
 interface DashboardData {
@@ -282,7 +284,10 @@ export default function AdminDashboardPage() {
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
-                        {item.action === "remind" && company && (
+                        {item.action === "remind" && company && company.hasFounder === false && (
+                          <span className="text-xs text-muted-foreground">No founder in Molly</span>
+                        )}
+                        {item.action === "remind" && company && company.hasFounder !== false && (
                           <Button
                             size="sm"
                             variant="secondary"

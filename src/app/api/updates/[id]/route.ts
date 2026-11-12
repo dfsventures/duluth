@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { publishUpdate } from "@/lib/publish-update";
+import { removeEmailUpdate } from "@/lib/founder-update-actions";
+import { UPDATE_SOURCE_EMAIL } from "@/lib/marge-tools/portco-contract";
 
 export async function DELETE(
   _request: Request,
@@ -13,15 +15,29 @@ export async function DELETE(
 
     const existing = await db.update.findUnique({
       where: { id },
-      select: { companyId: true, status: true },
+      select: { companyId: true, status: true, source: true },
     });
 
     if (!existing) {
       return NextResponse.json({ error: "Update not found" }, { status: 404 });
     }
 
-    const { error } = await requireCompanyAccess(existing.companyId);
+    const { user, error } = await requireCompanyAccess(existing.companyId);
     if (error) return error;
+
+    // Part 45 (Q142 A): an admin may remove an update Marge filed from email,
+    // with the figures filed alongside it. Every other case is unchanged.
+    if (
+      existing.status === "SENT" &&
+      existing.source === UPDATE_SOURCE_EMAIL &&
+      user!.roles.includes("ADMIN")
+    ) {
+      const removed = await removeEmailUpdate(user!, id);
+      if (!removed.ok) {
+        return NextResponse.json({ error: removed.error }, { status: removed.status });
+      }
+      return new NextResponse(null, { status: 204 });
+    }
 
     if (existing.status === "SENT") {
       return NextResponse.json({ error: "Published updates cannot be deleted" }, { status: 403 });
@@ -109,6 +125,23 @@ export async function GET(
         },
       },
     });
+
+    // Part 45 (WS151): where an email-filed update came from (Slack link, sender
+    // domain) and the founder's quoted words are for admins only.
+    if (fullUpdate && !isAdmin) {
+      const { sourceRef: _sourceRef, filedAt: _filedAt, ...rest } = fullUpdate;
+      void _sourceRef;
+      void _filedAt;
+      return NextResponse.json({
+        ...rest,
+        metricValues: rest.metricValues.map((mv) => {
+          const { quote: _quote, enteredById: _enteredById, ...mvRest } = mv;
+          void _quote;
+          void _enteredById;
+          return mvRest;
+        }),
+      });
+    }
 
     return NextResponse.json(fullUpdate);
   } catch (err) {

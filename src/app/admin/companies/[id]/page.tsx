@@ -53,6 +53,8 @@ function AdminCompanyDetailPageInner() {
   const [portfolioCompany, setPortfolioCompany] = useState<{ id: string; name: string } | null>(null);
   // Part 34, WS91 (F80/F81) - see CompanyDiligenceView.
   const [diligence, setDiligence] = useState<CompanyDiligenceView | null>(null);
+  // Part 45 (WS151): "No founder yet" label; hasFounder undefined until loaded.
+  const [adminMeta, setAdminMeta] = useState<{ createdVia: string | null; hasFounder?: boolean }>({ createdVia: null });
   const [updates, setUpdates] = useState<Update[]>([]);
   const [metrics, setMetrics] = useState<MetricDefinition[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -85,6 +87,7 @@ function AdminCompanyDetailPageInner() {
       const data = await res.json();
       setPortfolioCompany(data.portfolioCompany ?? null);
       setDiligence(data.diligence ?? null);
+      setAdminMeta({ createdVia: data.createdVia ?? null, hasFounder: data.hasFounder });
     } catch {
       // Non-fatal — secondary display-only data.
     }
@@ -170,7 +173,8 @@ function AdminCompanyDetailPageInner() {
     const ok = await confirm({
       title: `Delete ${company.name}`,
       description:
-        "This permanently removes the company and its updates, metrics, documents and notes from Molly. It cannot be undone.",
+        "This permanently removes the company and its updates, metrics, documents and notes from Molly. It cannot be undone." +
+        (portfolioCompany ? " Its deal-ledger entry stays, unlinked." : ""),
       confirmLabel: "Delete company",
       typeToConfirm: company.name,
     });
@@ -248,6 +252,15 @@ function AdminCompanyDetailPageInner() {
           </Button>
         }
       />
+
+      {adminMeta.hasFounder === false && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          <span className="mr-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">
+            {adminMeta.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
+          </span>
+          Founders will see these updates, figures and comments once they have access.
+        </p>
+      )}
 
       <ProfileCard
         companyId={companyId}

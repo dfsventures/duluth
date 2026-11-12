@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
+import { companyHasFounder } from "@/lib/founder-updates";
 
 // Part 31, WS79 — deliberately a NEW, admin-only route, not an addition
 // to GET /api/companies/[id]. That existing route is founder-reachable
@@ -32,6 +33,8 @@ export async function GET(
       where: { id },
       select: {
         stage: true,
+        createdVia: true,
+        memberships: { select: { user: { select: { roles: true } } } },
         portfolioCompany: { select: { id: true, name: true } },
         diligence: {
           select: {
@@ -54,6 +57,9 @@ export async function GET(
     return NextResponse.json({
       portfolioCompany: company.portfolioCompany ?? null,
       stage: company.stage,
+      // Part 45 (WS151) — additive labels.
+      createdVia: company.createdVia,
+      hasFounder: companyHasFounder(company.memberships),
       diligence: company.diligence ?? null,
     });
   } catch (err) {
