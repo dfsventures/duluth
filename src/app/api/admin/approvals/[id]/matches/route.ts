@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/auth-guard";
 import { matchPortfolioCompanies, type PortcoCandidate } from "@/lib/portco-match";
+import { hasFounderWhere } from "@/lib/founder-updates";
+import { matchUnclaimedCompanies } from "@/lib/unclaimed-match";
 
 // Part 31, WS76 — suggests PortfolioCompany matches for one pending signup,
 // for the "Link & approve" block on /admin/approvals (D1: approval-time
@@ -66,11 +68,24 @@ export async function GET(
       signupEmailIsAlreadyContact: (contactsById.get(m.portfolioCompanyId) ?? []).includes(signupEmail),
     }));
 
+    // Part 45 (WS153): companies with no founder yet that this signup's company
+    // looks like, so an admin can add the person to that page instead of
+    // approving a second company. Additive; no address beyond signupEmail.
+    const noFounder = await db.company.findMany({
+      where: { id: { not: company.id }, NOT: hasFounderWhere },
+      select: { id: true, name: true, aliases: true, website: true },
+    });
+    const unclaimed = matchUnclaimedCompanies(
+      { companyName: company.name, aliases: company.aliases, email: user.email },
+      noFounder
+    );
+
     return NextResponse.json({
       companyId: company.id,
       companyName: company.name,
       signupEmail: user.email,
       matches: matchesWithContactFlag,
+      unclaimed,
     });
   } catch (err) {
     console.error("GET /api/admin/approvals/[id]/matches error:", err);

@@ -66,6 +66,12 @@ interface PortcoMatch {
   signupEmailIsAlreadyContact: boolean;
 }
 
+interface UnclaimedMatch {
+  id: string;
+  name: string;
+  reasons: string[];
+}
+
 interface AwaitingUser {
   id: string;
   email: string;
@@ -122,6 +128,11 @@ export default function ApprovalsPage() {
     Record<string, { loading: boolean; error?: string; contactNote?: string }>
   >({});
 
+  // Part 45, WS153 — companies with no founder yet that a signup's company
+  // looks like, and the per-row state of the "add to it instead" action.
+  const [unclaimedStates, setUnclaimedStates] = useState<Record<string, UnclaimedMatch[]>>({});
+  const [joinStates, setJoinStates] = useState<Record<string, { loading: boolean; error?: string }>>({});
+
   useEffect(() => {
     loadApprovals();
     loadAwaiting();
@@ -147,6 +158,7 @@ export default function ApprovalsPage() {
   // row and the card just degrades to today's plain Approve/Reject,
   // exactly like loadAwaiting()'s catch below.
   async function loadMatches(list: Approval[]) {
+    const unclaimedEntries: [string, UnclaimedMatch[]][] = [];
     const entries = await Promise.all(
       list.map(async (a) => {
         try {
@@ -154,12 +166,18 @@ export default function ApprovalsPage() {
           if (!res.ok) return [a.id, [] as PortcoMatch[]] as const;
           const data = await res.json();
           const matches: PortcoMatch[] = data.matches ?? [];
+          unclaimedEntries.push([a.id, (data.unclaimed ?? []) as UnclaimedMatch[]]);
           return [a.id, matches] as const;
         } catch {
           return [a.id, [] as PortcoMatch[]] as const;
         }
       })
     );
+    setUnclaimedStates((prev) => {
+      const next = { ...prev };
+      for (const [id, u] of unclaimedEntries) next[id] = u;
+      return next;
+    });
     setMatchStates((prev) => {
       const next = { ...prev };
       for (const [id, matches] of entries) next[id] = matches;
@@ -381,6 +399,36 @@ export default function ApprovalsPage() {
     }
   }
 
+  // Part 45, WS153 — add the signup to an existing company with no founder
+  // instead of approving a second company: join (stop on any failure), then the
+  // existing, unmodified approve flow.
+  async function handleJoinAndApprove(approval: Approval, companyId: string) {
+    if (actionStates[approval.id]?.loading) return;
+    setJoinStates((prev) => ({ ...prev, [approval.id]: { loading: true } }));
+    try {
+      const res = await fetch(`/api/admin/approvals/${approval.id}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        setJoinStates((prev) => ({
+          ...prev,
+          [approval.id]: { loading: false, error: errData?.error ?? "Failed to add to that company." },
+        }));
+        return; // stop — do not approve
+      }
+      setJoinStates((prev) => ({ ...prev, [approval.id]: { loading: false } }));
+      await handleAction(approval.id, "approve");
+    } catch (err) {
+      setJoinStates((prev) => ({
+        ...prev,
+        [approval.id]: { loading: false, error: err instanceof Error ? err.message : "Failed to add to that company." },
+      }));
+    }
+  }
+
   if (loading) {
     return (
       <AppShell>
@@ -446,6 +494,12 @@ export default function ApprovalsPage() {
                   visibleMatches.find((m) => m.portfolioCompanyId === selectedId) ?? visibleMatches[0];
                 const addContact = addContactStates[approval.id] ?? true;
                 const linkState = linkApproveStates[approval.id];
+                // Part 45 (WS153): STRONG-ish unclaimed matches first; weaker
+                // (name-token only) stay behind "Show weaker matches" as in the
+                // portfolio block above.
+                const unclaimedAll = unclaimedStates[approval.id] ?? [];
+                const unclaimed = unclaimedAll.find((u) => !(u.reasons.length === 1 && u.reasons[0] === "NAME_TOKENS") || weakShown);
+                const joinState = joinStates[approval.id];
                 const topReasonCopy = selected ? REASON_COPY[selected.reasons[0]] ?? "matched" : null;
 
                 return (
@@ -500,6 +554,36 @@ export default function ApprovalsPage() {
                           {state?.loading ? "..." : "Approve"}
                         </Button>
                       </div>
+
+                      {unclaimed && (
+                        <div className="w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+                          <p className="text-foreground">
+                            Molly already has a page for <strong>{unclaimed.name}</strong> with no founder. Add{" "}
+                            {approval.name} to it instead of approving a second company?
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={state?.loading || joinState?.loading}
+                              onClick={() => handleJoinAndApprove(approval, unclaimed.id)}
+                            >
+                              {joinState?.loading ? "..." : `Add ${approval.name} to ${unclaimed.name} instead`}
+                            </Button>
+                          </div>
+                          {joinState?.error && <p className="mt-1 text-xs text-destructive">{joinState.error}</p>}
+                        </div>
+                      )}
+
+                      {!unclaimed && unclaimedAll.length > 0 && matches.length === 0 && (
+                        <button
+                          type="button"
+                          className="w-full text-left text-xs text-muted-foreground underline hover:text-foreground"
+                          onClick={() => setWeakShownStates((prev) => ({ ...prev, [approval.id]: true }))}
+                        >
+                          Show weaker matches
+                        </button>
+                      )}
 
                       {matches.length > 0 && (
                         <div className="w-full rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm">
