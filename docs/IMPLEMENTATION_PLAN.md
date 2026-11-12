@@ -15074,3 +15074,379 @@ Push = production deploy (Vercel). No schema, no env var, no data step.
 **Handoff status: APPROVED 2026-10-21 (decisions 1–13; Q139 A confirmed by the owner). Ready for Alvin: WS144 → WS145 → WS146; WS147 with the owner.**
 
 ---
+
+# Part 45 — Founder updates filed from email by Marge, and companies with no founder yet (WS148–WS154, F149–F160, Q140–Q142, 2026-11-12)
+
+> **Status: PLAN ONLY, not approved for build.** Joseph said "go on planning" on 2026-11-12; building needs his separate approval. This is Molly's answer to Marge's MWS-31 handoff ("Molly contract request (Part 45)", marge `docs/IMPLEMENTATION_PLAN.md` ~6631–6890), written against duluth `c2ccf87` (HEAD and production on 2026-11-12). Marge's request is treated as a proposal: Molly owns the final names, shapes and numbers below. Technical calls are `JC-FU-*`, each with a cheap reversal.
+>
+> **Numbering:** continues from Part 44 (WS147, F148, Q139). Checked 2026-11-12: no `WS148+`, `F149+`, `Q140+`, `JC-FU` or "Part 45" in `ROADMAP.md`, `README.md` or `docs/*.md`.
+
+## Part 45 — what this is, in plain words
+
+A teammate asks Marge, in a DM, to file a founder's emailed investor update (forwarded into Slack #02-portco-updates) into Molly. Marge shows a card; on Confirm, Molly stores it as that company's sent update, dated the day the email arrived, marked "From email · added by <name> via Marge", with the figures the founder stated. If Molly has no page for that company, the same Confirm creates one with **no founder attached**, linked to its deal-ledger row. Nobody is emailed. Later, Marge backfills every such email since 2025-01-01, paced.
+
+## Confirmed decisions (Joseph; relayed from Marge D-M34, D-M35 and Q-PU2..Q-PU10, not re-opened here)
+
+1. Source is #02-portco-updates (Slack). Molly owns who sees an update; Marge never sets or changes visibility, status or share links.
+2. When the company is not in Molly, Marge creates it (no founder, **no membership**), links it to its deal-ledger row (`PortfolioCompany`) and files the update, all behind one Confirm.
+3. Founders are never emailed at creation, filing or metric time. Nothing is sent to `TEAM_EMAIL` either (the Slack channel is the notification, Marge F-134).
+4. Founder-stated figures win: a value entered in Molly is never overwritten by Marge.
+5. **Owner-approved exception to JC-MG-J / Q100** ("this path never creates a person, project, alias or company", `src/lib/marge-tools/resolve.ts:2`, plan line 12616): two explicit, confirmed tools may create a company (`company_create`, `update_create.newCompany`). Name resolution (`resolve.ts`, `write.ts`, `memos.ts`) still never creates anything. WS150 amends both code comments.
+6. Marge Q-PU9 (a), answered "as recommended": Molly adds a small guard so a founder who later signs up can be added to the existing company instead of producing a duplicate (WS153). It invites nobody.
+7. Marge Q-PU5: a backfill creates at most 40 companies per run, 24 an hour; Molly adds a fuse of 60 Marge-created companies per 24 hours.
+
+## Production facts used (Joseph, read-only, 2026-11-12)
+
+43 deal-ledger rows have no linked company (26 of them have broadcast contacts); 0 companies lack a founder member; 0 companies have no members at all. **So a memberless company is a new state in production**, and every "does anything assume a member" check below matters.
+
+## Part 45 review findings (verified at `c2ccf87`)
+
+### What Marge's request got right (verified)
+- `Update`, `MetricDefinition`, `MetricValue` have no provenance (`prisma/schema.prisma:195-246`). Admin update create sends `sendUpdatePublishedEmail` to `TEAM_EMAIL` (`src/app/api/companies/[id]/updates/route.ts:154-179`; `src/lib/publish-update.ts:31`).
+- The CSV import creates a company with no membership (`src/app/api/admin/companies/import/route.ts:42-48`); the admin form makes the admin `OWNER` when no founder email is given (`src/app/api/companies/route.ts`).
+- `companies_find`/`company_overview` apply `approvedCompanyFilter` (`src/lib/marge-tools/read.ts:96, :142`), which hides pending signups and diligence companies (`src/lib/company-filters.ts:10-15`).
+- A founder reaches a company only through `UserCompanyMembership` (`src/lib/auth-guard.ts:37-57`), so a founder with no membership gets 403 on the company and its updates.
+- `formatPeriod` knows only `YYYY-Qn` and `YYYY-MM` (`src/lib/utils.ts:29-44`).
+
+### New findings
+
+## F149 — The ledger link dialog offers to add the company's creator as a broadcast contact, and for an admin-created company that is the admin (MEDIUM, pre-existing; matters now)
+`GET /api/admin/companies?linkable=1` returns `createdBy.email` as `ownerEmail` (`src/app/api/admin/companies/route.ts:32, :41`). The link dialog shows "Also add <ownerEmail> as a contact on <ledger name>", **checked by default** (`src/components/admin/portco-link-dialog.tsx:51, :106-107, :186`). For a company Marge creates without a ledger row (single flow, "not in the deal ledger"), an admin who later links it by hand would add **their own address** to that portco's broadcast list unless they untick it. `link-suggestions` also feeds the admin's email in as the "signup email" (`src/app/api/admin/portfolio-companies/link-suggestions/route.ts:68`), so a DFS-domain contact on any ledger row would match as `EMAIL_DOMAIN`, and the Links page's "Owner" column shows the admin (`src/app/admin/portfolio-contacts/page.tsx:472`). Fixed in WS151.
+
+## F150 — A backfilled update would look brand new on every view that dates updates by `createdAt` (MEDIUM; would be a visible misread)
+`sentAt` drives cadence, alerts, share links and the admin updates list, but these use `createdAt`: the companies list "Last update" (`src/app/api/admin/companies/route.ts:57-60, :100` → `src/app/admin/companies/page.tsx:67-68`), the company page Updates tab date and order (`src/components/admin/company/updates-tab.tsx:59`; `src/app/api/companies/[id]/updates/route.ts:24`), the dashboard "updates this month" count (`src/app/api/admin/dashboard/route.ts:30`) and `GET /api/companies` `lastUpdate` (`src/app/api/companies/route.ts:25-28`). A 2025 email filed today would read "Today" on an **existing** company, and a ~190-item backfill would spike "updates this month". Resolved without touching those views by JC-FU-C.
+
+## F151 — "Remind" on a company with no members says "Reminder sent" and sends nothing (LOW)
+`POST /api/companies/[id]/remind` loops over zero memberships, stamps `lastReminderSentAt` and returns 200 (`src/app/api/companies/[id]/remind/route.ts:41-63`); the companies list and the dashboard then toast "Reminder sent to <name>." (`src/app/admin/companies/page.tsx:168`; `src/app/admin/page.tsx:186`). The Remind button shows for every behind or aging row (`src/app/admin/companies/page.tsx:305-312`). The cron is safe: with no members nothing is sent and the cooldown is not advanced (`src/app/api/cron/reminders/route.ts:78-106`). WS151 + Q141.
+
+## F152 — Update create and edit accept a metric definition id from any company (MEDIUM, security, pre-existing)
+`POST /api/companies/[id]/updates` and `PATCH /api/updates/[id]` write `metricDefinitionId` straight from the body (`src/app/api/companies/[id]/updates/route.ts:120-132`; `src/app/api/updates/[id]/route.ts:205-215`); only the single-value route checks ownership (`.../metrics/definitions/[metricId]/values/route.ts:20`). A founder member of company A can attach values to company B's metrics, which then show on B's page and on B's investor links. Not caused by Part 45, but Part 45 makes figures matter more, so WS148 adds the same ownership check to both routes (invisible to legitimate use: the composer only offers the company's own definitions).
+
+## F153 — Nobody can remove a sent update, and a backdated one cannot be edited (MEDIUM for this feature)
+`DELETE /api/updates/[id]` refuses any `SENT` update (`src/app/api/updates/[id]/route.ts:26-28`); `PATCH` refuses edits more than 3 days after `sentAt` (`:142-151`). Marge files `SENT` updates dated to the email, so a backfilled one is locked on arrival and a wrongly filed one could only be removed by deleting the whole company. Q142.
+
+## F154 — Deleting a company unlinks its ledger row silently and strips linked memos of their name (LOW, pre-existing)
+`PortfolioCompany.company` is `onDelete: SetNull` (`prisma/schema.prisma:764`) and `Memo.company` is `SetNull` (`:1147`). The company delete (`src/app/api/companies/[id]/route.ts:140-248`) writes `COMPANY_DELETED` but no `PORTCO_UNLINKED`, and a memo linked to the company is left with no company and no pending name, unlike the ledger delete, which keeps the name (`src/app/api/admin/portfolio-companies/[id]/route.ts:96`). Ledger row, contacts and deals are untouched (they hang off the ledger row). WS151 adds the audit row and keeps memo names.
+
+## F155 — The rate limiter can't hold a 24-hour fuse that fails closed (INFO, design)
+`checkRateLimit` uses fixed **1-hour** windows, deletes windows older than 24 hours and **fails open** (`src/lib/rate-limit.ts:3, :24-32`). Marge's "a `marge-company-create` bucket keyed `global` per 24 hours, failing closed" can't be built on it. JC-FU-F counts rows instead.
+
+## F156 — Investor links already sent would start showing Marge-filed updates and figures (LOW; drives Q140)
+A legacy period link shows every `SENT` update whose `sentAt` falls in its window (`src/app/api/share/[token]/route.ts:90-101`), and every link's metric summary shows the newest value per metric (`src/lib/share-metrics.ts:31-38`; `share/[token]/route.ts:116-119`). A backdated 2025 update and its figures would appear on a 2025 link a founder or admin sent months ago. New-style links list their updates explicitly (`:83-89`), so only their figures would change.
+
+## F157 — With memo tools off, a 40,000-character update body can exceed the Marge route's size cap (LOW)
+The route caps bodies at 64,000 bytes unless `MARGE_MEMO_TOOLS=on` (`src/app/api/mcp/marge/route.ts:12, :16`). 40,000 characters of accented text, quotes and line breaks can pass 64 KB as JSON. Production has memo tools on today (400,000), so this is latent. WS150 raises the cap when either flag is on.
+
+## F158 — Companies with no founder will join "behind on updates" after 30 days (INFO; drives Q141)
+A Marge-created company passes `approvedCompanyFilter` (its creator is an active admin), so after the 30-day grace (`src/lib/update-cadence.ts:14, :70`) `cadenceStatus` reads the backdated `sentAt`s and most will show Behind or Aging on the companies list and the dashboard's "Needs attention" list (`src/app/api/admin/dashboard/route.ts:77-81`), each with a Remind button that can reach nobody (F151). Up to ~43 new rows. Alerts: the alerts cron (`src/app/api/cron/alerts/route.ts:16-68`) writes `MetricAlert` rows only (read only by the admin dashboard and admin alert routes; no email). A backfill can fire one `METRIC_CHANGE` per real ≥20% move (`src/lib/metric-alerts.ts:61-65`) and, for a company with metrics whose last 3 updates carry none, one `NO_METRICS_IN_UPDATES` (`:79-87`). That burst is the only side effect.
+
+## F159 — An empty `TEAM_EMAIL` silently becomes `team@example.com` (INFO, pre-existing; nothing in Part 45 depends on it)
+`process.env.TEAM_EMAIL || "team@example.com"` (`src/lib/email.ts:16`) treats an empty value as unset. If production's value were empty, these would go to a reserved, undeliverable domain: update-published (web publish, `:230`), new-signup (`:257`), diligence-complete (`:421`), and the reply-to of LP report emails (`:605`) and broadcasts (`:658-659`). Part 45 calls none of them (tested in WS150). Joseph can confirm the real recipient on a recent "update published" or "new signup" email in Resend.
+
+## F160 — Marge's schema table puts bounds and wording in zod; Molly's contract puts them in code (INFO, contract shape)
+Part 40's rule JC-MM-I: no zod default except `dryRun`; sentences come from validators, because a zod rejection happens in the SDK before `runTool`, writes no audit row and returns zod's wording (known Part 39 gap). Marge's table has `string(1–200)` and regexes in the zod column. Part 45 keeps generous outer caps in zod (so oversized junk still dies early) and puts every bound that has a sentence in `validate*` functions. The **sentences are unchanged** except one (see "Changes to Marge's proposal").
+
+## Answers to Marge's questions and the lead's brief
+
+**1. Does anything misread or break on a company with zero members created by an admin?**
+- Breaks: nothing. Every query treats memberships as a list (`_count.memberships`, loops), checked at the call sites above. The only `memberships[0]` reads are diligence (`src/app/api/admin/diligence/route.ts:46`, `.../promote/route.ts:48`) and approvals (`src/app/api/admin/approvals/route.ts:41`, `.../[id]/matches/route.ts:33`), none reached by an ACTIVE company with no members.
+- Misreads: (a) `createdBy` used as owner in `?linkable=1`, `link-suggestions` and the Links page, F149, fixed in WS151; (b) Remind reports success with zero recipients, F151; (c) `createdAt`-dated views, F150, solved by JC-FU-C; (d) Members shows 0 and nothing says "no founder yet", fixed by WS151's label. The weekly digest is built from Granola notes and reads no `Update` rows (no update query in any digest file), so it is unaffected.
+- "No founder yet" rule (JC-FU-A): a company **has a founder** when at least one membership's user does not have the `ADMIN` role. Marge's `hasFounder` from `company_match` and the web label use the same function in `src/lib/founder-updates.ts`.
+
+**2. Does any path send email for a no-member company, or to `TEAM_EMAIL`, when Marge's tools run?**
+No, as planned. Verified per path: company create (new function; the import precedent sends nothing); update filing (new function; does **not** call `sendUpdatePublishedEmail` and never calls `publishUpdate`; the update is created `SENT` directly, so the scheduled-publish cron, which only takes DRAFTs (`src/app/api/cron/scheduled-publish/route.ts:15-18`), never sees it); metric values (no email anywhere, `.../values/route.ts:44-53`); reminders cron (members only, `reminders/route.ts:29-31, :78-95`; `reminderFrequencyDays` stays null); manual remind (members only, F151); comments (an admin's comment mails founder members only, `src/app/api/updates/[id]/comments/route.ts:109-129`; none exist); alerts (no email, F158); invites and member adds (Marge has no tool for them); publish and share (not exposed). WS150's tests mock `@/lib/email` and assert zero calls for every apply. If `TEAM_EMAIL` were empty, nothing in Part 45 changes; F159 lists what already would misdeliver.
+
+**3. Marge's six questions.**
+1. *Unclaimed state:* accepted as zero memberships (the import shape); `createdVia "marge"` marks Marge-made ones; "no founder yet" is derived (JC-FU-A) and shown as "No founder yet" on the companies list and page, plus "Added via Marge" when `createdVia = "marge"`. Nothing breaks (answer 1).
+2. *Cadence and alerts:* confirmed: `cadenceStatus` uses the company's `createdAt` (now) for the 30-day grace and the backdated `sentAt`s after it; the alerts burst (F158) is the only side effect. How behind-on-updates rows look for companies with no founder is Q141.
+3. *Later founders:* the guard is WS153, about 1 day (Marge guessed 0.75; removing the signup's empty duplicate safely adds a little). `createdBy.email` of an admin-created update keeps going to founder members (JC-FU-H: admin-written updates already do this today and DFS addresses are known to founders). The company page tells admins: "Founders will see these updates, figures and comments once they have access." (WS151).
+4. *Removal:* the existing admin **Delete** on the company page (`src/app/admin/companies/[id]/page.tsx:168-193` → `DELETE /api/companies/[id]`, admin-only, type-the-name confirm) removes the company with its updates, metrics, documents and notes; the ledger row stays intact and unlinked, with its contacts and deals (`schema.prisma:764`, F154). WS151 adds the missing `PORTCO_UNLINKED` audit and keeps linked memos' names. Removing a single mis-filed update is Q142.
+5. *JC-MG-J / Q100:* exception recorded (decision 5); `resolve.ts` still creates nothing, and WS150 adds a test that no resolver writes.
+6. *Fuse and WEAK:* the 60-per-24-hours fuse is taken, built as a row count that fails closed (JC-FU-F). Molly's guard **does** block on WEAK company matches too (JC-FU-G): Marge already refuses to create past any match at any tier (Marge J-103), so this costs Marge nothing and stops a fault on her side.
+
+**4. Is 40 companies per backfill run reasonable?** Yes. 43 is an upper bound: a backfill only creates a company for a post that matches exactly one STRONG unlinked ledger row (Marge J-104), and a ledger row with no update in the channel never qualifies. In the worst case 3 are listed as `cap` and the next run creates them. The fuse (60 per 24 h) sits above 40 plus a day of single creations (Marge allows 3 per person per day), so it only trips on a fault. At 24 an hour, 40 creations take under 2 hours. Keep 40.
+
+## Changes to Marge's proposal (and why)
+
+| Marge proposed | Part 45 | Why |
+|---|---|---|
+| Zod carries bounds and regexes | Zod carries types and outer caps; bounds with sentences live in `validate*` | F160, JC-MM-I precedent |
+| A `marge-company-create` rate-limit bucket, 24 h, fail closed | A count of `Company` rows with `createdVia "marge"` in the last 24 h, inside the creation transaction | F155: the limiter is hourly and fails open |
+| Audit rows "in one transaction" with the writes | The writes are one transaction; audit rows are written right after commit, as every Molly action does | `logAdminAction` never throws and runs outside transactions (`src/lib/audit.ts:7-26`); tests assert both rows after an apply |
+| WEAK matches don't block in Molly | They block | JC-FU-G |
+| No guard on ledger rows when `ledgerId` is omitted | Also blocked when an **unlinked** ledger row's normalised name equals the new name (`blockedBy.kind "ledger"`) | Otherwise a create without `ledgerId` leaves a ledger row that should have been linked |
+| Value source `founder` \| `admin` \| `marge` from the update's author | Same three labels; legacy values entered on the web with no update count as `founder` (protected), and web entries by admins record `enteredById` from now on | The single-value route stores no author (`.../values/route.ts:44-53`); unknown must mean "protected" |
+| "That figure was entered by the founder in Molly, so I left it as it is." for founder **and** admin values | "That figure was entered in Molly, so I left it as it is." | The first is wrong for admin-entered figures |
+| `createdAt` left as insert time | A filed update's `createdAt` = its `sentAt` (the email's date, 12:00 UTC); the real filing time goes in a new `filedAt` | F150, JC-FU-C |
+| A metric name in a different case creates a new definition | `name` matches an existing definition case-insensitively first (`metricChecks.action "existing"`) | `@@unique([companyId, name])` is case-sensitive (`schema.prisma:231`); avoids "MRR" next to "mrr" |
+| — | `fromName`, `forwardedBy`, `subject` containing "@" are refused | Never store an address (Marge's own rule), enforced on Molly's side too |
+| — | `source.attachmentCount` (optional int) added | Marge G0 (b): this channel gives a count, not names |
+| `updates_list` / `metrics_list` resolve like Part 39 reads | They resolve over every company (no `approvedCompanyFilter`), like `company_match` | A company Marge can match must be one she can list |
+
+Everything else in Marge's table (tool names, tiers, inputs, returns, previews, other sentences, audit names, flags) is taken as proposed.
+
+## Part 45 technical judgment calls (flagged per protocol)
+
+| Ref | Call | Cheap reversal |
+|---|---|---|
+| **JC-FU-A** | "Has a founder" = at least one member whose user is not an `ADMIN`. One function, used by `company_match`, the companies list, the company page and WS153. | Change the one function (e.g. require the `FOUNDER` role) |
+| **JC-FU-B** | Schema is additive only: nullable or defaulted columns; unique indexes only on new, all-null columns. No backfill; existing rows read `source "FOUNDER"`. | Columns can be ignored; dropping them is a later, signed-off destructive change |
+| **JC-FU-C** | A filed update's `createdAt` = `sentAt` = the email date at 12:00 UTC, so every `createdAt`-dated view reads right with no change; `filedAt` holds the real filing time. | Switch the five views (F150) to `sentAt` and stop backdating |
+| **JC-FU-D** | Creations are serialised with `pg_advisory_xact_lock(hashtext('marge-company-create'))` at the start of the transaction, so two concurrent creates with different keys can't both pass the duplicate guard. | Drop the lock line; the `createKey` unique index still stops same-key races |
+| **JC-FU-E** | `sourceKey` is unique across Molly: a duplicate returns the existing update even if Marge named another company, and creates no company. | Make it unique per `(companyId, sourceKey)` |
+| **JC-FU-F** | The fuse: inside the locked transaction, `count(Company where createdVia = "marge" and createdAt > now − 24 h) >= 60` → refuse with Marge's sentence. Fails closed (a DB error fails the create). `MARGE_COMPANY_CREATE_PER_DAY` overrides 60. | Change the number by env |
+| **JC-FU-G** | The duplicate guard blocks on STRONG **and** WEAK company matches, and on an equal-named unlinked ledger row when no `ledgerId` is given. | Drop WEAK from the guard (one filter) if Marge's J-103 is ever relaxed |
+| **JC-FU-H** | `GET /api/companies/[id]/updates` keeps returning `createdBy.email` to members (unchanged behaviour for admin-written updates). | Select `email` only for admin callers |
+| **JC-FU-I** | A Marge value in the same period window without `replaceValueId` is written as an extra value (Marge's rule); replacing needs the id from the preview. | Refuse instead of adding |
+| **JC-FU-J** | The six input schemas, sentences, reason codes, preview action names and flag names live in one module with no DB import, `src/lib/marge-tools/portco-contract.ts`, so Marge copies one file. | — |
+| **JC-FU-K** | When an admin edits a filed update's figures on the web inside the 3-day window, the replaced values are stored as admin-entered (`enteredById`, `via null`): that is what happened. | Carry `via`/`quote` across the replace |
+
+## Questions for Joseph (Q140–Q142)
+
+- **Q140 — Investor links that were already sent.** (A, recommended) Keep them as they were: an update or figure Marge files shows on a link only if it was filed before the link was made, or if an admin picks it for a new link. People who already got a link see nothing change. (B) Treat filed updates like any other: a 2025 link sent earlier would start showing newly filed 2025 updates and newer figures. No code, but people who already got a link see it change. A costs ~0.25 day (WS152).
+- **Q141 — Companies with no founder that are behind on updates.** (A, recommended) Show their status as today, but replace the Remind button with a quiet "No founder in Molly" note, and make the remind route refuse with "Nobody to remind: this company has no founder in Molly." The team still sees which companies have gone quiet. (B) Leave them out of "behind on updates" and the dashboard's Needs attention until a founder joins: fewer rows, but a company that stopped emailing is never flagged. (C) No change: Remind says "Reminder sent" and emails nobody (F151).
+- **Q142 — Removing an update Marge filed by mistake.** (A, recommended) Admins get a "Remove" action on updates marked "From email", which deletes that update and the figures Marge filed with it, audited as `UPDATE_REMOVED`. Founders' own updates keep today's rule (sent updates can't be deleted). (B) No removal: the only way out is deleting the whole company. A wrong filing on an existing company would stay (F153). B saves ~0.25 day.
+
+## WS148 — Schema, shared rules, and the metric-ownership fix, ~0.75 day
+
+**Goal.** Add provenance columns and the pure rules every later workstream uses.
+
+**WS148.1 `prisma/schema.prisma`** (additive, JC-FU-B):
+```prisma
+model Company {
+  // …existing…
+  createdVia String? // "marge" | null — Part 45: created through company_create / update_create.newCompany
+  createKey  String? @unique // sha256(creatorId:idempotencyKey), as Memo.createKey; Marge creates only
+}
+model Update {
+  // …existing…
+  source    String    @default("FOUNDER") // "FOUNDER" | "EMAIL_VIA_MARGE" — Part 45
+  sourceRef Json? // { kind:"slack_email", channelId, messageTs, permalink, subject, fromName, fromDomain, forwardedBy, attachmentCount?, attachments?:[{filename,mimetype?,size?}] } — never an address
+  sourceKey String?   @unique // "slack:<channelId>:<messageTs>"
+  createKey String?   @unique // sha256(creatorId:idempotencyKey)
+  filedAt   DateTime? // when Marge filed it (createdAt is backdated to the email, JC-FU-C); null for every other update
+}
+model MetricValue {
+  // …existing…
+  via         String? // "marge" | null
+  quote       String? @db.VarChar(300) // the founder's words the figure came from
+  enteredById String? // admin who confirmed (Marge) or entered it (web); null for founder entries and legacy rows
+}
+```
+No relation on `enteredById` (a plain id, like `AuditLog.actorId`), so no new FK. `prisma db push` should show no data-loss warning (three unique indexes, all on new, all-null columns).
+
+**WS148.2 `src/lib/founder-updates.ts`** (new):
+```ts
+// Part 45. Pure rules for founder updates filed from email (Marge) and companies with no founder yet.
+export const UPDATE_SOURCES = ["FOUNDER", "EMAIL_VIA_MARGE"] as const;
+export const PERIOD_RE = /^\d{4}(-(Q[1-4]|H[12]|0[1-9]|1[0-2]))?$/;
+/** YYYY, YYYY-Hn, YYYY-Qn, YYYY-MM → UTC [start, end], end = last instant of the last day. */
+export function periodWindow(period: string): { start: Date; end: Date } | null { /* … */ }
+export const emailDateToInstant = (d: string) => new Date(`${d}T12:00:00.000Z`); // JC-FU-C
+export type ValueSource = "founder" | "admin" | "marge";
+export function valueSource(v: { via: string | null; enteredById: string | null; updateCreatorIsAdmin: boolean | null }): ValueSource {
+  if (v.via === "marge") return "marge";
+  if (v.enteredById || v.updateCreatorIsAdmin) return "admin";
+  return "founder"; // includes legacy web entries with no author: protected either way
+}
+/** JC-FU-A: a company has a founder when any member is not an admin. */
+export const hasFounderWhere = { memberships: { some: { user: { NOT: { roles: { has: "ADMIN" } } } } } } as const;
+export const companyHasFounder = (members: { user: { roles: string[] } }[]) => members.some((m) => !m.user.roles.includes("ADMIN"));
+/** Lowercase host without "www."; null when unparsable. Used by the guard and company_match. */
+export function websiteHost(url: string | null | undefined): string | null { /* … */ }
+```
+
+**WS148.3 `src/lib/utils.ts:29-44` `formatPeriod`**: add `YYYY-Hn` → "H1 2025" and bare `YYYY` → "2025" before the raw fallback. Existing outputs unchanged (keep the old test cases).
+
+**WS148.4 `src/lib/portco-match.ts`**: export `nameTokens` and `tokensContain` (additive, used by WS150 and WS153).
+
+**WS148.5 F152 fix.** In `src/app/api/companies/[id]/updates/route.ts` (before the transaction, `:105`) and `src/app/api/updates/[id]/route.ts` (before `:199`), load `db.metricDefinition.findMany({ where: { id: { in: ids } }, select: { id: true, companyId: true } })`; any id missing or belonging to another company → `400 { error: "That metric belongs to another company." }`. Also set `enteredById: user.id` on each value when the caller is an admin (both routes and `.../values/route.ts:44-49`).
+
+**Acceptance.** `db push` diff (read-only against prod) shows only the new columns and three unique indexes; `formatPeriod` passes old and new cases; `periodWindow` covers all five shapes (leap year, December) and rejects "2025-13", "2025-Q5", "Q3 2025"; posting another company's definition id returns 400; legitimate composer saves are unchanged.
+
+**UX impact:** none visible (new columns unused until WS150/151; the F152 check only refuses requests the UI never makes). **Cost impact:** none.
+
+## WS149 — Shared write functions, ~1.5 days
+
+**Goal.** One place that files an update, sets a metric, creates a company with no founder, and removes a filed update; used by the Marge tools (WS150) and the web removal (WS151).
+
+**`src/lib/founder-update-actions.ts`** (new; the `memo-actions.ts` shape: validated input in, `{ ok, value | error }` out, a `via` marker, audits after commit):
+```ts
+// Part 45 (WS149). The only code that creates a company without a founder (Part 45 decision 5) or files
+// an update from email. Sends no email of any kind: nothing here imports @/lib/email (test in WS154).
+export async function createUnclaimedCompany(tx: Tx, actor: Actor, input: NewCompanyInput): Promise<CreatedCompany> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('marge-company-create'))`; // JC-FU-D
+  const createKey = sha256(`${actor.id}:${input.idempotencyKey}`);
+  const dup = await tx.company.findUnique({ where: { createKey }, select: { id: true, portfolioCompany: { select: { id: true } } } });
+  if (dup) return { companyId: dup.id, duplicate: true, linkedLedgerId: dup.portfolioCompany?.id ?? null };
+  const blockedBy = await duplicateGuard(tx, input); // JC-FU-G; the dry run calls the same function
+  if (blockedBy.length) throw new FounderUpdateError(PORTCO_SENTENCES.companyExists(input.name, blockedBy), { blockedBy });
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  if ((await tx.company.count({ where: { createdVia: "marge", createdAt: { gt: since } } })) >= creationFuse()) {
+    throw new FounderUpdateError(PORTCO_SENTENCES.fuse); // JC-FU-F, fails closed
+  }
+  const ledger = input.ledgerId
+    ? await tx.portfolioCompany.findUnique({ where: { id: input.ledgerId }, select: { id: true, country: true } })
+    : null;
+  if (input.ledgerId && !ledger) throw new FounderUpdateError(PORTCO_SENTENCES.ledgerUnknown);
+  const company = await tx.company.create({
+    data: { name: input.name, website: input.website ?? null, geography: ledger?.country ?? null,
+            createdById: actor.id, createdVia: "marge", createKey },
+  }); // no membership, no reminder, no diligence row, no alias, no contact, no share link
+  if (ledger) {
+    const r = await tx.portfolioCompany.updateMany({ where: { id: ledger.id, companyId: null }, data: { companyId: company.id } });
+    if (r.count !== 1) throw new FounderUpdateError(await ledgerLinkedSentence(tx, ledger.id)); // rolls everything back (Marge J-109)
+  }
+  return { companyId: company.id, duplicate: false, linkedLedgerId: ledger?.id ?? null };
+}
+export async function fileEmailUpdate(actor: Actor, input: FileUpdateInput, via: Via): Promise<FounderUpdateResult<FiledUpdate>>;
+export async function setMetricValue(actor: Actor, input: MetricValueInput, via: Via): Promise<FounderUpdateResult<SetValue>>;
+export async function removeEmailUpdate(actor: Actor, updateId: string): Promise<FounderUpdateResult<{ removed: true }>>; // Q142 A only
+```
+`planFileUpdate()`, `planCompany()` and `planMetricValue()` are read-only and return what the dry run shows (`metricChecks`, `samePeriod`, `company`, `blockedBy`); each apply recomputes them inside its transaction. Rules:
+1. **`fileEmailUpdate`**: a `sourceKey` hit → return the existing update with `duplicate: true`, write nothing, **create no company** (checked before `newCompany`). A `createKey` hit → the same. Otherwise, in one `db.$transaction`: `createUnclaimedCompany` when `newCompany`; `tx.update.create({ data: { companyId, createdById: actor.id, period, title, body: plainToDigestHtml(bodyText), status: "SENT", sentAt, createdAt: sentAt, filedAt: new Date(), source: "EMAIL_VIA_MARGE", sourceRef, sourceKey, createKey } })`; each metric: a `definitionId` must belong to the company; a `name` matches an existing definition case-insensitively, else creates one with `unit` (`new_metric`). Value rule, per definition, over existing values dated inside `periodWindow(period)`: one whose source is `founder` or `admin` → not written, `kept_founder` (the rest still apply); `replaceValueId` names a `marge` value → updated in place (old value, date and `enteredById` go to audit metadata as numbers and ids); `replaceValueId` names a `founder`/`admin` value → the whole call is refused; otherwise create with `updateId`, `via: "marge"`, `quote`, `enteredById: actor.id`. Never calls `sendUpdatePublishedEmail` or `publishUpdate`.
+2. **`setMetricValue`**: the same kept/replace rule for one value; `quote` optional; no `updateId`.
+3. **`createUnclaimedCompany`**: as sketched; `company_create` calls it inside its own one-statement transaction.
+4. **`removeEmailUpdate`** (Q142 A): admin only; refuses unless `source = "EMAIL_VIA_MARGE"`; one transaction deletes `MetricValue where updateId = id and via = "marge"`, then the update (comments, documents' link, share selections cascade per `schema.prisma:282, :330`).
+5. **Audits** (after commit; ids and counts only; `...viaMeta(via)` as `memo-actions.ts:53`): `UPDATE_CREATED { companyId, updateId, source, period, metricCount, definitionsCreated, keptFounder }`, `METRIC_DEFINITION_CREATED { companyId, definitionId }`, `METRIC_VALUE_SET { definitionId, valueId, date, replaced? }`, `COMPANY_CREATED { name, companyId, createdVia: "marge", portfolioCompanyId, withUpdate }` (keeps today's `name` key, `src/app/api/companies/route.ts:179-182`), `PORTCO_LINKED { companyId, previousCompanyId: null }` with `targetType "PortfolioCompany"` (as `portfolio-companies/[id]/route.ts:62-66`), `UPDATE_REMOVED { companyId, updateId, metricValuesRemoved }`. Never titles, bodies, quotes or names of people.
+
+**Acceptance (unit tests in the `memo-actions` test style).** Planners never write; `sourceKey`/`createKey` duplicates write nothing; `kept_founder` is never written; a `replaceValueId` on a founder or admin value is refused at plan and at apply; `newCompany` is atomic (a failing metric leaves no company, no link, no update); a ledger row linked at apply time leaves no company; the guard refuses on name, alias, website host and WEAK tokens for a company in each of the three states (active, pending signup, diligence); a created company has **zero memberships** and `createdVia "marge"`; the 61st creation in 24 h is refused; the `@/lib/email` mock records **no call**.
+
+**UX impact:** none until WS150/151 call it. **Cost impact:** none.
+
+## WS150 — The six Marge tools, ~1.5 days
+
+**Goal.** Marge's tools as two flag-gated groups, with the contract in one copyable module.
+
+**WS150.1 `src/lib/marge-tools/portco-contract.ts`** (new; imports only `zod`; JC-FU-J). Exports `updatesListInput`, `metricsListInput`, `companyMatchInput`, `companyCreateInput`, `updateCreateInput`, `metricValueSetInput`, `PORTCO_SENTENCES`, `MATCH_REASONS`, `PORTCO_PREVIEW_ACTIONS`, `MARGE_PORTCO_FLAG = "MARGE_PORTCO_TOOLS"`, `MARGE_COMPANY_CREATE_FLAG = "MARGE_COMPANY_CREATE"`. No default except `dryRun`; the real limits, with Marge's sentences, are in WS149's validators:
+```ts
+const date = z.string().describe("YYYY-MM-DD");
+const newCompany = z.object({
+  name: z.string().max(500).describe("1-200 characters of plain text"),
+  ledgerId: z.string().max(100).optional(),
+  website: z.string().max(1000).optional().describe("up to 300 characters"),
+  idempotencyKey: z.string().max(200).describe("8-100 letters, digits, - or _"),
+});
+export const updatesListInput = z.object({ company: z.string().max(200).describe("company id or exact name"),
+  period: z.string().max(20).optional(), since: date.optional(), until: date.optional(),
+  limit: z.number().int().optional().describe("1-50; 20 when omitted") });
+export const metricsListInput = z.object({ company: z.string().max(200), values: z.number().int().optional().describe("0-24; 6 when omitted") });
+export const companyMatchInput = z.object({ names: z.array(z.string().max(500)).max(10).describe("1-5 name candidates"),
+  domain: z.string().max(200).optional().describe("the sender's domain, never an address") });
+export const companyCreateInput = newCompany.extend({ dryRun: z.boolean().default(true) });
+const source = z.object({ kind: z.literal("slack_email"), channelId: z.string().max(40), messageTs: z.string().max(40),
+  permalink: z.string().max(500), subject: z.string().max(1000), fromName: z.string().max(500), fromDomain: z.string().max(200),
+  forwardedBy: z.string().max(500), attachmentCount: z.number().int().optional(),
+  attachments: z.array(z.object({ filename: z.string().max(300), mimetype: z.string().max(200).optional(), size: z.number().int().optional() })).max(50).optional() });
+const metric = z.object({ definitionId: z.string().max(100).optional(), name: z.string().max(200).optional(),
+  unit: z.string().max(40).nullable().optional(), value: z.number(), date, quote: z.string().max(1000),
+  replaceValueId: z.string().max(100).optional() });
+export const updateCreateInput = z.object({ companyId: z.string().max(100).optional(), newCompany: newCompany.optional(),
+  period: z.string().max(20), title: z.string().max(1000), bodyText: z.string().max(60_000), sentAt: date, source,
+  metrics: z.array(metric).max(50).optional(), idempotencyKey: z.string().max(200), dryRun: z.boolean().default(true) });
+export const metricValueSetInput = metric.omit({ quote: true }).extend({ companyId: z.string().max(100),
+  quote: z.string().max(1000).optional(), dryRun: z.boolean().default(true) });
+```
+Validators enforce Marge's limits exactly: name 1–200 (a letter, no line break, no `<`/`>`); website ≤300 and http(s); title 1–200; body 1–40,000; ≤20 metrics; ≤10 attachments; quote 1–300 (optional on `metric_value_set`); metric name ≤80; `PERIOD_RE`; names 1–5 of 1–200; domain ≤120; the Part 40 idempotency-key rule; exactly one of `companyId`/`newCompany` and of `definitionId`/`name`; `value` finite with absolute value < 10^15; `subject`, `fromName`, `forwardedBy` must not contain "@".
+
+**WS150.2 `src/lib/marge-tools/tiers.ts`**: add `MARGE_PORTCO_TOOLS = { updates_list: "team", metrics_list: "team", company_match: "dm", update_create: "dm_write", metric_value_set: "dm_write" }` and `MARGE_COMPANY_TOOLS = { company_create: "dm_write" }`, with `margePortcoToolsEnabled()` (`MARGE_PORTCO_TOOLS === "on"`), `margeCompanyCreateEnabled()` (both flags `on`), `isPortcoToolName`, `isCompanyToolName`. `MARGE_TOOLS` and `MARGE_MEMO_TOOLS` are untouched, so their tests stay byte-identical.
+
+**WS150.3 `src/lib/marge-tools/portco.ts`** (new): the six functions in the `memos.ts` plan/apply shape (`previewOutput`, `requireVia`, `ToolError`).
+- `updates_list`: resolve by id, then exact case-insensitive name, over **all** companies; rows per Marge's table (`period` match **or** `sentAt` in [since, until]); `bodyPreview` = first 300 plain characters (`htmlToPlainText`) under "Founder-written update (untrusted text):"; `createdBy` name only.
+- `metrics_list`: definitions with the newest `values` values each, `source` from `valueSource`.
+- `company_match`: every `Company` (`aliases`, `website`, `stage`, creator `status`/`approvalToken`, members' roles) and every `PortfolioCompany` (contacts' emails are read **only** to compute `contactCount` and `contactAtDomain`, never returned). Tiers and reasons exactly as Marge's rules: companies STRONG `NAME_EXACT`/`ALIAS_EXACT`/`WEBSITE_DOMAIN`, WEAK `NAME_TOKENS`; unlinked ledger rows STRONG `NAME_EXACT`, MEDIUM `CONTACT_DOMAIN`, WEAK `NAME_TOKENS`; a linked ledger row folds into its company (`ledgerId`). A `domain` that `emailDomain("x@" + domain)` drops as free-mail, or that `isAdminEmailDomain` marks as DFS, is ignored. `state`: `"diligence"` when `stage = "DILIGENCE"`, `"pending_signup"` when the creator is `PENDING` with no `approvalToken`, else `"active"`. ≤10 rows per list, STRONG first.
+- Writes: dry runs return Marge's previews (text and `fields` exactly as her "Previews" list) and `structuredContent` = `{ preview, company?: { willCreate, name, geography, website, ledger?: { id, name, willLink, reason? }, blockedBy? }, samePeriod, metricChecks: [{ name, action: "new" | "new_metric" | "existing" | "kept_founder" | "replace", existing? }], duplicate }`; `reason` is `"gone"` (ledger row deleted) or `"linked"` (already linked; Marge's proposed `"unsupported"` cannot occur once this is deployed). Applies call WS149 and return Marge's result shapes. `update_create` with `newCompany` while `margeCompanyCreateEnabled()` is false → "Molly isn't accepting new companies from Marge right now."
+
+**WS150.4 `src/lib/marge-tools/server.ts`**: `PORTCO_TOOL_DEFS` (5) and `COMPANY_TOOL_DEFS` (1), registered by their flags in `margeHandler` (`:289`). In `runTool`, after the memo check (`:234`): `if (isPortcoToolName(def.name) && !margePortcoToolsEnabled()) return deny("off", DENIED.off);` and the same for `company_create` with `margeCompanyCreateEnabled()`. `MargePreview.action` (`types.ts:38-47`) gains `"Add update" | "Record metric" | "Create company" | "Create company and add update"`. Amend the comments at `resolve.ts:2` and `write.ts:4`: "… never creates a person, project, alias or company (JC-MG-J, Q100). The one exception is Part 45's company_create / update_create.newCompany (owner-approved 2026-11-12)."
+
+**WS150.5 `src/app/api/mcp/marge/route.ts:16`**: `const maxBody = () => (margeMemoToolsEnabled() || margePortcoToolsEnabled() ? MARGE_MEMO_MAX_BODY : MAX_BODY);` (F157).
+
+**Acceptance.** `tools/list` holds exactly the 13 with no flag; plus the 6 memo names with `MARGE_MEMO_TOOLS`; plus the 5 portco names with `MARGE_PORTCO_TOOLS`; plus `company_create` only when both portco flags are on (checked by **names**, Marge F-149); `MARGE_MCP_MODE=read` refuses every apply with Part 39's read-only sentence; team-channel calls of `company_match` and the writes → `DENIED.dmOnly`; Part 39's `argsHash` test vector still passes; a dry run of each write writes nothing (spies on `db.*.create/update/delete/$transaction`); `company_match` sees pending-signup and diligence companies and returns no string containing "@"; every apply leaves the email mock untouched; a founder with no membership gets 403 on a created company and its updates; a test proves `resolve.ts` never writes.
+
+**UX impact:** none for founders, admins or link recipients (tools are off until Joseph sets the flags). **Cost impact:** none (model use is Marge's, already counted on her side).
+
+## WS151 — Companies with no founder, filed updates and removal in the web app, ~1 day
+
+**Goal.** Admins can tell such companies and filed updates apart; nothing misleads; mistakes can be removed.
+
+1. **Label.** `GET /api/admin/companies` (`src/app/api/admin/companies/route.ts:47-104`) adds `createdVia` and `hasFounder` (a second `company.findMany({ where: { id: { in: companyIds }, ...hasFounderWhere }, select: { id: true } })`). `src/app/admin/companies/page.tsx` shows a quiet chip after the name: "No founder yet", prefixed "Added via Marge ·" when `createdVia = "marge"`. The company page (`src/app/admin/companies/[id]/page.tsx:241-250`) shows the same under the title, with "Founders will see these updates, figures and comments once they have access." (`GET /api/admin/companies/[id]` adds the two fields.) Copy goes to Nosa for a pass. In production today **no company** gets the chip.
+2. **Remind (Q141 A).** Where `hasFounder` is false, the companies list (`page.tsx:305-312`) and the dashboard's Needs attention row (`src/app/admin/page.tsx:285-293`; `overdueList` in `dashboard/route.ts:80` adds `hasFounder`) show muted "No founder in Molly" instead of Remind. `remind/route.ts` returns `409 { error: "Nobody to remind: this company has no founder in Molly." }` when there are zero OWNER/MEMBER recipients, without stamping `lastReminderSentAt`.
+3. **F149.** `?linkable=1` and `link-suggestions` return `ownerEmail: null` when the creator has the `ADMIN` role, and `link-suggestions` passes `signupEmail: null` to the matcher then; the dialog hides "Also add … as a contact" when `ownerEmail` is null; the Links page shows "—". Founder-created companies read exactly as before.
+4. **Filed updates.** `UpdatesTab` (`updates-tab.tsx:59`), the update page and the founder update view show "From email · added by <name> via Marge" when `source = "EMAIL_VIA_MARGE"`. Admins also get "Open in Slack" from `sourceRef.permalink`; `GET /api/updates/[id]` and `GET /api/companies/[id]/updates` omit `sourceRef` and `filedAt` for non-admin callers. Figures with `via = "marge"` get a small "from email" tag with the quote as its tooltip, in admin views only.
+5. **Removal (Q142 A).** `DELETE /api/updates/[id]` (`route.ts:7-36`): if the update is `SENT`, `source = "EMAIL_VIA_MARGE"` and the caller is an admin → `removeEmailUpdate`; every other case behaves exactly as today. The update card's menu gets "Remove" for those updates only, behind a confirm naming the period.
+6. **F154.** In `DELETE /api/companies/[id]`, before deleting: read the linked ledger row and run `memo.updateMany({ where: { companyId: id }, data: { companyNamePending: <company name> } })` so memos keep a name; after deleting, write `PORTCO_UNLINKED { companyId: null, previousCompanyId: id }` (`targetType "PortfolioCompany"`) when a row was linked. The confirm text (`page.tsx:173`) adds "Its deal-ledger entry stays, unlinked." when linked.
+
+**Acceptance.** A memberless company shows the chip and no Remind; the remind route answers 409 for it and is unchanged for others; linking a Marge-created company never offers the admin's address; a founder-created company's link dialog is unchanged; a founder member sees "From email · added by … via Marge" but no Slack link and no `sourceRef`; founders' sent updates still can't be deleted; deleting a linked company leaves the ledger row (`companyId null`) with its contacts and deals, writes `PORTCO_UNLINKED`, and its memos keep the name.
+
+**UX impact:** additive. Existing companies, founder updates and founders' views look the same (chips and labels appear only on the new states); Remind goes away only where it could never send. **Cost impact:** none.
+
+## WS152 — Investor links already sent stay as they were (Q140 A), ~0.25 day
+
+In `src/app/api/share/[token]/route.ts`: the legacy period query (`:93-101`) adds `NOT: { filedAt: { gt: link.createdAt } }` (only Marge-filed updates have `filedAt`); the metric summary (`:116-119`) adds `NOT: { via: "marge", createdAt: { gt: link.createdAt } }` (`MetricValue.createdAt` is the real insert time). Explicitly selected updates (`:83-89`) are untouched: an admin making a new link can pick a filed update as usual. If Joseph picks Q140 B, skip this workstream (keep `filedAt`; JC-FU-C needs it).
+
+**Acceptance.** A link created before a filing shows the same updates and figures after it; a link created after shows them; founder updates published after a link still appear on legacy period links (today's behaviour).
+
+**UX impact:** none for link recipients (that is the point) or admins. **Cost impact:** none.
+
+## WS153 — A founder who signs up later joins the existing company (Marge Q-PU9 (a)), ~1 day
+
+**Goal.** On `/admin/approvals`, a pending signup whose company matches a company with no founder gets "Add <person> to <company> instead", so approving creates no duplicate.
+
+1. `src/app/api/admin/approvals/[id]/matches/route.ts` adds `unclaimed: { id, name, reasons }[]`: companies (other than the signup's own) where `companyHasFounder` is false and the signup company's name or aliases match by `NAME_EXACT`/`ALIAS_EXACT`/`NAME_TOKENS`, or the signup email's non-free domain equals the company's `websiteHost` (`WEBSITE_DOMAIN`). No email address is added to the response beyond the `signupEmail` it already returns.
+2. New `POST /api/admin/approvals/[id]/join` `{ companyId }` (admin). Refuses unless the user is `PENDING`, the target still has no founder, and the signup's own company was created by this user, has no other members, no updates, no ledger link and is not `DILIGENCE`. In one transaction: `UserCompanyMembership { role: OWNER }` on the target, then delete the signup's empty company. Then the **existing approve flow** runs unchanged (`approve/route.ts:33-60`: setup token and the founder's normal approval email, which every approved signup already gets; nothing new is sent). Audit `SIGNUP_JOINED_COMPANY { userId, companyId, removedCompanyId }`.
+3. `src/app/admin/approvals/page.tsx`: when `unclaimed` is non-empty, a notice above the Link & approve block: "Molly already has a page for <name> with no founder. Add <person> to it instead of approving a second company?" with the button; WEAK-only matches stay behind "Show weaker matches" as today (`:443, :553-561`).
+
+**Acceptance.** Joining leaves one company with the founder as OWNER, who then sees the filed updates; the signup's empty company is gone; a target that gained a founder meanwhile → 409; a signup company with content → 409 "This signup's company already has content. Approve it and merge by hand."; ordinary approvals unchanged.
+
+**UX impact:** additive (the notice appears only when such a company exists; none do today). The founder gets exactly the approval email they would have got anyway. **Cost impact:** none.
+
+## WS154 — Tests, guard test and turn-on, ~0.5 day (+ Joseph's steps)
+
+1. A test that `src/lib/founder-update-actions.ts` and `src/lib/marge-tools/portco*.ts` do not reference `@/lib/email` or `@/lib/publish-update` in any form (`import`, `require(`, `await import(`).
+2. Full suite, `tsc`, `next build`; the prisma diff reviewed read-only against prod.
+3. Joseph, in order (Alvin never runs these): (1) `prisma db push` against prod: expect only the new columns and three unique indexes, no data-loss warning. (2) Push the branch and wait for the deploy. (3) Set `MARGE_PORTCO_TOOLS=on` in Molly production and redeploy; Marge runs her G4 checks. (4) Only after G4 passes: set `MARGE_COMPANY_CREATE=on` and redeploy. Off switch for creation alone: unset `MARGE_COMPANY_CREATE`; for all six tools: unset `MARGE_PORTCO_TOOLS`; `MARGE_MCP_MODE` stays the master switch.
+4. Tell the Marge session the committed path and commit of `portco-contract.ts`; she copies it verbatim into `tests/helpers/molly-portco-contract.ts`.
+
+**UX impact:** none. **Cost impact:** none.
+
+## Part 45 sequencing, deploys and effort
+
+| Step | Work | Estimate |
+|---|---|---|
+| WS148 | Schema, rules, F152 fix | 0.75 d |
+| WS149 | Shared write functions | 1.5 d |
+| WS150 | Six Marge tools, contract module | 1.5 d |
+| WS151 | Web: labels, Remind, F149, filed-update marks, removal, F154 | 1 d |
+| WS152 | Links already sent stay as they were (Q140 A) | 0.25 d |
+| WS153 | Later founder joins the existing company | 1 d |
+| WS154 | Tests, guard test, turn-on | 0.5 d |
+| **Total** | | **≈ 6.5 days** (Q140 B −0.25; Q142 B −0.25) |
+
+Order: WS148 → WS149 → WS150 (Marge can build her FakeMolly from the contract file as soon as WS150.1 is committed) → WS151 → WS152 → WS153 → WS154. One `db push`, after WS148 and before the first deploy that reads the columns. WS153 may ship later without blocking Marge.
+
+## Part 45 — decisions summary
+
+| Ref | Topic | State |
+|---|---|---|
+| Decisions 1–7 | From Marge D-M34, D-M35, Q-PU5, Q-PU9 (Joseph) | Confirmed |
+| **Q140** | Investor links already sent | Open: recommend A |
+| **Q141** | Companies with no founder that are behind | Open: recommend A |
+| **Q142** | Removing an update Marge filed | Open: recommend A |
+| **F149** | Link dialog offers the admin's own address as a contact | WS151 |
+| **F150** | `createdAt`-dated views would misread backfills | JC-FU-C |
+| **F151** | Remind on a memberless company sends nothing | WS151 / Q141 |
+| **F152** | Cross-company metric definition ids accepted | WS148 |
+| **F153** | Sent updates can't be removed | Q142 / WS151 |
+| **F154** | Company delete: silent unlink, memos lose their name | WS151 |
+| **F155** | Limiter can't hold a 24 h fail-closed fuse | JC-FU-F |
+| **F156** | Old investor links would change | Q140 / WS152 |
+| **F157** | 64 KB route cap with memo tools off | WS150 |
+| **F158** | Unclaimed companies join cadence after 30 days | Q141 |
+| **F159** | Empty `TEAM_EMAIL` becomes `team@example.com` | Joseph checks in Resend; not Part 45 |
+| **F160** | Bounds in zod vs in code | Contract shape |
+
+**Constraints honored:** **no new cost line** (a Postgres advisory lock and row counts; no new service or package); **additive schema only** (nullable or defaulted columns; unique indexes only on new columns); **no UX regression** (existing companies, founder updates, founders' views and investor links look the same; labels appear only on the new states; Remind goes away only where it could never send); no company, deal or person name in repo text.
+
+**Handoff status: PLAN ONLY (2026-11-12). Waiting on Joseph: approval to build, and Q140–Q142.**
+
+---
