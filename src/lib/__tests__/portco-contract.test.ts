@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync } from "fs";
 import { join } from "path";
 import * as C from "@/lib/marge-tools/portco-contract";
 
@@ -76,7 +76,12 @@ describe("what must never gain a write or a mail", () => {
     expect(code).not.toMatch(/\$transaction|\$executeRaw/);
   });
   it("the founder-update code does not reference email or publishing in any form", () => {
-    for (const f of ["src/lib/founder-update-actions.ts", "src/lib/founder-update-validate.ts", "src/lib/founder-updates.ts", "src/lib/marge-tools/portco.ts", "src/lib/marge-tools/portco-contract.ts"]) {
+    // WS154: every portco*.ts in marge-tools is covered by listing the directory, so a new file can't slip past.
+    const portcoFiles = readdirSync(join(process.cwd(), "src/lib/marge-tools"))
+      .filter((n) => /^portco.*\.ts$/.test(n))
+      .map((n) => `src/lib/marge-tools/${n}`);
+    expect(portcoFiles).toEqual(expect.arrayContaining(["src/lib/marge-tools/portco.ts", "src/lib/marge-tools/portco-contract.ts"]));
+    for (const f of ["src/lib/founder-update-actions.ts", "src/lib/founder-update-validate.ts", "src/lib/founder-updates.ts", ...portcoFiles]) {
       const code = src(f);
       expect(code, f).not.toMatch(/@\/lib\/email|@\/lib\/publish-update|sendUpdatePublishedEmail|publishUpdate\(|require\(["']@\/lib\/(email|publish-update)|import\(["']@\/lib\/(email|publish-update)/);
     }
