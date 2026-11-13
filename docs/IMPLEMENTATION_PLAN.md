@@ -15382,7 +15382,7 @@ Validators enforce Marge's limits exactly: name 1–200 (a letter, no line break
 
 ## WS152 — Investor links already sent stay as they were (Q140 A), ~0.25 day
 
-In `src/app/api/share/[token]/route.ts`: the legacy period query (`:93-101`) adds `NOT: { filedAt: { gt: link.createdAt } }` (only Marge-filed updates have `filedAt`); the metric summary (`:116-119`) adds `NOT: { via: "marge", createdAt: { gt: link.createdAt } }` (`MetricValue.createdAt` is the real insert time). Explicitly selected updates (`:83-89`) are untouched: an admin making a new link can pick a filed update as usual. If Joseph picks Q140 B, skip this workstream (keep `filedAt`; JC-FU-C needs it).
+In `src/app/api/share/[token]/route.ts`: the legacy period query (`:93-101`) adds `OR: [{ filedAt: null }, { filedAt: { lte: link.createdAt } }]` (only Marge-filed updates have `filedAt`; **not** `NOT`, which Prisma's three-valued logic would also apply to the null `filedAt` of every ordinary update and drop them); the metric summary (`:116-119`) adds `AND: [{ OR: [{ via: null }, { createdAt: { lte: link.createdAt } }] }]` (`MetricValue.createdAt` is the real insert time; same null reason). *(Plan text corrected 2026-11-12 to match what was built.)* Explicitly selected updates (`:83-89`) are untouched: an admin making a new link can pick a filed update as usual. If Joseph picks Q140 B, skip this workstream (keep `filedAt`; JC-FU-C needs it).
 
 **Acceptance.** A link created before a filing shows the same updates and figures after it; a link created after shows them; founder updates published after a link still appear on legacy period links (today's behaviour).
 
@@ -15448,5 +15448,13 @@ Order: WS148 → WS149 → WS150 (Marge can build her FakeMolly from the contrac
 **Constraints honored:** **no new cost line** (a Postgres advisory lock and row counts; no new service or package); **additive schema only** (nullable or defaulted columns; unique indexes only on new columns); **no UX regression** (existing companies, founder updates, founders' views and investor links look the same; labels appear only on the new states; Remind goes away only where it could never send); no company, deal or person name in repo text.
 
 **Handoff status: PLAN ONLY (2026-11-12). Q140–Q142 answered A (2026-11-12). Waiting on Joseph: approval to build.**
+
+### Part 45 follow-up: Marge's optional contract extras (2026-11-12, Joseph "Go"; board B-99)
+
+Built after Part 45 shipped (8b82f54). No schema change; the contract file `src/lib/marge-tools/portco-contract.ts` changed, so Marge must pick up the new commit.
+
+1. **Duplicate points at the existing update.** When `update_create` (dry run or apply) finds the email already filed (same `sourceKey`, or same idempotency key), it also returns `existingUpdate: { id, title, url }` in `structuredContent`, and the text names the title and link (`PORTCO_SENTENCES.alreadyFiled(title, url)`, which now takes the link). `duplicate` is kept. `existingUpdate` is present exactly when `duplicate` is true.
+2. **Update links are the update's own page.** `update_create`'s applied `url` is `<origin>/updates/<id>` (new `updateUrl` next to `companyUrl`), no longer the company page; the same applies to each `samePeriod[].url` in its dry run. Admins can open any company's update there: `GET /api/updates/[id]` uses `requireCompanyAccess`, which lets admins through for every company, and middleware does not gate `/updates`. `updates_list` and the other tools still return the company page URL (not asked for).
+3. **Two shared `argsHash` test vectors**, in `marge-portco-tools.test.ts` next to Part 39's: one for `update_create` with `newCompany`, one for `company_create` (fixed fake inputs, exact hex).
 
 ---
