@@ -35,7 +35,7 @@ import {
   type MetricCheck,
   type SamePeriodRow,
 } from "@/lib/marge-tools/portco-contract";
-import { companyUrl, isoDate } from "@/lib/marge-tools/types";
+import { isoDate, updateUrl } from "@/lib/marge-tools/types";
 
 type Tx = Prisma.TransactionClient;
 type Client = Tx | typeof db;
@@ -436,7 +436,7 @@ export async function loadSamePeriod(client: Client, companyId: string, period: 
     source: u.source,
     createdBy: u.createdBy?.name?.trim() || "Unnamed",
     bodyPreview: htmlToPlainText(u.body, 300),
-    url: companyUrl(companyId),
+    url: updateUrl(u.id),
   }));
 }
 
@@ -486,6 +486,8 @@ export interface FiledUpdate {
   companyCreated: boolean;
   linkedLedgerId: string | null;
   keptFounder: number;
+  /** Set only when duplicate is true: the update this email was filed as earlier. */
+  existingTitle?: string;
 }
 
 /**
@@ -638,8 +640,9 @@ export async function fileEmailUpdate(actor: Actor, input: FileUpdateInput, via?
   }
 }
 
-const dupResult = (e: { id: string; companyId: string }): FiledUpdate => ({
+const dupResult = (e: { id: string; title: string; companyId: string }): FiledUpdate => ({
   updateId: e.id,
+  existingTitle: e.title,
   companyId: e.companyId,
   duplicate: true,
   metricsWritten: 0,

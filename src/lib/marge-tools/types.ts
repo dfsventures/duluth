@@ -22,7 +22,9 @@ export function mollyOrigin(): string {
   return (process.env.NEXTAUTH_URL || "https://molly.dfs.vc").replace(/\/+$/, "");
 }
 export const companyUrl = (id: string) => `${mollyOrigin()}/admin/companies/${id}`;
-export const boardUrl = () => `${mollyOrigin()}/admin/board`;
+/** An update's own page (/updates/<id>); admins can open it for any company's update. */
+export const updateUrl = (id: string) => `${mollyOrigin()}/updates/${id}`;
+export const boardUrl =() => `${mollyOrigin()}/admin/board`;
 export const broadcastUrl = (id: string) => `${mollyOrigin()}/admin/broadcasts/${id}`;
 export const memoUrl = (id: string) => `${mollyOrigin()}/admin/memos/${id}`;
 

@@ -61,7 +61,7 @@ import {
 } from "@/lib/marge-tools/portco-contract";
 import { margeCompanyCreateEnabled } from "@/lib/marge-tools/tiers";
 import type { Principal } from "@/lib/marge-auth";
-import { ToolError, companyUrl, isoDate, type ToolOutput } from "@/lib/marge-tools/types";
+import { ToolError, companyUrl, isoDate, updateUrl, type ToolOutput } from "@/lib/marge-tools/types";
 import type { WriteOpts } from "@/lib/marge-tools/write";
 import type { Via } from "@/lib/board-actions";
 
@@ -414,7 +414,10 @@ export async function updateCreate(input: z.infer<typeof updateCreateInput>, p: 
     }
     for (const r of planned.samePeriod) warnings.push(S.samePeriod(u.period, r.title, r.sentAt ? day(r.sentAt) : "unsent", r.createdBy, r.bodyPreview));
     if (planned.replacingMarge) warnings.push(S.replacesMarge(planned.replacingMarge));
-    if (planned.duplicate) warnings.push(S.alreadyFiled(planned.duplicate.title));
+    const existingUpdate = planned.duplicate
+      ? { id: planned.duplicate.updateId, title: planned.duplicate.title, url: updateUrl(planned.duplicate.updateId) }
+      : null;
+    if (existingUpdate) warnings.push(S.alreadyFiled(existingUpdate.title, existingUpdate.url));
 
     return preview(
       {
@@ -428,17 +431,19 @@ export async function updateCreate(input: z.infer<typeof updateCreateInput>, p: 
         samePeriod: planned.samePeriod,
         metricChecks: planned.metricChecks,
         duplicate: !!planned.duplicate,
+        ...(existingUpdate ? { existingUpdate } : {}),
       }
     );
   }
 
   const r = await fileEmailUpdate(p, u, requireVia(opts));
   if (!r.ok) throw new ToolError(r.error);
-  const url = companyUrl(r.value.companyId);
+  const url = updateUrl(r.value.updateId);
   const structured: UpdateCreateApplied = {
     updateId: r.value.updateId,
     url,
     duplicate: r.value.duplicate,
+    ...(r.value.duplicate ? { existingUpdate: { id: r.value.updateId, title: r.value.existingTitle ?? "", url } } : {}),
     metricsWritten: r.value.metricsWritten,
     definitionsCreated: r.value.definitionsCreated,
     companyId: r.value.companyId,
@@ -447,7 +452,7 @@ export async function updateCreate(input: z.infer<typeof updateCreateInput>, p: 
   };
   return {
     text: r.value.duplicate
-      ? `That email was already filed: ${url}`
+      ? S.alreadyFiled(r.value.existingTitle ?? "", url)
       : `Filed “${u.title}” as a ${u.period} update${r.value.companyCreated ? " on a new company" : ""}. ${r.value.metricsWritten} ${r.value.metricsWritten === 1 ? "figure" : "figures"} recorded${r.value.keptFounder ? `, ${r.value.keptFounder} left as in Molly` : ""}. ${url}`,
     structured: structured as unknown as Record<string, unknown>,
     count: 1,

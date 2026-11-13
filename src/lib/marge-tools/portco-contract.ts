@@ -215,7 +215,7 @@ export const PORTCO_SENTENCES = {
   badIdempotency: "idempotencyKey must be 8-100 letters, digits, - or _.",
   // after-commit text
   alreadyCreated: (name: string) => `Already created: ${name}.`,
-  alreadyFiled: (title: string) => `Already filed from this email as “${title}”.`,
+  alreadyFiled: (title: string, url: string) => `Already filed from this email as “${title}”: ${url}`,
   samePeriod: (period: string, title: string, sent: string, by: string, preview: string) =>
     `Already an update for ${period}: “${title}” (sent ${sent}, by ${by}): ${preview}`,
   replacesMarge: (n: number) => `Replaces ${n} ${n === 1 ? "figure" : "figures"} added via Marge earlier.`,
@@ -265,7 +265,13 @@ export interface SamePeriodRow {
   source: string;
   createdBy: string; // a name, never an address
   bodyPreview: string;
-  url: string;
+  url: string; // the update's own page, /updates/<id>
+}
+/** The update an email was already filed as (same sourceKey or idempotency key). */
+export interface ExistingUpdate {
+  id: string;
+  title: string;
+  url: string; // the update's own page, /updates/<id>
 }
 /** structuredContent of a dry run of company_create / update_create / metric_value_set. */
 export interface PortcoDryRunStructured {
@@ -274,6 +280,7 @@ export interface PortcoDryRunStructured {
   samePeriod?: SamePeriodRow[]; // update_create, metric_value_set (companyId given)
   metricChecks?: MetricCheck[]; // update_create, metric_value_set
   duplicate?: boolean; // update_create / company_create: already filed or created
+  existingUpdate?: ExistingUpdate; // update_create only, present exactly when duplicate is true
 }
 /** structuredContent of an apply. */
 export interface CompanyCreateApplied {
@@ -284,8 +291,9 @@ export interface CompanyCreateApplied {
 }
 export interface UpdateCreateApplied {
   updateId: string;
-  url: string;
+  url: string; // the update's own page, /updates/<id> (was the company page before the Part 45 follow-up)
   duplicate: boolean;
+  existingUpdate?: ExistingUpdate; // present exactly when duplicate is true (id equals updateId, url equals url)
   metricsWritten: number;
   definitionsCreated: number;
   companyId: string;

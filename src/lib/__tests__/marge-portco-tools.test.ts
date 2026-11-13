@@ -196,6 +196,39 @@ describe("gate: tiers, read-only mode, confirmation", () => {
   it("Part 39's argsHash test vector still passes", () => {
     expect(argsHash({ title: "Send deck", owners: ["me", "Sam Partner"], dryRun: false, dueDate: "2026-10-23" })).toBe("012e48d7aaede96a103cf2ad1ae256355c672e9a4acdaebeb701482d206cefab");
   });
+  // Shared with Marge (Part 45 follow-up): fixed fake inputs, exact hex. dryRun is dropped, keys are sorted,
+  // undefined keys are dropped, nested objects and arrays keep their shape.
+  it("update_create with newCompany: shared argsHash vector", () => {
+    const args = {
+      newCompany: { name: "Example Works", ledgerId: "led_0001", website: "https://example.com", idempotencyKey: "newco_0001_example" },
+      period: "2025-Q3",
+      title: "Q3 update",
+      bodyText: "We grew.",
+      sentAt: "2025-10-03",
+      source: {
+        kind: "slack_email",
+        channelId: "C0EXAMPLE1",
+        messageTs: "1760000000.000100",
+        permalink: "https://example.slack.com/archives/C0EXAMPLE1/p1760000000000100",
+        subject: "Q3 update",
+        fromName: "Ada Example",
+        fromDomain: "example.com",
+        forwardedBy: "Sam",
+        attachmentCount: 1,
+        attachments: [{ filename: "deck.pdf", mimetype: "application/pdf", size: 1024 }],
+      },
+      metrics: [{ name: "MRR", unit: "USD", value: 1250.5, date: "2025-09-30", quote: "MRR was 1,250.50" }],
+      idempotencyKey: "upd_0001_example",
+      dryRun: false,
+    };
+    expect(argsHash(args)).toBe("5ae126e0624d67ed325d0f69356dca68ebeb355f4fbff7d94c8c3a895ffc4091");
+    expect(argsHash({ ...args, dryRun: true })).toBe(argsHash(args));
+  });
+  it("company_create: shared argsHash vector", () => {
+    const args = { name: "Example Works", ledgerId: "led_0001", website: "https://example.com", idempotencyKey: "newco_0001_example", dryRun: false };
+    expect(argsHash(args)).toBe("93a795793921bf8ac3f095e9d9cbe3478d5a9a2c654a4d4b242d392f56339a71");
+    expect(argsHash({ ...args, dryRun: true })).toBe(argsHash(args));
+  });
 });
 
 describe("dry runs write nothing", () => {
@@ -418,6 +451,34 @@ describe("update_create through the route", () => {
     const again = await result(await applyCall("update_create", updateArgs({ companyId: undefined, newCompany: newCompany({ name: "Other Name", ledgerId: undefined, idempotencyKey: "pc_other_001" }), idempotencyKey: "upd_key_0009" })));
     expect(again.structuredContent).toMatchObject({ duplicate: true, companyCreated: false });
     expect(state.company.map((c) => c.name)).not.toContain("Other Name");
+  });
+  it("returns the update's own page link, and the existing update on a duplicate (dry run and apply)", async () => {
+    const first = await result(await applyCall("update_create", updateArgs()));
+    const s1 = first.structuredContent as unknown as C.UpdateCreateApplied;
+    const id = state.update[0].id;
+    expect(s1.updateId).toBe(id);
+    expect(s1.url).toBe(`https://molly.dfs.vc/updates/${id}`);
+    expect(s1.existingUpdate).toBeUndefined();
+
+    // same email (same sourceKey), different idempotency key
+    const again = await result(await applyCall("update_create", updateArgs({ idempotencyKey: "upd_key_0077" })));
+    const s2 = again.structuredContent as unknown as C.UpdateCreateApplied;
+    expect(s2).toMatchObject({ duplicate: true, updateId: id, url: `https://molly.dfs.vc/updates/${id}`, existingUpdate: { id, title: "Q3 update", url: `https://molly.dfs.vc/updates/${id}` } });
+    expect(again.content[0].text).toBe(`Already filed from this email as “Q3 update”: https://molly.dfs.vc/updates/${id}`);
+
+    const dry = await result(await post(callBody("update_create", updateArgs({ idempotencyKey: "upd_key_0078" }))));
+    const d = dry.structuredContent as unknown as C.PortcoDryRunStructured;
+    expect(d.duplicate).toBe(true);
+    expect(d.existingUpdate).toEqual({ id, title: "Q3 update", url: `https://molly.dfs.vc/updates/${id}` });
+    expect(d.preview.warnings).toContain(C.PORTCO_SENTENCES.alreadyFiled("Q3 update", `https://molly.dfs.vc/updates/${id}`));
+    expect(d.samePeriod![0].url).toBe(`https://molly.dfs.vc/updates/${id}`);
+    expect(state.update).toHaveLength(1);
+  });
+  it("a fresh dry run has no existingUpdate", async () => {
+    const dry = await result(await post(callBody("update_create", updateArgs())));
+    const d = dry.structuredContent as unknown as C.PortcoDryRunStructured;
+    expect(d.duplicate).toBe(false);
+    expect(d.existingUpdate).toBeUndefined();
   });
   it("a body of 40,000 characters passes and 40,001 gets the sentence", async () => {
     expect((await result(await post(callBody("update_create", updateArgs({ bodyText: "x".repeat(40_000) }))))).isError).toBeFalsy();
