@@ -17,6 +17,8 @@ import {
   LogOut,
   ChevronDown,
   Search,
+  Moon,
+  Sun,
   Shield,
   Link2,
   Settings,
@@ -123,6 +125,9 @@ function countMarker(href: string, counts: NavCounts | null): { text: string; so
 
 const COLLAPSE_KEY = "molly.nav.collapsed";
 
+/** The sidebar's element id, so the phone menu button can point at it (aria-controls) and focus it. */
+export const SIDEBAR_ID = "app-sidebar";
+
 interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
@@ -207,16 +212,26 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             "nav-item relative flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
             active
               ? "bg-card text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:bg-mark"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            // New look: 28px items (44px on phones), 13px, the current page is a tint with
+            // no left rule, and the focus ring sits inside so it is never clipped.
+            "v2:h-7 v2:gap-2 v2:rounded v2:px-2 v2:py-0 v2:text-row max-md:v2:h-11 motion-reduce:transition-none",
+            active
+              ? "v2:bg-sel v2:before:hidden"
+              : "v2:font-normal v2:text-secondary v2:hover:bg-row-hover v2:hover:text-foreground"
           )}
         >
-          <item.icon aria-hidden="true" className="h-4 w-4" />
+          <item.icon aria-hidden="true" className="h-4 w-4 v2:h-3.5 v2:w-3.5" />
           {item.label}
           {marker && (
             <span
               className={cn(
                 "num ml-auto font-mono text-label",
-                marker.solid ? "bg-foreground px-1.5 text-background" : "text-muted-foreground"
+                marker.solid ? "bg-foreground px-1.5 text-background" : "text-muted-foreground",
+                // New look: counts are plain right-aligned figures. Only the "needs you"
+                // ones (approvals, diligence) are bold; review counts stay quiet.
+                "v2:bg-transparent v2:px-0 v2:font-sans v2:text-meta",
+                marker.solid ? "v2:font-semibold v2:text-foreground" : "v2:font-normal v2:text-muted-foreground"
               )}
             >
               <span aria-hidden="true">{marker.text}</span>
@@ -230,6 +245,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
   return (
     <aside
+      id={SIDEBAR_ID}
+      aria-label="Sidebar"
       className={cn(
         // h-dvh, not h-screen: 100vh includes the area behind mobile browser
         // bars, which clipped the bottom-pinned user/logout row under
@@ -239,13 +256,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         "fixed inset-y-0 left-0 z-40 transition-transform duration-200",
         open ? "translate-x-0" : "-translate-x-full",
         // Desktop: always visible, static position
-        "md:relative md:translate-x-0"
+        "md:relative md:translate-x-0",
+        // New look: 224px on the sidebar tier; a 292px drawer on phones that is
+        // out of the tab order while closed (visibility waits for the slide).
+        "v2:w-56 v2:bg-[var(--color-sidebar)] max-md:v2:w-[292px] max-md:v2:max-w-[85vw] motion-reduce:transition-none",
+        !open && "max-md:v2:invisible max-md:v2:transition-[transform,visibility]"
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-5">
-        <Link href={useAdminNav ? "/admin" : "/dashboard"} className="flex items-center gap-2">
-          <LogoMark />
+      <div className="flex h-16 items-center border-b px-5 v2:h-11 v2:border-b-0 v2:px-4">
+        <Link href={useAdminNav ? "/admin" : "/dashboard"} className="flex items-center gap-2" aria-label="Molly home">
+          <LogoMark className="v2:h-4 v2:w-auto" />
         </Link>
       </div>
 
@@ -253,7 +274,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       {!useAdminNav && <CompanySwitcher />}
 
       {/* Nav links */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-4 v2:px-2 v2:pb-2 v2:pt-0">
         {useAdminNav ? (
           <>
             {isAdmin && (
@@ -263,14 +284,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   onClose?.();
                   openCommandPalette();
                 }}
-                className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:mb-2 v2:h-[30px] v2:rounded v2:border-[var(--color-border-hover)] v2:bg-background v2:px-2 v2:py-0 v2:text-row v2:text-secondary max-md:v2:h-11"
               >
                 <Search aria-hidden="true" className="h-3.5 w-3.5" />
                 <span className="flex-1">Search or jump to</span>
-                <kbd className="border border-border bg-background px-1.5 font-mono text-[10px]">Ctrl K</kbd>
+                <kbd className="border border-border bg-background px-1.5 font-mono text-[10px] v2:rounded-sm v2:border-[var(--color-border-hover)] v2:bg-transparent v2:text-[11px] v2:text-muted-foreground">
+                  Ctrl K
+                </kbd>
               </button>
             )}
-            <ul className="space-y-1">{renderItem(adminDashboardItem)}</ul>
+            <ul className="space-y-1 v2:space-y-0">{renderItem(adminDashboardItem)}</ul>
             {adminNavGroups.map((group, i) => {
               const headingId = `sidebar-group-${group.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
               const listId = `${headingId}-list`;
@@ -282,7 +305,11 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   key={group.label}
                   role="group"
                   aria-labelledby={headingId}
-                  className={cn(i === 0 ? "mt-6" : "mt-4", i > 0 && "border-t border-border pt-4")}
+                  className={cn(
+                    i === 0 ? "mt-6" : "mt-4",
+                    i > 0 && "border-t border-border pt-4",
+                    "v2:mt-0 v2:border-t-0 v2:pt-0"
+                  )}
                 >
                   <button
                     type="button"
@@ -292,7 +319,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     onClick={() => toggleGroup(group.label)}
                     className={cn(
                       "mb-1.5 flex w-full items-center justify-between px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      groupActive ? "text-foreground" : "text-muted-foreground"
+                      groupActive ? "text-foreground" : "text-muted-foreground",
+                      // New look: sentence-case 12px heading in the sans, not mono caps.
+                      "v2:mb-0 v2:px-2 v2:pb-1 v2:pt-3 v2:font-sans v2:text-meta v2:font-medium v2:normal-case v2:tracking-normal v2:text-muted-foreground max-md:v2:min-h-11 max-md:v2:py-0",
+                      "motion-reduce:transition-none"
                     )}
                   >
                     {group.label}
@@ -301,7 +331,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       className={cn("h-3.5 w-3.5 transition-transform", !isOpen && "-rotate-90")}
                     />
                   </button>
-                  <ul id={listId} hidden={!isOpen} className="space-y-1">
+                  <ul id={listId} hidden={!isOpen} className="space-y-1 v2:space-y-0">
                     {group.items.map(renderItem)}
                   </ul>
                 </div>
@@ -322,44 +352,51 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       </nav>
 
       {/* User footer */}
-      <div className="border-t p-4">
-        {/* New-look switch (PLAN-1, WS156): admin pages only, saved in this browser. */}
+      <div className="flex flex-col border-t p-4 v2:p-2">
+        {/* New-look switch (PLAN-1, WS156): admin pages only, saved in this browser.
+            Both labels are in the page and CSS shows the right one, so there is no
+            flash of the wrong word on load. Under the new look it sits below the person. */}
         {isAdminPath && isAdmin && (
-          <div className="mb-3 flex flex-col items-start gap-1">
+          <div className="mb-3 flex flex-col items-start gap-1 v2:order-2 v2:mb-0 v2:mt-0.5 v2:items-stretch">
             <button
               type="button"
               onClick={toggleLook}
               role="switch"
               aria-checked={look === "v2"}
-              className="text-xs font-medium text-primary hover:underline"
+              className="text-xs font-medium text-primary hover:underline v2:h-6 v2:rounded v2:px-2 v2:text-left v2:text-meta v2:font-normal v2:text-muted-foreground v2:no-underline v2:hover:bg-row-hover v2:hover:text-secondary v2:hover:no-underline max-md:v2:h-11"
             >
-              {look === "v2" ? "Use the old look" : "Try the new look"}
+              <span className="v2:hidden">Try the new look</span>
+              <span className="hidden v2:inline">Use the old look</span>
             </button>
-            {look === "v2" && (
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              </button>
-            )}
           </div>
         )}
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold font-mono">
+        <div className="flex items-center gap-3 v2:order-1 v2:h-8 v2:gap-2 v2:pl-2 v2:pr-1 max-md:v2:h-11">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold font-mono v2:h-6 v2:w-6 v2:font-sans v2:text-meta">
             {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "?"}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="truncate text-sm font-medium text-foreground">{session?.user?.name || session?.user?.email}</p>
-            <p className="truncate text-xs text-muted-foreground">
+            <p className="truncate text-sm font-medium text-foreground v2:text-row">{session?.user?.name || session?.user?.email}</p>
+            <p className="truncate text-xs text-muted-foreground v2:sr-only">
               {isAdmin && isFounder ? "Admin & Founder" : isAdmin ? "Admin" : "Founder"}
             </p>
           </div>
+          {/* Light / dark: new look only (the old look has one theme). Also in the palette. */}
+          {isAdminPath && isAdmin && (
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className="hidden h-7 w-7 place-items-center rounded text-muted-foreground transition-colors v2:grid v2:hover:bg-row-hover v2:hover:text-foreground max-md:v2:h-11 max-md:v2:w-11"
+            >
+              <Moon aria-hidden="true" className="h-4 w-4 v2dark:hidden" />
+              <Sun aria-hidden="true" className="hidden h-4 w-4 v2dark:block" />
+            </button>
+          )}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors v2:grid v2:h-7 v2:w-7 v2:place-items-center v2:p-0 v2:hover:bg-row-hover max-md:v2:h-11 max-md:v2:w-11"
             title="Sign out"
+            aria-label="Sign out"
           >
             <LogOut className="h-4 w-4" />
           </button>
