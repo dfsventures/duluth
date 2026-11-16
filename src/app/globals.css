@@ -334,6 +334,120 @@ html[data-look="v2"] [data-surface="admin"] .skip-link {
 html[data-look="v2"] [data-surface="admin"] .skip-link:focus {
   left: 8px;
 }
+
+/* Core components (PLAN-1, WS159). Rules for the plain-CSS classes (.btn-*, .badge-*, .label,
+   .input-field, .status-dot). The React components (Button, EmptyState, TabBar...) carry their
+   own `v2:` utilities instead. Each selector is written out in full because the scope test
+   reads them one by one. */
+
+/* Buttons: sentence case, 13px, 32px high, never wrap, icons never shrink, 1px press. */
+html[data-look="v2"] [data-surface="admin"] .btn-primary,
+html[data-look="v2"] [data-surface="admin"] .btn-secondary,
+html[data-look="v2"] [data-surface="admin"] .btn-destructive {
+  min-height: 32px;
+  padding: 0 12px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+html[data-look="v2"] [data-surface="admin"] .btn-primary svg,
+html[data-look="v2"] [data-surface="admin"] .btn-secondary svg,
+html[data-look="v2"] [data-surface="admin"] .btn-destructive svg {
+  flex-shrink: 0;
+}
+html[data-look="v2"] [data-surface="admin"] .btn-primary:active,
+html[data-look="v2"] [data-surface="admin"] .btn-secondary:active,
+html[data-look="v2"] [data-surface="admin"] .btn-destructive:active {
+  transform: translateY(1px);
+}
+/* Secondary is a ghost: a hairline edge, no fill, no shadow. */
+html[data-look="v2"] [data-surface="admin"] .btn-secondary {
+  border-color: var(--color-border-hover);
+  box-shadow: none;
+}
+
+/* Badges: a status is a small glyph and a word, coloured by state. The shape differs per
+   state, so the colour is never the only signal. Fills stay only on stage chips and columns
+   (StageChip, tone pairs). */
+html[data-look="v2"] [data-surface="admin"] .badge {
+  gap: 6px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+}
+html[data-look="v2"] [data-surface="admin"] .badge::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: currentColor;
+}
+html[data-look="v2"] [data-surface="admin"] .badge-success { color: var(--color-done); background: transparent; }
+html[data-look="v2"] [data-surface="admin"] .badge-warning { color: var(--color-warn); background: transparent; }
+html[data-look="v2"] [data-surface="admin"] .badge-danger { color: var(--color-stuck); background: transparent; }
+html[data-look="v2"] [data-surface="admin"] .badge-info { color: var(--color-text-secondary); background: transparent; }
+html[data-look="v2"] [data-surface="admin"] .badge-neutral { color: var(--color-text-secondary); background: transparent; }
+html[data-look="v2"] [data-surface="admin"] .badge-warning::before {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+html[data-look="v2"] [data-surface="admin"] .badge-danger::before {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+html[data-look="v2"] [data-surface="admin"] .badge-info::before,
+html[data-look="v2"] [data-surface="admin"] .badge-neutral::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.25px currentColor;
+}
+
+/* StatusDot: a round 6px marker in the state colour, and the word in meta size. */
+html[data-look="v2"] [data-surface="admin"] .status-dot > [aria-hidden="true"] {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+}
+html[data-look="v2"] [data-surface="admin"] .status-dot[data-tone="sage"] > [aria-hidden="true"] { background: var(--color-done); }
+html[data-look="v2"] [data-surface="admin"] .status-dot[data-tone="clay"] > [aria-hidden="true"] { background: var(--color-stuck); }
+html[data-look="v2"] [data-surface="admin"] .status-dot[data-tone="amber"] > [aria-hidden="true"] { background: var(--color-warn); }
+html[data-look="v2"] [data-surface="admin"] .status-dot[data-tone="sky"] > [aria-hidden="true"] { background: var(--color-accent); }
+html[data-look="v2"] [data-surface="admin"] .status-dot[data-tone="stone"] > [aria-hidden="true"] { background: var(--color-ctl); }
+html[data-look="v2"] [data-surface="admin"] .status-dot[data-tone="sand"] > [aria-hidden="true"] { background: var(--color-ctl); }
+
+/* Labels: sentence case, 12px, muted. Not mono caps. */
+html[data-look="v2"] [data-surface="admin"] .label {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Inputs: 13px, a visible control border (3:1), 32px high for single-line fields. A field in
+   its error state keeps the destructive border from the component. */
+html[data-look="v2"] [data-surface="admin"] .input-field {
+  font-size: 13px;
+  line-height: 20px;
+  border-radius: var(--r-ctl);
+}
+html[data-look="v2"] [data-surface="admin"] .input-field:not(.border-destructive) {
+  border-color: var(--color-ctl);
+}
+html[data-look="v2"] [data-surface="admin"] input.input-field,
+html[data-look="v2"] [data-surface="admin"] select.input-field {
+  height: 32px;
+  padding-block: 0;
+}
 /* ── End new look ── */
 
 /* ── Base ─────────────────────────────────────────────────── */

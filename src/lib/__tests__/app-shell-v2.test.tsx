@@ -68,7 +68,8 @@ describe("shell source", () => {
 describe("shell css", () => {
   const css = read("app/globals.css");
   const start = css.indexOf("/* App shell (PLAN-1, WS158)");
-  const end = css.indexOf("/* ── End new look ── */");
+  // The shell rules end where the WS159 component rules begin (those use ::before for badge glyphs).
+  const end = css.indexOf("/* Core components (PLAN-1, WS159)");
   it("sits inside the new-look section", () => {
     expect(start).toBeGreaterThan(0);
     expect(end).toBeGreaterThan(start);

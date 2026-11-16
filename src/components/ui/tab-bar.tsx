@@ -51,8 +51,8 @@ export function TabBar<T extends string>({
   }, [active, tabs.length]);
 
   return (
-    <nav aria-label={label} className={cn("tab-bar mb-6 overflow-x-auto border-b border-border", className)}>
-      <div ref={listRef} className="relative flex gap-6">
+    <nav aria-label={label} className={cn("tab-bar mb-6 overflow-x-auto border-b border-border v2:mb-4", className)}>
+      <div ref={listRef} className="relative flex gap-6 v2:gap-5">
         {tabs.map((t) => {
           const isActive = t.key === active;
           return (
@@ -64,14 +64,14 @@ export function TabBar<T extends string>({
               aria-current={isActive ? "page" : undefined}
               title={t.hint}
               className={cn(
-                "tab-link flex shrink-0 items-center gap-2 whitespace-nowrap py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "tab-link flex shrink-0 items-center gap-2 whitespace-nowrap py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:py-2 v2:text-row max-md:v2:min-h-11",
                 isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
               )}
             >
               {t.icon}
               {t.label}
               {t.count !== undefined && (
-                <span className="num font-mono text-label font-medium text-muted-foreground">{t.count}</span>
+                <span className="num font-mono text-label font-medium text-muted-foreground v2:font-sans v2:text-meta">{t.count}</span>
               )}
             </Link>
           );

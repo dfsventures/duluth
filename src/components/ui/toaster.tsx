@@ -50,6 +50,8 @@ export function Toaster() {
           className={cn(
             "flex items-start gap-3 rounded-float bg-toast px-4 py-3 text-[13px] text-toast-ink shadow-float",
             "data-[state=open]:animate-toast-in data-[state=closed]:animate-toast-out",
+            // New look (PLAN-1, WS159): 13px text (already), 160ms in. The fill is the dark toast token.
+            "v2:data-[state=open]:[animation-duration:160ms]",
             "data-[swipe=move]:translate-y-[var(--radix-toast-swipe-move-y)]",
             "data-[swipe=cancel]:translate-y-0 data-[swipe=cancel]:transition-transform",
             "data-[swipe=end]:translate-y-[var(--radix-toast-swipe-end-y)] data-[swipe=end]:animate-toast-out"

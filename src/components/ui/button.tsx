@@ -12,6 +12,11 @@ type BaseProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "children">
    * the layout (invisible) so the button does not change width.
    */
   loading?: boolean;
+  /**
+   * A faint keyboard-shortcut hint inside the button ("A", "⌘↵"). Drawn only under the new
+   * look; the old look never shows it. Decorative: it does not bind the key itself.
+   */
+  kbd?: string;
 };
 
 // Icon-only buttons must carry an accessible name.
@@ -22,7 +27,18 @@ export type ButtonProps = BaseProps &
   );
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", loading = false, disabled, children, ...props }, ref) => {
+  ({ className, variant = "primary", size = "md", loading = false, disabled, children, kbd, ...props }, ref) => {
+    const hint = kbd ? (
+      <kbd
+        aria-hidden="true"
+        className={cn(
+          "hidden rounded-sm border border-current px-1 font-mono text-[11px] leading-4 v2:inline-block",
+          variant === "primary" ? "opacity-90" : "border-[var(--color-border-hover)] text-muted-foreground"
+        )}
+      >
+        {kbd}
+      </kbd>
+    ) : null;
     return (
       <button
         ref={ref}
@@ -34,9 +50,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           variant === "primary"
             ? "font-mono text-cta font-semibold uppercase tracking-cta"
             : "font-sans text-[13px] font-medium",
+          // New look (PLAN-1, WS159): sentence case, 13px, medium; never wraps; icons never shrink.
+          "v2:whitespace-nowrap v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal v2:[&_svg]:shrink-0",
           {
             "bg-primary text-primary-foreground shadow-soft hover:bg-primary-hover hover:shadow-lift": variant === "primary",
-            "border border-edge bg-btn2 text-foreground shadow-soft hover:border-[var(--color-border-hover)] hover:bg-muted":
+            "border border-edge bg-btn2 text-foreground shadow-soft hover:border-[var(--color-border-hover)] hover:bg-muted v2:border-[var(--color-border-hover)]":
               variant === "secondary",
             "bg-destructive text-destructive-foreground font-semibold hover:bg-destructive/90":
               variant === "destructive",
@@ -44,10 +62,10 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             "text-primary underline-offset-4 hover:underline": variant === "link",
           },
           {
-            "h-8 px-3": size === "sm",
-            "h-9 px-5": size === "md",
-            "h-11 px-7": size === "lg",
-            "h-8 w-8 p-0": size === "icon",
+            "h-8 px-3 v2:h-7 max-md:v2:h-11": size === "sm",
+            "h-9 px-5 v2:h-8 v2:px-3 max-md:v2:h-11": size === "md",
+            "h-11 px-7 v2:h-9 v2:px-4": size === "lg",
+            "h-8 w-8 p-0 max-md:v2:h-11 max-md:v2:w-11": size === "icon",
           },
           className
         )}
@@ -55,11 +73,17 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {loading ? (
           <>
-            <span className="invisible inline-flex items-center justify-center gap-2">{children}</span>
+            <span className="invisible inline-flex items-center justify-center gap-2">
+              {children}
+              {hint}
+            </span>
             <Loader2 aria-hidden="true" className="absolute h-3.5 w-3.5 animate-spin" />
           </>
         ) : (
-          children
+          <>
+            {children}
+            {hint}
+          </>
         )}
       </button>
     );

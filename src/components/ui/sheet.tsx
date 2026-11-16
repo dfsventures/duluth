@@ -29,6 +29,8 @@ export function SheetContent({ title, description, className, children, ...props
           className={cn(
             "flex h-full w-full flex-col rounded-l-sheet border-l border-edge bg-card shadow-float sm:max-w-[440px]",
             "data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out",
+            // New look (PLAN-1, WS159): the pane tier, 160ms in.
+            "v2:bg-pane v2:data-[state=open]:[animation-duration:160ms]",
             className
           )}
           {...props}
@@ -37,7 +39,7 @@ export function SheetContent({ title, description, className, children, ...props
             <div className="min-w-0">
               <DialogPrimitive.Title className="font-display text-heading text-foreground">{title}</DialogPrimitive.Title>
               {description ? (
-                <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">
+                <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground v2:text-meta">
                   {description}
                 </DialogPrimitive.Description>
               ) : null}

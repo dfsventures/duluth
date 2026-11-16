@@ -185,6 +185,112 @@ describe("new look: light tones stay equal to the old look", () => {
   });
 });
 
+// WS159: the pairs the core components use. Buttons (primary, secondary ghost, destructive and
+// the faint shortcut hint) and chips (a set filter chip, the unset dashed chip, a stage chip).
+describe.each(THEMES)("new look core components, %s theme", (themeName, vars) => {
+  const c = (k: string) => parse(vars[k]);
+  const rootAt = css.indexOf(":root {");
+  const rootBody = css.slice(css.indexOf("{", rootAt) + 1, css.indexOf("\n}", rootAt));
+  // Destructive is not redefined in the light v2 block: it falls through from :root.
+  const destructive = (): RGBA => {
+    const rgb = vars["--color-destructive-rgb"] ?? /--color-destructive-rgb:\s*([^;]+);/.exec(rootBody)![1];
+    const [r, g, b] = rgb.trim().split(/\s+/).map(Number);
+    return { r, g, b, a: 1 };
+  };
+  const destructiveInk = () => parse(vars["--color-destructive-foreground"] ?? /--color-destructive-foreground:\s*([^;]+);/.exec(rootBody)![1]);
+  const bg = () => c("--color-bg");
+
+  it("primary: label on the accent and on its hover", () => {
+    expect(ratio(c("--color-accent-foreground"), c("--color-accent"))).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(c("--color-accent-foreground"), c("--color-accent-hover"))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("primary: the shortcut hint (label at 90% opacity) still passes 4.5:1 on the accent", () => {
+    const hint = over({ ...c("--color-accent-foreground"), a: 0.9 }, c("--color-accent"));
+    expect(ratio(hint, c("--color-accent"))).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("secondary (ghost): label on the page, the pane, and on its hover fill (muted)", () => {
+    const [r, g, b] = vars["--color-muted-rgb"].split(/\s+/).map(Number);
+    for (const surface of [bg(), c("--color-pane"), c("--color-sidebar"), { r, g, b, a: 1 }]) {
+      expect(ratio(c("--color-text-primary"), surface)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("secondary: the shortcut hint (muted text) passes 4.5:1 on the page, the pane and the hover fill", () => {
+    const [r, g, b] = vars["--color-muted-rgb"].split(/\s+/).map(Number);
+    for (const surface of [bg(), c("--color-pane"), { r, g, b, a: 1 }]) {
+      expect(ratio(c("--color-text-muted"), surface)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it(`destructive: label on the destructive fill (${themeName})`, () => {
+    expect(ratio(destructiveInk(), destructive())).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("chips: a set filter chip (accent on accent-soft) and its value (secondary text) pass 4.5:1 on the page and the pane", () => {
+    for (const base of [bg(), c("--color-pane")]) {
+      const fill = over(c("--color-accent-soft"), base);
+      expect(ratio(c("--color-accent"), fill)).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(c("--color-text-secondary"), fill)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("chips: the unset dashed chip (control border) passes 3:1 and its label passes 4.5:1", () => {
+    for (const base of [bg(), c("--color-pane")]) {
+      expect(ratio(c("--color-ctl"), base)).toBeGreaterThanOrEqual(3);
+      expect(ratio(c("--color-text-secondary"), base)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("chips: every stage and column tone (ink on fill) passes 4.5:1", () => {
+    for (const t of ["stone", "sky", "sage", "clay", "sand", "amber"]) {
+      expect(ratio(c(`--tone-${t}-ink`), c(`--tone-${t}-fill`)), t).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("badges: the info and neutral text (secondary) pass 4.5:1 on the page, the pane and the raised tier", () => {
+    for (const k of ["--color-bg", "--color-pane", "--color-surface"]) {
+      expect(ratio(c("--color-text-secondary"), c(k)), k).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("status-dot markers: every state marker passes 3:1 on the page and the pane", () => {
+    // Mirrors the .status-dot rules in globals.css: sage done, clay stuck, amber warn, sky accent, stone and sand ctl.
+    for (const k of ["--color-done", "--color-stuck", "--color-warn", "--color-accent", "--color-ctl"]) {
+      for (const base of [bg(), c("--color-pane")]) {
+        expect(ratio(c(k), base), k).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+});
+
+describe("new look core components: the rules are scoped and present", () => {
+  const read = (p: string) => readFileSync(join(__dirname, "..", "..", p), "utf-8");
+
+  it("buttons never wrap: .btn-* and Button are nowrap with a non-shrinking icon under the new look", () => {
+    expect(section).toMatch(/\.btn-primary,[\s\S]*?\.btn-destructive \{[\s\S]*?white-space: nowrap;/);
+    expect(section).toMatch(/\.btn-primary svg,[\s\S]*?flex-shrink: 0;/);
+    const button = read("components/ui/button.tsx");
+    expect(button).toContain("v2:whitespace-nowrap");
+    expect(button).toContain("v2:[&_svg]:shrink-0");
+  });
+
+  it("the new look reaches the plain-CSS components: badge, status-dot, label and input", () => {
+    for (const sel of [".badge-success", ".badge-danger", ".status-dot", ".label", ".input-field"]) {
+      expect(section, sel).toContain(`[data-surface="admin"] ${sel}`);
+    }
+  });
+
+  it("the empty state is a compact one-line state under the new look, with no icon or eyebrow", () => {
+    const empty = read("components/ui/empty-state.tsx");
+    expect(empty).toContain("v2:flex-row");
+    expect(empty).toContain("v2:py-3");
+    expect(empty).toMatch(/v2:hidden">\s*\{icon\}/);
+    expect(empty).toMatch(/v2:hidden">\{eyebrow\}/);
+  });
+});
+
 describe("new look: type roles survive cn() (tailwind-merge sync)", () => {
   it("keeps text-row, text-meta and text-pane-title next to a colour class", () => {
     expect(cn("text-row", "text-foreground")).toBe("text-row text-foreground");

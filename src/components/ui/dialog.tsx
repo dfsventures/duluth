@@ -47,6 +47,8 @@ export function DialogContent({
             "relative w-full border border-edge bg-card shadow-float",
             "max-h-[92dvh] overflow-y-auto rounded-t-float sm:rounded-float",
             "data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out",
+            // New look (PLAN-1, WS159): the pane tier, 160ms in.
+            "v2:bg-pane v2:data-[state=open]:[animation-duration:160ms]",
             SIZES[size],
             className
           )}
@@ -60,7 +62,7 @@ export function DialogContent({
                 {title}
               </DialogPrimitive.Title>
               {description ? (
-                <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">
+                <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground v2:text-meta">
                   {description}
                 </DialogPrimitive.Description>
               ) : null}

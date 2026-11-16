@@ -92,7 +92,7 @@ export function CommandPalette() {
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--scrim)] px-4 pt-[12vh] data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
           <DialogPrimitive.Content
             aria-describedby={undefined}
-            className="w-full max-w-[520px] border border-border bg-card shadow-float data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out"
+            className="w-full max-w-[520px] border border-border bg-card shadow-float data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out v2:rounded-float v2:bg-pane v2:data-[state=open]:[animation-duration:160ms]"
           >
             <DialogPrimitive.Title className="sr-only">Search and jump to anything</DialogPrimitive.Title>
             <Command label="Search and jump to anything" loop>
@@ -116,7 +116,7 @@ export function CommandPalette() {
                     <Command.Group
                       key={group}
                       heading={group}
-                      className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-label [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-label [&_[cmdk-group-heading]]:text-muted-foreground"
+                      className="[&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-label [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-label [&_[cmdk-group-heading]]:text-muted-foreground v2:[&_[cmdk-group-heading]]:font-sans v2:[&_[cmdk-group-heading]]:text-meta v2:[&_[cmdk-group-heading]]:font-medium v2:[&_[cmdk-group-heading]]:normal-case v2:[&_[cmdk-group-heading]]:tracking-normal"
                     >
                       {inGroup.map((item) => (
                         <Command.Item
@@ -124,10 +124,10 @@ export function CommandPalette() {
                           value={`${item.group} ${item.label} ${item.id}`}
                           keywords={item.keywords}
                           onSelect={() => go(item)}
-                          className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[13px] text-foreground data-[selected=true]:bg-wash"
+                          className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[13px] text-foreground data-[selected=true]:bg-wash v2:rounded v2:py-1.5 v2:text-row v2:data-[selected=true]:bg-sel"
                         >
                           <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                          <span className="shrink-0 font-mono text-label uppercase tracking-label text-muted-foreground">
+                          <span className="shrink-0 font-mono text-label uppercase tracking-label text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
                             {item.hint}
                           </span>
                         </Command.Item>
@@ -136,7 +136,7 @@ export function CommandPalette() {
                   );
                 })}
               </Command.List>
-              <div className="flex items-center justify-between border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
+              <div className="flex items-center justify-between border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground v2:font-sans v2:text-meta">
                 <span>{failed ? "Names could not be loaded. Pages still work." : "Enter to open, Esc to close"}</span>
                 <span aria-hidden="true">{paletteKey}</span>
               </div>

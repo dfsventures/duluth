@@ -12,12 +12,14 @@ interface StatusDotProps {
 /**
  * 7px SQUARE marker plus the status word (the flat system uses squares, not
  * circles). Text stays Obsidian; colour lives in the marker only, which is what
- * keeps this AA-safe with the solid brand hues.
+ * keeps this AA-safe with the solid brand hues. Under the new look (WS159) the marker is a
+ * 6px round glyph in the state colour (see the .status-dot rules in globals.css) and the
+ * word is meta size.
  */
 export function StatusDot({ status, tone, children, className }: StatusDotProps) {
   const t = tone ?? statusTone(status);
   return (
-    <span data-tone={t} className={cn("status-dot inline-flex items-center gap-2 text-sm text-foreground", className)}>
+    <span data-tone={t} className={cn("status-dot inline-flex items-center gap-2 text-sm text-foreground v2:gap-1.5 v2:text-meta", className)}>
       <span aria-hidden="true" className={cn("inline-block h-[7px] w-[7px] shrink-0", TONE_CLASSES[t].dot)} />
       {children ?? status}
     </span>
