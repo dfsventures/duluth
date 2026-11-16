@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Molly redesign, concept v1 (mockup, placeholder data)</title>
+<!--
+  Molly redesign concept v1 (PLAN-1 WS155). Self-contained: no build step, no framework.
+  Only outside request: Inter from Google Fonts (falls back to the system sans if offline).
+  All names, companies and figures are placeholders. Words marked data-nl are NEW labels for Nosa:
+  press the "Show new labels" button in the strip to outline them.
+  Rationale and token table: docs/design/redesign-v1.md
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Tokens: Molly's own values (see redesign-v1.md, section 2) ─────────────── */
+:root[data-theme="light"]{
+  --back:#E3E6EA; --bg:#FFFFFF; --side:#F4F5F7; --pane:#FAFBFC; --raise:#F0F2F4; --raise2:#E6E9ED;
+  --hover:rgba(18,24,38,.035); --sel:rgba(18,24,38,.06); --open:rgba(18,24,38,.085);
+  --line:rgba(18,24,38,.09); --line2:rgba(18,24,38,.17); --ctl:#858C97;
+  --t1:#15181D; --t2:#474D57; --t3:#5A616C;
+  --accent:#44688E; --accent-h:#3A5876; --on-accent:#FFFFFF; --accent-soft:rgba(68,104,142,.10);
+  --done:#1B7448; --done-soft:rgba(27,116,72,.10);
+  --stuck:#B3362A; --stuck-soft:rgba(179,54,42,.08);
+  --warn:#8A5A0B; --warn-soft:rgba(138,90,11,.10);
+  --tone-stone-fill:#E7E4DA; --tone-stone-ink:#46443C; --tone-sky-fill:#DCE7F3; --tone-sky-ink:#2C4459;
+  --tone-sage-fill:#E3E8D0; --tone-sage-ink:#4A5524; --tone-clay-fill:#F4E0D6; --tone-clay-ink:#8F4A30;
+  --tone-sand-fill:#F1E4C8; --tone-sand-ink:#6B4A0E; --tone-amber-fill:#F8EBC9; --tone-amber-ink:#6B4A0E;
+  --float:0 12px 32px -8px rgba(18,24,38,.22),0 0 0 1px rgba(18,24,38,.08); --scrim:rgba(18,24,38,.30);
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --back:#0A0B0D; --bg:#14171B; --side:#0E1013; --pane:#191C21; --raise:#20242A; --raise2:#292E36;
+  --hover:rgba(255,255,255,.04); --sel:rgba(255,255,255,.07); --open:rgba(255,255,255,.10);
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14); --ctl:#6E7681;
+  --t1:#E9ECF0; --t2:#A7AEB9; --t3:#9AA1AC;
+  --accent:#7BA9DD; --accent-h:#93BAE6; --on-accent:#0C1522; --accent-soft:rgba(123,169,221,.16);
+  --done:#5BC48E; --done-soft:rgba(91,196,142,.16);
+  --stuck:#F2877C; --stuck-soft:rgba(242,135,124,.14);
+  --warn:#E0A640; --warn-soft:rgba(224,166,64,.14);
+  --tone-stone-fill:#2A2D33; --tone-stone-ink:#C9CDD4; --tone-sky-fill:#1F3249; --tone-sky-ink:#B9D3F0;
+  --tone-sage-fill:#27301D; --tone-sage-ink:#C5D69A; --tone-clay-fill:#3D2620; --tone-clay-ink:#F0B5A0;
+  --tone-sand-fill:#38301A; --tone-sand-ink:#E8CF93; --tone-amber-fill:#3A2F14; --tone-amber-ink:#EDCB7E;
+  --float:0 14px 36px -8px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.08); --scrim:rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+:root{ --sky:#5B8DC5; /* the wordmark underscore: brand Sky, fixed in both themes */
+  --ease:cubic-bezier(.2,.7,.2,1); --f:"Inter",ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+
+*{box-sizing:border-box;margin:0}
+body{background:var(--back);color:var(--t1);font:400 13px/20px var(--f);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:1px;border-radius:6px}
+svg{display:block;flex:none}
+
+/* ── Mockup strip (not part of the design) ───────────────────────────────────── */
+.strip{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;padding:12px 20px;background:var(--bg);border-bottom:1px solid var(--line)}
+.strip h1{font:600 13px/20px var(--f);margin-right:4px}
+.seg{display:inline-flex;background:var(--raise2);border-radius:8px;padding:2px;gap:2px}
+.seg button{padding:3px 10px;border-radius:6px;color:var(--t2);font-weight:500;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--t1);box-shadow:0 0 0 1px var(--line)}
+.tog{padding:3px 10px;border-radius:8px;border:1px solid var(--line2);color:var(--t2);font-weight:500}
+.tog[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.hint{color:var(--t3);margin-left:auto}
+.stage{display:grid;place-items:start center;padding:24px 16px 8px}
+.legend{max-width:1200px;margin:16px auto 48px;padding:0 16px;color:var(--t2)}
+.legend h2{font:600 13px/20px var(--f);color:var(--t1);margin-bottom:8px}
+.legend .row2{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;margin-bottom:12px}
+.legend .it{display:flex;gap:8px;align-items:center}
+body.hl [data-nl]{outline:1px dashed #D946B0;outline-offset:2px;border-radius:3px}
+
+/* ── App frame ───────────────────────────────────────────────────────────────── */
+.app{position:relative;display:grid;grid-template-columns:224px minmax(0,1fr);width:min(1200px,100%);height:720px;background:var(--bg);color:var(--t1);border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+.app.phone{grid-template-columns:minmax(0,1fr);width:390px;height:800px;border-radius:28px}
+.side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.phone .side{position:absolute;z-index:30;inset:0 auto 0 0;width:292px;transform:translateX(-102%);transition:transform 200ms var(--ease);border-right:1px solid var(--line2)}
+.phone.drawer .side{transform:none}
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:25;opacity:0;pointer-events:none;transition:opacity 160ms}
+.drawer .scrim{opacity:1;pointer-events:auto}
+.brand{height:44px;display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--t1)}
+.brand svg{height:16px;width:auto}
+.jump{margin:0 8px 8px;height:30px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:6px;background:var(--bg);box-shadow:0 0 0 1px var(--line2);color:var(--t2)}
+.jump:hover{box-shadow:0 0 0 1px var(--ctl)}
+.jump .k{margin-left:auto}
+kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2);border-radius:4px;padding:0 4px;background:transparent}
+.nav{flex:1;overflow:auto;padding:0 8px 8px}
+.nav h4{font:500 12px/18px var(--f);color:var(--t3);padding:12px 8px 4px}
+.ni{display:flex;align-items:center;gap:8px;height:28px;width:100%;padding:0 8px;border-radius:6px;color:var(--t2);transition:background 80ms}
+.phone .ni{height:44px}
+.ni:hover{background:var(--hover)}
+.ni[aria-current="page"]{background:var(--sel);color:var(--t1);font-weight:500}
+.ni .n{margin-left:auto;color:var(--t3);font-size:12px}
+.ni .n.hot{color:var(--t1);font-weight:600}
+.foot{border-top:1px solid var(--line);padding:8px;display:flex;flex-direction:column;gap:2px}
+.me{display:flex;align-items:center;gap:8px;height:32px;padding:0 4px 0 8px}
+.me b{font-weight:500;flex:1}
+.ib{width:28px;height:28px;border-radius:6px;display:grid;place-items:center;color:var(--t2)}
+.ib:hover{background:var(--hover);color:var(--t1)}
+.phone .ib{width:44px;height:44px}
+.oldlook{height:24px;padding:0 8px;color:var(--t3);font-size:12px;border-radius:6px;text-align:left}
+.oldlook:hover{background:var(--hover);color:var(--t2)}
+
+/* main */
+.main{position:relative;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+.hd{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)}
+.hd h2{font:500 13px/20px var(--f)}
+.hd .ct{color:var(--t3)}
+.hd .sp{flex:1}
+.phone .hd{height:52px;padding:0 4px 0 4px}
+.chips{height:40px;flex:none;display:flex;align-items:center;gap:6px;padding:0 16px;border-bottom:1px solid var(--line);overflow:hidden}
+.chip{height:24px;display:inline-flex;align-items:center;gap:4px;padding:0 8px;border-radius:6px;font-size:12px;white-space:nowrap}
+.chip.unset{border:1px dashed var(--ctl);color:var(--t2)}
+.chip.unset:hover{background:var(--hover)}
+.chip.set{background:var(--accent-soft);color:var(--accent);font-weight:500}
+.chip.set b{font-weight:400;color:var(--t2)}
+.clear{font-size:12px;color:var(--t2);padding:0 6px;height:24px;border-radius:6px}
+.clear:hover{background:var(--hover)}
+.scroll{flex:1;overflow:auto;min-height:0;position:relative}
+.listwrap{container-type:inline-size}
+
+/* groups and rows */
+.gh{position:sticky;top:0;z-index:2;height:32px;display:flex;align-items:center;gap:6px;padding:0 16px;background:var(--side);border-bottom:1px solid var(--line);font:500 12px/18px var(--f);color:var(--t2);width:100%}
+.gh .ct{color:var(--t3);font-weight:400}
+.gh svg{transition:transform 120ms}
+.gh[aria-expanded="false"] svg{transform:rotate(-90deg)}
+.gh.hotg{color:var(--stuck)}
+.rows{display:grid;transition:grid-template-rows 160ms var(--ease);grid-template-rows:1fr}
+.rows>div{overflow:hidden}
+.rows.closed{grid-template-rows:0fr}
+.row{position:relative;display:flex;align-items:center;gap:10px;min-height:38px;padding:0 16px;border-bottom:1px solid var(--line);cursor:default;transition:background 80ms,opacity 120ms}
+.row:hover{background:var(--hover)}
+.row.cur{background:var(--sel)}
+.row.cur::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+.row.open{background:var(--open)}
+.row .ti{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ti i{font-style:normal;color:var(--t3);margin-left:8px}
+.row .rt{display:flex;align-items:center;gap:14px;color:var(--t3);font-size:12px;flex:none}
+.row .rt .stuck{color:var(--stuck)} .row .rt .warn{color:var(--warn)}
+.row .age{width:28px;text-align:right}
+.row.leaving{opacity:0;max-height:0;min-height:0;overflow:hidden;border-width:0;transition:opacity 120ms,max-height 160ms 120ms,min-height 160ms 120ms}
+.row{max-height:80px}
+@container (max-width:560px){.listwrap .c-cad{display:none}}
+@container (max-width:430px){.listwrap .c-own{display:none}}
+.phone .row{flex-wrap:wrap;min-height:56px;padding:9px 16px;gap:2px 10px}
+.phone .row .ti{white-space:normal;flex:1 1 0}
+.c-own{display:inline-flex;gap:6px;align-items:center;width:88px}
+.rows>div{min-height:0}
+.phone .row .rt{flex-basis:100%;padding-left:24px;gap:10px}
+.phone .row .age{width:auto}
+.empty{display:grid;place-items:center;text-align:center;padding:72px 24px;gap:12px;color:var(--t2);height:100%}
+.empty b{display:block;color:var(--t1);font-weight:500;font-size:14px;margin-bottom:2px}
+.sec{padding:20px 16px 24px}
+.sec h3{font:500 12px/18px var(--f);color:var(--t3);margin-bottom:8px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.phone .kpis{grid-template-columns:repeat(2,1fr)}
+.kpi{background:var(--raise);border-radius:10px;padding:10px 12px}
+.kpi span{display:block;color:var(--t3);font-size:12px}
+.kpi b{font:600 20px/28px var(--f);letter-spacing:-.012em}
+
+/* marks: identity. disc = person, rounded square = company */
+.mk{--s:16px;display:inline-grid;place-items:center;flex:none;width:var(--s);height:var(--s);border-radius:50%;background:var(--c);color:#14161A;font:600 calc(var(--s)*.58)/1 var(--f);box-shadow:inset 0 0 0 1px rgba(20,22,26,.14)}
+.mk.sq{border-radius:calc(var(--s)*.3)}
+.mk.l{--s:28px}
+.stack .mk+.mk{margin-left:-4px;box-shadow:inset 0 0 0 1px rgba(20,22,26,.14),0 0 0 2px var(--bg)}
+/* state glyphs */
+.g{width:14px;height:14px}
+.g.acc{color:var(--accent)} .g.warn{color:var(--warn)} .g.stuck{color:var(--stuck)} .g.done{color:var(--done)}
+
+/* buttons */
+.btn{height:32px;display:inline-flex;align-items:center;gap:8px;padding:0 12px;border-radius:6px;font-weight:500;white-space:nowrap;transition:background 80ms,transform 80ms}
+.btn.pri{background:var(--accent);color:var(--on-accent)}
+.btn.pri:hover{background:var(--accent-h)}
+.btn.pri kbd{color:inherit;opacity:.85;border-color:currentColor}
+.btn:active{transform:translateY(1px)}
+.btn.sec{box-shadow:0 0 0 1px var(--line2);color:var(--t1)}
+.btn.sec:hover{background:var(--hover)}
+.phone .btn{height:44px;padding:0 16px}
+
+/* pane */
+.pane{position:absolute;z-index:10;top:0;right:0;bottom:0;width:min(58%,620px);background:var(--pane);border-left:1px solid var(--line2);display:flex;flex-direction:column;transform:translateX(12px);opacity:0}
+.pane.in{transform:none;opacity:1;transition:transform 160ms var(--ease),opacity 160ms var(--ease)}
+.phone .pane{width:100%;border-left:0;z-index:20;transform:translateX(24px)}
+.crumb{height:44px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 16px;border-bottom:1px solid var(--line);color:var(--t2)}
+.crumb .sp{flex:1}
+.crumb .back{display:none}
+.phone .crumb{height:52px;padding:0 4px}
+.phone .crumb .back{display:grid}
+.pbody{flex:1;overflow:auto;padding:24px}
+.phone .pbody{padding:20px 16px}
+.pin{max-width:720px}
+.pin h1{font:600 20px/28px var(--f);letter-spacing:-.012em;display:flex;gap:10px;align-items:center}
+.props{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 20px}
+.prop{height:24px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:6px;background:var(--raise);color:var(--t2);font-size:12px}
+.prop.tone{font-weight:500}
+.card{background:var(--raise);border-radius:10px;padding:16px;margin-bottom:24px}
+.card h5{font:500 13px/20px var(--f);display:flex;gap:8px;align-items:center;margin-bottom:4px}
+.card p{color:var(--t2);margin-bottom:12px}
+.card .acts{display:flex;gap:8px;flex-wrap:wrap}
+.card.hot{box-shadow:inset 2px 0 0 var(--stuck)}
+.card.hot h5{color:var(--stuck)}
+.pin h3{font:500 12px/18px var(--f);color:var(--t3);margin:0 0 6px}
+.pin section{margin-bottom:22px}
+.pin section p{color:var(--t2)}
+.kv{display:grid;grid-template-columns:132px 1fr;gap:4px 12px}
+.kv dt{color:var(--t3)} .kv dd{margin:0}
+.hist{list-style:none;padding:0;display:grid;gap:6px;color:var(--t2)}
+.hist li{display:flex;gap:10px} .hist time{color:var(--t3);width:56px;flex:none}
+.pin a{color:var(--accent);text-decoration:none} .pin a:hover{text-decoration:underline}
+
+/* board */
+.board{display:grid;grid-template-columns:repeat(4,minmax(200px,1fr));gap:12px;padding:12px 16px;min-height:100%;align-items:start}
+.phone .board{grid-template-columns:repeat(4,264px);overflow:visible}
+.col{min-width:0}
+.col .ch{position:sticky;top:0;display:flex;align-items:center;gap:8px;height:28px;font:500 12px/18px var(--f);color:var(--t2);background:var(--bg);z-index:1}
+.col .ch .ct{color:var(--t3);font-weight:400}
+.col .ch .wait{margin-left:auto;display:inline-flex;gap:4px;align-items:center;color:var(--stuck);font-weight:600}
+.tile{position:relative;display:block;width:100%;background:var(--raise);border-radius:8px;padding:10px 12px;margin-bottom:8px;transition:background 80ms}
+.tile:hover{background:var(--raise2)}
+.tile.cur{box-shadow:inset 3px 0 0 var(--accent)}
+.tile.open{background:var(--raise2);box-shadow:0 0 0 1px var(--ctl)}
+.tile.waiting{box-shadow:inset 2px 0 0 var(--stuck)}
+.tile.waiting.cur{box-shadow:inset 3px 0 0 var(--accent)}
+.tile .top{display:flex;align-items:center;margin-bottom:6px;color:var(--t3);font-size:12px}
+.tile .top .sp{flex:1}
+.tile .more{opacity:0;width:20px;height:20px;border-radius:4px;display:grid;place-items:center;color:var(--t2);margin-left:6px}
+.tile:hover .more,.tile.cur .more{opacity:1}
+.tile .tt{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.tile.done .tt{color:var(--t3)}
+.tile .mkr{display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12px;color:var(--t3)}
+.tile .mkr.stuck{color:var(--stuck);font-weight:500} .tile .mkr.done{color:var(--done)}
+.addc{color:var(--t3);font-size:12px;height:28px;width:100%;padding:0 4px;border-radius:6px}
+.addc:hover{background:var(--hover);color:var(--t2)}
+
+/* founder (phone) */
+.fhd{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 4px 0 4px;border-bottom:1px solid var(--line)}
+.fhd .brandm{color:var(--t1);display:flex;align-items:center;padding:0 6px}
+.fhd .brandm svg{height:15px;width:auto}
+.cosw{margin-left:auto;height:44px;display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:8px;color:var(--t1);font-weight:500}
+.cosw:hover{background:var(--hover)}
+.fmain{padding:20px 16px 32px}
+.hero{background:var(--raise);border-radius:12px;padding:16px;margin-bottom:24px}
+.hero small{display:block;color:var(--t3);font-size:12px;margin-bottom:4px}
+.hero h2{font:600 20px/28px var(--f);letter-spacing:-.012em;margin-bottom:4px}
+.hero p{color:var(--t2);margin-bottom:16px}
+.hero .btn{width:100%;justify-content:center}
+.fsec h3{font:500 12px/18px var(--f);color:var(--t3);margin:0 0 4px;padding:0 0}
+.fsec{margin-bottom:24px}
+.frow{display:flex;align-items:center;gap:12px;min-height:56px;border-bottom:1px solid var(--line);padding:8px 0}
+.frow .tx{flex:1;min-width:0}
+.frow .tx span{display:block;color:var(--t3);font-size:12px}
+.frow .v{font-weight:500}
+.frow .v small{display:block;font-size:12px;color:var(--done);text-align:right;font-weight:400}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+
+/* palette, toast */
+.pal{position:absolute;inset:0;z-index:50;display:flex;justify-content:center;align-items:flex-start;padding-top:72px;background:var(--scrim)}
+.pal>div{width:min(520px,92%);background:var(--pane);border-radius:12px;box-shadow:var(--float);overflow:hidden}
+.pal input{width:100%;height:48px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--t1);font:400 14px/20px var(--f);padding:0 16px;outline:0}
+.pal ul{list-style:none;padding:6px;max-height:300px;overflow:auto}
+.pal h6{font:500 12px/18px var(--f);color:var(--t3);padding:8px 10px 2px}
+.pal li button{width:100%;height:32px;display:flex;align-items:center;gap:8px;padding:0 10px;border-radius:6px}
+.pal li button[aria-selected="true"]{background:var(--sel)}
+.pal li button kbd{margin-left:auto}
+.toast{position:absolute;z-index:60;left:50%;bottom:20px;transform:translateX(-50%);background:var(--pane);box-shadow:var(--float);border-radius:12px;padding:8px 8px 8px 16px;display:flex;gap:16px;align-items:center;white-space:nowrap;animation:tin 160ms var(--ease)}
+.toast button{color:var(--accent);font-weight:500;padding:4px 8px;border-radius:6px}
+.toast button:hover{background:var(--hover)}
+@keyframes tin{from{opacity:0;transform:translate(-50%,8px)}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="strip" id="strip"></div>
+<div class="stage"><div id="root"></div></div>
+<div class="legend" id="legend"></div>
+<script>
+/* ── Placeholder data. Every name, company and number is made up. ─────────── */
+const ME = "Sam Admin";
+const SIGNUPS = [
+  { n: "Sam Founder", e: "sam@example.com",  co: "Acme Ltd",    match: "Acme Ltd",    age: "2d" },
+  { n: "Jo Example",  e: "jo@example.com",   co: "Example Co",  match: null,          age: "1d" },
+  { n: "Alex Sample", e: "alex@example.com", co: "Sample Labs", match: "Sample Labs", age: "4h" },
+];
+const OVERDUE = [
+  { id: "o-acme",    co: "Acme Ltd",    days: 75, sev: true,  fn: "Sam Founder",  stage: "Seed",     own: "Sam Admin", cad: "Monthly" },
+  { id: "o-example", co: "Example Co",  days: 34, sev: false, fn: "Jo Example",   stage: "Pre-seed", own: "Jo Admin",  cad: "Monthly" },
+  { id: "o-sample",  co: "Sample Labs", days: 21, sev: false, fn: "Alex Sample",  stage: "Series A", own: "Alex Admin",cad: "Quarterly" },
+];
+const ALERTS = [
+  { id: "a-acme",    co: "Acme Ltd",   msg: "Monthly revenue fell below 100,000", age: "1d" },
+  { id: "a-example", co: "Example Co", msg: "Cash runway is under 6 months",      age: "3d" },
+];
+const UPTODATE = [
+  ["Demo Works","Seed",5,"Sam Admin","Monthly"],["Placeholder Inc","Series A",9,"Jo Admin","Quarterly"],
+  ["Northwind Example","Pre-seed",3,"Alex Admin","Monthly"],["Test Robotics","Seed",12,"Sam Admin","Monthly"],
+  ["Sandbox Bio","Series A",14,"Jo Admin","Quarterly"],["Mock Energy","Seed",7,"Alex Admin","Monthly"],
+  ["Sample Health","Pre-seed",10,"Sam Admin","Monthly"],
+];
+const CARDS = [
+  { id:"c1", col:0, t:"Draft the Q4 fund report", own:["Sam Admin"], due:"28 Nov" },
+  { id:"c2", col:0, t:"Book the November LP call", own:["Jo Admin"], due:"30 Nov" },
+  { id:"c3", col:0, t:"Collect updates from Sample Labs", own:["Alex Admin"], due:"" },
+  { id:"c4", col:1, t:"Confirm figures for Example Co", own:["Sam Admin","Jo Admin"], due:"28 Nov", waiting:true },
+  { id:"c5", col:1, t:"Tidy the company import list", own:["Jo Admin"], due:"24 Nov" },
+  { id:"c6", col:1, t:"Update investor link settings", own:["Alex Admin"], due:"" },
+  { id:"c7", col:2, t:"Review Acme Ltd intro notes", own:["Sam Admin"], due:"21 Nov", review:true },
+  { id:"c8", col:2, t:"Check the Demo Works figures", own:["Alex Admin"], due:"", review:true },
+  { id:"c9", col:3, t:"Send the October digest", own:["Sam Admin"], due:"", done:true },
+  { id:"c10", col:3, t:"Archive the old LP list", own:["Jo Admin"], due:"", done:true },
+];
+const COLS = ["To do","In progress","To review","Done"];
+
+/* ── Identity colour: FNV-1a 32-bit of the lower-cased, trimmed name into 8 fills.
+      Hues stay clear of red 345-25, amber 28-58, green 130-170 and the accent 195-228. ── */
+const POOL = [["lime","#B7D86A"],["teal","#6CCBC6"],["indigo","#9A96F0"],["violet","#B493F0"],["orchid","#D08CE6"],["magenta","#EA8DC3"],["stone","#C9C2B6"],["slate","#A9B6C6"]];
+function fnv1a(s){ let h = 2166136261; for (const ch of s.trim().toLowerCase()) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619) >>> 0; } return h >>> 0; }
+const fill = n => POOL[fnv1a(n) % POOL.length][1];
+const mk = (n, kind, big) => `<span class="mk ${kind==="co"?"sq":""} ${big?"l":""}" style="--c:${fill(n)}" aria-hidden="true">${n.trim()[0].toUpperCase()}</span>`;
+
+/* ── Icons (stand-ins; production uses Molly's existing lucide set at 14px, 1.5 stroke) ── */
+const P = d => `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+const IC = {
+  search:P('<circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/>'), chev:P('<path d="m4 6 4 4 4-4"/>'),
+  up:P('<path d="m4 10 4-4 4 4"/>'), down:P('<path d="m4 6 4 4 4-4"/>'), x:P('<path d="m4 4 8 8M12 4l-8 8"/>'),
+  expand:P('<path d="M9.5 2.5h4v4M6.5 13.5h-4v-4M13.5 2.5 9 7M2.5 13.5 7 9"/>'), back:P('<path d="m10 3-5 5 5 5"/>'),
+  menu:P('<path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>'), dots:P('<circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/>'),
+  sun:P('<circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/>'),
+  moon:P('<path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/>'),
+};
+const G = {
+  queue:`<svg class="g acc" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5.25"/><circle cx="7" cy="7" r="1.6" fill="currentColor" stroke="none"/></svg>`,
+  alert:`<svg class="g warn" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M7 1.8 12.6 11.6H1.4Z"/><path d="M7 5.6v2.6" stroke-linecap="round"/></svg>`,
+  clock:c=>`<svg class="g ${c}" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="5.25"/><path d="M7 4.2V7l1.9 1.2"/></svg>`,
+  ring:c=>`<svg class="g ${c}" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="7" cy="7" r="5.25"/></svg>`,
+  tick:`<svg class="g done" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="7" r="5.25"/><path d="m4.8 7.2 1.6 1.6 3-3.2"/></svg>`,
+  waiting:`<svg class="g stuck" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="5.25"/><path d="M7 4v3.4M7 9.6v.1"/></svg>`,
+};
+const WM = `<svg viewBox="0 0 392.82 125.54" role="img" aria-label="Molly"><path d="M0 107.41H66.48V125.54H0Z" fill="var(--sky)"/><path fill="currentColor" d="M81.58 0H102.13L122.68 66.67L143.23 0H163.78V100H143.23V66.67L132.95 100H112.41L102.13 66.67V100H81.58ZM207.61 101.37Q197.61 101.37 190.21 97.6Q182.82 93.84 178.78 87.05Q174.73 80.27 174.73 71.23V53.42Q174.73 44.38 178.78 37.6Q182.82 30.82 190.21 27.05Q197.61 23.29 207.61 23.29Q217.75 23.29 225.08 27.05Q232.41 30.82 236.45 37.6Q240.49 44.38 240.49 53.42V71.23Q240.49 80.27 236.45 87.05Q232.41 93.84 225.08 97.6Q217.75 101.37 207.61 101.37ZM335.69 124.66 345.97 96.3 317.75 24.66H340.08L351.45 57.53Q352.68 61.23 353.98 66.51Q355.28 71.78 355.97 75.07Q356.65 71.78 357.95 66.51Q359.26 61.23 360.49 57.53L371.45 24.66H392.82L357.2 124.66ZM251.45 0H272V100H251.45ZM284.6 0H305.15V100H284.6ZM207.61 83.56Q213.64 83.56 216.79 80.34Q219.94 77.12 219.94 71.23V53.42Q219.94 47.4 216.79 44.25Q213.64 41.1 207.61 41.1Q201.72 41.1 198.5 44.25Q195.28 47.4 195.28 53.42V71.23Q195.28 77.12 198.5 80.34Q201.72 83.56 207.61 83.56Z"/></svg>`;
+
+/* New labels for Nosa are wrapped in NL(); the "Show new labels" button outlines them. */
+const NL = t => `<span data-nl>${t}</span>`;
+
+/* ── State ────────────────────────────────────────────────────────────────── */
+const S = { screen:1, theme:"light", device:"desktop", hl:false, drawer:false, pal:false, palQ:"", palI:0,
+  open:null, fresh:false, cur:null, su:0, collapsed:{}, empty:false, gone:new Set(), toast:null, approved:[] };
+let toastTimer;
+
+/* ── Pieces ───────────────────────────────────────────────────────────────── */
+const plural = (n,a,b) => `${n} ${n===1?a:b}`;
+const phone = () => S.device==="phone" || S.screen===4;
+
+function navHTML(){
+  const nAp = SIGNUPS.length - S.approved.length;
+  const needs = needsRows().length;
+  const G_ = (h, items) => `<h4>${NL(h)}</h4>` + items.map(([l,n,hot,scr]) =>
+    `<button class="ni" ${S.screen===scr?'aria-current="page"':""} data-nav="${scr||0}">${l==="Needs you"?NL(l):l}${n?`<span class="n ${hot?"hot":""}">${n}</span>`:""}</button>`).join("");
+  return `
+  <nav class="nav" aria-label="Main">
+    <div style="height:4px"></div>
+    ${[["Needs you",needs||"",true,1]].map(([l,n,h,s])=>`<button class="ni" ${S.screen===1?'aria-current="page"':""} data-nav="1">${NL(l)}${n?`<span class="n hot">${n}</span>`:""}</button>`).join("")}
+    ${G_("Company Operations",[["Approvals",nAp||"",true],["Diligence",2,true],["Companies","",false,2],["Updates"],["Investor Links"],["Memos"]])}
+    ${G_("Funds & LPs",[["Funds"],["Deal Ledger"],["Portfolio Contacts"],["LPs"],["Fund Reports"],["Broadcasts"]])}
+    ${G_("Team & Resources",[["Team Board",1,true,3],["Weekly Digest"],["Service Providers"]])}
+    ${G_("Admin Tools",[["Audit Log"],["Settings"]])}
+  </nav>`;
+}
+function founderNav(){
+  const it = (l,a)=>`<button class="ni" ${a?'aria-current="page"':""}>${l}</button>`;
+  return `<nav class="nav" aria-label="Main"><div style="height:8px"></div>
+    <button class="cosw" style="margin:0 0 8px;width:100%;background:var(--bg);box-shadow:0 0 0 1px var(--line2)">${mk("Acme Ltd","co")}<span>Acme Ltd</span><span style="margin-left:auto;color:var(--t3)">${IC.chev}</span></button>
+    ${it("Dashboard",1)}${it("Updates")}${it("Metrics")}${it("Dilution Planner")}${it("Investor Links")}${it("Company Profile")}${it("Documents")}${it("Team")}${it("From DFS")}${it("Service Providers")}</nav>`;
+}
+function sideHTML(){
+  const f = S.screen===4;
+  return `<aside class="side" aria-label="Sidebar">
+    <div class="brand">${WM}</div>
+    <button class="jump" data-act="pal">${IC.search}<span>${NL("Search or jump to")}</span><kbd class="k">⌘K</kbd></button>
+    ${f?founderNav():navHTML()}
+    <div class="foot">
+      <div class="me">${mk(f?"Sam Founder":ME,"p")}<b>${f?"Sam Founder":ME}</b>
+        <button class="ib" data-act="theme" aria-label="${S.theme==="dark"?"Switch to light":"Switch to dark"}">${S.theme==="dark"?IC.sun:IC.moon}</button></div>
+      <button class="oldlook" data-act="old">${NL("Use the old look")}</button>
+    </div></aside>`;
+}
+function hdHTML(title, count, right=""){
+  return `<header class="hd">
+    ${phone()?`<button class="ib" data-act="drawer" aria-label="Open menu">${IC.menu}</button>`:""}
+    <h2>${title}</h2>${count!=null?`<span class="ct">${count}</span>`:""}<span class="sp"></span>${right}</header>`;
+}
+const chipsHTML = (unset, set=[]) => `<div class="chips" role="group" aria-label="Filters">
+  ${set.map(([k,v])=>`<span class="chip set">${NL(k)} <b>${v}</b> <button aria-label="Remove ${k} filter" style="display:grid">${IC.x.replace('width="16" height="16"','width="12" height="12"')}</button></span>`).join("")}
+  ${unset.map(u=>`<button class="chip unset"><span aria-hidden="true">+</span>${NL(u)}</button>`).join("")}
+  ${set.length?`<button class="clear">${NL("Clear all")}</button>`:""}</div>`;
+const ghHTML = (key,name,count,hot) => `<button class="gh ${hot?"hotg":""}" aria-expanded="${!S.collapsed[key]}" data-group="${key}">${IC.chev.replace('width="16" height="16"','width="12" height="12"')}${NL(name)} <span class="ct">${count}</span></button>`;
+const rowsWrap = (key, inner) => `<div class="rows ${S.collapsed[key]?"closed":""}"><div role="listbox" aria-label="${key}">${inner}</div></div>`;
+
+/* ── Screen 1: Needs you ──────────────────────────────────────────────────── */
+function needsRows(){
+  const r = [];
+  const nAp = SIGNUPS.length - S.approved.length;
+  if (nAp>0) r.push({ id:"q-approvals", g:"Waiting on you", gl:G.queue, t:`${plural(nAp,"signup is","signups are")} waiting for approval`, kind:"Approvals", age:"2d" });
+  r.push({ id:"q-diligence", g:"Waiting on you", gl:G.queue, t:"2 companies are ready for diligence review", kind:"Diligence", age:"3d" });
+  r.push({ id:"q-board", g:"On the board", gl:G.queue, t:"1 board item needs review", d:"Names or projects Molly could not match.", kind:"Team Board", age:"1d" });
+  for (const a of ALERTS) if (!S.gone.has(a.id)) r.push({ id:a.id, g:"Alerts", gl:G.alert, co:a.co, t:`${a.co}: ${a.msg}`, kind:"Metric alert", age:a.age });
+  for (const o of OVERDUE) r.push({ id:o.id, g:"Behind on updates", gl:G.clock(o.sev?"stuck":"warn"), co:o.co, t:`${o.co}`, d:`${o.days} days since the last update`, sev:o.sev, kind:"Overdue", age:o.days+"d" });
+  return r;
+}
+function needsHTML(){
+  const rows = needsRows();
+  const head = hdHTML(NL("Needs you"), rows.length);
+  if (S.empty) return head + `<div class="scroll"><div class="empty"><div><b>${NL("Nothing needs you right now.")}</b>${NL("When someone signs up or an update runs late, it shows here.")}</div></div></div>`;
+  const groups = ["Waiting on you","On the board","Alerts","Behind on updates"];
+  const body = groups.map(g => { const rs = rows.filter(r=>r.g===g); if(!rs.length) return "";
+    return ghHTML(g,g,rs.length,false) + rowsWrap(g, rs.map(rowHTML).join("")); }).join("");
+  return head + chipsHTML(["Kind","Company"]) + `<div class="scroll"><div class="listwrap">${body}</div>
+    <div class="sec"><h3>${NL("Portfolio")}</h3><div class="kpis">
+      <div class="kpi"><span>Companies</span><b>12</b></div><div class="kpi"><span>Updates this month</span><b>7</b></div>
+      <div class="kpi"><span>Cash across portfolio</span><b>14,000,000</b></div><div class="kpi"><span>On track</span><b>9</b></div></div></div></div>`;
+}
+function rowHTML(r){
+  const cls = ["row", S.cur===r.id?"cur":"", S.open===r.id?"open":""].join(" ");
+  return `<div class="${cls}" role="option" aria-selected="${S.cur===r.id}" data-row="${r.id}" tabindex="-1">
+    ${r.gl}${r.co?mk(r.co,"co"):""}<span class="ti">${r.t}${r.d?`<i>${r.d}</i>`:""}</span>
+    <span class="rt"><span>${r.kind}</span><span class="age ${r.sev?"stuck":""}">${r.age}</span></span></div>`;
+}
+
+/* ── Screen 2: Companies ──────────────────────────────────────────────────── */
+function companyList(){
+  return [
+    ...OVERDUE.map(o=>({ id:o.co, name:o.co, stage:o.stage, own:o.own, cad:o.cad, last:o.days+"d ago", late:o.sev?"stuck":"warn", g:"Behind on updates", fn:o.fn, days:o.days })),
+    ...UPTODATE.map(u=>({ id:u[0], name:u[0], stage:u[1], own:u[3], cad:u[4], last:u[2]+"d ago", g:"Up to date", fn:"Sam Founder", days:u[2] })),
+  ];
+}
+function companiesHTML(){
+  const cs = companyList();
+  const g = (name) => { const rs = cs.filter(c=>c.g===name);
+    return ghHTML(name,name,rs.length,false) + rowsWrap(name, rs.map(c=>{
+      const cls=["row",S.cur===c.id?"cur":"",S.open===c.id?"open":""].join(" ");
+      return `<div class="${cls}" role="option" aria-selected="${S.cur===c.id}" data-row="${c.id}">
+        ${mk(c.name,"co")}<span class="ti">${c.name}<i>${c.stage}</i></span>
+        <span class="rt"><span class="c-own">${mk(c.own,"p")}${c.own.split(" ")[0]}</span><span class="c-cad" style="width:64px">${c.cad}</span><span class="${c.late||""}" style="width:64px;text-align:right">${c.last}</span></span></div>`;}).join("")); };
+  return hdHTML("Companies", 10) + chipsHTML(["Stage","Status"],[["Owner","Sam Admin and 2 others"]])
+    + `<div class="scroll"><div class="listwrap">${g("Behind on updates")}${g("Up to date")}</div></div>`;
+}
+
+/* ── Screen 3: Team Board ─────────────────────────────────────────────────── */
+function boardHTML(){
+  const nWait = CARDS.filter(c=>c.waiting).length;
+  const cols = COLS.map((n,i)=>{
+    const cs = CARDS.filter(c=>c.col===i);
+    const w = cs.filter(c=>c.waiting).length;
+    return `<div class="col"><div class="ch">${NL(n)}<span class="ct">${cs.length}</span>${w?`<span class="wait">${G.waiting}${w}</span>`:""}</div>
+      ${cs.map(c=>{ const cls=["tile",c.waiting?"waiting":"",c.done?"done":"",S.cur===c.id?"cur":"",S.open===c.id?"open":""].join(" ");
+        return `<button class="${cls}" data-row="${c.id}" aria-label="${c.t}">
+          <span class="top"><span class="stack" style="display:inline-flex">${c.own.map(o=>mk(o,"p")).join("")}</span><span class="sp"></span>${c.due?`<span>${c.due}</span>`:""}<span class="more" aria-hidden="true">${IC.dots}</span></span>
+          <span class="tt">${c.t}</span>
+          ${c.waiting?`<span class="mkr stuck">${G.waiting}${NL("Waiting on you")}</span>`:c.review?`<span class="mkr done">${G.ring("done")}${NL("To review")}</span>`:""}</button>`; }).join("")}
+      ${i===0?`<button class="addc">+ ${NL("Add a card")}</button>`:""}</div>`; }).join("");
+  return hdHTML("Team Board", `${CARDS.length} cards`) + chipsHTML(["Owner","Due"]) + `<div class="scroll" style="overflow:auto"><div class="board">${cols}</div></div>`;
+}
+
+/* ── Screen 4: Founder dashboard (phone) ─────────────────────────────────── */
+function founderHTML(){
+  return `<div class="fhd"><button class="ib" data-act="drawer" aria-label="Open menu">${IC.menu}</button>
+      <span class="brandm">${WM}</span>
+      <button class="cosw" aria-label="${"Switch company"}">${mk("Acme Ltd","co")}<span>Acme Ltd</span><span style="color:var(--t3)">${IC.chev}</span></button></div>
+    <div class="scroll"><div class="fmain">
+      <div class="hero"><small>${NL("Your next step")}</small><h2>Send your November update</h2>
+        <p>Due Friday. Your last update was 28 days ago.</p><button class="btn pri" data-toast="${"Opening the update composer (not in this mockup)"}">${NL("Start the update")}</button></div>
+      <div class="fsec"><h3>${NL("Latest figures")}</h3>
+        ${[["Monthly revenue","As of October","100,000","+10%"],["Cash","As of October","1,200,000",""],["Runway","As of October","12 months",""]].map(r=>`<div class="frow"><div class="tx">${r[0]}<span>${r[1]}</span></div><div class="v">${r[2]}${r[3]?`<small>${r[3]}</small>`:""}</div></div>`).join("")}</div>
+      <div class="fsec"><h3>${NL("From DFS")}</h3>
+        <div class="frow"><span class="dot" aria-label="Unread"></span><div class="tx">Introduction to Example Co<span>12 Nov</span></div></div></div>
+      <div class="fsec"><h3>${NL("Recent updates")}</h3>
+        <div class="frow"><div class="tx">October update<span>Sent 12 Oct · 8 figures</span></div><span style="color:var(--t3)">${IC.chev.replace("m4 6 4 4 4-4","m6 4 4 4-4 4")}</span></div>
+        <div class="frow"><div class="tx">September update<span>Sent 9 Sep · 8 figures</span></div><span style="color:var(--t3)">${IC.chev.replace("m4 6 4 4 4-4","m6 4 4 4-4 4")}</span></div></div>
+    </div></div>`;
+}
+
+/* ── Panes ───────────────────────────────────────────────────────────────── */
+function figures(){ return `<section><h3>${NL("Latest figures")}</h3><dl class="kv"><dt>Monthly revenue</dt><dd>100,000</dd><dt>Cash</dt><dd>1,200,000</dd><dt>Runway</dt><dd>12 months</dd><dt>Team size</dt><dd>8</dd></dl></section>`; }
+const hist = (items) => `<section><h3>${NL("History")}</h3><ul class="hist">${items.map(i=>`<li><time>${i[0]}</time><span>${i[1]}</span></li>`).join("")}</ul></section>`;
+function paneData(){
+  const id = S.open; if (!id) return null;
+  const remaining = SIGNUPS.filter((_,i)=>!S.approved.includes(i));
+  if (id==="q-approvals"){
+    const s = remaining[Math.min(S.su, remaining.length-1)]; if(!s) return null;
+    const k = Math.min(S.su, remaining.length-1);
+    return { crumb:`Approvals · ${k+1} of ${remaining.length}`, title:s.n, mkn:[s.n,"p"],
+      props:[`<span class="prop tone" style="background:var(--tone-sky-fill);color:var(--tone-sky-ink)">Founder signup</span>`,`<span class="prop">${s.e}</span>`,`<span class="prop">Signed up ${s.age} ago</span>`],
+      card:{ h:`Approve ${s.n}`, t:s.match?`This signup looks like it belongs to ${s.match}. Approving links the account to that company.`:`No company matches yet. You can link ${s.co} after approving.`,
+        p:"Approve", pk:"A", s:"Link to a company…", sk:"L" },
+      body:`<section><h3>${NL("Why you're seeing this")}</h3><p>${s.n} signed up with ${s.e} and asked to join ${s.co}. Nobody has an account for them yet.</p></section>
+      <section><h3>${NL("Details")}</h3><dl class="kv"><dt>Company asked for</dt><dd>${s.co}</dd><dt>Suggested link</dt><dd>${s.match||"None"}</dd><dt>Email</dt><dd>${s.e}</dd></dl></section>
+      ${hist([[s.age+" ago","Signed up"],[s.age+" ago","Link suggestion made"]])}` };
+  }
+  if (id==="q-diligence") return { crumb:"Diligence", title:"2 companies are ready for review", props:[`<span class="prop">Diligence</span>`,`<span class="prop">Waiting 3 days</span>`],
+    card:{ h:"Start with the oldest", t:"Both companies finished their diligence answers.", p:"Open diligence", pk:"O" },
+    body:`<section><h3>${NL("Why you're seeing this")}</h3><p>Companies move here once they submit. They stay until someone on the team reviews them.</p></section>${hist([["3d ago","Sample Labs submitted"],["2d ago","Demo Works submitted"]])}` };
+  if (id==="q-board") return { crumb:"Team Board", title:"1 board item needs review", props:[`<span class="prop">Team Board</span>`],
+    card:{ h:"Match the name", t:"Names or projects Molly could not match.", p:"Open the board", pk:"O" },
+    body:`<section><h3>${NL("Why you're seeing this")}</h3><p>A task came in from a meeting note with an owner or project that does not exist yet.</p></section>` };
+  const al = ALERTS.find(a=>a.id===id);
+  if (al) return { crumb:"Alerts", title:al.msg, mkn:[al.co,"co"], props:[`<span class="prop">${mk(al.co,"co")}${al.co}</span>`,`<span class="prop">Metric alert</span>`,`<span class="prop">${al.age} ago</span>`],
+    card:{ h:"Check the figure", t:"If it is expected, dismiss the alert. It comes back only if the figure changes again.", p:"Dismiss alert", pk:"D", s:"Open company", sk:"O" },
+    body:figures()+hist([[al.age+" ago","Alert raised"]]) };
+  const od = OVERDUE.find(o=>o.id===id) ?? OVERDUE.find(o=>o.co===id);
+  const co = companyList().find(c=>c.id===id) ?? (od && companyList().find(c=>c.id===od.co));
+  if (co){
+    const late = co.days>=20;
+    return { crumb: S.screen===1?"Behind on updates":"Companies", title:co.name, mkn:[co.name,"co"],
+      props:[`<span class="prop tone" style="background:var(--tone-sky-fill);color:var(--tone-sky-ink)">${co.stage}</span>`,`<span class="prop">${mk(co.own,"p")}${co.own}</span>`,`<span class="prop">${co.cad} updates</span>`],
+      card: late ? { h:`No update for ${co.days} days`, t:`The last update was ${co.days} days ago. A reminder goes to ${co.fn} by email.`, p:"Send a reminder", pk:"R", s:"Open company", sk:"O" }
+                 : { h:"Up to date", t:`The last update was ${co.days} days ago. Nothing to do.`, p:"Open company", pk:"O" },
+      body:figures()+`<section><h3>${NL("Recent updates")}</h3><ul class="hist"><li><time>${co.days}d ago</time><span>${co.cad==="Monthly"?"October":"Q3"} update</span></li><li><time>${co.days+30}d ago</time><span>${co.cad==="Monthly"?"September":"Q2"} update</span></li></ul></section>` };
+  }
+  const c = CARDS.find(x=>x.id===id);
+  if (c) return { crumb:`Team Board · ${COLS[c.col]}`, title:c.t, props:[`<span class="prop"><span class="stack" style="display:inline-flex">${c.own.map(o=>mk(o,"p")).join("")}</span>${c.own.join(", ")}</span>`, c.due?`<span class="prop">Due ${c.due}</span>`:"", `<span class="prop">${COLS[c.col]}</span>`],
+    card: c.waiting ? { hot:true, h:`${G.waiting.replace('class="g stuck"','class="g stuck" style="width:16px;height:16px"')}${NL("Waiting on you")}`, t:"Jo Admin needs you to confirm the figures before the fund report goes out.", p:"Mark as unblocked", pk:"U", s:"Edit", sk:"E" }
+      : { h:c.review?"Ready to review":"Next step", t:c.review?"The owner moved this here for a second pair of eyes.":"Open the card to edit it.", p:c.review?"Approve":"Edit", pk:c.review?"A":"E" },
+    body:`<section><h3>Notes</h3><p>${c.waiting?"Confirm the monthly revenue and cash figures against the update before the report is drafted.":"No notes yet."}</p></section>
+      ${c.waiting?`<section><h3>Proof links</h3><p><a href="#" onclick="return false">example.com/figures</a></p></section>`:""}
+      ${hist([["2d ago",`${c.own[0]} moved this to ${COLS[c.col]}`],["5d ago","Card created"]])}` };
+  return null;
+}
+function paneHTML(){
+  const d = paneData(); if (!d) return "";
+  const k = d.card;
+  return `<aside class="pane ${S.fresh?"":"in"}" id="pane" role="complementary" aria-label="${d.title}">
+    <div class="crumb"><button class="ib back" data-act="close" aria-label="Back to the list">${IC.back}</button>
+      <span>${d.crumb}</span><span class="sp"></span>
+      <button class="ib" data-act="prev" aria-label="Previous">${IC.up}</button><button class="ib" data-act="next" aria-label="Next">${IC.down}</button>
+      <button class="ib" data-act="expand" aria-label="Open full page">${IC.expand}</button>
+      <button class="ib" data-act="close" aria-label="Close">${IC.x}</button></div>
+    <div class="pbody"><div class="pin"><h1>${d.mkn?mk(d.mkn[0],d.mkn[1],true):""}<span>${d.title}</span></h1>
+      <div class="props">${d.props.join("")}</div>
+      ${k?`<div class="card ${k.hot?"hot":""}"><h5>${k.h}</h5><p>${k.t}</p><div class="acts">
+        <button class="btn pri" data-act="primary">${NL(k.p)}${phone()?"":`<kbd>${k.pk}</kbd>`}</button>
+        ${k.s?`<button class="btn sec" data-act="secondary">${NL(k.s)}${phone()?"":`<kbd>${k.sk}</kbd>`}</button>`:""}</div></div>`:""}
+      ${d.body}</div></div></aside>`;
+}
+
+/* ── Palette and toast ───────────────────────────────────────────────────── */
+function palItems(){
+  const a = [
+    { l:S.theme==="dark"?"Switch to light":"Switch to dark", k:"", run:()=>{S.theme=S.theme==="dark"?"light":"dark";} , g:"Actions" },
+    { l:"Use the old look", k:"", run:()=>toast("Back to the old look (not in this mockup)"), g:"Actions" },
+    { l:"Needs you", k:"g d", run:()=>go(1), g:"Go to" }, { l:"Companies", k:"g c", run:()=>go(2), g:"Go to" },
+    { l:"Team Board", k:"g b", run:()=>go(3), g:"Go to" }, { l:"Approvals", k:"g a", run:()=>toast("Not in this mockup"), g:"Go to" },
+  ];
+  const q = S.palQ.toLowerCase(); return a.filter(x=>x.l.toLowerCase().includes(q));
+}
+function palHTML(){
+  if (!S.pal) return "";
+  const items = palItems(); let last="";
+  return `<div class="pal" data-act="palclose"><div role="dialog" aria-label="Search or jump to" data-stop>
+    <input id="palq" placeholder="Search or jump to…" value="${S.palQ}" autocomplete="off">
+    <ul>${items.map((x,i)=>{ const h = x.g!==last? `<h6>${NL(x.g)}</h6>`:""; last=x.g;
+      return `<li>${h}<button data-pal="${i}" aria-selected="${i===S.palI}">${x.l}${x.k?`<kbd>${x.k}</kbd>`:""}</button></li>`; }).join("")}</ul></div></div>`;
+}
+function toast(msg, undo){ S.toast={msg,undo}; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{S.toast=null;render();},4500); render(); }
+
+/* ── Render ──────────────────────────────────────────────────────────────── */
+function render(){
+  const root = document.getElementById("root");
+  const keep = root.querySelector(".scroll")?.scrollTop || 0;
+  document.documentElement.dataset.theme = S.theme;
+  document.body.classList.toggle("hl", S.hl);
+  const ph = phone();
+  let main;
+  if (S.screen===1) main = needsHTML(); else if (S.screen===2) main = companiesHTML(); else if (S.screen===3) main = boardHTML(); else main = founderHTML();
+  root.innerHTML = `<div class="app ${ph?"phone":""} ${S.drawer?"drawer":""}">${sideHTML()}<div class="scrim" data-act="drawer"></div>
+    <main class="main">${main}${S.screen<4?paneHTML():""}</main>${palHTML()}
+    ${S.toast?`<div class="toast" role="status"><span>${S.toast.msg}</span>${S.toast.undo?`<button data-act="undo">${NL("Undo")}</button>`:""}</div>`:""}</div>`;
+  const sc = root.querySelector(".scroll"); if (sc) sc.scrollTop = keep;
+  if (S.fresh){ S.fresh=false; requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById("pane")?.classList.add("in"))); }
+  if (S.pal) { const i = document.getElementById("palq"); i.focus(); i.setSelectionRange(S.palQ.length,S.palQ.length); }
+  strip();
+}
+function strip(){
+  const sb = (grp, items) => `<div class="seg" role="group" aria-label="${grp}">${items.map(([k,l,on])=>`<button data-s="${grp}:${k}" aria-pressed="${on}">${l}</button>`).join("")}</div>`;
+  document.getElementById("strip").innerHTML = `<h1>Molly redesign · concept v1</h1>
+    ${sb("screen",[[1,"1 · Needs you",S.screen===1],[2,"2 · Companies",S.screen===2],[3,"3 · Team Board",S.screen===3],[4,"4 · Founder",S.screen===4]])}
+    ${sb("theme",[["light","Light",S.theme==="light"],["dark","Dark",S.theme==="dark"]])}
+    ${S.screen===4?`<span class="hint">Founder screens are designed phone first</span>`:sb("device",[["desktop","Desktop",S.device==="desktop"],["phone","Phone",S.device==="phone"]])}
+    <button class="tog" data-s="hl" aria-pressed="${S.hl}">Show new labels</button>
+    ${S.screen===1?`<button class="tog" data-s="empty" aria-pressed="${S.empty}">Empty state</button>`:""}
+    <span class="hint">Click a row · j k Enter Esc · ⌘K · A approves, D dismisses</span>`;
+}
+
+/* ── Behaviour ───────────────────────────────────────────────────────────── */
+function flat(){
+  if (S.screen===1) return needsRows().filter(r=>!S.collapsed[r.g]).map(r=>r.id);
+  if (S.screen===2) return companyList().filter(c=>!S.collapsed[c.g]).map(c=>c.id);
+  if (S.screen===3) return CARDS.slice().sort((a,b)=>a.col-b.col).map(c=>c.id);
+  return [];
+}
+function go(n){ S.screen=n; S.open=null; S.cur=null; S.pal=false; S.drawer=false; S.collapsed={}; render(); }
+function openRow(id){ const was=S.open; S.open=id; S.cur=id; S.fresh=!was; if(id==="q-approvals") S.su=0; render(); }
+function step(dir){
+  const ids = flat(); if(!ids.length) return;
+  if (S.open==="q-approvals"){ const n=SIGNUPS.length-S.approved.length; const t=S.su+dir; if(t>=0&&t<n){S.su=t;render();return;} }
+  const i = ids.indexOf(S.cur ?? S.open); const j = Math.max(0, Math.min(ids.length-1, i<0?0:i+dir));
+  S.cur = ids[j]; if (S.open) { S.open=ids[j]; if(ids[j]==="q-approvals") S.su=0; }
+  render(); document.querySelector(".cur")?.scrollIntoView({block:"nearest"});
+}
+function primary(){
+  const id=S.open; if(!id) return;
+  if (id==="q-approvals"){
+    const remaining = SIGNUPS.map((s,i)=>i).filter(i=>!S.approved.includes(i)); const idx = remaining[Math.min(S.su,remaining.length-1)];
+    S.approved.push(idx); const name=SIGNUPS[idx].n;
+    if (SIGNUPS.length-S.approved.length===0) S.open=null; else S.su=Math.min(S.su,SIGNUPS.length-S.approved.length-1);
+    S.undo = ()=>{ S.approved=S.approved.filter(x=>x!==idx); S.open="q-approvals"; S.su=Math.max(0,remaining.indexOf(idx)); };
+    toast(`${name} approved`, true); return;
+  }
+  const al = ALERTS.find(a=>a.id===id);
+  if (al){ const el=document.querySelector(`[data-row="${id}"]`); el?.classList.add("leaving");
+    setTimeout(()=>{ S.gone.add(id); S.open=null; S.cur=null; S.undo=()=>{S.gone.delete(id);S.open=id;S.cur=id;}; toast("Alert dismissed",true); },280); return; }
+  const d = paneData();
+  if (d?.card?.p==="Send a reminder") return toast(`Reminder sent to ${(companyList().find(c=>c.id===id)||{}).fn||"the founder"}`);
+  if (d?.card?.p==="Mark as unblocked"){ const c=CARDS.find(x=>x.id===id); c.waiting=false; S.undo=()=>{c.waiting=true;}; return toast("Card unblocked", true); }
+  toast("Opens the full page (not in this mockup)");
+}
+document.addEventListener("click", e=>{
+  const t = e.target.closest("[data-s],[data-act],[data-row],[data-group],[data-nav],[data-pal],[data-toast]"); if(!t) return;
+  if (t.dataset.s){ const [k,v]=t.dataset.s.split(":");
+    if(k==="screen") { go(+v); } else if(k==="theme") { S.theme=v; render(); }
+    else if(k==="device") { S.device=v; S.open=null; S.drawer=false; render(); }
+    else if(k==="hl") { S.hl=!S.hl; render(); } else if(k==="empty") { S.empty=!S.empty; render(); } return; }
+  if (t.dataset.nav){ if(+t.dataset.nav) go(+t.dataset.nav); else toast("Not in this mockup"); return; }
+  if (t.dataset.group){ S.collapsed[t.dataset.group]=!S.collapsed[t.dataset.group]; render(); return; }
+  if (t.dataset.row){ openRow(t.dataset.row); return; }
+  if (t.dataset.toast){ toast(t.dataset.toast); return; }
+  if (t.dataset.pal!==undefined){ palItems()[+t.dataset.pal].run(); S.pal=false; render(); return; }
+  const a = t.dataset.act;
+  if (a==="palclose" && e.target.closest("[data-stop]")) return;
+  ({ pal:()=>{S.pal=true;S.palQ="";S.palI=0;render();}, palclose:()=>{S.pal=false;render();},
+     theme:()=>{S.theme=S.theme==="dark"?"light":"dark";render();}, old:()=>toast("Back to the old look (not in this mockup)"),
+     drawer:()=>{S.drawer=!S.drawer;render();}, close:()=>{S.open=null;render();}, prev:()=>step(-1), next:()=>step(1),
+     expand:()=>toast("Opens the full page at the same address"), primary, secondary:()=>toast("Not in this mockup"),
+     undo:()=>{ S.undo&&S.undo(); S.undo=null; S.toast=null; render(); } }[a]||(()=>{}))();
+});
+document.addEventListener("input", e=>{ if(e.target.id==="palq"){ S.palQ=e.target.value; S.palI=0; render(); } });
+document.addEventListener("keydown", e=>{
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||"");
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); S.pal=!S.pal; S.palQ=""; S.palI=0; render(); return; }
+  if (S.pal){
+    const n = palItems().length;
+    if (e.key==="Escape"){ S.pal=false; render(); }
+    else if (e.key==="ArrowDown"){ e.preventDefault(); S.palI=(S.palI+1)%n; render(); }
+    else if (e.key==="ArrowUp"){ e.preventDefault(); S.palI=(S.palI+n-1)%n; render(); }
+    else if (e.key==="Enter"){ palItems()[S.palI]?.run(); S.pal=false; render(); }
+    return;
+  }
+  if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key==="Escape"){ if(S.drawer){S.drawer=false;render();} else if(S.open){S.open=null;render();} return; }   // one layer at a time
+  if (e.key==="j"||e.key==="ArrowDown"){ e.preventDefault(); step(1); }
+  else if (e.key==="k"||e.key==="ArrowUp"){ e.preventDefault(); step(-1); }
+  else if (e.key==="Enter" && S.cur && !S.open){ openRow(S.cur); }
+  else if (S.open){ const d=paneData(); if(d?.card && e.key.toLowerCase()===d.card.pk.toLowerCase()) primary(); }
+});
+
+/* ── Legend: the identity marks, live ────────────────────────────────────── */
+(function(){
+  const names = [["Acme Ltd","co"],["Example Co","co"],["Sample Labs","co"],["Sam Admin","p"],["Jo Admin","p"],["Alex Admin","p"]];
+  document.getElementById("legend").innerHTML = `<h2>Identity marks</h2>
+    <div class="row2">${POOL.map(([n,c])=>`<span class="it"><span class="mk l" style="--c:${c}">${n[0].toUpperCase()}</span>${n} <code style="font:11px var(--mono);color:var(--t3)">${c}</code></span>`).join("")}</div>
+    <div class="row2">${names.map(([n,k])=>`<span class="it">${mk(n,k,true)}${n} → ${POOL[fnv1a(n)%8][0]}</span>`).join("")}</div>
+    <p>A disc is a person. A rounded square is a company. The colour is FNV-1a (32-bit) of the lower-cased, trimmed name, modulo 8, so a name has the same colour on every screen and every device. State colours (red, amber, green) are never used as identity fills.</p>`;
+})();
+render();
+</script>
+</body>
+</html>
