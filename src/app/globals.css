@@ -372,8 +372,15 @@ html[data-look="v2"] [data-surface="admin"] .btn-secondary {
 
 /* Badges: a status is a small glyph and a word, coloured by state. The shape differs per
    state, so the colour is never the only signal. Fills stay only on stage chips and columns
-   (StageChip, tone pairs). */
-html[data-look="v2"] [data-surface="admin"] .badge {
+   (StageChip, tone pairs).
+   The variants are listed by name: no element carries a bare .badge class (the variants
+   @apply its utilities), so a rule on .badge alone would match nothing. */
+html[data-look="v2"] [data-surface="admin"] .badge,
+html[data-look="v2"] [data-surface="admin"] .badge-success,
+html[data-look="v2"] [data-surface="admin"] .badge-warning,
+html[data-look="v2"] [data-surface="admin"] .badge-danger,
+html[data-look="v2"] [data-surface="admin"] .badge-info,
+html[data-look="v2"] [data-surface="admin"] .badge-neutral {
   gap: 6px;
   padding: 0;
   border-radius: 0;
@@ -383,7 +390,12 @@ html[data-look="v2"] [data-surface="admin"] .badge {
   line-height: 18px;
   font-weight: 500;
 }
-html[data-look="v2"] [data-surface="admin"] .badge::before {
+html[data-look="v2"] [data-surface="admin"] .badge::before,
+html[data-look="v2"] [data-surface="admin"] .badge-success::before,
+html[data-look="v2"] [data-surface="admin"] .badge-warning::before,
+html[data-look="v2"] [data-surface="admin"] .badge-danger::before,
+html[data-look="v2"] [data-surface="admin"] .badge-info::before,
+html[data-look="v2"] [data-surface="admin"] .badge-neutral::before {
   content: "";
   flex: none;
   width: 6px;
