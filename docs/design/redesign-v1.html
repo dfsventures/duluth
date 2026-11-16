@@ -10,6 +10,9 @@
   All names, companies and figures are placeholders. Words marked data-nl are NEW labels for Nosa:
   press the "Show new labels" button in the strip to outline them.
   Rationale and token table: docs/design/redesign-v1.md
+  Density review (2026-11-16): the strip has a "Density: Approved / Proposed" toggle. Approved is the spacing Joseph signed off;
+  Proposed is the looser "Comfortable" scale from docs/design/redesign-v1-density.md. The Proposed rules are one block at the end of
+  the stylesheet, headed "Density: proposed", so the approved rules above it are untouched. Deep link: #density=approved&screen=2&theme=dark&device=wide
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -65,6 +68,7 @@ svg{display:block;flex:none}
 .tog{padding:3px 10px;border-radius:8px;border:1px solid var(--line2);color:var(--t2);font-weight:500}
 .tog[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 .hint{color:var(--t3);margin-left:auto}
+.slab{color:var(--t3);font-weight:500;margin-right:-8px}
 .stage{display:grid;place-items:start center;padding:24px 16px 8px}
 .legend{max-width:1200px;margin:16px auto 48px;padding:0 16px;color:var(--t2)}
 .legend h2{font:600 13px/20px var(--f);color:var(--t1);margin-bottom:8px}
@@ -73,7 +77,8 @@ svg{display:block;flex:none}
 body.hl [data-nl]{outline:1px dashed #D946B0;outline-offset:2px;border-radius:3px}
 
 /* ── App frame ───────────────────────────────────────────────────────────────── */
-.app{position:relative;display:grid;grid-template-columns:224px minmax(0,1fr);width:min(1200px,100%);height:720px;background:var(--bg);color:var(--t1);border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+.app{position:relative;display:grid;grid-template-columns:224px minmax(0,1fr);width:min(1200px,100%);height:clamp(640px,calc(100vh - 140px),900px);background:var(--bg);color:var(--t1);border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+.app.wide{width:min(1760px,100%)} /* "Wide": the whole browser window, to judge gutters and the content column on a big screen */
 .app.phone{grid-template-columns:minmax(0,1fr);width:390px;height:800px;border-radius:28px}
 .side{background:var(--side);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
 .phone .side{position:absolute;z-index:30;inset:0 auto 0 0;width:292px;transform:translateX(-102%);transition:transform 200ms var(--ease);border-right:1px solid var(--line2)}
@@ -108,6 +113,9 @@ kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2)
 .hd{height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 16px;border-bottom:1px solid var(--line)}
 .hd h2{font:500 13px/20px var(--f)}
 .hd .ct{color:var(--t3)}
+/* The page description the built headers already carry (existing words, not new labels). Quiet text beside the title; it gives way first. */
+.hd .desc{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--t3);font-size:12px;line-height:18px;margin-left:4px}
+.phone .hd .desc{display:none}
 .hd .sp{flex:1}
 .phone .hd{height:52px;padding:0 4px 0 4px}
 .chips{height:40px;flex:none;display:flex;align-items:center;gap:6px;padding:0 16px;border-bottom:1px solid var(--line);overflow:hidden}
@@ -271,6 +279,138 @@ kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2)
 .toast button{color:var(--accent);font-weight:500;padding:4px 8px;border-radius:6px}
 .toast button:hover{background:var(--hover)}
 @keyframes tin{from{opacity:0;transform:translate(-50%,8px)}}
+
+/* ═══ Density: proposed ("Comfortable") ══════════════════════════════════════════════════════════════════════════════
+   Applies only when <html data-density="comfortable"> (the "Proposed" button in the strip). Everything above this block is the
+   approved spacing and is left as it was, so flipping the toggle shows exactly what changes. Every value, with the reason, is in
+   docs/design/redesign-v1-density.md. Reference for geometry only, like the rest of this file; not class names to copy.
+   Scale: 4 8 12 16 24 32 48. Heights: chip 28, small control 32, nav item 32, button and input 36, row 44, bar 52, phone target 44.
+   --d-px is the side padding of every bar and row. It is the 24px gutter, or more on a wide window so the content stays in a 1104px
+   column (the page box today is 1152 including its own 24px padding, so pages and lists share one column) while the bands (header, chip bar, group headers, hover and selected rows) still run edge to edge. A percentage in padding
+   or in left is the width of the element's own container, which is how the column is found without knowing the window width. */
+html[data-density="comfortable"] .app{--d-g:24px;--d-col:1104px;--d-px:max(var(--d-g),calc((100% - var(--d-col)) / 2));font-size:14px}
+html[data-density="comfortable"] .app.phone{--d-g:20px}
+
+/* identity marks and the one scale for icons-in-rows */
+html[data-density="comfortable"] .app .mk{--s:20px}
+html[data-density="comfortable"] .app .mk.l{--s:32px}
+html[data-density="comfortable"] .app .me .mk{--s:24px}
+html[data-density="comfortable"] .app .stack .mk+.mk{margin-left:-6px}
+
+/* sidebar: the logo row is the same 52 as the header bar, so the wordmark and the page title sit on one line */
+html[data-density="comfortable"] .brand{height:52px;padding:0 24px}
+html[data-density="comfortable"] .jump{margin:4px 12px 12px;height:36px;padding:0 12px}
+html[data-density="comfortable"] .phone .jump{height:44px}
+html[data-density="comfortable"] .nav{padding:0 12px 12px}
+html[data-density="comfortable"] .nav h4{padding:24px 12px 4px}
+html[data-density="comfortable"] .ni{height:32px;padding:0 12px}
+html[data-density="comfortable"] .phone .ni{height:44px}
+html[data-density="comfortable"] .foot{padding:12px;gap:4px}
+html[data-density="comfortable"] .me{height:36px;gap:12px;padding:0 4px 0 12px}
+html[data-density="comfortable"] .oldlook{height:28px;padding:0 12px}
+html[data-density="comfortable"] .app:not(.phone) .ib{width:32px;height:32px}
+
+/* header bar, filter bar, group headers */
+html[data-density="comfortable"] .hd{height:52px;gap:8px;padding-inline:var(--d-px)}
+html[data-density="comfortable"] .phone .hd{padding:0 4px}
+html[data-density="comfortable"] .hd h2{font-size:14px;font-weight:600}
+html[data-density="comfortable"] .hd .desc{margin-left:8px;padding-left:16px;border-left:1px solid var(--line2);line-height:16px}
+html[data-density="comfortable"] .chips{height:44px;gap:8px;padding-inline:var(--d-px)}
+html[data-density="comfortable"] .phone .chips{height:52px}
+html[data-density="comfortable"] .chip{height:28px;padding:0 12px;gap:6px}
+html[data-density="comfortable"] .phone .chip{height:32px}
+html[data-density="comfortable"] .clear{height:28px;padding:0 8px}
+html[data-density="comfortable"] .gh{height:36px;gap:8px;padding-inline:var(--d-px);border-bottom:0}
+html[data-density="comfortable"] .rows + .gh{margin-top:24px}
+html[data-density="comfortable"] .scroll{scroll-padding-top:40px}
+
+/* rows */
+html[data-density="comfortable"] .row{min-height:44px;gap:12px;padding-inline:var(--d-px)}
+html[data-density="comfortable"] .row > svg.g{margin-inline:3px} /* state glyph gets a 20px slot, the same as a mark */
+html[data-density="comfortable"] .row .ti i{margin-left:12px}
+html[data-density="comfortable"] .row .rt{gap:24px}
+html[data-density="comfortable"] .row .age{width:32px}
+html[data-density="comfortable"] .c-own{width:104px;gap:8px}
+html[data-density="comfortable"] .row.cur::before{left:var(--d-px)}
+html[data-density="comfortable"] .phone .row{min-height:64px;padding-block:12px;gap:4px 12px}
+html[data-density="comfortable"] .phone .row .rt{padding-left:32px;gap:12px}
+html[data-density="comfortable"] .phone .row .age{width:auto}
+
+/* empty state: one 44px line, left-aligned with everything else (as WS159 built it), not a centred block */
+html[data-density="comfortable"] .empty{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:flex-start;gap:0 12px;height:auto;padding:12px var(--d-px);text-align:left}
+html[data-density="comfortable"] .empty > div{display:contents}
+html[data-density="comfortable"] .empty b{display:inline;margin:0}
+
+/* Portfolio section and KPI tiles */
+html[data-density="comfortable"] .sec{padding:48px var(--d-px)}
+html[data-density="comfortable"] .phone .sec{padding-top:32px}
+html[data-density="comfortable"] .sec h3{margin-bottom:12px}
+html[data-density="comfortable"] .kpis{gap:16px}
+html[data-density="comfortable"] .kpi{padding:16px}
+html[data-density="comfortable"] .kpi span{margin-bottom:4px}
+
+/* buttons */
+html[data-density="comfortable"] .btn{height:36px;padding:0 16px}
+html[data-density="comfortable"] .phone .btn{height:44px;padding:0 20px}
+
+/* side pane: the crumb bar is the same 52 as the header, so the two hairlines meet */
+html[data-density="comfortable"] .crumb{height:52px;gap:4px;padding:0 12px 0 24px}
+html[data-density="comfortable"] .phone .crumb{padding:0 4px}
+html[data-density="comfortable"] .pbody{padding:32px 32px 48px}
+html[data-density="comfortable"] .phone .pbody{padding:24px 20px 48px}
+html[data-density="comfortable"] .pin h1{gap:12px}
+html[data-density="comfortable"] .props{gap:8px;margin:16px 0 24px}
+html[data-density="comfortable"] .prop{height:28px;gap:8px;padding:0 12px}
+html[data-density="comfortable"] .card{padding:24px;margin-bottom:32px}
+html[data-density="comfortable"] .phone .card{padding:20px}
+html[data-density="comfortable"] .card h5{font-size:14px;margin-bottom:8px}
+html[data-density="comfortable"] .card p{line-height:22px;margin-bottom:16px}
+html[data-density="comfortable"] .card .acts{gap:12px}
+html[data-density="comfortable"] .pin h3{margin-bottom:12px}
+html[data-density="comfortable"] .pin section{margin-bottom:32px}
+html[data-density="comfortable"] .pin section p{line-height:22px}
+html[data-density="comfortable"] .kv{grid-template-columns:148px 1fr;gap:8px 16px}
+html[data-density="comfortable"] .hist{gap:8px}
+html[data-density="comfortable"] .hist li{gap:16px}
+html[data-density="comfortable"] .hist time{width:64px}
+
+/* board */
+html[data-density="comfortable"] .board{gap:16px;padding:16px var(--d-g)}
+html[data-density="comfortable"] .col .ch{height:36px;gap:8px}
+html[data-density="comfortable"] .tile{padding:12px 16px;margin-bottom:12px}
+html[data-density="comfortable"] .tile .top{margin-bottom:8px}
+html[data-density="comfortable"] .tile .mkr{gap:8px}
+html[data-density="comfortable"] .tile .more{width:24px;height:24px}
+html[data-density="comfortable"] .tile.cur::before{left:16px}
+html[data-density="comfortable"] .addc{height:36px;padding:0 8px}
+
+/* founder dashboard on a phone */
+html[data-density="comfortable"] .fmain{padding:24px 20px 48px}
+html[data-density="comfortable"] .hero{padding:24px;margin-bottom:32px}
+html[data-density="comfortable"] .hero small{margin-bottom:8px}
+html[data-density="comfortable"] .hero h2{margin-bottom:8px}
+html[data-density="comfortable"] .hero p{line-height:22px;margin-bottom:24px}
+html[data-density="comfortable"] .fsec{margin-bottom:32px}
+html[data-density="comfortable"] .fsec h3{margin-bottom:8px}
+html[data-density="comfortable"] .frow{min-height:64px;gap:16px;padding:12px 0}
+
+/* palette and toast */
+html[data-density="comfortable"] .pal{padding-top:96px}
+html[data-density="comfortable"] .pal>div{width:min(560px,92%)}
+html[data-density="comfortable"] .pal input{height:52px;padding:0 24px}
+html[data-density="comfortable"] .pal ul{padding:8px}
+html[data-density="comfortable"] .pal h6{padding:12px 12px 4px}
+html[data-density="comfortable"] .pal li button{height:36px;gap:12px;padding:0 12px}
+html[data-density="comfortable"] .toast button{padding:6px 12px}
+/* ═══ end density: proposed ═════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* the density table under the mockup */
+.dt{border-collapse:collapse;font-size:12px;line-height:18px;margin:8px 0 12px;width:100%;max-width:880px}
+.dt th,.dt td{padding:4px 12px 4px 0;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+.dt thead th{font-weight:500;color:var(--t3)}
+.dt tr.g th{padding-top:14px;color:var(--t1);font-weight:600;border-bottom-color:var(--line2)}
+.dt td:first-child{width:34%;color:var(--t2)}
+.dt .on{color:var(--t1);font-weight:600}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -346,9 +486,18 @@ const WM = `<svg viewBox="0 0 392.82 125.54" role="img" aria-label="Molly"><path
 const NL = t => `<span data-nl>${t}</span>`;
 
 /* ── State ────────────────────────────────────────────────────────────────── */
-const S = { screen:1, theme:"light", device:"desktop", hl:false, drawer:false, pal:false, palQ:"", palI:0,
+const S = { screen:1, theme:"light", device:"desktop", density:"comfortable", hl:false, drawer:false, pal:false, palQ:"", palI:0,
   open:null, fresh:false, cur:null, su:0, collapsed:{}, empty:false, gone:new Set(), toast:null, approved:[] };
 let toastTimer;
+/* Deep link, so a view can be shared or screenshotted: #density=approved&screen=2&theme=dark&device=wide. The strip keeps it current. */
+(function(){
+  const h = new URLSearchParams(location.hash.slice(1)), d = h.get("density"), sc = +h.get("screen");
+  if (d==="approved" || d==="comfortable" || d==="proposed") S.density = d==="approved" ? "approved" : "comfortable";
+  if ([1,2,3,4].includes(sc)) S.screen = sc;
+  if (["light","dark"].includes(h.get("theme"))) S.theme = h.get("theme");
+  if (["desktop","wide","phone"].includes(h.get("device"))) S.device = h.get("device");
+  if (S.screen===3) S.cur = "c5";
+})();
 
 /* ── Pieces ───────────────────────────────────────────────────────────────── */
 const plural = (n,a,b) => `${n} ${n===1?a:b}`;
@@ -387,10 +536,10 @@ function sideHTML(){
       <button class="oldlook" data-act="old">${NL("Use the old look")}</button>
     </div></aside>`;
 }
-function hdHTML(title, count, right=""){
+function hdHTML(title, count, right="", desc=""){
   return `<header class="hd">
     ${phone()?`<button class="ib" data-act="drawer" aria-label="Open menu">${IC.menu}</button>`:""}
-    <h2>${title}</h2>${count!=null?`<span class="ct">${count}</span>`:""}<span class="sp"></span>${right}</header>`;
+    <h2>${title}</h2>${count!=null?`<span class="ct">${count}</span>`:""}${desc?`<span class="desc">${desc}</span>`:""}<span class="sp"></span>${right}</header>`;
 }
 const chipsHTML = (unset, set=[]) => `<div class="chips" role="group" aria-label="Filters">
   ${set.map(([k,v])=>`<span class="chip set">${NL(k)} <b>${v}</b> <button aria-label="Remove ${k} filter" style="display:grid">${IC.x.replace('width="16" height="16"','width="12" height="12"')}</button></span>`).join("")}
@@ -412,7 +561,7 @@ function needsRows(){
 }
 function needsHTML(){
   const rows = needsRows();
-  const head = hdHTML(NL("Needs you"), rows.length);
+  const head = hdHTML(NL("Needs you"), rows.length, "", `Welcome back, ${ME}. Here is what needs you today.`); /* the existing dashboard sentence, kept */
   if (S.empty) return head + `<div class="scroll"><div class="empty"><div><b>${NL("Nothing needs you right now.")}</b>${NL("When someone signs up or an update runs late, it shows here.")}</div></div></div>`;
   const groups = ["Waiting on you","On the board","Alerts","Behind on updates"];
   const body = groups.map(g => { const rs = rows.filter(r=>r.g===g); if(!rs.length) return "";
@@ -444,7 +593,7 @@ function companiesHTML(){
       return `<div class="${cls}" role="option" aria-selected="${S.cur===c.id}" data-row="${c.id}">
         ${mk(c.name,"co")}<span class="ti">${c.name}<i>${c.stage}</i></span>
         <span class="rt"><span class="c-own">${mk(c.own,"p")}${c.own.split(" ")[0]}</span><span class="c-cad" style="width:64px">${c.cad}</span><span class="${c.late||""}" style="width:64px;text-align:right">${c.last}</span></span></div>`;}).join("")); };
-  return hdHTML("Companies", 10) + chipsHTML(["Stage","Status"],[["Owner","Sam Admin and 2 others"]])
+  return hdHTML("Companies", 10, "", "Manage all portfolio companies.") + chipsHTML(["Stage","Status"],[["Owner","Sam Admin and 2 others"]])
     + `<div class="scroll"><div class="listwrap">${g("Behind on updates")}${g("Up to date")}</div></div>`;
 }
 
@@ -460,7 +609,7 @@ function boardHTML(){
           <span class="tt">${c.t}</span>
           ${blocked?`<span class="mkr stuck">${G.waiting}${NL("Blocked")}</span>`:""}</button>`; }).join("")}
       ${i===0?`<button class="addc">+ ${NL("Add item")}</button>`:""}</div>`; }).join("");
-  return hdHTML("Team Board", `${CARDS.length} cards`) + chipsHTML(["Owner","Due"]) + `<div class="scroll" style="overflow:auto"><div class="board">${cols}</div></div>`;
+  return hdHTML("Team Board", `${CARDS.length} cards`, "", "Action items from team calls and the weekly digest") + chipsHTML(["Owner","Due"]) + `<div class="scroll" style="overflow:auto"><div class="board">${cols}</div></div>`;
 }
 
 /* ── Screen 4: Founder dashboard (phone) ─────────────────────────────────── */
@@ -571,24 +720,27 @@ function render(){
   const root = document.getElementById("root");
   const keep = root.querySelector(".scroll")?.scrollTop || 0;
   document.documentElement.dataset.theme = S.theme;
+  document.documentElement.dataset.density = S.density;
   document.body.classList.toggle("hl", S.hl);
   const ph = phone();
   let main;
   if (S.screen===1) main = needsHTML(); else if (S.screen===2) main = companiesHTML(); else if (S.screen===3) main = boardHTML(); else main = founderHTML();
-  root.innerHTML = `<div class="app ${ph?"phone":""} ${S.drawer?"drawer":""}">${sideHTML()}<div class="scrim" data-act="drawer"></div>
+  root.innerHTML = `<div class="app ${ph?"phone":""} ${!ph&&S.device==="wide"?"wide":""} ${S.drawer?"drawer":""}">${sideHTML()}<div class="scrim" data-act="drawer"></div>
     <main class="main">${main}${S.screen<4?paneHTML():""}</main>${palHTML()}
     ${S.toast?`<div class="toast" role="status"><span>${S.toast.msg}</span>${S.toast.undo?`<button data-act="undo">${NL("Undo")}</button>`:""}</div>`:""}</div>`;
   const sc = root.querySelector(".scroll"); if (sc) sc.scrollTop = keep;
   if (S.fresh){ S.fresh=false; requestAnimationFrame(()=>requestAnimationFrame(()=>document.getElementById("pane")?.classList.add("in"))); }
   if (S.pal) { const i = document.getElementById("palq"); i.focus(); i.setSelectionRange(S.palQ.length,S.palQ.length); }
-  strip();
+  strip(); densLegend();
 }
 function strip(){
   const sb = (grp, items) => `<div class="seg" role="group" aria-label="${grp}">${items.map(([k,l,on])=>`<button data-s="${grp}:${k}" aria-pressed="${on}">${l}</button>`).join("")}</div>`;
+  try { history.replaceState(null,"","#"+new URLSearchParams({density:S.density==="approved"?"approved":"proposed",screen:S.screen,theme:S.theme,device:S.device})); } catch(e){}
   document.getElementById("strip").innerHTML = `<h1>Molly redesign · concept v1</h1>
+    <span class="slab">Density</span>${sb("density",[["approved","Approved",S.density==="approved"],["comfortable","Proposed",S.density==="comfortable"]])}
     ${sb("screen",[[1,"1 · Needs you",S.screen===1],[2,"2 · Companies",S.screen===2],[3,"3 · Team Board",S.screen===3],[4,"4 · Founder",S.screen===4]])}
     ${sb("theme",[["light","Light",S.theme==="light"],["dark","Dark",S.theme==="dark"]])}
-    ${S.screen===4?`<span class="hint">Founder screens are designed phone first</span>`:sb("device",[["desktop","Desktop",S.device==="desktop"],["phone","Phone",S.device==="phone"]])}
+    ${S.screen===4?`<span class="hint">Founder screens are designed phone first</span>`:sb("device",[["desktop","Desktop",S.device==="desktop"],["wide","Wide",S.device==="wide"],["phone","Phone",S.device==="phone"]])}
     <button class="tog" data-s="hl" aria-pressed="${S.hl}">Show new labels</button>
     ${S.screen===1?`<button class="tog" data-s="empty" aria-pressed="${S.empty}">Empty state</button>`:""}
     <span class="hint">Click a row · j k Enter Esc · ⌘K · A approves, D dismisses</span>`;
@@ -631,6 +783,7 @@ document.addEventListener("click", e=>{
   const t = e.target.closest("[data-s],[data-act],[data-row],[data-group],[data-nav],[data-pal],[data-toast]"); if(!t) return;
   if (t.dataset.s){ const [k,v]=t.dataset.s.split(":");
     if(k==="screen") { go(+v); } else if(k==="theme") { S.theme=v; render(); }
+    else if(k==="density") { S.density=v; render(); }
     else if(k==="device") { S.device=v; S.open=null; S.drawer=false; render(); }
     else if(k==="hl") { S.hl=!S.hl; render(); } else if(k==="empty") { S.empty=!S.empty; render(); } return; }
   if (t.dataset.nav){ if(+t.dataset.nav) go(+t.dataset.nav); else toast("Not in this mockup"); return; }
@@ -672,8 +825,69 @@ document.addEventListener("keydown", e=>{
   document.getElementById("legend").innerHTML = `<h2>Identity marks</h2>
     <div class="row2">${POOL.map(([n,c])=>`<span class="it"><span class="mk l" style="--c:${c}">${n[0].toUpperCase()}</span>${n} <code style="font:11px var(--mono);color:var(--t3)">${c}</code></span>`).join("")}</div>
     <div class="row2">${names.map(([n,k])=>`<span class="it">${mk(n,k,true)}${n} → ${POOL[fnv1a(n)%8][0]}</span>`).join("")}</div>
-    <p>A disc is a person. A rounded square is a company. The colour is FNV-1a (32-bit) of the lower-cased, trimmed name, modulo 8, so a name has the same colour on every screen and every device. State colours (red, amber, green) are never used as identity fills.</p>`;
+    <p>A disc is a person. A rounded square is a company. The colour is FNV-1a (32-bit) of the lower-cased, trimmed name, modulo 8, so a name has the same colour on every screen and every device. State colours (red, amber, green) are never used as identity fills.</p>
+    <div id="dens"></div>`;
 })();
+
+/* ── Density: the numbers behind the toggle (px). Keep in step with the "Density: proposed" CSS block and redesign-v1-density.md. ── */
+const DENS = [
+  ["Scale and type"],
+  ["Spacing steps used","4 6 8 10 12 14 16 20 22 24","4 8 12 16 24 32 48"],
+  ["Row, nav, button and input text","13 / 20","14 / 20"],
+  ["Prose in the pane and cards","13 / 20","14 / 22"],
+  ["Page title in the header bar","13, medium","14, semibold"],
+  ["Metadata, group headings, chips","12 / 18","12 / 18 (unchanged)"],
+  ["Sidebar"],
+  ["Logo row (the header bar is 44)","44, 52 after the interim fix","52, same as the header bar"],
+  ["Search row","30 high, 12 under","36 high, 4 above and 16 under"],
+  ["Nav item (phone stays 44)","28 high, 8 side padding","32 high, 12 side padding"],
+  ["Space above a group heading","12","24"],
+  ["Inset of the nav, and footer padding","8","12"],
+  ["Header bar, filter bar, groups"],
+  ["Header bar","44 high, 16 side padding","52 high, 24 side padding"],
+  ["Title to description","12 apart, same grey tone","16 apart, hairline between, title semibold"],
+  ["Filter bar, and a chip in it","40, 24","44, 28 (phone 52, 32)"],
+  ["Group header","32, no space above, hairline under","36, 24 above, no hairline"],
+  ["Page"],
+  ["Side gutter","16 (phone 16)","24 (phone 20)"],
+  ["Wide window","lists run the full width; page box 1152","content column 1104, centred; bands run edge to edge"],
+  ["Lists"],
+  ["One-line row","38","44"],
+  ["Row side padding, gap between cells","16, 10","24, 12"],
+  ["Gap between metadata columns","14","24"],
+  ["Identity mark, state glyph slot","16, 14","20, 20"],
+  ["Two-line row on a phone","56","64"],
+  ["Side pane"],
+  ["Crumb bar (matches the header bar)","44","52"],
+  ["Pane padding","24 (phone 20 × 16)","32 (phone 24 × 20)"],
+  ["Between sections, heading to content","22, 6","32, 12"],
+  ["Action card padding, space below","16, 24","24, 32 (phone 20)"],
+  ["Property chip","24 high, 6 apart","28 high, 8 apart"],
+  ["Detail lines (label and value)","4 apart","8 apart"],
+  ["Needs you and the dashboard"],
+  ["Space above the Portfolio section","20","48"],
+  ["KPI tile padding, gap between tiles","10 × 12, 8","16, 16"],
+  ["Empty state","centred block, 72 above and below (concept)","one line, 44 high, left-aligned (as built)"],
+  ["Board"],
+  ["Column header","28","36"],
+  ["Tile padding, gap between tiles","10 × 12, 8","12 × 16, 12"],
+  ["Board padding","12 × 16","16 × 24"],
+  ["Controls and overlays"],
+  ["Button (phone stays 44)","32 high, 12 side padding","36 high, 16 side padding"],
+  ["Palette: input, item, width","48, 32, 520","52, 36, 560"],
+  ["Founder dashboard on a phone"],
+  ["Page padding, hero padding","20 × 16, 16","24 × 20, 24"],
+  ["Gap between sections, row height","24, 56","32, 64"],
+];
+function densLegend(){
+  const el = document.getElementById("dens"); if (!el) return;
+  const a = S.density==="approved", rows = DENS.map(r => r.length===1
+    ? `<tr class="g"><th colspan="3">${r[0]}</th></tr>`
+    : `<tr><td>${r[0]}</td><td class="${a?"on":""}">${r[1]}</td><td class="${a?"":"on"}">${r[2]}</td></tr>`).join("");
+  el.innerHTML = `<h2 style="margin-top:20px">Density: what the toggle changes</h2>
+    <p>Pixels. The bold column is the one on screen. Colour, radius, motion, markers, copy and the sidebar and pane widths do not change. The reasons are in <code style="font:11px var(--mono)">docs/design/redesign-v1-density.md</code>.</p>
+    <table class="dt"><thead><tr><th>Element</th><th class="${a?"on":""}">Approved</th><th class="${a?"":"on"}">Proposed (Comfortable)</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
 /* ── Contrast, computed live from the token values (WCAG 2.x). Text needs 4.5, glyphs 3. ── */
 (function(){
   const hx=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));

@@ -8,7 +8,7 @@ Lou's repo is private and this one is public. Everything here is described and r
 
 ## 1. What to look at
 
-The strip at the top of the page switches **screen**, **light/dark**, and **desktop/phone**. "Show new labels" outlines every new word for Nosa. "Empty state" shows the empty Needs you screen.
+The strip at the top of the page switches **screen**, **light/dark**, and **desktop/wide/phone**. **Density: Approved / Proposed** (added 2026-11-16, after Joseph found the new look too tight) flips between the spacing approved in this document and the looser "Comfortable" scale proposed in `redesign-v1-density.md`. The Proposed spacing is **not approved yet**: the sizes in section 2 still stand until Joseph decides. "Show new labels" outlines every new word for Nosa. "Empty state" shows the empty Needs you screen.
 
 Try this: press `j`/`k` to move the cursor, `Enter` to open the pane, `j`/`k` again to step through records in the pane, `Esc` to close it, `⌘K` for the palette, `A` on an approval to approve (the toast has Undo), `D` on an alert to dismiss it (the row fades and collapses).
 
