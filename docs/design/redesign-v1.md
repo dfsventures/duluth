@@ -50,7 +50,7 @@ On a phone the admin screens turn rows into two lines (56px), the pane into a fu
 
 Rules: text pairs at least **4.5:1**, glyph pairs at least **3:1**. "Role" is the pattern 8 role in PLAN-1. "Variable" is where Alvin puts it in the scoped block (existing variables are redefined; new ones are marked *new*, and `tailwind.config.ts` gets `pane`, `sel`, `open`).
 
-How ratios were made: dark values by the script `docs/design/redesign-v1-contrast.js` (WCAG 2.x formula). Light values for the new tiers were computed by hand from the same formula, because the light half of the script output was cut off in the session that ran it. **Alvin: run `node docs/design/redesign-v1-contrast.js` once before WS156 and compare; WS156's test must enforce these.** Translucent tiers (hover, selected, open) are composed over the tier they sit on before measuring.
+How ratios were made: dark values by the script `docs/design/redesign-v1-contrast.js` (WCAG 2.x formula). Light values for the new tiers were computed by hand from the same formula, because the light half of the script output was cut off in the session that ran it. The HTML now also computes the main pairs live at the bottom of the page ("Contrast, computed live"), so the ratios can be checked by just opening it; the script is optional for Joseph to run to double-check. WS156's test must enforce these. Translucent tiers (hover, selected, open) are composed over the tier they sit on before measuring.
 
 ### 3.1 Surfaces and lines
 
