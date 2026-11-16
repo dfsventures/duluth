@@ -89,10 +89,10 @@ export function CommandPalette() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--scrim)] px-4 pt-[12vh] data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--scrim)] px-4 pt-[12vh] v2:pt-24 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
           <DialogPrimitive.Content
             aria-describedby={undefined}
-            className="w-full max-w-[520px] border border-border bg-card shadow-float data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out v2:rounded-float v2:bg-pane v2:data-[state=open]:[animation-duration:160ms]"
+            className="w-full max-w-[520px] border border-border bg-card shadow-float data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out v2:max-w-[560px] v2:rounded-float v2:bg-pane v2:data-[state=open]:[animation-duration:160ms]"
           >
             <DialogPrimitive.Title className="sr-only">Search and jump to anything</DialogPrimitive.Title>
             <Command label="Search and jump to anything" loop>
@@ -102,7 +102,7 @@ export function CommandPalette() {
                   value={query}
                   onValueChange={setQuery}
                   placeholder="Jump to a company, fund, page or action"
-                  className="h-12 w-full bg-transparent text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  className="h-12 w-full bg-transparent v2:h-[52px] text-[15px] text-foreground placeholder:text-muted-foreground focus:outline-none"
                 />
               </div>
               <Command.List className="max-h-[320px] overflow-y-auto p-1.5">
@@ -124,7 +124,7 @@ export function CommandPalette() {
                           value={`${item.group} ${item.label} ${item.id}`}
                           keywords={item.keywords}
                           onSelect={() => go(item)}
-                          className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[13px] text-foreground data-[selected=true]:bg-wash v2:rounded v2:py-1.5 v2:text-row v2:data-[selected=true]:bg-sel"
+                          className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[13px] text-foreground data-[selected=true]:bg-wash v2:rounded v2:py-2 v2:text-row v2:data-[selected=true]:bg-sel"
                         >
                           <span className="min-w-0 flex-1 truncate">{item.label}</span>
                           <span className="shrink-0 font-mono text-label uppercase tracking-label text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">

@@ -215,9 +215,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             active
               ? "bg-card text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:bg-mark"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            // New look: 28px items (44px on phones), 13px, the current page is a tint with
+            // New look: 32px items (44px on phones), 13px, the current page is a tint with
             // no left rule, and the focus ring sits inside so it is never clipped.
-            "v2:h-7 v2:gap-2 v2:rounded v2:px-2 v2:py-0 v2:text-row max-md:v2:h-11 motion-reduce:transition-none",
+            "v2:h-8 v2:gap-2 v2:rounded v2:px-3 v2:py-0 v2:text-row max-md:v2:h-11 motion-reduce:transition-none",
             active
               ? "v2:bg-sel v2:before:hidden"
               : "v2:font-normal v2:text-secondary v2:hover:bg-row-hover v2:hover:text-foreground"
@@ -266,7 +266,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-5 v2:h-[52px] v2:border-b-0 v2:px-4">
+      <div className="flex h-16 items-center border-b px-5 v2:h-[52px] v2:border-b-0 v2:px-6">
         <Link href={useAdminNav ? "/admin" : "/dashboard"} className="flex items-center gap-2" aria-label="Molly home">
           <LogoMark className="v2:h-4 v2:w-auto" />
         </Link>
@@ -276,7 +276,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       {!useAdminNav && <CompanySwitcher />}
 
       {/* Nav links */}
-      <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-4 v2:px-2 v2:pb-2 v2:pt-0">
+      <nav aria-label="Main" className="flex-1 overflow-y-auto px-3 py-4 v2:px-3 v2:pb-2 v2:pt-0">
         {useAdminNav ? (
           <>
             {isAdmin && (
@@ -286,7 +286,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   onClose?.();
                   openCommandPalette();
                 }}
-                className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:mb-3 v2:h-[30px] v2:rounded v2:border-[var(--color-border-hover)] v2:bg-background v2:px-2 v2:py-0 v2:text-row v2:text-secondary max-md:v2:h-11"
+                className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:mb-4 v2:mt-1 v2:h-9 v2:rounded v2:border-[var(--color-border-hover)] v2:bg-background v2:px-3 v2:py-0 v2:text-row v2:text-secondary max-md:v2:h-11"
               >
                 <Search aria-hidden="true" className="h-3.5 w-3.5" />
                 {/* One line at any zoom: the label gives way (ellipsis), the key never does. */}
@@ -324,7 +324,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                       "mb-1.5 flex w-full items-center justify-between px-3 font-mono text-xs font-semibold uppercase tracking-[0.08em] transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                       groupActive ? "text-foreground" : "text-muted-foreground",
                       // New look: sentence-case 12px heading in the sans, not mono caps.
-                      "v2:mb-0 v2:px-2 v2:pb-1 v2:pt-3 v2:font-sans v2:text-meta v2:font-medium v2:normal-case v2:tracking-normal v2:text-muted-foreground max-md:v2:min-h-11 max-md:v2:py-0",
+                      "v2:mb-0 v2:px-3 v2:pb-1 v2:pt-6 v2:font-sans v2:text-meta v2:font-medium v2:normal-case v2:tracking-normal v2:text-muted-foreground max-md:v2:min-h-11 max-md:v2:py-0",
                       "motion-reduce:transition-none"
                     )}
                   >
@@ -355,7 +355,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       </nav>
 
       {/* User footer */}
-      <div className="flex flex-col border-t p-4 v2:p-2">
+      <div className="flex flex-col border-t p-4 v2:p-3">
         {/* New-look switch (PLAN-1, WS156): admin pages only, saved in this browser.
             Both labels are in the page and CSS shows the right one, so there is no
             flash of the wrong word on load. Under the new look it sits below the person. */}
@@ -366,14 +366,14 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               onClick={toggleLook}
               role="switch"
               aria-checked={look === "v2"}
-              className="text-xs font-medium text-primary hover:underline v2:h-6 v2:rounded v2:px-2 v2:text-left v2:text-meta v2:font-normal v2:text-muted-foreground v2:no-underline v2:hover:bg-row-hover v2:hover:text-secondary v2:hover:no-underline max-md:v2:h-11"
+              className="text-xs font-medium text-primary hover:underline v2:h-7 v2:rounded v2:px-2 v2:text-left v2:text-meta v2:font-normal v2:text-muted-foreground v2:no-underline v2:hover:bg-row-hover v2:hover:text-secondary v2:hover:no-underline max-md:v2:h-11"
             >
               <span className="v2:hidden">Try the new look</span>
               <span className="hidden v2:inline">Use the old look</span>
             </button>
           </div>
         )}
-        <div className="flex items-center gap-3 v2:order-1 v2:h-8 v2:gap-2 v2:pl-2 v2:pr-1 max-md:v2:h-11">
+        <div className="flex items-center gap-3 v2:order-1 v2:h-9 v2:gap-2 v2:pl-2 v2:pr-1 max-md:v2:h-11">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold font-mono v2:h-6 v2:w-6 v2:font-sans v2:text-meta">
             {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "?"}
           </div>
@@ -389,7 +389,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               type="button"
               onClick={toggleTheme}
               aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              className="hidden h-7 w-7 place-items-center rounded text-muted-foreground transition-colors v2:grid v2:hover:bg-row-hover v2:hover:text-foreground max-md:v2:h-11 max-md:v2:w-11"
+              className="hidden h-7 w-7 place-items-center rounded text-muted-foreground transition-colors v2:grid v2:h-8 v2:w-8 v2:hover:bg-row-hover v2:hover:text-foreground max-md:v2:h-11 max-md:v2:w-11"
             >
               <Moon aria-hidden="true" className="h-4 w-4 v2dark:hidden" />
               <Sun aria-hidden="true" className="hidden h-4 w-4 v2dark:block" />
@@ -397,7 +397,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           )}
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors v2:grid v2:h-7 v2:w-7 v2:place-items-center v2:p-0 v2:hover:bg-row-hover max-md:v2:h-11 max-md:v2:w-11"
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors v2:grid v2:h-8 v2:w-8 v2:place-items-center v2:p-0 v2:hover:bg-row-hover max-md:v2:h-11 max-md:v2:w-11"
             title="Sign out"
             aria-label="Sign out"
           >

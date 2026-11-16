@@ -62,9 +62,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             "text-primary underline-offset-4 hover:underline": variant === "link",
           },
           {
-            "h-8 px-3 v2:h-7 max-md:v2:h-11": size === "sm",
-            "h-9 px-5 v2:h-8 v2:px-3 max-md:v2:h-11": size === "md",
-            "h-11 px-7 v2:h-9 v2:px-4": size === "lg",
+            "h-8 px-3 v2:h-8 max-md:v2:h-11": size === "sm",
+            "h-9 px-5 v2:h-9 v2:px-4 max-md:v2:h-11": size === "md",
+            "h-11 px-7 v2:h-10 v2:px-5": size === "lg",
             "h-8 w-8 p-0 max-md:v2:h-11 max-md:v2:w-11": size === "icon",
           },
           className

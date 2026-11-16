@@ -54,9 +54,11 @@ describe("shell source", () => {
     expect(sidebar).toContain("Use the old look");
     expect(sidebar).toContain("Switch to dark mode");
   });
-  it("sidebar is 224px, items 28px (44px on phones) with no left rule under the new look", () => {
+  it("sidebar is 224px, items 32px (44px on phones) with no left rule under the new look", () => {
     expect(sidebar).toContain("v2:w-56");
-    expect(sidebar).toContain("v2:h-7");
+    expect(sidebar).toContain("v2:h-8");
+    expect(sidebar).toContain("v2:h-9 v2:rounded"); // search row 36px
+    expect(sidebar).toContain("v2:pt-6"); // 24px above a group heading
     expect(sidebar).toContain("max-md:v2:h-11");
     expect(sidebar).toContain("v2:before:hidden");
   });
@@ -87,6 +89,15 @@ describe("FilterBar", () => {
     );
     expect(html).toContain("border-dashed");
     expect(html).not.toContain("Clear all");
+  });
+  it("is a 44px bar with 28px chips (52 and 32 on phones)", () => {
+    const html = renderToStaticMarkup(
+      <FilterBar chips={[{ key: "owner", label: "Owner" }]} onOpen={noop} onRemove={noop} onClearAll={noop} />
+    );
+    expect(html).toContain("h-11");
+    expect(html).toContain("max-md:h-[52px]");
+    expect(html).toContain("h-7");
+    expect(html).toContain("max-md:h-8");
   });
   it("shows a set chip with its value, a remove button and Clear all", () => {
     const html = renderToStaticMarkup(

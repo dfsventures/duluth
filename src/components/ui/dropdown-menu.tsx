@@ -43,7 +43,7 @@ export function DropdownMenuItem({
       className={cn(
         "flex cursor-pointer select-none items-center gap-2 rounded-sm px-3 py-2 outline-none",
         "data-[highlighted]:bg-wash data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
-        "v2:rounded v2:py-1.5 v2:data-[highlighted]:bg-sel",
+        "v2:rounded v2:py-2 v2:data-[highlighted]:bg-sel",
         className
       )}
       {...props}
@@ -86,7 +86,7 @@ export function DropdownMenuCheckboxItem({
       className={cn(
         "relative flex cursor-pointer select-none items-center gap-2 rounded-sm py-2 pl-8 pr-3 outline-none",
         "data-[highlighted]:bg-wash data-[disabled]:pointer-events-none data-[disabled]:opacity-40",
-        "v2:rounded v2:py-1.5 v2:data-[highlighted]:bg-sel",
+        "v2:rounded v2:py-2 v2:data-[highlighted]:bg-sel",
         className
       )}
       {...props}

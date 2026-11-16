@@ -211,6 +211,21 @@ html[data-look="v2"] body[data-surface="admin"] {
   --shadow-float: 0 12px 32px -8px rgb(18 24 38 / 0.22), 0 0 0 1px rgb(18 24 38 / 0.08);
   --scrim: rgb(18 24 38 / 0.30);
   --tracking-label: 0;
+
+  /* Density: comfortable. The numbers every new-look layout reads. */
+  --bar-h: 52px;        /* header bar, logo row, pane crumb */
+  --filter-h: 44px;
+  --group-h: 36px;
+  --row-h: 44px;
+  --gutter: 24px;       /* 20px under md, set below */
+  --column: 1104px;
+  --pane-gutter: 32px;
+}
+@media (max-width: 767px) {
+  html[data-look="v2"] [data-surface="admin"],
+  html[data-look="v2"] body[data-surface="admin"] {
+    --gutter: 20px;
+  }
 }
 
 html[data-look="v2"][data-theme="dark"] [data-surface="admin"],
@@ -280,10 +295,10 @@ html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] {
 /* App shell (PLAN-1, WS158). Geometry that utilities cannot express. Same scope rule:
    every selector starts html[data-look="v2"] and sits inside [data-surface="admin"]. */
 
-/* The page header is a bar: 44px, hairline under it. */
+/* The page header is a bar: 52px, hairline under it, 32px before the page. */
 html[data-look="v2"] [data-surface="admin"] .shell-header {
-  min-height: 44px;
-  margin-bottom: 24px;
+  min-height: var(--bar-h);
+  margin-bottom: 32px;
   padding-block: 2px;
   border-bottom: 1px solid var(--color-border);
 }
@@ -303,9 +318,9 @@ html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-ch
   top: 0;
   z-index: 10;
   margin-top: calc(var(--shell-pt, 0px) * -1);
-  margin-bottom: 24px;
+  margin-bottom: 32px;
   margin-inline: calc((100% - 100cqw) / 2);
-  padding-inline: max(calc((100cqw - 100%) / 2), 16px);
+  padding-inline: max(calc((100cqw - 100%) / 2), var(--gutter));
   background: var(--color-bg);
 }
 
@@ -340,14 +355,14 @@ html[data-look="v2"] [data-surface="admin"] .skip-link:focus {
    own `v2:` utilities instead. Each selector is written out in full because the scope test
    reads them one by one. */
 
-/* Buttons: sentence case, 13px, 32px high, never wrap, icons never shrink, 1px press. */
+/* Buttons: sentence case, 14px, 36px high, never wrap, icons never shrink, 1px press. */
 html[data-look="v2"] [data-surface="admin"] .btn-primary,
 html[data-look="v2"] [data-surface="admin"] .btn-secondary,
 html[data-look="v2"] [data-surface="admin"] .btn-destructive {
-  min-height: 32px;
-  padding: 0 12px;
+  min-height: 36px;
+  padding: 0 16px;
   font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 20px;
   font-weight: 500;
   text-transform: none;
@@ -448,19 +463,25 @@ html[data-look="v2"] [data-surface="admin"] .label {
   letter-spacing: 0;
 }
 
-/* Inputs: 13px, a visible control border (3:1), 32px high for single-line fields. A field in
-   its error state keeps the destructive border from the component. */
+/* Inputs: 14px (16px on phones, so iPhones do not zoom on focus), a visible control border
+   (3:1), 36px high for single-line fields. A field in its error state keeps the destructive
+   border from the component. */
 html[data-look="v2"] [data-surface="admin"] .input-field {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 20px;
   border-radius: var(--r-ctl);
+}
+@media (max-width: 767px) {
+  html[data-look="v2"] [data-surface="admin"] .input-field {
+    font-size: 16px;
+  }
 }
 html[data-look="v2"] [data-surface="admin"] .input-field:not(.border-destructive) {
   border-color: var(--color-ctl);
 }
 html[data-look="v2"] [data-surface="admin"] input.input-field,
 html[data-look="v2"] [data-surface="admin"] select.input-field {
-  height: 32px;
+  height: 36px;
   padding-block: 0;
 }
 /* ── End new look ── */
