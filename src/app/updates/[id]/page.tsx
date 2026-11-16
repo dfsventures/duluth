@@ -26,6 +26,7 @@ import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { sanitizeUpdateHtml } from "@/lib/update-html";
 import { metricChipLabel } from "@/lib/metric-origin";
+import { canEditUpdate } from "@/lib/update-edit-rules";
 
 interface MetricDefinition {
   id: string;
@@ -424,8 +425,12 @@ export default function UpdateDetailPage() {
 
   const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
   const sentAgeMs = update?.sentAt ? Date.now() - new Date(update.sentAt).getTime() : Infinity;
-  const isEditablePublished = update?.status === "SENT" && sentAgeMs < THREE_DAYS_MS;
-  const canEdit = update?.status === "DRAFT" || isEditablePublished;
+  // Admin + Marge-filed: no time limit, so no "hours left" hint.
+  const isEditablePublished =
+    update?.status === "SENT" &&
+    sentAgeMs < THREE_DAYS_MS &&
+    !(isAdminUser && update.source === "EMAIL_VIA_MARGE");
+  const canEdit = update ? canEditUpdate(update, isAdminUser) : false;
   // Hours remaining to edit a published update (shown as a hint)
   const editHoursLeft = isEditablePublished
     ? Math.max(0, Math.ceil((THREE_DAYS_MS - sentAgeMs) / (60 * 60 * 1000)))
@@ -591,7 +596,13 @@ export default function UpdateDetailPage() {
       {editing ? (
         <div>
           <ComposerTopBar
-            draftLabel={isEditablePublished ? `Editing published · ${editHoursLeft}h left` : "Draft"}
+            draftLabel={
+              isEditablePublished
+                ? `Editing published · ${editHoursLeft}h left`
+                : update.status === "SENT"
+                  ? "Editing published"
+                  : "Draft"
+            }
             saveStateLabel={autosave.label}
             secondaryActions={
               <Button variant="secondary" size="sm" onClick={cancelEdit} disabled={saving}>

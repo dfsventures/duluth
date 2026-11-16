@@ -16,7 +16,7 @@ const valueCreateMany = vi.fn();
 const valueDeleteMany = vi.fn();
 const tx = {
   update: { create: updateCreate, update: updateUpdate, findUniqueOrThrow: updateFindUniqueOrThrow },
-  metricValue: { createMany: valueCreateMany, deleteMany: valueDeleteMany },
+  metricValue: { createMany: valueCreateMany, deleteMany: valueDeleteMany, findMany: vi.fn().mockResolvedValue([]) },
 };
 vi.mock("@/lib/db", () => ({
   db: {

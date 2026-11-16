@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireCompanyAccess } from "@/lib/auth-guard";
 import { publishUpdate } from "@/lib/publish-update";
+import { canEditUpdate, carryProvenance } from "@/lib/update-edit-rules";
 import { removeEmailUpdate } from "@/lib/founder-update-actions";
 import { UPDATE_SOURCE_EMAIL } from "@/lib/marge-tools/portco-contract";
 
@@ -162,7 +163,7 @@ export async function PATCH(
 
     const existing = await db.update.findUnique({
       where: { id },
-      select: { companyId: true, status: true, sentAt: true },
+      select: { companyId: true, status: true, sentAt: true, source: true },
     });
 
     if (!existing) {
@@ -172,16 +173,13 @@ export async function PATCH(
     const { user, error } = await requireCompanyAccess(existing.companyId);
     if (error) return error;
 
-    // Published updates are editable for 3 days after sentAt
-    if (existing.status === "SENT") {
-      const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
-      const sentAt = existing.sentAt ? existing.sentAt.getTime() : 0;
-      if (Date.now() - sentAt > THREE_DAYS_MS) {
-        return NextResponse.json(
-          { error: "Published updates can only be edited within 3 days of publishing." },
-          { status: 403 }
-        );
-      }
+    // Published updates are editable for 3 days after sentAt; admins may edit
+    // an update Marge filed from email at any time (Marge backdates sentAt).
+    if (existing.status === "SENT" && !canEditUpdate(existing, user!.roles.includes("ADMIN"))) {
+      return NextResponse.json(
+        { error: "Published updates can only be edited within 3 days of publishing." },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -258,15 +256,27 @@ export async function PATCH(
           : await tx.update.findUniqueOrThrow({ where: { id } });
 
       if (Array.isArray(body.metricValues) && body.metricValues.length > 0) {
-        // Remove old metric values for this update and replace with new ones
+        // Remove old metric values for this update and replace with new ones.
+        // A figure left unchanged keeps its provenance tag (via/quote/enteredById/
+        // origin); a changed one becomes the editor's own entry.
+        const old = await tx.metricValue.findMany({ where: { updateId: id } });
         await tx.metricValue.deleteMany({ where: { updateId: id } });
-        await tx.metricValue.createMany({
-          data: body.metricValues.map((mv: { metricDefinitionId: string; value: number; date: string }) => ({
+        const incoming = body.metricValues.map(
+          (mv: { metricDefinitionId: string; value: number; date: string }) => ({
             metricDefinitionId: mv.metricDefinitionId,
             value: mv.value,
             date: new Date(mv.date),
+          })
+        );
+        const tags = carryProvenance(old, incoming, isAdmin ? user!.id : null);
+        await tx.metricValue.createMany({
+          data: incoming.map((mv: (typeof incoming)[number], i: number) => ({
+            ...mv,
             updateId: id,
-            ...(isAdmin ? { enteredById: user!.id } : {}),
+            ...(tags[i].enteredById ? { enteredById: tags[i].enteredById } : {}),
+            ...(tags[i].via ? { via: tags[i].via } : {}),
+            ...(tags[i].quote ? { quote: tags[i].quote } : {}),
+            ...(tags[i].origin ? { origin: tags[i].origin } : {}),
           })),
         });
       }
