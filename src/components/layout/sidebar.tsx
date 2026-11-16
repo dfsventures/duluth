@@ -7,6 +7,7 @@ import { fetcher, NAV_COUNTS_KEY } from "@/lib/fetcher";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { useLook } from "@/lib/use-look";
 import { LogoMark } from "@/components/ui/logo-mark";
 import {
   LayoutDashboard,
@@ -131,6 +132,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const { selectedCompany } = useCompany();
+  const { look, theme, toggleLook, toggleTheme } = useLook();
 
   const isAdminPath = pathname.startsWith("/admin");
   const isAdmin =
@@ -321,6 +323,29 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
 
       {/* User footer */}
       <div className="border-t p-4">
+        {/* New-look switch (PLAN-1, WS156): admin pages only, saved in this browser. */}
+        {isAdminPath && isAdmin && (
+          <div className="mb-3 flex flex-col items-start gap-1">
+            <button
+              type="button"
+              onClick={toggleLook}
+              role="switch"
+              aria-checked={look === "v2"}
+              className="text-xs font-medium text-primary hover:underline"
+            >
+              {look === "v2" ? "Use the old look" : "Try the new look"}
+            </button>
+            {look === "v2" && (
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              </button>
+            )}
+          </div>
+        )}
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold font-mono">
             {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "?"}

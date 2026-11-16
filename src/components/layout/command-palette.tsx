@@ -12,10 +12,13 @@ import { Search } from "lucide-react";
 import {
   buildPaletteItems,
   GROUP_ORDER,
+  lookActionItems,
   newUpdateItems,
   type PaletteItem,
   type SearchIndex,
 } from "@/lib/command-palette";
+
+import { useLook } from "@/lib/use-look";
 
 export const OPEN_PALETTE_EVENT = "molly:open-palette";
 
@@ -64,14 +67,21 @@ export function CommandPalette() {
     };
   }, [open]);
 
-  const items = useMemo(() => [...buildPaletteItems(index), ...newUpdateItems(index, query)], [index, query]);
+  const { look, theme, toggleLook, toggleTheme } = useLook();
+
+  const items = useMemo(
+    () => [...buildPaletteItems(index), ...lookActionItems(look, theme), ...newUpdateItems(index, query)],
+    [index, query, look, theme]
+  );
 
   const go = useCallback(
     (item: PaletteItem) => {
       setOpen(false);
+      if (item.action === "toggle-look") return toggleLook();
+      if (item.action === "toggle-theme") return toggleTheme();
       router.push(item.href);
     },
-    [router]
+    [router, toggleLook, toggleTheme]
   );
 
   return (

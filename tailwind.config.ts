@@ -73,6 +73,11 @@ const config: Config = {
         "row-hover": "var(--color-row-hover)",
         "row-divider": "var(--color-row-divider)",
         wash: "var(--color-wash)",
+        /* New look (PLAN-1, WS156). Only defined inside the v2 admin block, so
+           nothing should use these until WS158+ puts them behind that scope. */
+        pane: "var(--color-pane)",
+        sel: "var(--color-sel)",
+        open: "var(--color-open)",
         attention: {
           DEFAULT: "var(--color-attention)",
           bg: "var(--color-attention-bg)",
@@ -101,6 +106,10 @@ const config: Config = {
         // Primary CTA text: smaller and tighter than label, since mono caps read large.
         cta: ["10px", { lineHeight: "14px" }],
         caption: ["12px", { lineHeight: "16px" }],
+        // New look type roles (PLAN-1, WS156).
+        row: ["13px", { lineHeight: "20px" }],
+        meta: ["12px", { lineHeight: "18px" }],
+        "pane-title": ["20px", { lineHeight: "28px", letterSpacing: "-0.012em", fontWeight: "600" }],
       },
 
       letterSpacing: {

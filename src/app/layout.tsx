@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, IBM_Plex_Sans, JetBrains_Mono, Inter } from "next/font/google";
+import { PRE_PAINT_SCRIPT } from "@/lib/look";
 import "./globals.css";
 import { ORG_NAME, ORG_FULL_NAME } from "@/lib/org";
 import { SessionProvider } from "next-auth/react";
@@ -25,6 +26,14 @@ const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
   weight: ["500", "600", "700"],
+  display: "swap",
+});
+
+// New look (PLAN-1, WS156): only used inside admin when the switch is on.
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  weight: ["400", "500", "600"],
   display: "swap",
 });
 
@@ -66,9 +75,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}
+      className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable} ${inter.variable}`}
+      // The pre-paint script below may set data-look / data-theme before hydration.
+      suppressHydrationWarning
     >
       <body className="min-h-screen bg-background antialiased">
+        {/* Runs before first paint so the saved look and theme never flash. Does nothing unless the switch is on. */}
+        <script dangerouslySetInnerHTML={{ __html: PRE_PAINT_SCRIPT }} />
         <SessionProvider>
           <CompanyProvider>
             <ConfirmProvider>{children}</ConfirmProvider>

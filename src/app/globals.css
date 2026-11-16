@@ -126,6 +126,145 @@
   --tracking-label: 0.06em;
 }
 
+/* ── New look (PLAN-1, WS156) ──
+   Admin-only, opt-in. Nothing here applies unless <html data-look="v2"> is set
+   (by src/lib/look.ts / the pre-paint script in layout.tsx), and every selector
+   is scoped to [data-surface="admin"], so founder, LP, auth, share pages, emails
+   and print never match. It redefines the EXISTING token variables, so pages
+   restyle with no component edits. Values: docs/design/redesign-v1.md section 3
+   (Molly's own). Contrast is enforced by src/lib/__tests__/design-tokens-v2.test.ts,
+   which reads the two blocks below; keep the marker comments. To remove the new
+   look, delete everything up to the end marker. */
+html[data-look="v2"] [data-surface="admin"],
+html[data-look="v2"] body[data-surface="admin"] {
+  /* Type: Inter for every sans use inside admin (founder pages keep Plex) */
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-inter);
+
+  /* Surfaces */
+  --color-bg: #FFFFFF;
+  --color-sidebar: #F4F5F7;
+  --color-pane: #FAFBFC;
+  --color-surface: #F0F2F4;
+  --color-well: #E6E9ED;
+  --color-thead: #FFFFFF;
+  --color-row-hover: rgba(18, 24, 38, 0.035);
+  --color-sel: rgba(18, 24, 38, 0.06);
+  --color-open: rgba(18, 24, 38, 0.085);
+  --color-wash: rgba(68, 104, 142, 0.10);
+  --color-row-divider: rgba(18, 24, 38, 0.09);
+  --color-border: rgba(18, 24, 38, 0.09);
+  --color-border-hover: rgba(18, 24, 38, 0.17);
+  --color-edge: rgba(18, 24, 38, 0.09);
+  --color-btn2-bg: transparent;
+  --color-ctl: #858C97;
+
+  /* Text */
+  --color-text-primary: #15181D;
+  --color-text-secondary: #474D57;
+  --color-text-muted: #5A616C;
+  --color-muted-rgb: 230 233 237;
+
+  /* Accent: Molly's Sky */
+  --color-accent: #44688E;
+  --color-accent-hover: #3A5876;
+  --color-accent-rgb: 68 104 142;
+  --color-accent-foreground: #FFFFFF;
+  --color-accent-soft: rgba(68, 104, 142, 0.10);
+
+  /* State (glyphs and short text) */
+  --color-done: #1B7448;
+  --color-done-soft: rgba(27, 116, 72, 0.10);
+  --color-stuck: #B3362A;
+  --color-stuck-soft: rgba(179, 54, 42, 0.08);
+  --color-warn: #8A5A0B;
+  --color-warn-soft: rgba(138, 90, 11, 0.10);
+
+  /* Tone pairs: fill and ink (unchanged from the old look in light) */
+  --tone-stone-fill: #E7E4DA; --tone-stone-ink: #46443C;
+  --tone-sky-fill: #DCE7F3; --tone-sky-ink: #2C4459;
+  --tone-sage-fill: #E3E8D0; --tone-sage-ink: #4A5524;
+  --tone-clay-fill: #F4E0D6; --tone-clay-ink: #8F4A30;
+  --tone-sand-fill: #F1E4C8; --tone-sand-ink: #6B4A0E;
+  --tone-amber-fill: #F8EBC9; --tone-amber-ink: #6B4A0E;
+
+  /* Shape, depth, labels */
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-def: 6px;
+  --r-ctl: 6px;
+  --r-chip: 6px;
+  --r-float: 12px;
+  --r-sheet: 0px;
+  --shadow-soft: none;
+  --shadow-lift: none;
+  --shadow-float: 0 12px 32px -8px rgb(18 24 38 / 0.22), 0 0 0 1px rgb(18 24 38 / 0.08);
+  --scrim: rgb(18 24 38 / 0.30);
+  --tracking-label: 0;
+}
+
+html[data-look="v2"][data-theme="dark"] [data-surface="admin"],
+html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] {
+  color-scheme: dark;
+
+  --color-bg: #14171B;
+  --color-sidebar: #0E1013;
+  --color-pane: #191C21;
+  --color-surface: #20242A;
+  --color-well: #292E36;
+  --color-thead: #14171B;
+  --color-row-hover: rgba(255, 255, 255, 0.04);
+  --color-sel: rgba(255, 255, 255, 0.07);
+  --color-open: rgba(255, 255, 255, 0.10);
+  --color-wash: rgba(123, 169, 221, 0.16);
+  --color-row-divider: rgba(255, 255, 255, 0.08);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-hover: rgba(255, 255, 255, 0.14);
+  --color-edge: rgba(255, 255, 255, 0.08);
+  --color-ctl: #6E7681;
+
+  --color-text-primary: #E9ECF0;
+  --color-text-secondary: #A7AEB9;
+  --color-text-muted: #9AA1AC;
+  --color-muted-rgb: 41 46 54;
+
+  --color-accent: #7BA9DD;
+  --color-accent-hover: #93BAE6;
+  --color-accent-rgb: 123 169 221;
+  --color-accent-foreground: #0C1522;
+  --color-accent-soft: rgba(123, 169, 221, 0.16);
+
+  /* The primary scale (avatar chips and the like) follows the accent */
+  --color-primary-50: rgba(123, 169, 221, 0.10);
+  --color-primary-100: rgba(123, 169, 221, 0.16);
+  --color-primary-500: #7BA9DD;
+  --color-primary-600: #93BAE6;
+  --color-primary-700: #B9D3F0;
+
+  /* Destructive: the dark theme's red, with dark ink on it */
+  --color-destructive-rgb: 242 135 124;
+  --color-destructive-foreground: #0C1522;
+
+  --color-done: #5BC48E;
+  --color-done-soft: rgba(91, 196, 142, 0.16);
+  --color-stuck: #F2877C;
+  --color-stuck-soft: rgba(242, 135, 124, 0.14);
+  --color-warn: #E0A640;
+  --color-warn-soft: rgba(224, 166, 64, 0.14);
+
+  --tone-stone-fill: #2A2D33; --tone-stone-ink: #C9CDD4;
+  --tone-sky-fill: #1F3249; --tone-sky-ink: #B9D3F0;
+  --tone-sage-fill: #27301D; --tone-sage-ink: #C5D69A;
+  --tone-clay-fill: #3D2620; --tone-clay-ink: #F0B5A0;
+  --tone-sand-fill: #38301A; --tone-sand-ink: #E8CF93;
+  --tone-amber-fill: #3A2F14; --tone-amber-ink: #EDCB7E;
+
+  --shadow-float: 0 14px 36px -8px rgb(0 0 0 / 0.6), 0 0 0 1px rgb(255 255 255 / 0.08);
+  --scrim: rgb(0 0 0 / 0.5);
+}
+/* ── End new look ── */
+
 /* ── Base ─────────────────────────────────────────────────── */
 @layer base {
   * {

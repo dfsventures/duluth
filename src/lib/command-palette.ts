@@ -23,6 +23,35 @@ export interface PaletteItem {
   hint: string;
   href: string;
   keywords: string[];
+  /** Set on items that do something in place instead of navigating (href is then empty). */
+  action?: "toggle-look" | "toggle-theme";
+}
+
+/** The new-look switch and, once it is on, the light/dark item (PLAN-1, WS156). */
+export function lookActionItems(look: "v1" | "v2", theme: "light" | "dark"): PaletteItem[] {
+  const items: PaletteItem[] = [
+    {
+      id: "action:toggle-look",
+      group: "Actions",
+      label: look === "v2" ? "Use the old look" : "Try the new look",
+      hint: "Action",
+      href: "",
+      keywords: ["design", "theme", "look", "new", "old"],
+      action: "toggle-look",
+    },
+  ];
+  if (look === "v2") {
+    items.push({
+      id: "action:toggle-theme",
+      group: "Actions",
+      label: theme === "dark" ? "Switch to light mode" : "Switch to dark mode",
+      hint: "Action",
+      href: "",
+      keywords: ["theme", "dark", "light", "mode"],
+      action: "toggle-theme",
+    });
+  }
+  return items;
 }
 
 export const GROUP_ORDER: PaletteGroup[] = ["Go to", "Actions", "Companies", "Funds", "Deals", "LPs"];

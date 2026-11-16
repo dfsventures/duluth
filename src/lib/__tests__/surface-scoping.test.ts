@@ -26,7 +26,12 @@ function block(source: string, selector: string): string {
 
 const founder = block(css, '[data-surface="founder"]');
 const root = block(css, ":root");
-const cssWithoutFounderBlock = css.replace(founder, "");
+// The new look (PLAN-1, WS156) is a third, opt-in scope with its own radius scale
+// (it legitimately uses 6/10px). It is checked on its own below.
+const V2_START = css.indexOf("/* ── New look (PLAN-1, WS156)");
+const V2_END = css.indexOf("/* ── End new look ── */");
+const v2Section = css.slice(V2_START, V2_END);
+const cssWithoutFounderBlock = css.replace(founder, "").replace(v2Section, "");
 
 describe("surface scoping", () => {
   it("routes /admin to admin and everything else to founder", () => {
@@ -82,6 +87,37 @@ describe("surface scoping", () => {
         expect(part.trim()).toMatch(/^\[data-surface="founder"\]/);
       }
     }
+  });
+
+  it("new look (stage 1): every selector is v2 AND admin scoped; none can match :root, founder, LP, auth or share", () => {
+    expect(V2_START).toBeGreaterThan(0);
+    expect(V2_END).toBeGreaterThan(V2_START);
+    const selectors = [...v2Section.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/(^|\n)([^\n{}][^{}]*)\{/g)].map((m) => m[2].trim());
+    expect(selectors.length).toBeGreaterThanOrEqual(2);
+    for (const sel of selectors) {
+      for (const part of sel.split(",")) {
+        const p = part.trim();
+        expect(p).toContain('[data-surface="admin"]');
+        expect(p).toMatch(/^html\[data-look="v2"\]/);
+        expect(p).not.toMatch(/^:root/);
+        expect(p).not.toContain('[data-surface="founder"]');
+      }
+    }
+  });
+
+  it("new look: nothing outside the v2 section mentions data-look or the Inter variable, and the founder block never sets fonts", () => {
+    expect(cssWithoutFounderBlock).not.toContain("data-look");
+    expect(cssWithoutFounderBlock).not.toContain("--font-inter");
+    expect(founder).not.toContain("--font-");
+    expect(root).not.toContain("--font-");
+  });
+
+  it("new look: no v2 selector can match the share pages or emails (they carry no data-surface and no admin ancestor)", () => {
+    // Share pages are rendered without data-surface; email HTML never loads this stylesheet.
+    // surfaceForPath only ever yields "admin" for /admin paths.
+    expect(surfaceForPath("/share/abc")).toBe("founder");
+    expect(surfaceForPath("/share/m/abc")).toBe("founder");
+    expect(v2Section).not.toMatch(/\[data-surface="founder"\]|:root|(^|\n)\s*body\s*\{/);
   });
 
   it("tailwind radii and shadows are token-driven, not literal B values", () => {
