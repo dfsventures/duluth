@@ -697,12 +697,14 @@ export default function UpdateDetailPage() {
                         <td className="py-2 font-medium">
                           {mv.metricDefinition.name}
                           {isAdminUser && metricChipLabel(mv) && (
-                            <span
-                              className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground"
-                              title={mv.quote ?? undefined}
-                            >
+                            <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
                               {metricChipLabel(mv)}
                             </span>
+                          )}
+                          {isAdminUser && metricChipLabel(mv) && mv.quote && (
+                            <p className="mt-0.5 line-clamp-2 max-w-prose text-xs font-normal leading-snug text-muted-foreground" title={mv.quote}>
+                              “{mv.quote}”
+                            </p>
                           )}
                         </td>
                         <td className="py-2">
