@@ -1,6 +1,6 @@
 # Molly redesign, concept v1
 
-Status: **for Joseph's approval. Nothing is built.** Author: Nisat. Board card B-125 (WS155 in `docs/PLAN-1.md`). Mockup: `docs/design/redesign-v1.html` (open it in a browser; no build step; Inter loads from Google Fonts and falls back to the system sans if offline). All names, companies, emails and figures are placeholders.
+Status: **concept approved by Joseph, 2026-11-16. Nothing is built.** Final decisions are in section 6. Author: Nisat. Board card B-125 (WS155 in `docs/PLAN-1.md`). Mockup: `docs/design/redesign-v1.html` (open it in a browser; no build step; Inter loads from Google Fonts and falls back to the system sans if offline). All names, companies, emails and figures are placeholders.
 
 The brief, in Joseph's words: Molly should "look more modern", with "the same UI and UX of Lou". Decisions already made (2026-11-16): the team (admin) screens first, founders and LPs in a later stage; take Lou's layout, density, type (Inter) and neutral greys, but keep Molly's Sky blue and the `_Molly` wordmark; light by default with a per-person dark switch; ship in stages behind an admin-only "Try the new look" switch; mockup first.
 
@@ -16,7 +16,7 @@ Try this: press `j`/`k` to move the cursor, `Enter` to open the pane, `j`/`k` ag
 |---|---|---|
 | 1 | Admin **Needs you** | Sidebar with counts (only "needs you" counts are bold), a 44px header, a filter-chip bar, sticky collapsible groups of one-line rows (Waiting on you, On the board, Alerts, Behind on updates), and the Portfolio KPIs below the inbox. The pane is open on an approval: crumb with 1 of 3 and previous/next/expand/close, title, property chips, one action card with one primary button, then why, details and history. Rows are the same items `buildAttention` produces today (queue rows, not one row per signup), so no new API is needed. |
 | 2 | **Companies** with the pane open on Acme Ltd | The same shell. A set chip (Owner), an unset dashed chip, "Clear all". Rows have a company square, name, stage, owner disc, cadence, last update. Columns drop out as the list narrows (container query, not viewport). The pane shows a "75 days behind" action card with Send a reminder as the one primary, then latest figures and recent updates. |
-| 3 | **Team Board** with one waiting card and its pane | Tiles are a title and one marker line. Only "Waiting on you" is loud: a red dog-ear in the tile's top-right corner and a red count on its column header (the tile also keeps its glyph-and-word line). The keyboard cursor is the wordmark's underscore, in Sky, on the tile's lower edge. No left-edge bars anywhere. A strip toggle swaps in the second candidate (a caret and a red wash); see section 6, item 6. A hover "⋯" on tiles. The pane uses the same anatomy as the others. |
+| 3 | **Team Board** with one blocked item and its pane | Four columns, Molly's real statuses: To do, In progress, Blocked, Done. Tiles are a title and, if blocked, one marker line ("Blocked"). Only Blocked is loud: a red dog-ear in the tile's top-right corner, a red column header, and the glyph-and-word line. The keyboard cursor is the wordmark's underscore, in Sky, on the tile's lower edge. No left-edge bars anywhere. A hover "⋯" on tiles. The pane uses the same anatomy as the others; on a blocked item the action card wears the same dog-ear, and its primary is "Mark as unblocked" (one click, moves the item to In progress) with Edit secondary. A plain item has no card, only an Edit button. |
 | 4 | **Founder dashboard on a phone** | Stage 2 preview. The one next step is the hero, with a full-width 44px button. Latest figures, From DFS and Recent updates are two-line rows of 56px. The menu opens a drawer holding the company switcher. No bottom tab bar (still deferred). |
 
 On a phone the admin screens turn rows into two lines (56px), the pane into a full screen with a back chevron, the board into horizontally scrolling 264px columns, and the sidebar into a drawer over a scrim.
@@ -92,7 +92,7 @@ Values: text primary `#15181D` / `#E9ECF0`; secondary `#474D57` / `#A7AEB9`; mut
 | Role | Variable | Light | Dark | On page / sidebar / pane / raised / pressed / open row, light | Same, dark |
 |---|---|---|---|---|---|
 | Done | `--color-done` *new* | `#1B7448` | `#5BC48E` | 5.8 / 5.3 / 5.6 / 5.1 / 4.7 / 4.8 | 8.3 / 8.8 / 7.9 / 7.2 / 6.3 / 6.3 |
-| Stuck (waiting on you) | `--color-stuck` *new* | `#B3362A` | `#F2877C` | 6.0 / 5.5 / 5.8 / 5.4 / 5.0 / 5.1 | 7.3 / 7.7 / 6.9 / 6.3 / 5.6 / 5.5 |
+| Stuck (blocked, and Needs you "waiting") | `--color-stuck` *new* | `#B3362A` | `#F2877C` | 6.0 / 5.5 / 5.8 / 5.4 / 5.0 / 5.1 | 7.3 / 7.7 / 6.9 / 6.3 / 5.6 / 5.5 |
 | Warn (aging) | `--color-warn` *new* | `#8A5A0B` | `#E0A640` | 5.9 / 5.4 / 5.7 / 5.3 / 4.9 / 5.0 | 8.3 / 8.8 / 7.9 / 7.2 / 6.3 / 6.3 |
 
 All three clear 4.5:1 as text, so a state word and its glyph use the same value.
@@ -114,7 +114,7 @@ Light pairs are Molly's existing ones, unchanged. Dark pairs are new. Each pair 
 | Stone (neutral, To do) | `#E7E4DA` / `#46443C` | 7.7 | `#2A2D33` / `#C9CDD4` | 8.7 |
 | Sky (info, In progress, Seed) | `#DCE7F3` / `#2C4459` | 8.1 | `#1F3249` / `#B9D3F0` | 8.5 |
 | Sage (current, Done, Series A) | `#E3E8D0` / `#4A5524` | 6.4 | `#27301D` / `#C5D69A` | 8.8 |
-| Clay (behind, Blocked) | `#F4E0D6` / `#8F4A30` | 5.2 | `#3D2620` / `#F0B5A0` | 7.9 |
+| Clay (behind; also Blocked where a tone pair is wanted) | `#F4E0D6` / `#8F4A30` | 5.2 | `#3D2620` / `#F0B5A0` | 7.9 |
 | Sand (Pre-seed) | `#F1E4C8` / `#6B4A0E` | 6.4 | `#38301A` / `#E8CF93` | 8.6 |
 | Amber (aging strips) | `#F8EBC9` / `#6B4A0E` | 6.8 | `#3A2F14` / `#EDCB7E` | 8.4 |
 
@@ -152,49 +152,48 @@ Every new or changed word is wrapped in `data-nl` in the HTML (press "Show new l
 - **Filters:** Kind; Company; Owner; Stage; Status; Due; Clear all.
 - **Pane headings:** Why you're seeing this; Details; History; Latest figures; Recent updates; Notes; Proof links.
 - **Pane actions:** Approve; Link to a company…; Open diligence; Open the board; Dismiss alert; Open company; Send a reminder; Mark as unblocked; Edit; Back to the list (screen-reader label); Undo.
-- **Toasts:** "{name} approved"; "Alert dismissed"; "Reminder sent to {name}"; "Card unblocked".
-- **Board:** To do; In progress; To review; Done; Waiting on you; Add a card.
+- **Toasts:** "Approved {name}."; "Alert dismissed."; "Reminder sent to {name}."; "Item unblocked."
+- **Board:** To do; In progress; Blocked; Done; Add item. (Final words are in `redesign-v1-copy.md`, which wins over this list. "To review" and "Waiting on you" on board items are gone; "Waiting on you" stays only on the Needs you queue group.)
 - **Founder (stage 2):** Your next step; Start the update; Latest figures; From DFS; Recent updates; Switch company.
 - **Action-card sentences** (approval, diligence, alert, overdue, waiting card) are written inline in the mockup and need Nosa's pass too.
 
 The brand is "DFS", never "DFS Lab".
 
-## 6. Things I was not sure about (decide at review)
+## 6. Open points: all resolved (Joseph, 2026-11-16)
 
-1. **Needs you rows are queue rows** ("3 signups are waiting for approval"), as `buildAttention` gives today. A row per signup would read better but needs the pending list on the dashboard (the Approvals page already fetches it). I kept the no-new-API rule and let the pane step through the three signups. Say if you want per-signup rows.
-2. **The waiting card's primary is "Mark as unblocked", not Edit.** PLAN-1 WS162 says Edit is primary; for a card that is waiting on you, the one thing to do is clear the wait. Edit becomes the secondary with `E`. That is a product behaviour: confirm the board has an "unblock" action today.
-3. **"Stuck" red is truer than Laterite** (section 3.3).
-4. **Light neutrals are cool, not Paper.** If you would rather keep a hint of warmth under the Sky, tell me; the tiers would shift a few points toward yellow and every ratio would need re-running.
-5. **Dark primary button inverts** (dark ink on light blue). The alternative, white on `#44688E`, is 5.8:1 but looks heavy on a dark page.
-6. **Board and list markers (changed after review, 2026-11-16).** Joseph approved the mockup but found the coloured left-edge bars on tiles "too generic". They are gone, from tiles and from list rows. The strip has a "Markers" toggle on screens 1 to 3; the default is A. Nothing in the app now uses a left-edge bar.
+**The concept is approved by Joseph, 2026-11-16.** The points I raised at review are settled as follows.
 
-   | | **A · Underscore and dog-ear (recommended)** | **B · Caret and red wash** |
-   |---|---|---|
-   | Cursor (tile) | An 18 × 4px Sky block, the same shape and 3.7:1 proportion as the wordmark's underscore, left-aligned to the tile text and hanging 2px below the tile's lower edge. The tile steps one tone up (raised to pressed). | A 6 × 10px Sky pointer in the gutter, 4px left of the tile, level with the first line. The same tone step. |
-   | Cursor (row) | The same block, 18 × 3px, left-aligned to the row content and sitting on the row's divider. The row keeps its `sel` tint. | The same pointer, 5px from the row's left edge, 14px down. The same `sel` tint. |
-   | Waiting on you | A solid red 14px dog-ear in the tile's top-right corner, clipped to the tile's 8px radius. Nothing else on the tile changes. | A 7% (light) or 10% (dark) red wash over the whole tile plus a 1px red inner outline. |
-   | Colour-alone check | The dog-ear is a shape no other tile has, and the glyph-and-word line still says "Waiting on you". | An outlined, tinted tile is a different shape from a plain one, and the same glyph-and-word line stays. The wash alone would not count; the line and the outline do. |
+1. **Needs you rows are queue rows** ("3 signups are waiting for approval"), as `buildAttention` gives today; the pane steps through the signups. Approved as is.
+2. **Blocked item: the primary is "Mark as unblocked"; Edit is secondary.** One click moves the item to In progress. Approved. (Product note for Alvin: today you drag or use Move to; this is a new one-step action.)
+3. **"Stuck" red is truer than Laterite** (section 3.3). Approved.
+4. **Light neutrals are cool, not Paper.** Approved.
+5. **Dark primary button inverts** (dark ink on light blue). Approved.
+6. **Markers: option A, option B removed.** The coloured left-edge bars were "too generic" and are gone from tiles, rows and the pane's action card. The mockup's "Markers A / B" toggle and all of option B (the caret and the red wash) are deleted; `--color-wash` is not needed.
 
-   **Why A.** The underscore is the one mark in the brand that only Molly has, and it already means "here" in the wordmark, so a cursor that is that same block is a mark with a reason to exist, not a stripe. It also matches how the keyboard feels: it reads like a text caret that rests under the item you are on. The dog-ear is quiet (a 14px corner, not an outline around everything), so on a board with several waiting cards the tiles do not turn into a red field, and "Waiting on you" stays the only loud thing. B is more legible at a glance on the cursor (a pointer in a gutter is the oldest cursor there is) but that is also why it is generic, and B's outlined, tinted tile is louder than the rest of the system's restraint allows.
+   - **Cursor (tile):** an 18 × 4px Sky block, the shape of the wordmark's underscore, left-aligned to the tile text and hanging 2px below the tile's lower edge. The tile also steps one tone up (raised to pressed).
+   - **Cursor (row):** the same block, 18 × 3px, left-aligned to the row content and sitting on the row's divider. The row keeps its `sel` tint.
+   - **Blocked or urgent: a red dog-ear**, 14px, in the top-right corner, clipped to the container's own radius (tile 8px, action card 10px). One language: it is on a blocked tile and on the pane's action card for a blocked item, so stuck looks the same everywhere. The card no longer has a red left edge. The glyph-and-word line ("Blocked") stays on the tile and the card heading is red with the glyph, so it is never colour alone.
+   - **Column header:** the Blocked column's name, glyph and count are red when it has items.
+   - **Why it works.** The underscore is the one mark only Molly has and already means "here" in the wordmark, so the cursor has a reason to exist. The dog-ear is quiet and a shape nothing else has, so a board with several blocked items does not become a red field.
+   - **Risk to watch.** 18px of Sky is small; someone holding `j` might lose it. The tone step carries it. If testing shows it is not enough, add a 1px Sky ring on the cursor item (still no left bar).
 
-   **One cursor language.** Rows and tiles use the same mark in both options, at the same scale relationship, so the cursor is one thing to learn. Rows keep no different treatment. The one risk to watch in A: 18px of Sky is smaller than a full-height bar, so a person holding down `j` might lose it. The tone step is there to carry that; if testing shows it is not enough, add a 1px Sky ring on the cursor item (one line of CSS, still no left bar).
-
-   **Contrast (3:1 required for the marker, 4.5:1 for the word line).** Computed by hand from the same token values; the page's live table recomputes them, with new columns `sel`, `wash` (a resting tile under B's wash) and `washcur` (the cursor tile under it). Light / dark:
+   **Contrast (3:1 for the markers, 4.5:1 for the word line), light / dark.** Unchanged by the card change: the action card sits on the raised tier, the same tier as a resting tile. The live table at the bottom of the page recomputes these (its two columns used only by option B are removed).
 
    | Marker on | Light | Dark |
    |---|---|---|
-   | Sky underscore or caret on the column (page) | 5.8 | 7.3 |
+   | Sky underscore on the column (page) | 5.8 | 7.3 |
    | on a resting tile (raised) | 5.2 | 6.4 |
    | on the cursor tile (pressed) | 4.8 | 5.6 |
    | on the cursor row (`sel` over page) | 5.1 | 6.1 |
-   | Red dog-ear on the column / on the tile (raised) | 6.6 / 5.8 | 7.3 / 6.3 |
-   | Red outline (B) on the column / on the tile | same as the line above | same |
-   | "Waiting on you" text on B's wash, resting / cursor | 5.3 / 4.8 | 5.4 / 4.7 |
+   | Red dog-ear on the column (page) | 6.0 | 7.3 |
+   | on a tile or the action card (raised) | 5.4 | 6.3 |
+   | on the cursor tile (pressed) | 5.0 | 5.6 |
+   | "Blocked" word line and card heading in red, on a tile or card (raised) | 5.4 | 6.3 |
 
-   Every pair clears 3:1 for the marker and 4.5:1 for the word line. The tile itself against the column is 1.1:1 in both themes; that was already so (the system uses tone, not borders, for tiles), and it is a decision I am leaving as approved.
-
-   Handoff: `.row.cur` and `.tile.cur` use a `::before` block (A) in the mockup. In production, add `--color-wash` (B only) and nothing else; no new colours for A.
-7. Founder screens appear as a stage-2 preview only. Admin tokens are scoped to `[data-surface="admin"]` in stage 1; the founder phone screen shows what stage 2 would become, so approving it does not approve building it.
+   (The red values are the "Stuck" row of section 3.3: page 6.0 / 7.3, raised 5.4 / 6.3, pressed 5.0 / 5.6. I corrected the dog-ear's page figure from 6.6 in the earlier draft to match that row.) The tile against the column is 1.1:1 in both themes; the system uses tone, not borders, for tiles, and that stays as approved.
+7. **Board statuses are Molly's real four: To do, In progress, Blocked, Done.** "To review" is gone as a column and a status. A stuck item reads "Blocked", not "Waiting on you", because Molly does not record who an item waits on. "Waiting on you" stays only where it is true: the Needs you queue group and its rows (Approvals, Diligence). Wording is in `redesign-v1-copy.md`.
+8. **"Try the new look" / "Use the old look" is a switch**, not a banner (see the copy file).
+9. Founder screens appear as a stage-2 preview only. Admin tokens are scoped to `[data-surface="admin"]` in stage 1; the founder phone screen shows what stage 2 would become, so approving it does not approve building it.
 
 ## 7. Handoff notes for Alvin
 

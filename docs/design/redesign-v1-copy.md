@@ -153,7 +153,7 @@ Each card is a heading, one or two sentences, then the buttons. Present tense, n
 | Company switcher | Switch company | Switcher button and drawer (screen reader) | Unchanged. |
 | Empty lines | No figures yet. / Nothing from DFS yet. / No updates yet. | Sections | New; same pattern. |
 
-## 10. Where I'd like Joseph to choose
+## 10. Where I'd like Joseph to choose (all three decided, see the end of this section)
 
 1. **What a blocked board item is called.** Molly's board has a status "Blocked" and no notion of who it is waiting on. Nisat's "Waiting on you" would be true only if you're the owner of a blocked item.
    - **A (recommended): "Blocked".** Matches the data and what the team already says. The red mark stays.
@@ -162,6 +162,12 @@ Each card is a heading, one or two sentences, then the buttons. Present tense, n
 3. **"Try the new look" button vs a link.** I wrote it as a switch (on/off pair with "Use the old look"). If it ships as a one-time banner instead, use "Try the new look" on the button and "Not now" to dismiss.
 
 Everything else I'd ship as listed.
+
+**Decided by Joseph, 2026-11-16** (recorded by Nisat; the choices above stay as Nosa wrote them):
+
+- **Choice 1: A, "Blocked".** The board uses Molly's four statuses (To do, In progress, Blocked, Done). A stuck item reads "Blocked", not "Waiting on you", and there is no "To review". "Waiting on you" stays only where it is true, such as the Needs you queue group and rows. The mockup now uses the Final words in sections 6 and 7 for the board.
+- **Choice 2: yes, "Mark as unblocked".** It is the primary button on a blocked item and is one click that moves the item to In progress. Edit is the secondary. Toast: "Item unblocked."
+- **Choice 3: a switch.** "Try the new look" and "Use the old look" are a switch pair, not a one-time banner, so "Not now" is not needed.
 
 ## 11. For Alvin
 

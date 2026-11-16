@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light" data-mark="a">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,7 +23,7 @@
   --t1:#15181D; --t2:#474D57; --t3:#5A616C;
   --accent:#44688E; --accent-h:#3A5876; --on-accent:#FFFFFF; --accent-soft:rgba(68,104,142,.10);
   --done:#1B7448; --done-soft:rgba(27,116,72,.10);
-  --stuck:#B3362A; --stuck-soft:rgba(179,54,42,.08); --wash:rgba(179,54,42,.07);
+  --stuck:#B3362A; --stuck-soft:rgba(179,54,42,.08);
   --warn:#8A5A0B; --warn-soft:rgba(138,90,11,.10);
   --tone-stone-fill:#E7E4DA; --tone-stone-ink:#46443C; --tone-sky-fill:#DCE7F3; --tone-sky-ink:#2C4459;
   --tone-sage-fill:#E3E8D0; --tone-sage-ink:#4A5524; --tone-clay-fill:#F4E0D6; --tone-clay-ink:#8F4A30;
@@ -38,7 +38,7 @@
   --t1:#E9ECF0; --t2:#A7AEB9; --t3:#9AA1AC;
   --accent:#7BA9DD; --accent-h:#93BAE6; --on-accent:#0C1522; --accent-soft:rgba(123,169,221,.16);
   --done:#5BC48E; --done-soft:rgba(91,196,142,.16);
-  --stuck:#F2877C; --stuck-soft:rgba(242,135,124,.14); --wash:rgba(242,135,124,.10);
+  --stuck:#F2877C; --stuck-soft:rgba(242,135,124,.14);
   --warn:#E0A640; --warn-soft:rgba(224,166,64,.14);
   --tone-stone-fill:#2A2D33; --tone-stone-ink:#C9CDD4; --tone-sky-fill:#1F3249; --tone-sky-ink:#B9D3F0;
   --tone-sage-fill:#27301D; --tone-sage-ink:#C5D69A; --tone-clay-fill:#3D2620; --tone-clay-ink:#F0B5A0;
@@ -133,14 +133,11 @@ kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2)
 .row{position:relative;display:flex;align-items:center;gap:10px;min-height:38px;padding:0 16px;border-bottom:1px solid var(--line);cursor:default;transition:background 80ms,opacity 120ms}
 .row:hover{background:var(--hover)}
 .row.cur{background:var(--sel)}
-/* One cursor language for rows and tiles, two candidates (strip toggle sets :root[data-mark]).
-   A "Underscore": the wordmark's underscore block sits on the cursor item's bottom-left, on the tile's lower edge or the row's divider.
-   B "Caret": a small accent pointer in the gutter to the left of the item. Both also step the tile one tone up. No left-edge bars. */
-.row.cur::before,.tile.cur::before{content:"";position:absolute;pointer-events:none;z-index:1}
-:root[data-mark="a"] .row.cur::before{left:16px;bottom:-1px;width:18px;height:3px;background:var(--accent)}
-:root[data-mark="a"] .tile.cur::before{left:12px;bottom:-2px;width:18px;height:4px;background:var(--accent)}
-:root[data-mark="b"] .row.cur::before{left:5px;top:14px;border:5px solid transparent;border-left:6px solid var(--accent);border-right:0}
-:root[data-mark="b"] .tile.cur::before{left:-10px;top:15px;border:5px solid transparent;border-left:6px solid var(--accent);border-right:0}
+/* One cursor language for rows and tiles (approved 2026-11-16): the wordmark's underscore, a Sky block on the cursor item's
+   bottom-left, on the tile's lower edge or the row's divider. The tile also steps one tone up. No left-edge bars anywhere. */
+.row.cur::before,.tile.cur::before{content:"";position:absolute;pointer-events:none;z-index:1;background:var(--accent)}
+.row.cur::before{left:16px;bottom:-1px;width:18px;height:3px}
+.tile.cur::before{left:12px;bottom:-2px;width:18px;height:4px}
 .row.open{background:var(--open)}
 .row .ti{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .ti i{font-style:normal;color:var(--t3);margin-left:8px}
@@ -202,11 +199,10 @@ kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2)
 .props{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 20px}
 .prop{height:24px;display:inline-flex;align-items:center;gap:6px;padding:0 8px;border-radius:6px;background:var(--raise);color:var(--t2);font-size:12px}
 .prop.tone{font-weight:500}
-.card{background:var(--raise);border-radius:10px;padding:16px;margin-bottom:24px}
+.card{position:relative;background:var(--raise);border-radius:10px;padding:16px;margin-bottom:24px}
 .card h5{font:500 13px/20px var(--f);display:flex;gap:8px;align-items:center;margin-bottom:4px}
 .card p{color:var(--t2);margin-bottom:12px}
 .card .acts{display:flex;gap:8px;flex-wrap:wrap}
-.card.hot{box-shadow:inset 2px 0 0 var(--stuck)}
 .card.hot h5{color:var(--stuck)}
 .pin h3{font:500 12px/18px var(--f);color:var(--t3);margin:0 0 6px}
 .pin section{margin-bottom:22px}
@@ -223,15 +219,13 @@ kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2)
 .col{min-width:0}
 .col .ch{position:sticky;top:0;display:flex;align-items:center;gap:8px;height:28px;font:500 12px/18px var(--f);color:var(--t2);background:var(--bg);z-index:1}
 .col .ch .ct{color:var(--t3);font-weight:400}
-.col .ch .wait{margin-left:auto;display:inline-flex;gap:4px;align-items:center;color:var(--stuck);font-weight:600}
+.col .ch.hotc,.col .ch.hotc .ct{color:var(--stuck)} .col .ch.hotc{font-weight:600}
 .tile{--tb:var(--raise);position:relative;display:block;width:100%;background-color:var(--tb);border-radius:8px;padding:10px 12px;margin-bottom:8px;transition:background-color 80ms}
 .tile:hover,.tile.cur{--tb:var(--raise2)}
 .tile.open{--tb:var(--raise2);box-shadow:0 0 0 1px var(--ctl)}
-/* Waiting on you. A: a red dog-ear in the top-right corner (a shape no other tile has), nothing else.
-   B: a soft red wash over the whole tile plus a 1px red outline. The "Waiting on you" glyph and word line stays in both. */
-:root[data-mark="a"] .tile.waiting::after{content:"";position:absolute;top:0;right:0;width:14px;height:14px;border-top-right-radius:8px;background:linear-gradient(225deg,var(--stuck) 50%,transparent 50%);pointer-events:none}
-:root[data-mark="b"] .tile.waiting{background-image:linear-gradient(var(--wash),var(--wash));box-shadow:inset 0 0 0 1px var(--stuck)}
-:root[data-mark="b"] .tile.waiting.open{box-shadow:inset 0 0 0 1px var(--stuck),0 0 0 1px var(--ctl)}
+/* Blocked / urgent: one language everywhere. A red dog-ear in the top-right corner (a shape nothing else has), clipped to the
+   container's own radius. Used on blocked tiles and on the pane's action card. The glyph-and-word line stays, so it is never colour alone. */
+.tile.blocked::after,.card.hot::after{content:"";position:absolute;top:0;right:0;width:14px;height:14px;border-top-right-radius:inherit;background:linear-gradient(225deg,var(--stuck) 50%,transparent 50%);pointer-events:none}
 .tile .top{display:flex;align-items:center;margin-bottom:6px;color:var(--t3);font-size:12px}
 .tile .top .sp{flex:1}
 .tile .more{opacity:0;width:20px;height:20px;border-radius:4px;display:grid;place-items:center;color:var(--t2);margin-left:6px}
@@ -311,15 +305,15 @@ const CARDS = [
   { id:"c1", col:0, t:"Draft the Q4 fund report", own:["Sam Admin"], due:"28 Nov" },
   { id:"c2", col:0, t:"Book the November LP call", own:["Jo Admin"], due:"30 Nov" },
   { id:"c3", col:0, t:"Collect updates from Sample Labs", own:["Alex Admin"], due:"" },
-  { id:"c4", col:1, t:"Confirm figures for Example Co", own:["Sam Admin","Jo Admin"], due:"28 Nov", waiting:true },
+  { id:"c4", col:2, t:"Confirm figures for Example Co", own:["Sam Admin","Jo Admin"], due:"28 Nov" },
   { id:"c5", col:1, t:"Tidy the company import list", own:["Jo Admin"], due:"24 Nov" },
   { id:"c6", col:1, t:"Update investor link settings", own:["Alex Admin"], due:"" },
-  { id:"c7", col:2, t:"Review Acme Ltd intro notes", own:["Sam Admin"], due:"21 Nov", review:true },
-  { id:"c8", col:2, t:"Check the Demo Works figures", own:["Alex Admin"], due:"", review:true },
+  { id:"c7", col:1, t:"Review Acme Ltd intro notes", own:["Sam Admin"], due:"21 Nov" },
+  { id:"c8", col:1, t:"Check the Demo Works figures", own:["Alex Admin"], due:"" },
   { id:"c9", col:3, t:"Send the October digest", own:["Sam Admin"], due:"", done:true },
   { id:"c10", col:3, t:"Archive the old LP list", own:["Jo Admin"], due:"", done:true },
 ];
-const COLS = ["To do","In progress","To review","Done"];
+const COLS = ["To do","In progress","Blocked","Done"]; /* Molly's four real statuses (lib/board.ts). Blocked = col 2. */
 
 /* ── Identity colour: FNV-1a 32-bit of the lower-cased, trimmed name into 8 fills.
       Hues stay clear of red 345-25, amber 28-58, green 130-170 and the accent 195-228. ── */
@@ -352,7 +346,7 @@ const WM = `<svg viewBox="0 0 392.82 125.54" role="img" aria-label="Molly"><path
 const NL = t => `<span data-nl>${t}</span>`;
 
 /* ── State ────────────────────────────────────────────────────────────────── */
-const S = { screen:1, theme:"light", mark:"a", device:"desktop", hl:false, drawer:false, pal:false, palQ:"", palI:0,
+const S = { screen:1, theme:"light", device:"desktop", hl:false, drawer:false, pal:false, palQ:"", palI:0,
   open:null, fresh:false, cur:null, su:0, collapsed:{}, empty:false, gone:new Set(), toast:null, approved:[] };
 let toastTimer;
 
@@ -389,7 +383,7 @@ function sideHTML(){
     ${f?founderNav():navHTML()}
     <div class="foot">
       <div class="me">${mk(f?"Sam Founder":ME,"p")}<b>${f?"Sam Founder":ME}</b>
-        <button class="ib" data-act="theme" aria-label="${S.theme==="dark"?"Switch to light":"Switch to dark"}">${S.theme==="dark"?IC.sun:IC.moon}</button></div>
+        <button class="ib" data-act="theme" aria-label="${S.theme==="dark"?"Switch to light mode":"Switch to dark mode"}">${S.theme==="dark"?IC.sun:IC.moon}</button></div>
       <button class="oldlook" data-act="old">${NL("Use the old look")}</button>
     </div></aside>`;
 }
@@ -401,7 +395,7 @@ function hdHTML(title, count, right=""){
 const chipsHTML = (unset, set=[]) => `<div class="chips" role="group" aria-label="Filters">
   ${set.map(([k,v])=>`<span class="chip set">${NL(k)} <b>${v}</b> <button aria-label="Remove ${k} filter" style="display:grid">${IC.x.replace('width="16" height="16"','width="12" height="12"')}</button></span>`).join("")}
   ${unset.map(u=>`<button class="chip unset"><span aria-hidden="true">+</span>${NL(u)}</button>`).join("")}
-  ${set.length?`<button class="clear">${NL("Clear all")}</button>`:""}</div>`;
+  ${set.length?`<button class="clear">${NL("Clear filters")}</button>`:""}</div>`;
 const ghHTML = (key,name,count,hot) => `<button class="gh ${hot?"hotg":""}" aria-expanded="${!S.collapsed[key]}" data-group="${key}">${IC.chev.replace('width="16" height="16"','width="12" height="12"')}${NL(name)} <span class="ct">${count}</span></button>`;
 const rowsWrap = (key, inner) => `<div class="rows ${S.collapsed[key]?"closed":""}"><div role="listbox" aria-label="${key}">${inner}</div></div>`;
 
@@ -413,7 +407,7 @@ function needsRows(){
   r.push({ id:"q-diligence", g:"Waiting on you", gl:G.queue, t:"2 companies are ready for diligence review", kind:"Diligence", age:"3d" });
   r.push({ id:"q-board", g:"On the board", gl:G.queue, t:"1 board item needs review", d:"Names or projects Molly could not match.", kind:"Team Board", age:"1d" });
   for (const a of ALERTS) if (!S.gone.has(a.id)) r.push({ id:a.id, g:"Alerts", gl:G.alert, co:a.co, t:`${a.co}: ${a.msg}`, kind:"Metric alert", age:a.age });
-  for (const o of OVERDUE) r.push({ id:o.id, g:"Behind on updates", gl:G.clock(o.sev?"stuck":"warn"), co:o.co, t:`${o.co}`, d:`${o.days} days since the last update`, sev:o.sev, kind:"Overdue", age:o.days+"d" });
+  for (const o of OVERDUE) r.push({ id:o.id, g:"Behind on updates", gl:G.clock(o.sev?"stuck":"warn"), co:o.co, t:`${o.co}`, d:`${o.days} days since the last update`, sev:o.sev, kind:"Behind", age:o.days+"d" });
   return r;
 }
 function needsHTML(){
@@ -426,7 +420,7 @@ function needsHTML(){
   return head + chipsHTML(["Kind","Company"]) + `<div class="scroll"><div class="listwrap">${body}</div>
     <div class="sec"><h3>${NL("Portfolio")}</h3><div class="kpis">
       <div class="kpi"><span>Companies</span><b>12</b></div><div class="kpi"><span>Updates this month</span><b>7</b></div>
-      <div class="kpi"><span>Cash across portfolio</span><b>14,000,000</b></div><div class="kpi"><span>On track</span><b>9</b></div></div></div></div>`;
+      <div class="kpi"><span>Cash across portfolio</span><b>14,000,000</b></div><div class="kpi"><span>Up to date</span><b>9</b></div></div></div></div>`;
 }
 function rowHTML(r){
   const cls = ["row", S.cur===r.id?"cur":"", S.open===r.id?"open":""].join(" ");
@@ -456,17 +450,16 @@ function companiesHTML(){
 
 /* ── Screen 3: Team Board ─────────────────────────────────────────────────── */
 function boardHTML(){
-  const nWait = CARDS.filter(c=>c.waiting).length;
   const cols = COLS.map((n,i)=>{
     const cs = CARDS.filter(c=>c.col===i);
-    const w = cs.filter(c=>c.waiting).length;
-    return `<div class="col"><div class="ch">${NL(n)}<span class="ct">${cs.length}</span>${w?`<span class="wait">${G.waiting}${w}</span>`:""}</div>
-      ${cs.map(c=>{ const cls=["tile",c.waiting?"waiting":"",c.done?"done":"",S.cur===c.id?"cur":"",S.open===c.id?"open":""].join(" ");
+    const blocked = i===2;
+    return `<div class="col"><div class="ch ${blocked&&cs.length?"hotc":""}">${blocked&&cs.length?G.waiting:""}${NL(n)}<span class="ct">${cs.length}</span></div>
+      ${cs.map(c=>{ const cls=["tile",blocked?"blocked":"",c.col===3?"done":"",S.cur===c.id?"cur":"",S.open===c.id?"open":""].join(" ");
         return `<button class="${cls}" data-row="${c.id}" aria-label="${c.t}">
           <span class="top"><span class="stack" style="display:inline-flex">${c.own.map(o=>mk(o,"p")).join("")}</span><span class="sp"></span>${c.due?`<span>${c.due}</span>`:""}<span class="more" aria-hidden="true">${IC.dots}</span></span>
           <span class="tt">${c.t}</span>
-          ${c.waiting?`<span class="mkr stuck">${G.waiting}${NL("Waiting on you")}</span>`:c.review?`<span class="mkr done">${G.ring("done")}${NL("To review")}</span>`:""}</button>`; }).join("")}
-      ${i===0?`<button class="addc">+ ${NL("Add a card")}</button>`:""}</div>`; }).join("");
+          ${blocked?`<span class="mkr stuck">${G.waiting}${NL("Blocked")}</span>`:""}</button>`; }).join("")}
+      ${i===0?`<button class="addc">+ ${NL("Add item")}</button>`:""}</div>`; }).join("");
   return hdHTML("Team Board", `${CARDS.length} cards`) + chipsHTML(["Owner","Due"]) + `<div class="scroll" style="overflow:auto"><div class="board">${cols}</div></div>`;
 }
 
@@ -506,14 +499,14 @@ function paneData(){
       ${hist([[s.age+" ago","Signed up"],[s.age+" ago","Link suggestion made"]])}` };
   }
   if (id==="q-diligence") return { crumb:"Diligence", title:"2 companies are ready for review", props:[`<span class="prop">Diligence</span>`,`<span class="prop">Waiting 3 days</span>`],
-    card:{ h:"Start with the oldest", t:"Both companies finished their diligence answers.", p:"Open diligence", pk:"O" },
+    card:{ h:"Start with the oldest", t:"2 companies finished their diligence answers.", p:"Open diligence", pk:"O" },
     body:`<section><h3>${NL("Why you're seeing this")}</h3><p>Companies move here once they submit. They stay until someone on the team reviews them.</p></section>${hist([["3d ago","Sample Labs submitted"],["2d ago","Demo Works submitted"]])}` };
   if (id==="q-board") return { crumb:"Team Board", title:"1 board item needs review", props:[`<span class="prop">Team Board</span>`],
-    card:{ h:"Match the name", t:"Names or projects Molly could not match.", p:"Open the board", pk:"O" },
+    card:{ h:"Match the name", t:"Molly couldn't match a name or project on 1 item.", p:"Open the board", pk:"O" },
     body:`<section><h3>${NL("Why you're seeing this")}</h3><p>A task came in from a meeting note with an owner or project that does not exist yet.</p></section>` };
   const al = ALERTS.find(a=>a.id===id);
   if (al) return { crumb:"Alerts", title:al.msg, mkn:[al.co,"co"], props:[`<span class="prop">${mk(al.co,"co")}${al.co}</span>`,`<span class="prop">Metric alert</span>`,`<span class="prop">${al.age} ago</span>`],
-    card:{ h:"Check the figure", t:"If it is expected, dismiss the alert. It comes back only if the figure changes again.", p:"Dismiss alert", pk:"D", s:"Open company", sk:"O" },
+    card:{ h:"Check the figure", t:"If this is expected, dismiss the alert.", p:"Dismiss alert", pk:"D", s:"Open company", sk:"O" },
     body:figures()+hist([[al.age+" ago","Alert raised"]]) };
   const od = OVERDUE.find(o=>o.id===id) ?? OVERDUE.find(o=>o.co===id);
   const co = companyList().find(c=>c.id===id) ?? (od && companyList().find(c=>c.id===od.co));
@@ -521,17 +514,18 @@ function paneData(){
     const late = co.days>=20;
     return { crumb: S.screen===1?"Behind on updates":"Companies", title:co.name, mkn:[co.name,"co"],
       props:[`<span class="prop tone" style="background:var(--tone-sky-fill);color:var(--tone-sky-ink)">${co.stage}</span>`,`<span class="prop">${mk(co.own,"p")}${co.own}</span>`,`<span class="prop">${co.cad} updates</span>`],
-      card: late ? { h:`No update for ${co.days} days`, t:`The last update was ${co.days} days ago. A reminder goes to ${co.fn} by email.`, p:"Send a reminder", pk:"R", s:"Open company", sk:"O" }
+      card: late ? { h:`No update for ${co.days} days`, t:`The last update was ${co.days} days ago. A reminder goes to the company's founders by email.`, p:"Send a reminder", pk:"R", s:"Open company", sk:"O" }
                  : { h:"Up to date", t:`The last update was ${co.days} days ago. Nothing to do.`, p:"Open company", pk:"O" },
       body:figures()+`<section><h3>${NL("Recent updates")}</h3><ul class="hist"><li><time>${co.days}d ago</time><span>${co.cad==="Monthly"?"October":"Q3"} update</span></li><li><time>${co.days+30}d ago</time><span>${co.cad==="Monthly"?"September":"Q2"} update</span></li></ul></section>` };
   }
   const c = CARDS.find(x=>x.id===id);
   if (c) return { crumb:`Team Board · ${COLS[c.col]}`, title:c.t, props:[`<span class="prop"><span class="stack" style="display:inline-flex">${c.own.map(o=>mk(o,"p")).join("")}</span>${c.own.join(", ")}</span>`, c.due?`<span class="prop">Due ${c.due}</span>`:"", `<span class="prop">${COLS[c.col]}</span>`],
-    card: c.waiting ? { hot:true, h:`${G.waiting.replace('class="g stuck"','class="g stuck" style="width:16px;height:16px"')}${NL("Waiting on you")}`, t:"Jo Admin needs you to confirm the figures before the fund report goes out.", p:"Mark as unblocked", pk:"U", s:"Edit", sk:"E" }
-      : { h:c.review?"Ready to review":"Next step", t:c.review?"The owner moved this here for a second pair of eyes.":"Open the card to edit it.", p:c.review?"Approve":"Edit", pk:c.review?"A":"E" },
-    body:`<section><h3>Notes</h3><p>${c.waiting?"Confirm the monthly revenue and cash figures against the update before the report is drafted.":"No notes yet."}</p></section>
-      ${c.waiting?`<section><h3>Proof links</h3><p><a href="#" onclick="return false">example.com/figures</a></p></section>`:""}
-      ${hist([["2d ago",`${c.own[0]} moved this to ${COLS[c.col]}`],["5d ago","Card created"]])}` };
+    /* Blocked: the action card carries the same red dog-ear as the tile; primary is a one-click move to In progress. Plain items have no card, only Edit. */
+    card: c.col===2 ? { hot:true, h:`${G.waiting.replace('class="g stuck"','class="g stuck" style="width:16px;height:16px"')}${NL("Blocked")}`, t:"This item is stuck. When that's cleared, mark it as unblocked and it moves to In progress.", p:"Mark as unblocked", pk:"U", s:"Edit", sk:"E" } : null,
+    edit: c.col!==2,
+    body:`<section><h3>Notes</h3><p>${c.col===2?"Confirm the monthly revenue and cash figures against the update before the report is drafted.":"No notes yet."}</p></section>
+      ${c.col===2?`<section><h3>Proof links</h3><p><a href="#" onclick="return false">example.com/figures</a></p></section>`:""}
+      ${hist([["2d ago",`${c.own[0]} moved this to ${COLS[c.col]}`],["5d ago","Item created"]])}` };
   return null;
 }
 function paneHTML(){
@@ -545,6 +539,7 @@ function paneHTML(){
       <button class="ib" data-act="close" aria-label="Close">${IC.x}</button></div>
     <div class="pbody"><div class="pin"><h1>${d.mkn?mk(d.mkn[0],d.mkn[1],true):""}<span>${d.title}</span></h1>
       <div class="props">${d.props.join("")}</div>
+      ${d.edit?`<div class="acts" style="margin:-8px 0 24px"><button class="btn sec" data-act="secondary">${NL("Edit")}${phone()?"":`<kbd>E</kbd>`}</button></div>`:""}
       ${k?`<div class="card ${k.hot?"hot":""}"><h5>${k.h}</h5><p>${k.t}</p><div class="acts">
         <button class="btn pri" data-act="primary">${NL(k.p)}${phone()?"":`<kbd>${k.pk}</kbd>`}</button>
         ${k.s?`<button class="btn sec" data-act="secondary">${NL(k.s)}${phone()?"":`<kbd>${k.sk}</kbd>`}</button>`:""}</div></div>`:""}
@@ -554,7 +549,7 @@ function paneHTML(){
 /* ── Palette and toast ───────────────────────────────────────────────────── */
 function palItems(){
   const a = [
-    { l:S.theme==="dark"?"Switch to light":"Switch to dark", k:"", run:()=>{S.theme=S.theme==="dark"?"light":"dark";} , g:"Actions" },
+    { l:S.theme==="dark"?"Switch to light mode":"Switch to dark mode", k:"", run:()=>{S.theme=S.theme==="dark"?"light":"dark";} , g:"Actions" },
     { l:"Use the old look", k:"", run:()=>toast("Back to the old look (not in this mockup)"), g:"Actions" },
     { l:"Needs you", k:"g d", run:()=>go(1), g:"Go to" }, { l:"Companies", k:"g c", run:()=>go(2), g:"Go to" },
     { l:"Team Board", k:"g b", run:()=>go(3), g:"Go to" }, { l:"Approvals", k:"g a", run:()=>toast("Not in this mockup"), g:"Go to" },
@@ -575,7 +570,7 @@ function toast(msg, undo){ S.toast={msg,undo}; clearTimeout(toastTimer); toastTi
 function render(){
   const root = document.getElementById("root");
   const keep = root.querySelector(".scroll")?.scrollTop || 0;
-  document.documentElement.dataset.theme = S.theme; document.documentElement.dataset.mark = S.mark;
+  document.documentElement.dataset.theme = S.theme;
   document.body.classList.toggle("hl", S.hl);
   const ph = phone();
   let main;
@@ -594,7 +589,6 @@ function strip(){
     ${sb("screen",[[1,"1 · Needs you",S.screen===1],[2,"2 · Companies",S.screen===2],[3,"3 · Team Board",S.screen===3],[4,"4 · Founder",S.screen===4]])}
     ${sb("theme",[["light","Light",S.theme==="light"],["dark","Dark",S.theme==="dark"]])}
     ${S.screen===4?`<span class="hint">Founder screens are designed phone first</span>`:sb("device",[["desktop","Desktop",S.device==="desktop"],["phone","Phone",S.device==="phone"]])}
-    ${S.screen<4?sb("mark",[["a","Markers A · Underscore, dog-ear",S.mark==="a"],["b","B · Caret, red wash",S.mark==="b"]]):""}
     <button class="tog" data-s="hl" aria-pressed="${S.hl}">Show new labels</button>
     ${S.screen===1?`<button class="tog" data-s="empty" aria-pressed="${S.empty}">Empty state</button>`:""}
     <span class="hint">Click a row · j k Enter Esc · ⌘K · A approves, D dismisses</span>`;
@@ -623,21 +617,20 @@ function primary(){
     S.approved.push(idx); const name=SIGNUPS[idx].n;
     if (SIGNUPS.length-S.approved.length===0) S.open=null; else S.su=Math.min(S.su,SIGNUPS.length-S.approved.length-1);
     S.undo = ()=>{ S.approved=S.approved.filter(x=>x!==idx); S.open="q-approvals"; S.su=Math.max(0,remaining.indexOf(idx)); };
-    toast(`${name} approved`, true); return;
+    toast(`Approved ${name}.`, true); return;
   }
   const al = ALERTS.find(a=>a.id===id);
   if (al){ const el=document.querySelector(`[data-row="${id}"]`); el?.classList.add("leaving");
-    setTimeout(()=>{ S.gone.add(id); S.open=null; S.cur=null; S.undo=()=>{S.gone.delete(id);S.open=id;S.cur=id;}; toast("Alert dismissed",true); },280); return; }
+    setTimeout(()=>{ S.gone.add(id); S.open=null; S.cur=null; S.undo=()=>{S.gone.delete(id);S.open=id;S.cur=id;}; toast("Alert dismissed.",true); },280); return; }
   const d = paneData();
-  if (d?.card?.p==="Send a reminder") return toast(`Reminder sent to ${(companyList().find(c=>c.id===id)||{}).fn||"the founder"}`);
-  if (d?.card?.p==="Mark as unblocked"){ const c=CARDS.find(x=>x.id===id); c.waiting=false; S.undo=()=>{c.waiting=true;}; return toast("Card unblocked", true); }
+  if (d?.card?.p==="Send a reminder") return toast(`Reminder sent to ${(companyList().find(c=>c.id===id)||{}).fn||"the founder"}.`);
+  if (d?.card?.p==="Mark as unblocked"){ const c=CARDS.find(x=>x.id===id); c.col=1; S.undo=()=>{c.col=2;}; return toast("Item unblocked.", true); }  /* one click: Blocked becomes In progress */
   toast("Opens the full page (not in this mockup)");
 }
 document.addEventListener("click", e=>{
   const t = e.target.closest("[data-s],[data-act],[data-row],[data-group],[data-nav],[data-pal],[data-toast]"); if(!t) return;
   if (t.dataset.s){ const [k,v]=t.dataset.s.split(":");
     if(k==="screen") { go(+v); } else if(k==="theme") { S.theme=v; render(); }
-    else if(k==="mark") { S.mark=v; render(); }
     else if(k==="device") { S.device=v; S.open=null; S.drawer=false; render(); }
     else if(k==="hl") { S.hl=!S.hl; render(); } else if(k==="empty") { S.empty=!S.empty; render(); } return; }
   if (t.dataset.nav){ if(+t.dataset.nav) go(+t.dataset.nav); else toast("Not in this mockup"); return; }
@@ -689,14 +682,14 @@ document.addEventListener("keydown", e=>{
   const rat=(a,b)=>{const x=Lm(a),y=Lm(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
   const mix=(f,a,b)=>f.map((c,i)=>Math.round(c*a+b[i]*(1-a)));
   const TH={
-    Light:{bg:"#FFFFFF",side:"#F4F5F7",pane:"#FAFBFC",raise:"#F0F2F4",press:"#E6E9ED",ov:[18,24,38],ova:.085,sela:.06,washa:.07,
+    Light:{bg:"#FFFFFF",side:"#F4F5F7",pane:"#FAFBFC",raise:"#F0F2F4",press:"#E6E9ED",ov:[18,24,38],ova:.085,sela:.06,
       t1:"#15181D",t2:"#474D57",t3:"#5A616C",acc:"#44688E",onacc:"#FFFFFF",done:"#1B7448",stuck:"#B3362A",warn:"#8A5A0B",ctl:"#858C97"},
-    Dark:{bg:"#14171B",side:"#0E1013",pane:"#191C21",raise:"#20242A",press:"#292E36",ov:[255,255,255],ova:.10,sela:.07,washa:.10,
+    Dark:{bg:"#14171B",side:"#0E1013",pane:"#191C21",raise:"#20242A",press:"#292E36",ov:[255,255,255],ova:.10,sela:.07,
       t1:"#E9ECF0",t2:"#A7AEB9",t3:"#9AA1AC",acc:"#7BA9DD",onacc:"#0C1522",done:"#5BC48E",stuck:"#F2877C",warn:"#E0A640",ctl:"#6E7681"}};
-  const surf=["bg","side","pane","raise","press","open","sel","wash","washcur"];
-  let h=`<h2 style="margin-top:20px">Contrast, computed live from the token values</h2><p>Text pairs need 4.5:1, glyph and control-border pairs 3:1. “open” is the open-row overlay composed over the page; “sel” is the cursor-row overlay over the page; “wash” is marker B’s red wash over a resting tile (raise) and “washcur” over the cursor tile (press). Marker glyphs (the accent underscore or caret, the red dog-ear or outline) are the Accent and Stuck rows against bg (the column), raise and press (the tile at rest and at cursor), sel (the row), and wash, so all need 3:1; they are held to 4.5 here.</p>`;
+  const surf=["bg","side","pane","raise","press","open","sel"];
+  let h=`<h2 style="margin-top:20px">Contrast, computed live from the token values</h2><p>Text pairs need 4.5:1, glyph and control-border pairs 3:1. “open” is the open-row overlay composed over the page; “sel” is the cursor-row overlay over the page. The markers are the Accent row (the Sky underscore cursor) and the Stuck row (the red dog-ear on blocked tiles and on the pane’s action card) against bg (the column), raise (a resting tile, and the action card) and press (the cursor tile), and sel (the cursor row). They need 3:1; they are held to 4.5 here.</p>`;
   for(const [name,t] of Object.entries(TH)){
-    const S2=Object.fromEntries(surf.map(s=>[s,s==="open"?mix(t.ov,t.ova,hx(t.bg)):s==="sel"?mix(t.ov,t.sela,hx(t.bg)):s==="wash"?mix(hx(t.stuck),t.washa,hx(t.raise)):s==="washcur"?mix(hx(t.stuck),t.washa,hx(t.press)):hx(t[s])]));
+    const S2=Object.fromEntries(surf.map(s=>[s,s==="open"?mix(t.ov,t.ova,hx(t.bg)):s==="sel"?mix(t.ov,t.sela,hx(t.bg)):hx(t[s])]));
     const rows=[["Text primary","t1",4.5],["Text secondary","t2",4.5],["Text muted","t3",4.5],["Accent as text","acc",4.5],["Done","done",4.5],["Stuck","stuck",4.5],["Warn","warn",4.5],["Control border","ctl",3]];
     const cell=(v,min)=>`<td style="padding:2px 10px;color:${v>=min?"inherit":"#B3362A"};font-weight:${v>=min?400:700}">${v.toFixed(1)}${v>=min?"":" ✗"}</td>`;
     h+=`<table style="border-collapse:collapse;margin:8px 0 12px;font-size:12px"><caption style="text-align:left;font-weight:600;color:var(--t1);padding:4px 0">${name}</caption><tr><th style="text-align:left;padding:2px 10px 2px 0"></th>${surf.map(s=>`<th style="padding:2px 10px;font-weight:500">${s}</th>`).join("")}</tr>`
