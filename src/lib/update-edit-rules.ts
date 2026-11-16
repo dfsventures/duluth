@@ -41,7 +41,27 @@ export type ProvenanceFields = {
   origin: string | null;
 };
 
-const dayOf = (d: Date) => d.toISOString().slice(0, 10);
+/**
+ * Builds the metricValues payload the edit page PATCHes. A metric that already
+ * had a figure on this update keeps its stored date (so carryProvenance can match
+ * it and the backdated date survives); only a metric with no figure yet gets `now`.
+ * Empty values are dropped.
+ */
+export function buildEditMetricValues(
+  editMetrics: Record<string, string>,
+  storedDates: Record<string, string>,
+  now: Date
+): { metricDefinitionId: string; value: number; date: string }[] {
+  return Object.entries(editMetrics)
+    .filter(([, v]) => v.trim() !== "")
+    .map(([metricDefinitionId, value]) => ({
+      metricDefinitionId,
+      value: parseFloat(value),
+      date: storedDates[metricDefinitionId] ?? now.toISOString(),
+    }));
+}
+
+const dayOf =(d: Date) => d.toISOString().slice(0, 10);
 const key = (defId: string, value: unknown, date: Date) =>
   `${defId}|${Number(String(value))}|${dayOf(date)}`;
 

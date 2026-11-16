@@ -26,7 +26,7 @@ import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { sanitizeUpdateHtml } from "@/lib/update-html";
 import { metricChipLabel } from "@/lib/metric-origin";
-import { canEditUpdate } from "@/lib/update-edit-rules";
+import { canEditUpdate, buildEditMetricValues } from "@/lib/update-edit-rules";
 
 interface MetricDefinition {
   id: string;
@@ -105,6 +105,8 @@ export default function UpdateDetailPage() {
   const [editPeriod, setEditPeriod] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editMetrics, setEditMetrics] = useState<Record<string, string>>({});
+  // Stored date per metric definition, so a save keeps each figure's date.
+  const [storedDates, setStoredDates] = useState<Record<string, string>>({});
   const [metricDefs, setMetricDefs] = useState<MetricDefinition[]>([]);
   const [editDirty, setEditDirty] = useState(false);
 
@@ -164,10 +166,13 @@ export default function UpdateDetailPage() {
 
     // Pre-fill existing metric values
     const existing: Record<string, string> = {};
+    const dates: Record<string, string> = {};
     update.metricValues?.forEach((mv) => {
       existing[mv.metricDefinition.id] = String(mv.value);
+      dates[mv.metricDefinition.id] = mv.date;
     });
     setEditMetrics(existing);
+    setStoredDates(dates);
 
     // Load all metric definitions for this company
     if (update.companyId && metricDefs.length === 0) {
@@ -249,13 +254,7 @@ export default function UpdateDetailPage() {
     }
 
     try {
-      const metricValues = Object.entries(editMetrics)
-        .filter(([, v]) => v.trim() !== "")
-        .map(([metricDefinitionId, value]) => ({
-          metricDefinitionId,
-          value: parseFloat(value),
-          date: new Date().toISOString(),
-        }));
+      const metricValues = buildEditMetricValues(editMetrics, storedDates, new Date());
 
       const res = await fetch(`/api/updates/${updateId}`, {
         method: "PATCH",
