@@ -8,6 +8,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { useLook } from "@/lib/use-look";
+import { usePaletteKey } from "@/lib/use-palette-key";
 import { LogoMark } from "@/components/ui/logo-mark";
 import {
   LayoutDashboard,
@@ -138,6 +139,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const { data: session, status } = useSession();
   const { selectedCompany } = useCompany();
   const { look, theme, toggleLook, toggleTheme } = useLook();
+  const paletteKey = usePaletteKey();
 
   const isAdminPath = pathname.startsWith("/admin");
   const isAdmin =
@@ -287,9 +289,10 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:mb-2 v2:h-[30px] v2:rounded v2:border-[var(--color-border-hover)] v2:bg-background v2:px-2 v2:py-0 v2:text-row v2:text-secondary max-md:v2:h-11"
               >
                 <Search aria-hidden="true" className="h-3.5 w-3.5" />
-                <span className="flex-1">Search or jump to</span>
-                <kbd className="border border-border bg-background px-1.5 font-mono text-[10px] v2:rounded-sm v2:border-[var(--color-border-hover)] v2:bg-transparent v2:text-[11px] v2:text-muted-foreground">
-                  Ctrl K
+                {/* One line at any zoom: the label gives way (ellipsis), the key never does. */}
+                <span className="min-w-0 flex-1 truncate">Search or jump to</span>
+                <kbd className="shrink-0 whitespace-nowrap border border-border bg-background px-1.5 font-mono text-[10px] v2:rounded-sm v2:border-[var(--color-border-hover)] v2:bg-transparent v2:text-[11px] v2:text-muted-foreground">
+                  {paletteKey}
                 </kbd>
               </button>
             )}

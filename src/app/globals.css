@@ -287,14 +287,25 @@ html[data-look="v2"] [data-surface="admin"] .shell-header {
   padding-block: 2px;
   border-bottom: 1px solid var(--color-border);
 }
+/* The main area is a size container, so the header can reach its full width (100cqw) even
+   when the page sits in the centred column. Nothing inside <main> is position: fixed
+   (dialogs, sheets and the toaster portal to <body>), so the containment changes nothing else. */
+html[data-look="v2"] [data-surface="admin"] .shell-main {
+  container-type: inline-size;
+}
 /* When it is the first thing on the page it also sticks to the top of the scroll area and
-   bleeds to the edges of the main column (the shell's padding is handed to it as variables). */
+   bleeds to both edges of the main area, however wide the window. In the margin and padding,
+   100% is the column's content width and 100cqw the main area's, so (100cqw - 100%) / 2 is
+   the distance from the column to each edge: the bar reaches the edges and the title stays
+   lined up with the page content. The top bleed comes from the shell as --shell-pt. */
 html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-child {
   position: sticky;
   top: 0;
   z-index: 10;
-  margin: calc(var(--shell-pt, 0px) * -1) calc(var(--shell-px, 0px) * -1) 16px;
-  padding-inline: max(var(--shell-px, 0px), 16px);
+  margin-top: calc(var(--shell-pt, 0px) * -1);
+  margin-bottom: 16px;
+  margin-inline: calc((100% - 100cqw) / 2);
+  padding-inline: max(calc((100cqw - 100%) / 2), 16px);
   background: var(--color-bg);
 }
 

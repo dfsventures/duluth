@@ -19,6 +19,7 @@ import {
 } from "@/lib/command-palette";
 
 import { useLook } from "@/lib/use-look";
+import { usePaletteKey } from "@/lib/use-palette-key";
 
 export const OPEN_PALETTE_EVENT = "molly:open-palette";
 
@@ -68,6 +69,7 @@ export function CommandPalette() {
   }, [open]);
 
   const { look, theme, toggleLook, toggleTheme } = useLook();
+  const paletteKey = usePaletteKey();
 
   const items = useMemo(
     () => [...buildPaletteItems(index), ...lookActionItems(look, theme), ...newUpdateItems(index, query)],
@@ -136,7 +138,7 @@ export function CommandPalette() {
               </Command.List>
               <div className="flex items-center justify-between border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
                 <span>{failed ? "Names could not be loaded. Pages still work." : "Enter to open, Esc to close"}</span>
-                <span aria-hidden="true">Ctrl K</span>
+                <span aria-hidden="true">{paletteKey}</span>
               </div>
             </Command>
           </DialogPrimitive.Content>

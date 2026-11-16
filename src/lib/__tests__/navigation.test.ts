@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ADMIN_NAV_GROUPS, ALL_ADMIN_PAGES, gotoTargets } from "../admin-nav";
-import { GOTO_WINDOW_MS, isPaletteShortcut, isTypingTarget, stepShortcut } from "../shortcuts";
+import { GOTO_WINDOW_MS, isPaletteShortcut, isTypingTarget, paletteKeyLabel, stepShortcut } from "../shortcuts";
 import { parseTab, tabHref } from "../url-tab";
 
 describe("admin nav data", () => {
@@ -64,6 +64,15 @@ describe("shortcut guards", () => {
     expect(isPaletteShortcut({ key: "K", metaKey: true })).toBe(true);
     expect(isPaletteShortcut({ key: "k" })).toBe(false);
     expect(isPaletteShortcut({ key: "k", ctrlKey: true, altKey: true })).toBe(false);
+  });
+  it("labels the palette key ⌘K on Apple devices and Ctrl K elsewhere", () => {
+    expect(paletteKeyLabel("MacIntel")).toBe("⌘K");
+    expect(paletteKeyLabel("macOS")).toBe("⌘K");
+    expect(paletteKeyLabel("iPhone")).toBe("⌘K");
+    expect(paletteKeyLabel("Win32")).toBe("Ctrl K");
+    expect(paletteKeyLabel("Linux x86_64")).toBe("Ctrl K");
+    expect(paletteKeyLabel("")).toBe("Ctrl K");
+    expect(paletteKeyLabel(undefined)).toBe("Ctrl K");
   });
 });
 

@@ -21,6 +21,16 @@ export interface TargetLike {
   closest?: (selector: string) => unknown;
 }
 
+/**
+ * The palette shortcut as it should read on this machine: ⌘K on Apple devices, Ctrl K
+ * elsewhere. Both keys open it everywhere; this is only the label. `platform` is
+ * navigator.userAgentData?.platform or navigator.platform; an empty string (the server)
+ * gets the Ctrl label.
+ */
+export function paletteKeyLabel(platform: string | null | undefined): string {
+  return /mac|iphone|ipad|ipod/i.test(platform ?? "") ? "⌘K" : "Ctrl K";
+}
+
 export function isTypingTarget(el: TargetLike | null | undefined): boolean {
   if (!el) return false;
   const tag = (el.tagName ?? "").toUpperCase();
