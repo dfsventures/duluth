@@ -266,7 +266,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       )}
     >
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-5 v2:h-11 v2:border-b-0 v2:px-4">
+      <div className="flex h-16 items-center border-b px-5 v2:h-[52px] v2:border-b-0 v2:px-4">
         <Link href={useAdminNav ? "/admin" : "/dashboard"} className="flex items-center gap-2" aria-label="Molly home">
           <LogoMark className="v2:h-4 v2:w-auto" />
         </Link>
@@ -286,7 +286,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   onClose?.();
                   openCommandPalette();
                 }}
-                className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:mb-2 v2:h-[30px] v2:rounded v2:border-[var(--color-border-hover)] v2:bg-background v2:px-2 v2:py-0 v2:text-row v2:text-secondary max-md:v2:h-11"
+                className="mb-3 flex w-full items-center gap-2 border border-border bg-card px-3 py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:border-[var(--color-border-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:mb-3 v2:h-[30px] v2:rounded v2:border-[var(--color-border-hover)] v2:bg-background v2:px-2 v2:py-0 v2:text-row v2:text-secondary max-md:v2:h-11"
               >
                 <Search aria-hidden="true" className="h-3.5 w-3.5" />
                 {/* One line at any zoom: the label gives way (ellipsis), the key never does. */}

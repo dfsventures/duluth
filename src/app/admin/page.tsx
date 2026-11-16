@@ -219,7 +219,7 @@ export default function AdminDashboardPage() {
       {/* Quiet stat strip: numbers and mono labels, no icons or boxes. */}
       <dl
         aria-label="Portfolio totals"
-        className="mb-8 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 lg:grid-cols-4"
+        className="mb-8 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 lg:grid-cols-4 v2:border-t-0 v2:pt-0"
       >
         {[
           { label: "Companies", value: d.totalCompanies, hint: undefined as string | undefined },
