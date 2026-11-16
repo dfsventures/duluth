@@ -228,8 +228,10 @@ WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can ru
 - `ui/dialog.tsx`, `ui/sheet.tsx`, `ui/toaster.tsx`, `ui/dropdown-menu.tsx`, `layout/command-palette.tsx`: `pane` surface, 12px radius on floating layers, the single float shadow, 120–160ms motion.
 - `ui/name-tile.tsx`: an identity variant, a disc for people and a rounded square for companies, coloured by a deterministic hash of the name into Molly's identity palette from WS155. Pure helper `src/lib/identity-colour.ts` with a unit test of fixed sample names (`Acme`, `Example Co`).
 - `.label` (`globals.css:252`): under v2, sentence case `text-meta text-muted-foreground`, not mono.
+- `ui/empty-state.tsx` (added after the owner's WS158 check, 2026-11-16: the Approvals empty box "takes too much space"): under v2, pattern 12. No icon and no eyebrow; the title in `text-row` and the description in `text-meta` muted, left-aligned, about 12px of vertical padding, with the action (if any) on the same line or just below. Same props and the same words, so the ~37 pages that use it change together and no call site is edited.
+- Buttons never wrap (same check: "Resend link" broke onto two lines in a table row): under v2 every `Button` and `.btn-*` is `whitespace-nowrap` with a `shrink-0` icon.
 
-**Acceptance.** Under v2, a sample of pages (dashboard, Companies, a dialog, a toast with Undo) uses the new components, and there is one primary button per view. `design-tokens-v2.test.ts` covers the button and chip pairs. Under v1, there is no visual change.
+**Acceptance.** Under v2, a sample of pages (dashboard, Companies, a dialog, a toast with Undo) uses the new components, and there is one primary button per view. An empty Approvals queue is a short grey line, not a centred box, and "Resend link" stays on one line. `design-tokens-v2.test.ts` covers the button and chip pairs. Under v1, there is no visual change.
 
 **UX impact.** Admin-only, behind the switch. **Cost impact.** None.
 
