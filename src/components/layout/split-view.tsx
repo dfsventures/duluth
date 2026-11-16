@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { Suspense, useCallback, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useNewLook } from "@/lib/use-new-look";
-import { buildOpenQuery, parseOpenParam } from "@/lib/split-view";
-import { isTypingTarget } from "@/lib/shortcuts";
+import { buildOpenQuery, escapeBelongsToField, parseOpenParam } from "@/lib/split-view";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,6 +22,31 @@ export function useOpenParam(): [string | null, (id: string | null) => void] {
     [router, pathname, searchParams]
   );
   return [open, setOpen];
+}
+
+/**
+ * Gives its children the open id and its setter, and holds the <Suspense> boundary that
+ * useSearchParams needs while the page is prerendered. Wrapping just the list area (not the
+ * whole page) keeps the page's own shell and header in the server HTML exactly as under the old
+ * look. `fallback` should be what the list shows while it waits (a skeleton).
+ */
+export function OpenParam({
+  fallback,
+  children,
+}: {
+  fallback?: React.ReactNode;
+  children: (open: string | null, setOpen: (id: string | null) => void) => React.ReactNode;
+}) {
+  return (
+    <Suspense fallback={fallback ?? null}>
+      <OpenParamInner>{children}</OpenParamInner>
+    </Suspense>
+  );
+}
+
+function OpenParamInner({ children }: { children: (open: string | null, setOpen: (id: string | null) => void) => React.ReactNode }) {
+  const [open, setOpen] = useOpenParam();
+  return <>{children(open, setOpen)}</>;
 }
 
 interface SplitViewProps {
@@ -55,7 +79,7 @@ export function SplitView({ list, pane, open, onClose, paneLabel }: SplitViewPro
     if (!showPane) return;
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTypingTarget(e.target as HTMLElement | null)) return;
+      if (escapeBelongsToField(e.target as HTMLElement | null)) return;
       e.preventDefault();
       onClose();
     }

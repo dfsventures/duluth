@@ -2,13 +2,20 @@
 
 import { useEffect, useMemo, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import useSWR from "swr";
 import { FileText, LayoutTemplate } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { SplitView, useOpenParam } from "@/components/layout/split-view";
+import { DetailPane, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { NameTile } from "@/components/ui/name-tile";
 import { TemplatesPanel } from "@/components/admin/templates-panel";
+import { fetcher } from "@/lib/fetcher";
+import { crumbLabel, stepCursor } from "@/lib/split-view";
+import { sanitizeUpdateHtml } from "@/lib/update-html";
 import { formatDate, formatPeriod } from "@/lib/utils";
 
 type UpdatesTab = "updates" | "templates";
@@ -23,10 +30,17 @@ interface Update {
 }
 
 
+// What GET /api/updates/[id] returns that the pane shows (the same fetch the full page makes).
+interface UpdateDetail {
+  id: string;
+  body?: string | null;
+  metricValues?: { id: string; value: number; date: string; metricDefinition: { name: string; unit: string | null } }[];
+}
+
 const UPDATE_COLUMNS: DataTableColumn<Update>[] = [
   { key: "title", header: "Update", sortValue: (u) => u.title, cell: (u) => u.title },
   { key: "company", header: "Company", sortValue: (u) => u.company.name, mobile: "meta", cell: (u) => u.company.name },
-  { key: "period", header: "Period", mobile: "meta", cell: (u) => formatPeriod(u.period) },
+  { key: "period", header: "Period", dropBelow: 480, mobile: "meta", cell: (u) => formatPeriod(u.period) },
   {
     key: "published",
     header: "Published",
@@ -39,10 +53,85 @@ const UPDATE_COLUMNS: DataTableColumn<Update>[] = [
   {
     key: "author",
     header: "Author",
+    dropBelow: 600,
     sortValue: (u) => u.createdBy?.name,
     cell: (u) => u.createdBy?.name ?? <span className="text-muted-foreground">—</span>,
   },
 ];
+
+// New look (WS160): the update, read-only, beside the list. The row has the facts for the crumb and
+// chips; the body and figures come from the same endpoint the full page reads, fetched only while open.
+function UpdatePane({
+  update,
+  crumb,
+  onPrev,
+  onNext,
+  onClose,
+}: {
+  update: Update;
+  crumb: string;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onClose: () => void;
+}) {
+  const { data, error, isLoading } = useSWR<{ data?: UpdateDetail } | UpdateDetail>(`/api/updates/${update.id}`, fetcher);
+  const detail: UpdateDetail | undefined = data && "data" in data && data.data ? data.data : (data as UpdateDetail | undefined);
+  const figures = detail?.metricValues ?? [];
+  return (
+    <DetailPane
+      crumb={crumb}
+      title={update.title}
+      mark={<NameTile name={update.company.name} className="mr-0 v2:h-8 v2:w-8 v2:text-[13px]" />}
+      onPrev={onPrev}
+      onNext={onNext}
+      onClose={onClose}
+      expandHref={`/updates/${update.id}`}
+      chips={
+        <>
+          <PaneChip>{update.company.name}</PaneChip>
+          <PaneChip>{formatPeriod(update.period)}</PaneChip>
+          {update.sentAt && <PaneChip>Published {formatDate(update.sentAt)}</PaneChip>}
+          {update.createdBy?.name && <PaneChip>{update.createdBy.name}</PaneChip>}
+        </>
+      }
+    >
+      {error ? (
+        <p role="alert" className="text-body text-secondary">
+          Couldn&apos;t load this update.
+        </p>
+      ) : isLoading || !detail ? (
+        <p className="text-body text-muted-foreground" aria-busy="true">
+          Loading…
+        </p>
+      ) : (
+        <>
+          <PaneSection title="Update">
+            {detail.body ? (
+              <div
+                className="prose prose-sm max-w-none text-body"
+                dangerouslySetInnerHTML={{ __html: sanitizeUpdateHtml(detail.body) }}
+              />
+            ) : (
+              <p>No content yet.</p>
+            )}
+          </PaneSection>
+          <PaneSection title="Figures">
+            {figures.length === 0 ? (
+              <p>No figures yet.</p>
+            ) : (
+              <PaneDetails
+                rows={figures.map((mv) => ({
+                  label: mv.metricDefinition.name,
+                  value: `${mv.value}${mv.metricDefinition.unit ? ` ${mv.metricDefinition.unit}` : ""} · ${formatDate(mv.date)}`,
+                }))}
+              />
+            )}
+          </PaneSection>
+        </>
+      )}
+    </DetailPane>
+  );
+}
 
 export default function AdminUpdatesPage() {
   return (
@@ -67,6 +156,17 @@ function AdminUpdatesPageInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const companyFilter = searchParams.get("company") ?? "";
+
+  // New look (WS160): the open update lives in ?open=, and the list as shown gives the pane its
+  // position and previous / next.
+  const [openId, setOpenId] = useOpenParam();
+  const [visibleRows, setVisibleRows] = useState<Update[]>([]);
+  const visibleKeys = useMemo(() => visibleRows.map((u) => u.id), [visibleRows]);
+  const closePane = useCallback(() => setOpenId(null), [setOpenId]);
+  const stepOpen = (delta: 1 | -1) => {
+    const to = stepCursor(visibleKeys, openId, delta);
+    if (to) setOpenId(to);
+  };
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -107,8 +207,11 @@ function AdminUpdatesPageInner() {
     router.replace(`/admin/updates${qs ? `?${qs}` : ""}`, { scroll: false });
   }
 
+  const openUpdate = openId ? (updates.find((u) => u.id === openId) ?? null) : null;
+  const at = openUpdate ? visibleKeys.indexOf(openUpdate.id) : -1;
+
   return (
-    <AppShell>
+    <AppShell width="full">
       <PageHeader
         title="Updates"
         description={
@@ -118,7 +221,7 @@ function AdminUpdatesPageInner() {
         }
       />
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b">
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:mb-0 v2:px-[var(--gutter)]">
         <button
           onClick={() => selectTab("updates")}
           className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
@@ -144,9 +247,30 @@ function AdminUpdatesPageInner() {
       </div>
 
       {activeTab === "templates" ? (
-        <TemplatesPanel />
+        <div className="v2:px-[var(--gutter)] v2:py-6">
+          <TemplatesPanel />
+        </div>
       ) : (
+        <SplitView
+          open={openId}
+          onClose={closePane}
+          paneLabel={openUpdate?.title}
+          pane={
+            openUpdate ? (
+              <UpdatePane
+                update={openUpdate}
+                crumb={crumbLabel("Updates", visibleKeys, openUpdate.id)}
+                onPrev={at > 0 ? () => stepOpen(-1) : undefined}
+                onNext={at !== -1 && at < visibleKeys.length - 1 ? () => stepOpen(1) : undefined}
+                onClose={closePane}
+              />
+            ) : null
+          }
+          list={
         <DataTable<Update>
+          onOpenRow={(u) => setOpenId(u.id)}
+          openKey={openId}
+          onVisibleRowsChange={setVisibleRows}
           label="Updates"
           noun="update"
           rows={rows}
@@ -186,6 +310,8 @@ function AdminUpdatesPageInner() {
               title="No published updates yet"
               description="Once founders publish updates, they'll show up here across the whole portfolio."
             />
+          }
+        />
           }
         />
       )}

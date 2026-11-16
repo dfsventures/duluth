@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   Shield,
@@ -26,10 +26,16 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/lib/toast";
 import { formatDate } from "@/lib/utils";
 import { addPortcoContact } from "@/lib/portco-link-contact";
-import { PageSkeleton } from "@/components/ui/skeleton";
+import { PageSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 import { mutate as globalMutate } from "swr";
 import { NAV_COUNTS_KEY } from "@/lib/fetcher";
 import { useRowCollapse } from "@/lib/use-row-collapse";
+import { OpenParam, SplitView } from "@/components/layout/split-view";
+import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
+import { NameTile } from "@/components/ui/name-tile";
+import { useNewLook } from "@/lib/use-new-look";
+import { crumbLabel, nextAfterRemoval, stepCursor } from "@/lib/split-view";
+import { TONE_CLASSES } from "@/lib/status-tone";
 
 // WS48 — awaiting-setup rows this stale (past their own token's expiry)
 // auto-group with dismissed rows. Deliberately longer than the 7-day
@@ -91,6 +97,35 @@ function isStale(u: AwaitingUser): boolean {
   );
 }
 
+// New look (WS160): watches the per-signup results. When one lands (from Approve, Reject, Link &
+// approve or Add-to-company, whichever path produced it) it keeps the row on screen while it
+// fades, says what happened, and moves the open pane on to the next signup. It renders nothing.
+// It runs in a layout effect so the row never leaves the screen for a frame before it fades.
+function LeaveWatcher({
+  results,
+  onNew,
+}: {
+  results: Record<string, { result?: "approved" | "rejected" }>;
+  onNew: (id: string, result: "approved" | "rejected") => void;
+}) {
+  // Results that were already there when this mounted (approved under the old look, then the
+  // switch was flipped) are not news.
+  const seen = useRef<Set<string> | null>(null);
+  if (seen.current === null) {
+    seen.current = new Set(Object.entries(results).filter(([, s]) => s.result).map(([id]) => id));
+  }
+  useLayoutEffect(() => {
+    const known = seen.current as Set<string>;
+    for (const [id, s] of Object.entries(results)) {
+      if (s.result && !known.has(id)) {
+        known.add(id);
+        onNew(id, s.result);
+      }
+    }
+  });
+  return null;
+}
+
 export default function ApprovalsPage() {
   const { data: session } = useSession();
   const [approvals, setApprovals] = useState<Approval[]>([]);
@@ -110,6 +145,11 @@ export default function ApprovalsPage() {
   >({});
   const confirm = useConfirm();
   const rowCollapse = useRowCollapse();
+  // New look (WS160): the pending list shows as dense rows beside a pane. `visibleRows` is the
+  // list as shown (it gives the pane its position and previous / next).
+  const newLook = useNewLook();
+  const [visibleRows, setVisibleRows] = useState<Approval[]>([]);
+  const visibleKeys = useMemo(() => visibleRows.map((a) => a.id), [visibleRows]);
   const [deleteStates, setDeleteStates] = useState<
     Record<string, { loading: boolean; error?: string }>
   >({});
@@ -456,51 +496,431 @@ export default function ApprovalsPage() {
     );
   }
 
+  // New look: a row that was just approved or rejected stays (fading) until its fade ends.
   const pendingApprovals = approvals.filter(
-    (a) => !actionStates[a.id]?.result
+    (a) => !actionStates[a.id]?.result || (newLook && rowCollapse.isCollapsing(a.id))
   );
   const processedApprovals = approvals.filter(
-    (a) => actionStates[a.id]?.result
+    (a) => actionStates[a.id]?.result && !(newLook && rowCollapse.isCollapsing(a.id))
   );
 
+  // Part 31, WS77 / Part 45, WS153 — the per-signup view of the portfolio-company suggestion
+  // (STRONG/MEDIUM show by default (D2); WEAK sits behind the per-row toggle) and of the
+  // unclaimed-company match. Shared by the old card and the new pane, so they cannot drift.
+  function suggestionView(approval: Approval) {
+    const state = actionStates[approval.id];
+    const matches = matchStates[approval.id] ?? [];
+    const weakShown = weakShownStates[approval.id] ?? false;
+    const visibleMatches = matches.filter((m) => m.tier !== "WEAK" || weakShown);
+    const selectedId = selectedIds[approval.id];
+    const selected = visibleMatches.find((m) => m.portfolioCompanyId === selectedId) ?? visibleMatches[0];
+    const addContact = addContactStates[approval.id] ?? true;
+    const linkState = linkApproveStates[approval.id];
+    // Part 45 (WS153): STRONG-ish unclaimed matches first; weaker
+    // (name-token only) stay behind "Show weaker matches" as in the
+    // portfolio block above.
+    const unclaimedAll = unclaimedStates[approval.id] ?? [];
+    const unclaimed = unclaimedAll.find((u) => !(u.reasons.length === 1 && u.reasons[0] === "NAME_TOKENS") || weakShown);
+    const joinState = joinStates[approval.id];
+    const topReasonCopy = selected ? REASON_COPY[selected.reasons[0]] ?? "matched" : null;
+    return {
+      state,
+      matches,
+      weakShown,
+      visibleMatches,
+      selectedId,
+      selected,
+      addContact,
+      linkState,
+      unclaimedAll,
+      unclaimed,
+      joinState,
+      topReasonCopy,
+    };
+  }
+
+  // The three suggestion blocks (add to an existing company, "show weaker", the portfolio match
+  // with its picker, contact checkbox and errors). Same markup in the card and in the pane.
+  function renderSuggestion(approval: Approval, v: ReturnType<typeof suggestionView>) {
+    const { state, matches, weakShown, visibleMatches, selectedId, selected, addContact, linkState, unclaimedAll, unclaimed, joinState, topReasonCopy } = v;
+    return (
+      <>
+        {unclaimed && (
+          <div className="w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
+            <p className="text-foreground">
+              Molly already has a page for <strong>{unclaimed.name}</strong> with no founder. Add{" "}
+              {approval.name} to it instead of approving a second company?
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={state?.loading || joinState?.loading}
+                onClick={() => handleJoinAndApprove(approval, unclaimed.id)}
+              >
+                {joinState?.loading ? "..." : `Add ${approval.name} to ${unclaimed.name} instead`}
+              </Button>
+            </div>
+            {joinState?.error && <p className="mt-1 text-xs text-destructive">{joinState.error}</p>}
+          </div>
+        )}
+
+        {!unclaimed && unclaimedAll.length > 0 && matches.length === 0 && (
+          <button
+            type="button"
+            className="w-full text-left text-xs text-muted-foreground underline hover:text-foreground"
+            onClick={() => setWeakShownStates((prev) => ({ ...prev, [approval.id]: true }))}
+          >
+            Show weaker matches
+          </button>
+        )}
+
+        {matches.length > 0 && (
+          <div className="w-full rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm">
+            {selected && visibleMatches.length > 0 ? (
+              <>
+                <p className="text-foreground">
+                  Looks like <strong>{selected.portfolioCompanyName}</strong> in the portfolio —{" "}
+                  {topReasonCopy}.
+                </p>
+                {selected.alreadyLinked && (
+                  <p className="mt-1 text-xs text-tone-clay-ink">
+                    Already linked to another company — pick a different match, or just Approve.
+                  </p>
+                )}
+                {visibleMatches.length > 1 && (
+                  <div className="mt-2 max-w-xs">
+                    <Select
+                      value={selectedId}
+                      onChange={(e) =>
+                        setSelectedIds((prev) => ({ ...prev, [approval.id]: e.target.value }))
+                      }
+                    >
+                      {visibleMatches.map((m) => (
+                        <option key={m.portfolioCompanyId} value={m.portfolioCompanyId}>
+                          {m.portfolioCompanyName} ({m.tier.toLowerCase()}
+                          {m.alreadyLinked ? ", already linked" : ""})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+                {!selected.signupEmailIsAlreadyContact && (
+                  <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={addContact}
+                      onChange={(e) =>
+                        setAddContactStates((prev) => ({ ...prev, [approval.id]: e.target.checked }))
+                      }
+                      className="h-3.5 w-3.5 rounded-sm border-ochre/50"
+                    />
+                    Also add {approval.email} as a contact on {selected.portfolioCompanyName}
+                  </label>
+                )}
+              </>
+            ) : (
+              <p className="text-muted-foreground">
+                No strong matches — {matches.length} weaker match{matches.length === 1 ? "" : "es"} found.
+              </p>
+            )}
+            {matches.some((m) => m.tier === "WEAK") && (
+              <button
+                type="button"
+                className="mt-2 text-xs text-muted-foreground underline hover:text-foreground"
+                onClick={() =>
+                  setWeakShownStates((prev) => ({ ...prev, [approval.id]: !weakShown }))
+                }
+              >
+                {weakShown ? "Hide weaker matches" : "Show weaker matches"}
+              </button>
+            )}
+            {linkState?.error && (
+              <p className="mt-1 text-xs text-destructive">{linkState.error}</p>
+            )}
+            {linkState?.contactNote && (
+              <p className="mt-1 text-xs text-muted-foreground">{linkState.contactNote}</p>
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // The "Recently Processed" and "All caught up" blocks, shared by both looks.
+  const processedBlock = processedApprovals.length > 0 && (
+    <div className="space-y-2">
+      <h3 className="text-sm font-medium text-muted-foreground">
+        Recently Processed
+      </h3>
+      {processedApprovals.map((approval) => {
+        const state = actionStates[approval.id];
+        return (
+          <Card key={approval.id} className="opacity-60">
+            <CardContent className="flex items-center justify-between py-3">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium">{approval.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {approval.email}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                {state?.result === "approved" ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-tone-sage-ink" />
+                    <span className="text-tone-sage-ink">Approved</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-4 w-4 text-tone-clay-ink" />
+                    <span className="text-tone-clay-ink">Rejected</span>
+                  </>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })}
+    </div>
+  );
+  const caughtUpBlock = pendingApprovals.length === 0 && processedApprovals.length > 0 && (
+    <EmptyState
+      icon={<CheckCircle2 className="h-10 w-10" />}
+      title="All caught up"
+      description="You've reviewed all pending approvals in this session."
+    />
+  );
+
+  // New look: the pane for one signup. Approve is the primary and uses the same handler as the
+  // card; "Link & approve" (when there is a match) and "Add to the unclaimed company" are the same
+  // functions the card calls, so the order (link, then contact, then approve) is unchanged.
+  function renderApprovalPane(
+    approval: Approval,
+    nav: { crumb: string; onPrev?: () => void; onNext?: () => void; onClose: () => void }
+  ) {
+    const v = suggestionView(approval);
+    const { state, visibleMatches, selected, addContact, linkState, matches } = v;
+    const hasMatch = Boolean(selected && visibleMatches.length > 0);
+    const busy = Boolean(state?.loading || state?.result);
+    return (
+      <DetailPane
+        crumb={nav.crumb}
+        title={approval.name}
+        mark={<NameTile name={approval.name} kind="person" className="mr-0 v2:h-8 v2:w-8 v2:text-[13px]" />}
+        onPrev={nav.onPrev}
+        onNext={nav.onNext}
+        onClose={nav.onClose}
+        chips={
+          <>
+            <PaneChip className={TONE_CLASSES.sky.chip}>Founder signup</PaneChip>
+            <PaneChip>{approval.email}</PaneChip>
+            <PaneChip>Signed up {formatDate(approval.createdAt)}</PaneChip>
+          </>
+        }
+        card={
+          <PaneCard
+            heading={`Approve ${approval.name}`}
+            actions={
+              <>
+                <Button disabled={busy} loading={Boolean(state?.loading)} onClick={() => handleAction(approval.id, "approve")}>
+                  Approve
+                </Button>
+                {hasMatch && selected && (
+                  <Button
+                    variant="secondary"
+                    disabled={busy || Boolean(linkState?.loading) || selected.alreadyLinked}
+                    onClick={() => handleLinkAndApprove(approval, selected.portfolioCompanyId, addContact)}
+                  >
+                    {linkState?.loading ? "..." : "Link & approve"}
+                  </Button>
+                )}
+                <Button variant="destructive" disabled={busy} onClick={() => handleAction(approval.id, "reject")}>
+                  Reject
+                </Button>
+              </>
+            }
+          >
+            {state?.error && (
+              <span role="alert" className="mb-2 block text-meta text-destructive">
+                {state.error}
+              </span>
+            )}
+            {hasMatch && selected
+              ? `This signup looks like it belongs to ${selected.portfolioCompanyName}. Approve adds them as they are; Link & approve links the account to that company first.`
+              : approval.companyName
+                ? `No company matches yet. You can link ${approval.companyName} after approving.`
+                : "No company matches yet."}
+          </PaneCard>
+        }
+      >
+        {(v.unclaimed || matches.length > 0 || v.unclaimedAll.length > 0) && (
+          <PaneSection title="Link suggestion">
+            <div className="space-y-3">{renderSuggestion(approval, v)}</div>
+          </PaneSection>
+        )}
+        <PaneSection title="Why you're seeing this">
+          <p>
+            {approval.name} signed up with {approval.email}
+            {approval.companyName ? ` and asked to join ${approval.companyName}` : ""}. They are waiting for your approval.
+          </p>
+        </PaneSection>
+        <PaneSection title="Details">
+          <PaneDetails
+            rows={[
+              { label: "Company asked for", value: approval.companyName ?? "—" },
+              { label: "Suggested link", value: selected && hasMatch ? selected.portfolioCompanyName : "None" },
+              { label: "Email", value: approval.email },
+              { label: "Signed up", value: formatDate(approval.createdAt) },
+            ]}
+          />
+        </PaneSection>
+      </DetailPane>
+    );
+  }
+
   return (
-    <AppShell>
+    <AppShell width="full">
       <PageHeader
         title="Pending Approvals"
         description="Review and approve new sign-up requests from portfolio founders."
       />
 
       {approvals.length === 0 ? (
-        <EmptyState eyebrow="Approvals"
-          icon={<Inbox className="h-10 w-10" />}
-          title="No pending approvals"
-          description="All sign-up requests have been reviewed. New requests will appear here."
-        />
+        <div className="v2:px-[var(--gutter)] v2:py-3">
+          <EmptyState eyebrow="Approvals"
+            icon={<Inbox className="h-10 w-10" />}
+            title="No pending approvals"
+            description="All sign-up requests have been reviewed. New requests will appear here."
+          />
+        </div>
+      ) : newLook ? (
+        <>
+          {pendingApprovals.length > 0 && (
+            <OpenParam fallback={<TableSkeleton rows={4} cols={4} />}>
+              {(openId, setOpenId) => {
+                const closePane = () => setOpenId(null);
+                const step = (delta: 1 | -1) => {
+                  const to = stepCursor(visibleKeys, openId, delta);
+                  if (to) setOpenId(to);
+                };
+                // A signup that was just approved stays in the pane (its buttons off) until the pane
+                // moves on, so the pane does not flash shut between two signups.
+                const openApproval = openId ? (approvals.find((a) => a.id === openId) ?? null) : null;
+                const at = openApproval ? visibleKeys.indexOf(openApproval.id) : -1;
+                return (
+                  <>
+                    <LeaveWatcher
+                      results={actionStates}
+                      onNew={(id, result) => {
+                        // Keep the row on screen while it fades, say what happened, and move the
+                        // pane on to the next signup (or close it when this was the last).
+                        const who = approvals.find((a) => a.id === id)?.name ?? "signup";
+                        rowCollapse.run(id, null, () => {});
+                        toast.success(`${result === "approved" ? "Approved" : "Rejected"} ${who}.`);
+                        if (openId === id) setOpenId(nextAfterRemoval(visibleKeys, id));
+                      }}
+                    />
+                    <SplitView
+                      open={openId}
+                      onClose={closePane}
+                      paneLabel={openApproval?.name}
+                      pane={
+                        openApproval
+                          ? renderApprovalPane(openApproval, {
+                              crumb: crumbLabel("Approvals", visibleKeys, openApproval.id),
+                              onPrev: at > 0 ? () => step(-1) : undefined,
+                              onNext: at !== -1 && at < visibleKeys.length - 1 ? () => step(1) : undefined,
+                              onClose: closePane,
+                            })
+                          : null
+                      }
+                      list={
+                        <DataTable<Approval>
+                          label="Pending approvals"
+                          noun="signup"
+                          rows={pendingApprovals}
+                          rowKey={(a) => a.id}
+                          onOpenRow={(a) => setOpenId(a.id)}
+                          openKey={openId}
+                          onVisibleRowsChange={setVisibleRows}
+                          rowClassName={(a) => rowCollapse.className(a.id, "fade")}
+                          defaultSort={{ key: "signedUp", dir: "desc" }}
+                          searchText={(a) => [a.name, a.email, a.companyName]}
+                          searchPlaceholder="Filter signups"
+                          empty={null}
+                          columns={[
+                            {
+                              key: "name",
+                              header: "Person",
+                              sortValue: (a) => a.name,
+                              cell: (a) => (
+                                <>
+                                  <NameTile name={a.name} kind="person" className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
+                                  {a.name}
+                                </>
+                              ),
+                            },
+                            {
+                              key: "email",
+                              header: "Email",
+                              dropBelow: 480,
+                              mobile: "meta",
+                              sortValue: (a) => a.email,
+                              cell: (a) => a.email,
+                            },
+                            {
+                              key: "company",
+                              header: "Company",
+                              dropBelow: 600,
+                              mobile: "meta",
+                              sortValue: (a) => a.companyName,
+                              cell: (a) => a.companyName ?? <span className="text-muted-foreground">—</span>,
+                            },
+                            {
+                              key: "signedUp",
+                              header: "Signed up",
+                              align: "num",
+                              firstDir: "desc",
+                              mobile: "meta",
+                              sortValue: (a) => new Date(a.createdAt).getTime(),
+                              cell: (a) => formatDate(a.createdAt),
+                            },
+                          ]}
+                        />
+                      }
+                    />
+                  </>
+                );
+              }}
+            </OpenParam>
+          )}
+          {(processedBlock || caughtUpBlock) && (
+            <div className="space-y-6 v2:px-[var(--gutter)] v2:pt-6">
+              {processedBlock}
+              {caughtUpBlock}
+            </div>
+          )}
+        </>
       ) : (
         <div className="space-y-6">
           {/* Pending */}
           {pendingApprovals.length > 0 && (
             <div className="space-y-4">
               {pendingApprovals.map((approval) => {
-                const state = actionStates[approval.id];
-
-                // Part 31, WS77 — suggestion block. STRONG/MEDIUM show by
-                // default (D2); WEAK sits behind the per-row toggle.
-                const matches = matchStates[approval.id] ?? [];
-                const weakShown = weakShownStates[approval.id] ?? false;
-                const visibleMatches = matches.filter((m) => m.tier !== "WEAK" || weakShown);
-                const selectedId = selectedIds[approval.id];
-                const selected =
-                  visibleMatches.find((m) => m.portfolioCompanyId === selectedId) ?? visibleMatches[0];
-                const addContact = addContactStates[approval.id] ?? true;
-                const linkState = linkApproveStates[approval.id];
-                // Part 45 (WS153): STRONG-ish unclaimed matches first; weaker
-                // (name-token only) stay behind "Show weaker matches" as in the
-                // portfolio block above.
-                const unclaimedAll = unclaimedStates[approval.id] ?? [];
-                const unclaimed = unclaimedAll.find((u) => !(u.reasons.length === 1 && u.reasons[0] === "NAME_TOKENS") || weakShown);
-                const joinState = joinStates[approval.id];
-                const topReasonCopy = selected ? REASON_COPY[selected.reasons[0]] ?? "matched" : null;
+                const {
+                  state,
+                  matches,
+                  weakShown,
+                  visibleMatches,
+                  selectedId,
+                  selected,
+                  addContact,
+                  linkState,
+                  unclaimedAll,
+                  unclaimed,
+                  joinState,
+                  topReasonCopy,
+                } = suggestionView(approval);
 
                 return (
                   <Card key={approval.id}>
@@ -803,7 +1223,7 @@ export default function ApprovalsPage() {
         ];
 
         return (
-          <div className="mt-8 space-y-8">
+          <div className="mt-8 space-y-8 v2:px-[var(--gutter)]">
             {activeAwaiting.length > 0 && (
               <section aria-labelledby="awaiting-heading" className="space-y-3">
                 <div>

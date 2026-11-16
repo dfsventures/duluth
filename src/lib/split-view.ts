@@ -49,6 +49,28 @@ export function nextAfterRemoval(keys: readonly string[], removed: string): stri
   return keys[i + 1] ?? keys[i - 1] ?? null;
 }
 
+interface ElementLike {
+  tagName?: string;
+  type?: string;
+  isContentEditable?: boolean;
+  closest?: (selector: string) => unknown;
+}
+
+/**
+ * Whether Esc belongs to the element that has focus instead of closing the pane: a field you type
+ * text into (it clears or blurs), and anything inside a dialog, menu or the palette (they close
+ * themselves first). A select, checkbox, radio or button does not keep it, so Esc still closes the
+ * pane after you pick a match from a list.
+ */
+export function escapeBelongsToField(el: ElementLike | null | undefined): boolean {
+  if (!el) return false;
+  const tag = (el.tagName ?? "").toUpperCase();
+  if (tag === "TEXTAREA") return true;
+  if (tag === "INPUT") return !["checkbox", "radio", "button", "submit", "reset", "range", "file"].includes((el.type ?? "text").toLowerCase());
+  if (el.isContentEditable) return true;
+  return Boolean(el.closest?.('[role="dialog"],[role="alertdialog"],[role="menu"],[cmdk-root]'));
+}
+
 /** The pane crumb: "Approvals · 1 of 3". Without a position (the record is filtered out) just the place. */
 export function crumbLabel(place: string, keys: readonly string[], current: string | null | undefined): string {
   const i = current == null ? -1 : keys.indexOf(current);

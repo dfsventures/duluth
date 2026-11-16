@@ -127,8 +127,8 @@ export function PaneSection({ title, children }: { title: string; children: Reac
 export function PaneDetails({ rows }: { rows: { label: string; value: React.ReactNode }[] }) {
   return (
     <dl className="grid grid-cols-[148px_1fr] gap-x-3 gap-y-2 max-md:grid-cols-[110px_1fr]">
-      {rows.map((r) => (
-        <div key={r.label} className="contents">
+      {rows.map((r, i) => (
+        <div key={`${i}-${r.label}`} className="contents">
           <dt className="text-muted-foreground">{r.label}</dt>
           <dd className="min-w-0 break-words text-foreground">{r.value}</dd>
         </div>

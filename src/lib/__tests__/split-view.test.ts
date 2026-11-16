@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { buildOpenQuery, crumbLabel, nextAfterRemoval, parseOpenParam, stepCursor } from "../split-view";
+import { buildOpenQuery, crumbLabel, escapeBelongsToField, nextAfterRemoval, parseOpenParam, stepCursor } from "../split-view";
+
+describe("escapeBelongsToField", () => {
+  it("keeps Esc for text fields", () => {
+    expect(escapeBelongsToField({ tagName: "INPUT", type: "text" })).toBe(true);
+    expect(escapeBelongsToField({ tagName: "INPUT" })).toBe(true);
+    expect(escapeBelongsToField({ tagName: "INPUT", type: "search" })).toBe(true);
+    expect(escapeBelongsToField({ tagName: "TEXTAREA" })).toBe(true);
+    expect(escapeBelongsToField({ tagName: "DIV", isContentEditable: true })).toBe(true);
+  });
+  it("keeps Esc for anything inside a dialog, menu or the palette", () => {
+    expect(escapeBelongsToField({ tagName: "BUTTON", closest: () => ({}) })).toBe(true);
+  });
+  it("lets Esc close the pane from a select, checkbox, radio or button", () => {
+    expect(escapeBelongsToField({ tagName: "SELECT", closest: () => null })).toBe(false);
+    expect(escapeBelongsToField({ tagName: "INPUT", type: "checkbox", closest: () => null })).toBe(false);
+    expect(escapeBelongsToField({ tagName: "INPUT", type: "radio", closest: () => null })).toBe(false);
+    expect(escapeBelongsToField({ tagName: "BUTTON", closest: () => null })).toBe(false);
+    expect(escapeBelongsToField(null)).toBe(false);
+  });
+});
 
 describe("parseOpenParam", () => {
   it("returns the id, trimmed", () => {

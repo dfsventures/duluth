@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { RefreshIndicator, StaleRegion } from "@/components/ui/stale";
@@ -8,7 +8,8 @@ import { useRouter } from "next/navigation";
 import { Building2, Plus, Upload, Bell } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { SplitView, useOpenParam } from "@/components/layout/split-view";
+import { OpenParam, SplitView } from "@/components/layout/split-view";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
 import { companyNextAction } from "@/lib/company-pane";
 import { crumbLabel, stepCursor } from "@/lib/split-view";
@@ -185,26 +186,11 @@ function CompanyPane({
 }
 
 export default function AdminCompaniesPage() {
-  // useOpenParam reads ?open=, which needs a Suspense boundary under static prerendering.
-  return (
-    <Suspense fallback={null}>
-      <AdminCompaniesPageInner />
-    </Suspense>
-  );
-}
-
-function AdminCompaniesPageInner() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  // New look (WS160): the open company, kept in the address, and the list as shown (for prev / next).
-  const [openId, setOpenId] = useOpenParam();
+  // New look (WS160): the list as shown, for the pane's previous / next and its position.
   const [visibleRows, setVisibleRows] = useState<Row[]>([]);
   const visibleKeys = useMemo(() => visibleRows.map((r) => r.id), [visibleRows]);
-  const closePane = useCallback(() => setOpenId(null), [setOpenId]);
-  const step = (delta: 1 | -1) => {
-    const to = stepCursor(visibleKeys, openId, delta);
-    if (to) setOpenId(to);
-  };
 
   // SWR: the list stays on screen (dimmed) while it refetches, and an import or
   // a revisit refreshes it without a blank flash.
@@ -374,21 +360,6 @@ function AdminCompaniesPageInner() {
 
   const importBlockedNames = preview ? preview.rows.filter((r) => existingNames.has(r.name.trim().toLowerCase())).length : 0;
 
-  // The pane shows the open company from the same rows the list uses (no extra request).
-  const openCompany = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
-  const pane = openCompany ? (
-    <CompanyPane
-      row={openCompany}
-      crumb={crumbLabel("Companies", visibleKeys, openCompany.id)}
-      onPrev={visibleKeys.indexOf(openCompany.id) > 0 ? () => step(-1) : undefined}
-      onNext={visibleKeys.indexOf(openCompany.id) < visibleKeys.length - 1 ? () => step(1) : undefined}
-      onClose={closePane}
-      reminding={Boolean(reminding[openCompany.id])}
-      onRemind={() => void sendReminder(openCompany)}
-      onOpenCompany={() => router.push(`/admin/companies/${openCompany.id}`)}
-    />
-  ) : null;
-
   return (
     <AppShell width="full">
       <PageHeader
@@ -430,6 +401,29 @@ function AdminCompaniesPageInner() {
         </ComposerDisclosure>
       </div>
 
+      <OpenParam fallback={<TableSkeleton rows={6} cols={5} />}>
+      {(openId, setOpenId) => {
+      // New look (WS160): the pane shows the open company from the rows the list already has (no extra request).
+      const closePane = () => setOpenId(null);
+      const step = (delta: 1 | -1) => {
+        const to = stepCursor(visibleKeys, openId, delta);
+        if (to) setOpenId(to);
+      };
+      const openCompany = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
+      const at = openCompany ? visibleKeys.indexOf(openCompany.id) : -1;
+      const pane = openCompany ? (
+        <CompanyPane
+          row={openCompany}
+          crumb={crumbLabel("Companies", visibleKeys, openCompany.id)}
+          onPrev={at > 0 ? () => step(-1) : undefined}
+          onNext={at !== -1 && at < visibleKeys.length - 1 ? () => step(1) : undefined}
+          onClose={closePane}
+          reminding={Boolean(reminding[openCompany.id])}
+          onRemind={() => void sendReminder(openCompany)}
+          onOpenCompany={() => router.push(`/admin/companies/${openCompany.id}`)}
+        />
+      ) : null;
+      return (
       <SplitView
         open={openId}
         onClose={closePane}
@@ -494,6 +488,9 @@ function AdminCompaniesPageInner() {
       </StaleRegion>
         }
       />
+      );
+      }}
+      </OpenParam>
 
       <Dialog open={preview !== null} onOpenChange={(o) => !o && !importing && closePreview()}>
         {preview && (
