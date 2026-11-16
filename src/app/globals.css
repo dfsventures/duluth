@@ -216,7 +216,7 @@ html[data-look="v2"] body[data-surface="admin"] {
   --bar-h: 52px;        /* header bar, logo row, pane crumb */
   --filter-h: 44px;
   --group-h: 36px;
-  --row-h: 44px;
+  --list-row-h: 44px;   /* not --row-h: use-row-collapse.ts sets that inline for the exit animation */
   --gutter: 24px;       /* 20px under md, set below */
   --column: 1104px;
   --pane-gutter: 32px;

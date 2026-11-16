@@ -112,7 +112,7 @@ const config: Config = {
         cta: ["10px", { lineHeight: "14px" }],
         caption: ["12px", { lineHeight: "16px" }],
         // New look type roles (PLAN-1, WS156).
-        row: ["14px",{ lineHeight: "20px" }],
+        row: ["14px", { lineHeight: "20px" }],
         meta: ["12px", { lineHeight: "18px" }],
         "pane-title": ["20px", { lineHeight: "28px", letterSpacing: "-0.012em", fontWeight: "600" }],
       },
