@@ -78,9 +78,11 @@ export interface MetricInput {
   date: string; // YYYY-MM-DD
   quote: string | null;
   replaceValueId: string | null;
+  /** update_create only ("email" when absent); always null for metric_value_set, which ignores the key. */
+  origin: "email" | "attachment" | null;
 }
 
-export function validateMetric(raw: unknown, opts: { quoteRequired: boolean }): Valid<MetricInput> {
+export function validateMetric(raw: unknown, opts: { quoteRequired: boolean; allowOrigin?: boolean }): Valid<MetricInput> {
   if (!isObj(raw)) return bad(S.badValue);
   const hasId = typeof raw.definitionId === "string" && raw.definitionId.length > 0;
   const hasName = raw.name !== undefined && raw.name !== null && raw.name !== "";
@@ -113,6 +115,12 @@ export function validateMetric(raw: unknown, opts: { quoteRequired: boolean }): 
     if (typeof raw.replaceValueId !== "string" || raw.replaceValueId.length > 100) return bad(S.replaceUnknown);
     replaceValueId = raw.replaceValueId;
   }
+  let origin: MetricInput["origin"] = null;
+  if (opts.allowOrigin) {
+    if (raw.origin === undefined || raw.origin === null) origin = "email";
+    else if (raw.origin === "email" || raw.origin === "attachment") origin = raw.origin;
+    else return bad(S.badOrigin);
+  }
   return ok({
     definitionId: hasId ? (raw.definitionId as string) : null,
     name,
@@ -121,6 +129,7 @@ export function validateMetric(raw: unknown, opts: { quoteRequired: boolean }): 
     date: raw.date as string,
     quote,
     replaceValueId,
+    origin,
   });
 }
 
@@ -238,7 +247,7 @@ export function validateFileUpdate(raw: unknown): Valid<FileUpdateInput> {
   if (metricsRaw.length > L.metricsMax) return bad(S.tooManyMetrics);
   const metrics: MetricInput[] = [];
   for (const m of metricsRaw) {
-    const v = validateMetric(m, { quoteRequired: true });
+    const v = validateMetric(m, { quoteRequired: true, allowOrigin: true });
     if (!v.ok) return v;
     metrics.push(v.value);
   }

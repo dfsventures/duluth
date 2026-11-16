@@ -578,13 +578,13 @@ export async function fileEmailUpdate(actor: Actor, input: FileUpdateInput, via?
         if (d.replaceValueId) {
           await tx.metricValue.update({
             where: { id: d.replaceValueId },
-            data: { value: m.value, date: new Date(`${m.date}T00:00:00.000Z`), quote: m.quote, enteredById: actor.id, updateId: update.id },
+            data: { value: m.value, date: new Date(`${m.date}T00:00:00.000Z`), quote: m.quote, enteredById: actor.id, updateId: update.id, origin: m.origin },
           });
           replaced.push({ valueId: d.replaceValueId, old: d.replacedOld! });
           valueIds.push(d.replaceValueId);
         } else {
           const v = await tx.metricValue.create({
-            data: { metricDefinitionId: definitionId, value: m.value, date: new Date(`${m.date}T00:00:00.000Z`), updateId: update.id, via: "marge", quote: m.quote, enteredById: actor.id },
+            data: { metricDefinitionId: definitionId, value: m.value, date: new Date(`${m.date}T00:00:00.000Z`), updateId: update.id, via: "marge", quote: m.quote, enteredById: actor.id, origin: m.origin },
             select: { id: true },
           });
           valueIds.push(v.id);

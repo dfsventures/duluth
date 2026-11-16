@@ -153,6 +153,12 @@ const metric = z.object({
   replaceValueId: z.string().max(100).optional(),
 });
 
+// update_create only: where the figure was read. Absent = "email". metric_value_set does not take it.
+export const METRIC_ORIGINS = ["email", "attachment"] as const;
+const updateMetric = metric.extend({
+  origin: z.enum(METRIC_ORIGINS).optional().describe('"email" (default) or "attachment": the figure was read from a file attached to the email'),
+});
+
 export const updateCreateInput = z.object({
   companyId: z.string().max(100).optional(),
   newCompany: newCompany.optional(),
@@ -161,7 +167,7 @@ export const updateCreateInput = z.object({
   bodyText: z.string().max(60_000).describe("plain text, 1-40,000 characters"),
   sentAt: date.describe("the day the email arrived, YYYY-MM-DD"),
   source,
-  metrics: z.array(metric).max(50).optional().describe("at most 20"),
+  metrics: z.array(updateMetric).max(50).optional().describe("at most 20"),
   idempotencyKey: z.string().max(200).describe("8-100 letters, digits, - or _"),
   dryRun: z.boolean().default(true),
 });
@@ -205,6 +211,7 @@ export const PORTCO_SENTENCES = {
   badUnit: "A unit must be up to 40 characters.",
   badValue: "A figure must be a number below 1,000,000,000,000,000.",
   badQuote: "A quote must be 1 to 300 characters.",
+  badOrigin: "A figure's origin must be email or attachment.",
   unknownMetric: "No metric with that id.",
   // reads
   badLimit: (max: number) => `limit must be a whole number from 1 to ${max}.`,

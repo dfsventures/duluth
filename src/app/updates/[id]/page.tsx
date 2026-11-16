@@ -25,6 +25,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { sanitizeUpdateHtml } from "@/lib/update-html";
+import { metricChipLabel } from "@/lib/metric-origin";
 
 interface MetricDefinition {
   id: string;
@@ -52,6 +53,7 @@ interface UpdateDetail {
     value: number;
     date: string;
     via?: string | null;
+    origin?: string | null;
     quote?: string | null;
     metricDefinition: {
       id: string;
@@ -684,12 +686,12 @@ export default function UpdateDetailPage() {
                       <tr key={mv.id} className="border-b last:border-0">
                         <td className="py-2 font-medium">
                           {mv.metricDefinition.name}
-                          {isAdminUser && mv.via === "marge" && (
+                          {isAdminUser && metricChipLabel(mv) && (
                             <span
                               className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground"
                               title={mv.quote ?? undefined}
                             >
-                              from email
+                              {metricChipLabel(mv)}
                             </span>
                           )}
                         </td>

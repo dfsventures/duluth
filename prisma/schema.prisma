@@ -254,6 +254,7 @@ model MetricValue {
   via         String? // "marge" | null
   quote       String? @db.VarChar(300) // the founder's words the figure came from
   enteredById String? // admin who confirmed (Marge) or entered it (web); null for founder entries and legacy rows
+  origin      String? // where Marge read the figure: "email" | "attachment" | null (legacy rows, metric_value_set, web entries)
 
   metricDefinition MetricDefinition @relation(fields: [metricDefinitionId], references: [id], onDelete: Cascade)
   update           Update?          @relation(fields: [updateId], references: [id], onDelete: SetNull)

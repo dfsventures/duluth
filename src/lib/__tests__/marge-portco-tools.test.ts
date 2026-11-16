@@ -224,6 +224,30 @@ describe("gate: tiers, read-only mode, confirmation", () => {
     expect(argsHash(args)).toBe("5ae126e0624d67ed325d0f69356dca68ebeb355f4fbff7d94c8c3a895ffc4091");
     expect(argsHash({ ...args, dryRun: true })).toBe(argsHash(args));
   });
+  it("update_create with a metric origin of attachment: shared argsHash vector", () => {
+    const args = {
+      companyId: "co_0001",
+      period: "2025-Q3",
+      title: "Q3 update",
+      bodyText: "See the attached deck.",
+      sentAt: "2025-10-03",
+      source: {
+        kind: "slack_email",
+        channelId: "C0EXAMPLE1",
+        messageTs: "1760000000.000100",
+        permalink: "https://example.slack.com/archives/C0EXAMPLE1/p1760000000000100",
+        subject: "Q3 update",
+        fromName: "Ada Example",
+        fromDomain: "example.com",
+        forwardedBy: "Sam",
+      },
+      metrics: [{ name: "MRR", unit: "USD", value: 1250.5, date: "2025-09-30", quote: "MRR was 1,250.50", origin: "attachment" }],
+      idempotencyKey: "upd_0002_example",
+      dryRun: false,
+    };
+    expect(argsHash(args)).toBe("edf4e5449ade236bff3d15a4c6578a7ce9439c4514085df6e4989fe09f53dbb6");
+    expect(argsHash({ ...args, dryRun: true })).toBe(argsHash(args));
+  });
   it("company_create: shared argsHash vector", () => {
     const args = { name: "Example Works", ledgerId: "led_0001", website: "https://example.com", idempotencyKey: "newco_0001_example", dryRun: false };
     expect(argsHash(args)).toBe("93a795793921bf8ac3f095e9d9cbe3478d5a9a2c654a4d4b242d392f56339a71");
@@ -474,6 +498,26 @@ describe("update_create through the route", () => {
     expect(d.samePeriod![0].url).toBe(`https://molly.dfs.vc/updates/${id}`);
     expect(state.update).toHaveLength(1);
   });
+  it("stores each figure's origin; absent means email", async () => {
+    const args = updateArgs({
+      metrics: [
+        { name: "MRR", unit: "USD", value: 5, date: "2025-09-30", quote: "q", origin: "attachment" },
+        { name: "GMV", unit: "USD", value: 6, date: "2025-09-30", quote: "q", origin: "email" },
+        { name: "Users", value: 7, date: "2025-09-30", quote: "q" },
+      ],
+    });
+    const r = await result(await applyCall("update_create", args));
+    expect(r.isError).toBeFalsy();
+    const byValue = (n: number) => state.metricValue.find((v) => Number(v.value) === n)!;
+    expect(byValue(5)).toMatchObject({ via: "marge", origin: "attachment" });
+    expect(byValue(6)).toMatchObject({ via: "marge", origin: "email" });
+    expect(byValue(7)).toMatchObject({ via: "marge", origin: "email" });
+  });
+  it("refuses an origin that is neither email nor attachment", async () => {
+    const r = await result(await post(callBody("update_create", updateArgs({ metrics: [{ name: "MRR", value: 5, date: "2025-09-30", quote: "q", origin: "phone" }] }))));
+    expect(r.isError).toBe(true);
+    expect(writeCalls()).toEqual([]);
+  });
   it("a fresh dry run has no existingUpdate", async () => {
     const dry = await result(await post(callBody("update_create", updateArgs())));
     const d = dry.structuredContent as unknown as C.PortcoDryRunStructured;
@@ -513,6 +557,19 @@ describe("metric_value_set through the route", () => {
 
     const refuse = await result(await applyCall("metric_value_set", set({ name: undefined, definitionId: out.definitionId, replaceValueId: "vf" })));
     expect(refuse.content[0].text).toBe(C.PORTCO_SENTENCES.keptFigure);
+  });
+  it("does not take an origin: the key is dropped, a confirmation for it is refused, and a stored figure has none", async () => {
+    const base = { companyId: "co1", name: "MRR", unit: "USD", value: 10, date: "2025-09-30", quote: "q" };
+    // Marge confirmed args that include origin; the server drops the key, so the hashes differ and nothing is written.
+    const refused = await result(await applyCall("metric_value_set", { ...base, origin: "attachment" }));
+    expect(refused.content[0].text).toBe("That change wasn't confirmed, so nothing was changed.");
+    expect(state.metricValue).toHaveLength(0);
+    // A confirmation of the args without the key is the only one that writes, and it stores no origin.
+    const ok = await result(await applyCall("metric_value_set", { ...base, origin: "attachment" }, { hashOf: base }));
+    expect(ok.isError).toBeFalsy();
+    expect(state.metricValue[0].origin ?? null).toBeNull();
+    expect(Object.keys(C.metricValueSetInput.shape)).not.toContain("origin");
+    expect(Object.keys(C.updateCreateInput.shape.metrics.unwrap().element.shape)).toContain("origin");
   });
 });
 
