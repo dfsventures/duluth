@@ -16,7 +16,7 @@ Try this: press `j`/`k` to move the cursor, `Enter` to open the pane, `j`/`k` ag
 |---|---|---|
 | 1 | Admin **Needs you** | Sidebar with counts (only "needs you" counts are bold), a 44px header, a filter-chip bar, sticky collapsible groups of one-line rows (Waiting on you, On the board, Alerts, Behind on updates), and the Portfolio KPIs below the inbox. The pane is open on an approval: crumb with 1 of 3 and previous/next/expand/close, title, property chips, one action card with one primary button, then why, details and history. Rows are the same items `buildAttention` produces today (queue rows, not one row per signup), so no new API is needed. |
 | 2 | **Companies** with the pane open on Acme Ltd | The same shell. A set chip (Owner), an unset dashed chip, "Clear all". Rows have a company square, name, stage, owner disc, cadence, last update. Columns drop out as the list narrows (container query, not viewport). The pane shows a "75 days behind" action card with Send a reminder as the one primary, then latest figures and recent updates. |
-| 3 | **Team Board** with one waiting card and its pane | Tiles are a title and one marker. Only "Waiting on you" is loud: a red left edge on the tile and a red count on its column header. A hover "⋯" on tiles. The pane uses the same anatomy as the others. |
+| 3 | **Team Board** with one waiting card and its pane | Tiles are a title and one marker line. Only "Waiting on you" is loud: a red dog-ear in the tile's top-right corner and a red count on its column header (the tile also keeps its glyph-and-word line). The keyboard cursor is the wordmark's underscore, in Sky, on the tile's lower edge. No left-edge bars anywhere. A strip toggle swaps in the second candidate (a caret and a red wash); see section 6, item 6. A hover "⋯" on tiles. The pane uses the same anatomy as the others. |
 | 4 | **Founder dashboard on a phone** | Stage 2 preview. The one next step is the hero, with a full-width 44px button. Latest figures, From DFS and Recent updates are two-line rows of 56px. The menu opens a drawer holding the company switcher. No bottom tab bar (still deferred). |
 
 On a phone the admin screens turn rows into two lines (56px), the pane into a full screen with a back chevron, the board into horizontally scrolling 264px columns, and the sidebar into a drawer over a scrim.
@@ -25,7 +25,7 @@ On a phone the admin screens turn rows into two lines (56px), the pane into a fu
 
 **Take Lou's structure, not its decoration.** One shell (sidebar, list, pane), dense 38px rows, a keyboard that runs everything, depth from tone rather than shadow, one typeface at 13px. These are the fourteen patterns in PLAN-1 section 1. The design here is those patterns drawn with Molly's own tokens.
 
-**Keep Sky as the one accent.** Molly's accent is the Sky family as already darkened for text (`#44688E`, 5.8:1 on white). It marks the primary button, the cursor bar on the row's left edge, focus, selected filter chips and links, and nothing else. In dark it lightens to `#7BA9DD` (7.3:1 on the page), and the primary button inverts to dark ink on the light blue (7.5:1). Everything else is grey, so the accent reads as the one thing to do.
+**Keep Sky as the one accent.** Molly's accent is the Sky family as already darkened for text (`#44688E`, 5.8:1 on white). It marks the primary button, the cursor marker (the wordmark's underscore, section 6 item 6), focus, selected filter chips and links, and nothing else. In dark it lightens to `#7BA9DD` (7.3:1 on the page), and the primary button inverts to dark ink on the light blue (7.5:1). Everything else is grey, so the accent reads as the one thing to do.
 
 **Greys: cool neutrals, not Paper.** Today's greys are warm (Paper `#EBE8DE`, Bone). The new tiers are neutral with a whisper of blue (hue about 215, saturation under 8%), so Sky sits on them without clashing. Paper is retired as a surface in the admin look. Four tiers: page, sidebar, pane, raised (plus a pressed tier for segmented controls). Hairlines are translucent, so they work on every tier.
 
@@ -166,7 +166,35 @@ The brand is "DFS", never "DFS Lab".
 3. **"Stuck" red is truer than Laterite** (section 3.3).
 4. **Light neutrals are cool, not Paper.** If you would rather keep a hint of warmth under the Sky, tell me; the tiers would shift a few points toward yellow and every ratio would need re-running.
 5. **Dark primary button inverts** (dark ink on light blue). The alternative, white on `#44688E`, is 5.8:1 but looks heavy on a dark page.
-6. Founder screens appear as a stage-2 preview only. Admin tokens are scoped to `[data-surface="admin"]` in stage 1; the founder phone screen shows what stage 2 would become, so approving it does not approve building it.
+6. **Board and list markers (changed after review, 2026-11-16).** Joseph approved the mockup but found the coloured left-edge bars on tiles "too generic". They are gone, from tiles and from list rows. The strip has a "Markers" toggle on screens 1 to 3; the default is A. Nothing in the app now uses a left-edge bar.
+
+   | | **A · Underscore and dog-ear (recommended)** | **B · Caret and red wash** |
+   |---|---|---|
+   | Cursor (tile) | An 18 × 4px Sky block, the same shape and 3.7:1 proportion as the wordmark's underscore, left-aligned to the tile text and hanging 2px below the tile's lower edge. The tile steps one tone up (raised to pressed). | A 6 × 10px Sky pointer in the gutter, 4px left of the tile, level with the first line. The same tone step. |
+   | Cursor (row) | The same block, 18 × 3px, left-aligned to the row content and sitting on the row's divider. The row keeps its `sel` tint. | The same pointer, 5px from the row's left edge, 14px down. The same `sel` tint. |
+   | Waiting on you | A solid red 14px dog-ear in the tile's top-right corner, clipped to the tile's 8px radius. Nothing else on the tile changes. | A 7% (light) or 10% (dark) red wash over the whole tile plus a 1px red inner outline. |
+   | Colour-alone check | The dog-ear is a shape no other tile has, and the glyph-and-word line still says "Waiting on you". | An outlined, tinted tile is a different shape from a plain one, and the same glyph-and-word line stays. The wash alone would not count; the line and the outline do. |
+
+   **Why A.** The underscore is the one mark in the brand that only Molly has, and it already means "here" in the wordmark, so a cursor that is that same block is a mark with a reason to exist, not a stripe. It also matches how the keyboard feels: it reads like a text caret that rests under the item you are on. The dog-ear is quiet (a 14px corner, not an outline around everything), so on a board with several waiting cards the tiles do not turn into a red field, and "Waiting on you" stays the only loud thing. B is more legible at a glance on the cursor (a pointer in a gutter is the oldest cursor there is) but that is also why it is generic, and B's outlined, tinted tile is louder than the rest of the system's restraint allows.
+
+   **One cursor language.** Rows and tiles use the same mark in both options, at the same scale relationship, so the cursor is one thing to learn. Rows keep no different treatment. The one risk to watch in A: 18px of Sky is smaller than a full-height bar, so a person holding down `j` might lose it. The tone step is there to carry that; if testing shows it is not enough, add a 1px Sky ring on the cursor item (one line of CSS, still no left bar).
+
+   **Contrast (3:1 required for the marker, 4.5:1 for the word line).** Computed by hand from the same token values; the page's live table recomputes them, with new columns `sel`, `wash` (a resting tile under B's wash) and `washcur` (the cursor tile under it). Light / dark:
+
+   | Marker on | Light | Dark |
+   |---|---|---|
+   | Sky underscore or caret on the column (page) | 5.8 | 7.3 |
+   | on a resting tile (raised) | 5.2 | 6.4 |
+   | on the cursor tile (pressed) | 4.8 | 5.6 |
+   | on the cursor row (`sel` over page) | 5.1 | 6.1 |
+   | Red dog-ear on the column / on the tile (raised) | 6.6 / 5.8 | 7.3 / 6.3 |
+   | Red outline (B) on the column / on the tile | same as the line above | same |
+   | "Waiting on you" text on B's wash, resting / cursor | 5.3 / 4.8 | 5.4 / 4.7 |
+
+   Every pair clears 3:1 for the marker and 4.5:1 for the word line. The tile itself against the column is 1.1:1 in both themes; that was already so (the system uses tone, not borders, for tiles), and it is a decision I am leaving as approved.
+
+   Handoff: `.row.cur` and `.tile.cur` use a `::before` block (A) in the mockup. In production, add `--color-wash` (B only) and nothing else; no new colours for A.
+7. Founder screens appear as a stage-2 preview only. Admin tokens are scoped to `[data-surface="admin"]` in stage 1; the founder phone screen shows what stage 2 would become, so approving it does not approve building it.
 
 ## 7. Handoff notes for Alvin
 

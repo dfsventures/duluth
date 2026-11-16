@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="light" data-mark="a">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,7 +23,7 @@
   --t1:#15181D; --t2:#474D57; --t3:#5A616C;
   --accent:#44688E; --accent-h:#3A5876; --on-accent:#FFFFFF; --accent-soft:rgba(68,104,142,.10);
   --done:#1B7448; --done-soft:rgba(27,116,72,.10);
-  --stuck:#B3362A; --stuck-soft:rgba(179,54,42,.08);
+  --stuck:#B3362A; --stuck-soft:rgba(179,54,42,.08); --wash:rgba(179,54,42,.07);
   --warn:#8A5A0B; --warn-soft:rgba(138,90,11,.10);
   --tone-stone-fill:#E7E4DA; --tone-stone-ink:#46443C; --tone-sky-fill:#DCE7F3; --tone-sky-ink:#2C4459;
   --tone-sage-fill:#E3E8D0; --tone-sage-ink:#4A5524; --tone-clay-fill:#F4E0D6; --tone-clay-ink:#8F4A30;
@@ -38,7 +38,7 @@
   --t1:#E9ECF0; --t2:#A7AEB9; --t3:#9AA1AC;
   --accent:#7BA9DD; --accent-h:#93BAE6; --on-accent:#0C1522; --accent-soft:rgba(123,169,221,.16);
   --done:#5BC48E; --done-soft:rgba(91,196,142,.16);
-  --stuck:#F2877C; --stuck-soft:rgba(242,135,124,.14);
+  --stuck:#F2877C; --stuck-soft:rgba(242,135,124,.14); --wash:rgba(242,135,124,.10);
   --warn:#E0A640; --warn-soft:rgba(224,166,64,.14);
   --tone-stone-fill:#2A2D33; --tone-stone-ink:#C9CDD4; --tone-sky-fill:#1F3249; --tone-sky-ink:#B9D3F0;
   --tone-sage-fill:#27301D; --tone-sage-ink:#C5D69A; --tone-clay-fill:#3D2620; --tone-clay-ink:#F0B5A0;
@@ -133,7 +133,14 @@ kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2)
 .row{position:relative;display:flex;align-items:center;gap:10px;min-height:38px;padding:0 16px;border-bottom:1px solid var(--line);cursor:default;transition:background 80ms,opacity 120ms}
 .row:hover{background:var(--hover)}
 .row.cur{background:var(--sel)}
-.row.cur::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
+/* One cursor language for rows and tiles, two candidates (strip toggle sets :root[data-mark]).
+   A "Underscore": the wordmark's underscore block sits on the cursor item's bottom-left, on the tile's lower edge or the row's divider.
+   B "Caret": a small accent pointer in the gutter to the left of the item. Both also step the tile one tone up. No left-edge bars. */
+.row.cur::before,.tile.cur::before{content:"";position:absolute;pointer-events:none;z-index:1}
+:root[data-mark="a"] .row.cur::before{left:16px;bottom:-1px;width:18px;height:3px;background:var(--accent)}
+:root[data-mark="a"] .tile.cur::before{left:12px;bottom:-2px;width:18px;height:4px;background:var(--accent)}
+:root[data-mark="b"] .row.cur::before{left:5px;top:14px;border:5px solid transparent;border-left:6px solid var(--accent);border-right:0}
+:root[data-mark="b"] .tile.cur::before{left:-10px;top:15px;border:5px solid transparent;border-left:6px solid var(--accent);border-right:0}
 .row.open{background:var(--open)}
 .row .ti{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .ti i{font-style:normal;color:var(--t3);margin-left:8px}
@@ -217,12 +224,14 @@ kbd{font:500 11px/16px var(--mono);color:var(--t3);border:1px solid var(--line2)
 .col .ch{position:sticky;top:0;display:flex;align-items:center;gap:8px;height:28px;font:500 12px/18px var(--f);color:var(--t2);background:var(--bg);z-index:1}
 .col .ch .ct{color:var(--t3);font-weight:400}
 .col .ch .wait{margin-left:auto;display:inline-flex;gap:4px;align-items:center;color:var(--stuck);font-weight:600}
-.tile{position:relative;display:block;width:100%;background:var(--raise);border-radius:8px;padding:10px 12px;margin-bottom:8px;transition:background 80ms}
-.tile:hover{background:var(--raise2)}
-.tile.cur{box-shadow:inset 3px 0 0 var(--accent)}
-.tile.open{background:var(--raise2);box-shadow:0 0 0 1px var(--ctl)}
-.tile.waiting{box-shadow:inset 2px 0 0 var(--stuck)}
-.tile.waiting.cur{box-shadow:inset 3px 0 0 var(--accent)}
+.tile{--tb:var(--raise);position:relative;display:block;width:100%;background-color:var(--tb);border-radius:8px;padding:10px 12px;margin-bottom:8px;transition:background-color 80ms}
+.tile:hover,.tile.cur{--tb:var(--raise2)}
+.tile.open{--tb:var(--raise2);box-shadow:0 0 0 1px var(--ctl)}
+/* Waiting on you. A: a red dog-ear in the top-right corner (a shape no other tile has), nothing else.
+   B: a soft red wash over the whole tile plus a 1px red outline. The "Waiting on you" glyph and word line stays in both. */
+:root[data-mark="a"] .tile.waiting::after{content:"";position:absolute;top:0;right:0;width:14px;height:14px;border-top-right-radius:8px;background:linear-gradient(225deg,var(--stuck) 50%,transparent 50%);pointer-events:none}
+:root[data-mark="b"] .tile.waiting{background-image:linear-gradient(var(--wash),var(--wash));box-shadow:inset 0 0 0 1px var(--stuck)}
+:root[data-mark="b"] .tile.waiting.open{box-shadow:inset 0 0 0 1px var(--stuck),0 0 0 1px var(--ctl)}
 .tile .top{display:flex;align-items:center;margin-bottom:6px;color:var(--t3);font-size:12px}
 .tile .top .sp{flex:1}
 .tile .more{opacity:0;width:20px;height:20px;border-radius:4px;display:grid;place-items:center;color:var(--t2);margin-left:6px}
@@ -343,7 +352,7 @@ const WM = `<svg viewBox="0 0 392.82 125.54" role="img" aria-label="Molly"><path
 const NL = t => `<span data-nl>${t}</span>`;
 
 /* ── State ────────────────────────────────────────────────────────────────── */
-const S = { screen:1, theme:"light", device:"desktop", hl:false, drawer:false, pal:false, palQ:"", palI:0,
+const S = { screen:1, theme:"light", mark:"a", device:"desktop", hl:false, drawer:false, pal:false, palQ:"", palI:0,
   open:null, fresh:false, cur:null, su:0, collapsed:{}, empty:false, gone:new Set(), toast:null, approved:[] };
 let toastTimer;
 
@@ -566,7 +575,7 @@ function toast(msg, undo){ S.toast={msg,undo}; clearTimeout(toastTimer); toastTi
 function render(){
   const root = document.getElementById("root");
   const keep = root.querySelector(".scroll")?.scrollTop || 0;
-  document.documentElement.dataset.theme = S.theme;
+  document.documentElement.dataset.theme = S.theme; document.documentElement.dataset.mark = S.mark;
   document.body.classList.toggle("hl", S.hl);
   const ph = phone();
   let main;
@@ -585,6 +594,7 @@ function strip(){
     ${sb("screen",[[1,"1 · Needs you",S.screen===1],[2,"2 · Companies",S.screen===2],[3,"3 · Team Board",S.screen===3],[4,"4 · Founder",S.screen===4]])}
     ${sb("theme",[["light","Light",S.theme==="light"],["dark","Dark",S.theme==="dark"]])}
     ${S.screen===4?`<span class="hint">Founder screens are designed phone first</span>`:sb("device",[["desktop","Desktop",S.device==="desktop"],["phone","Phone",S.device==="phone"]])}
+    ${S.screen<4?sb("mark",[["a","Markers A · Underscore, dog-ear",S.mark==="a"],["b","B · Caret, red wash",S.mark==="b"]]):""}
     <button class="tog" data-s="hl" aria-pressed="${S.hl}">Show new labels</button>
     ${S.screen===1?`<button class="tog" data-s="empty" aria-pressed="${S.empty}">Empty state</button>`:""}
     <span class="hint">Click a row · j k Enter Esc · ⌘K · A approves, D dismisses</span>`;
@@ -597,7 +607,7 @@ function flat(){
   if (S.screen===3) return CARDS.slice().sort((a,b)=>a.col-b.col).map(c=>c.id);
   return [];
 }
-function go(n){ S.screen=n; S.open=null; S.cur=null; S.pal=false; S.drawer=false; S.collapsed={}; render(); }
+function go(n){ S.screen=n; S.open=null; S.cur=n===3?"c5":null; /* board starts with the cursor on a tile beside the waiting one, so both markers show */ S.pal=false; S.drawer=false; S.collapsed={}; render(); }
 function openRow(id){ const was=S.open; S.open=id; S.cur=id; S.fresh=!was; if(id==="q-approvals") S.su=0; render(); }
 function step(dir){
   const ids = flat(); if(!ids.length) return;
@@ -627,6 +637,7 @@ document.addEventListener("click", e=>{
   const t = e.target.closest("[data-s],[data-act],[data-row],[data-group],[data-nav],[data-pal],[data-toast]"); if(!t) return;
   if (t.dataset.s){ const [k,v]=t.dataset.s.split(":");
     if(k==="screen") { go(+v); } else if(k==="theme") { S.theme=v; render(); }
+    else if(k==="mark") { S.mark=v; render(); }
     else if(k==="device") { S.device=v; S.open=null; S.drawer=false; render(); }
     else if(k==="hl") { S.hl=!S.hl; render(); } else if(k==="empty") { S.empty=!S.empty; render(); } return; }
   if (t.dataset.nav){ if(+t.dataset.nav) go(+t.dataset.nav); else toast("Not in this mockup"); return; }
@@ -678,14 +689,14 @@ document.addEventListener("keydown", e=>{
   const rat=(a,b)=>{const x=Lm(a),y=Lm(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05)};
   const mix=(f,a,b)=>f.map((c,i)=>Math.round(c*a+b[i]*(1-a)));
   const TH={
-    Light:{bg:"#FFFFFF",side:"#F4F5F7",pane:"#FAFBFC",raise:"#F0F2F4",press:"#E6E9ED",ov:[18,24,38],ova:.085,
+    Light:{bg:"#FFFFFF",side:"#F4F5F7",pane:"#FAFBFC",raise:"#F0F2F4",press:"#E6E9ED",ov:[18,24,38],ova:.085,sela:.06,washa:.07,
       t1:"#15181D",t2:"#474D57",t3:"#5A616C",acc:"#44688E",onacc:"#FFFFFF",done:"#1B7448",stuck:"#B3362A",warn:"#8A5A0B",ctl:"#858C97"},
-    Dark:{bg:"#14171B",side:"#0E1013",pane:"#191C21",raise:"#20242A",press:"#292E36",ov:[255,255,255],ova:.10,
+    Dark:{bg:"#14171B",side:"#0E1013",pane:"#191C21",raise:"#20242A",press:"#292E36",ov:[255,255,255],ova:.10,sela:.07,washa:.10,
       t1:"#E9ECF0",t2:"#A7AEB9",t3:"#9AA1AC",acc:"#7BA9DD",onacc:"#0C1522",done:"#5BC48E",stuck:"#F2877C",warn:"#E0A640",ctl:"#6E7681"}};
-  const surf=["bg","side","pane","raise","press","open"];
-  let h=`<h2 style="margin-top:20px">Contrast, computed live from the token values</h2><p>Text pairs need 4.5:1, glyph and control-border pairs 3:1. “open” is the open-row overlay composed over the page.</p>`;
+  const surf=["bg","side","pane","raise","press","open","sel","wash","washcur"];
+  let h=`<h2 style="margin-top:20px">Contrast, computed live from the token values</h2><p>Text pairs need 4.5:1, glyph and control-border pairs 3:1. “open” is the open-row overlay composed over the page; “sel” is the cursor-row overlay over the page; “wash” is marker B’s red wash over a resting tile (raise) and “washcur” over the cursor tile (press). Marker glyphs (the accent underscore or caret, the red dog-ear or outline) are the Accent and Stuck rows against bg (the column), raise and press (the tile at rest and at cursor), sel (the row), and wash, so all need 3:1; they are held to 4.5 here.</p>`;
   for(const [name,t] of Object.entries(TH)){
-    const S2=Object.fromEntries(surf.map(s=>[s,s==="open"?mix(t.ov,t.ova,hx(t.bg)):hx(t[s])]));
+    const S2=Object.fromEntries(surf.map(s=>[s,s==="open"?mix(t.ov,t.ova,hx(t.bg)):s==="sel"?mix(t.ov,t.sela,hx(t.bg)):s==="wash"?mix(hx(t.stuck),t.washa,hx(t.raise)):s==="washcur"?mix(hx(t.stuck),t.washa,hx(t.press)):hx(t[s])]));
     const rows=[["Text primary","t1",4.5],["Text secondary","t2",4.5],["Text muted","t3",4.5],["Accent as text","acc",4.5],["Done","done",4.5],["Stuck","stuck",4.5],["Warn","warn",4.5],["Control border","ctl",3]];
     const cell=(v,min)=>`<td style="padding:2px 10px;color:${v>=min?"inherit":"#B3362A"};font-weight:${v>=min?400:700}">${v.toFixed(1)}${v>=min?"":" ✗"}</td>`;
     h+=`<table style="border-collapse:collapse;margin:8px 0 12px;font-size:12px"><caption style="text-align:left;font-weight:600;color:var(--t1);padding:4px 0">${name}</caption><tr><th style="text-align:left;padding:2px 10px 2px 0"></th>${surf.map(s=>`<th style="padding:2px 10px;font-weight:500">${s}</th>`).join("")}</tr>`
