@@ -92,8 +92,9 @@ describe("surface scoping", () => {
   it("new look (stage 1): every selector is v2 AND admin scoped; none can match :root, founder, LP, auth or share", () => {
     expect(V2_START).toBeGreaterThan(0);
     expect(V2_END).toBeGreaterThan(V2_START);
-    // @media wrappers (phone-only values) are skipped; the selectors inside them are still checked.
-    const selectors = [...v2Section.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@media[^{]*\{/g, "").matchAll(/(^|\n)([^\n{}][^{}]*)\{/g)].map((m) => m[2].trim());
+    // @media and @container wrappers (phone-only values, columns dropping out) are skipped; the
+    // selectors inside them are still checked.
+    const selectors = [...v2Section.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@(media|container)[^{]*\{/g, "").matchAll(/(^|\n)([^\n{}][^{}]*)\{/g)].map((m) => m[2].trim());
     expect(selectors.length).toBeGreaterThanOrEqual(2);
     for (const sel of selectors) {
       for (const part of sel.split(",")) {

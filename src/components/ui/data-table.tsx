@@ -13,10 +13,13 @@
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Download, Search } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Columns3, Download, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { FilterBar } from "@/components/ui/filter-bar";
 import { isTypingTarget } from "@/lib/shortcuts";
+import { useNewLook } from "@/lib/use-new-look";
+import { stepCursor } from "@/lib/split-view";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { csvFilename, downloadCsv, toCsv, type CsvCell } from "@/lib/csv-export";
@@ -57,6 +60,12 @@ export interface DataTableColumn<T> {
   exportValue?: (row: T) => CsvCell;
   /** Set false to keep the column out of the Columns menu. The first column is never hideable. */
   hideable?: boolean;
+  /**
+   * New look, list beside a pane (WS160): the column drops out when the list is narrower than
+   * this many px (600 goes first, 480 next). Without it the column always shows. The first
+   * column never drops. No effect under the old look.
+   */
+  dropBelow?: 600 | 480;
 }
 
 /** Group-by (spec 7, Deal Ledger): rows are grouped under a heading, with an optional subtotal row. */
@@ -116,6 +125,21 @@ export interface DataTableProps<T> {
   exportCsv?: { filename: string };
   groupBy?: DataTableGroupBy<T>;
   className?: string;
+
+  // ── New look (PLAN-1, WS160). All of these are ignored under the old look. ──
+  /**
+   * Row height. "comfortable" (default) is 44px; "compact" is 36px, chosen per page for long
+   * tables (never by the user).
+   */
+  density?: "comfortable" | "compact";
+  /**
+   * Turns the table into a list that opens records beside it. A click on a row (or its link),
+   * and Enter on the cursor row, call this instead of navigating; `rowHref` stays the full page
+   * (middle-click, and the `o` key). With the pane open, j and k call it for the next record.
+   */
+  onOpenRow?: (row: T) => void;
+  /** Key of the record open in the pane. That row is marked, and j / k step from it. */
+  openKey?: string | null;
 }
 
 export function DataTable<T>(props: DataTableProps<T>) {
@@ -164,10 +188,25 @@ function DataTableInner<T>({
   exportCsv,
   groupBy,
   className,
+  density = "comfortable",
+  onOpenRow,
+  openKey = null,
 }: DataTableProps<T>) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // New look: false on the server and the first render, so the old markup is what hydrates.
+  const v2 = useNewLook();
+  const listMode = v2 && Boolean(onOpenRow);
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  // The key handler is installed once; it reads the latest of these.
+  const live = useRef({ listMode, onOpenRow, openKey, rowKey, rowHref, router, rows: [] as T[] });
+  live.current.router = router;
+  live.current.listMode = listMode;
+  live.current.onOpenRow = onOpenRow;
+  live.current.openKey = openKey;
+  live.current.rowKey = rowKey;
+  live.current.rowHref = rowHref;
 
   const sortKeys = useMemo(() => columns.filter((c) => c.sortValue).map((c) => c.key), [columns]);
   const filterKeys = useMemo(() => ["all", ...(chips ?? []).map((c) => c.key)], [chips]);
@@ -280,13 +319,17 @@ function DataTableInner<T>({
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
-      if (e.key !== "j" && e.key !== "k" && e.key !== "Enter") return;
+      const L = live.current;
+      // New look, list beside a pane: `o` opens the full page.
+      if (e.key !== "j" && e.key !== "k" && e.key !== "Enter" && !(e.key === "o" && L.listMode)) return;
       const wrap = wrapRef.current;
       if (!wrap || wrap.offsetParent === null) return;
       const active = document.activeElement;
       const inside = Boolean(active && wrap.contains(active));
       const onBody = !active || active === document.body;
-      if (!inside && !(onBody && document.querySelector("[data-datatable]") === wrap)) return;
+      // With the pane open, focus may be in the pane: j and k still step through the list.
+      const inPane = L.listMode && L.openKey != null && Boolean(active?.closest?.("[data-split-pane]"));
+      if (!inside && !inPane && !(onBody && document.querySelector("[data-datatable]") === wrap)) return;
       if (!inside && isTypingTarget(active)) return;
       if (inside && isTypingTarget(active)) return;
 
@@ -295,6 +338,38 @@ function DataTableInner<T>({
       );
       if (rowEls.length === 0) return;
       const current = active ? rowEls.findIndex((r) => r === active || r.contains(active)) : -1;
+
+      if (L.listMode && L.onOpenRow) {
+        // The rows as shown, in order; same order as the elements when none is hidden.
+        const shown = L.rows;
+        const keys = shown.map((r) => L.rowKey(r));
+        if (e.key === "Enter") {
+          if (current === -1 || active !== rowEls[current] || !shown[current]) return;
+          e.preventDefault();
+          L.onOpenRow(shown[current]);
+          return;
+        }
+        if (e.key === "o") {
+          const target = shown[L.openKey != null ? keys.indexOf(L.openKey) : current];
+          const href = target ? L.rowHref?.(target) : undefined;
+          if (!href) return;
+          e.preventDefault();
+          L.router.push(href);
+          return;
+        }
+        if (L.openKey != null) {
+          // Pane open: j and k change the open record, and the cursor goes with it.
+          const to = stepCursor(keys, L.openKey, e.key === "j" ? 1 : -1);
+          if (to == null) return;
+          e.preventDefault();
+          const idx = keys.indexOf(to);
+          if (to !== L.openKey) L.onOpenRow(shown[idx]);
+          const el = rowEls.length === shown.length ? rowEls[idx] : undefined;
+          if (inPane) el?.scrollIntoView({ block: "nearest" });
+          else el?.focus();
+          return;
+        }
+      }
 
       if (e.key === "Enter") {
         // Only act on a row that has focus itself; links and buttons keep Enter.
@@ -330,6 +405,28 @@ function DataTableInner<T>({
   }, [searched, chips, state.filter, state.sort, state.dir, columns]);
 
   const groups = useMemo(() => (activeGroup ? groupRows(visible, activeGroup.getGroup) : null), [visible, activeGroup]);
+
+  // The rows on screen in order (a collapsed group's rows are not): what j / k / Enter walk.
+  const shownRows = useMemo(
+    () => (groups ? groups.flatMap((g) => (collapsedGroups.includes(g.id) ? [] : g.rows)) : visible),
+    [groups, visible, collapsedGroups]
+  );
+  live.current.rows = shownRows;
+  function toggleGroup(id: string) {
+    setCollapsedGroups((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  // Closing the pane hands the cursor back to the row that was open (when focus fell to the page).
+  const prevOpenKey = useRef<string | null>(openKey);
+  useEffect(() => {
+    const prev = prevOpenKey.current;
+    prevOpenKey.current = openKey;
+    if (!listMode || prev == null || openKey != null) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const rowEls = Array.from(wrapRef.current?.querySelectorAll<HTMLElement>("tbody tr[data-row]") ?? []);
+    rowEls.find((el) => el.dataset.key === prev)?.focus();
+  }, [openKey, listMode]);
 
   // Rows shown in the order they appear (grouped order when grouped), for the export.
   const orderedForExport = useMemo(() => (groups ? groups.flatMap((g) => g.rows) : visible), [groups, visible]);
@@ -402,6 +499,16 @@ function DataTableInner<T>({
     router.push(href);
   }
 
+  // New look, list beside a pane: a plain click on a row or its link opens the record in the
+  // pane. Modified clicks (new tab) and clicks on the row's own buttons are left alone.
+  function paneClick(e: React.MouseEvent, row: T) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if ((e.target as HTMLElement).closest("button,input,select,textarea,label,summary,[role=button]")) return;
+    e.preventDefault();
+    onOpenRow?.(row);
+  }
+  const isOpenRow = (row: T) => openKey != null && rowKey(row) === openKey;
+
   function renderRow(row: T) {
         const href = rowHref?.(row);
         return (
@@ -409,7 +516,15 @@ function DataTableInner<T>({
             key={rowKey(row)}
             data-row=""
             tabIndex={-1}
-            onClick={href ? (e) => openRow(e, href) : undefined}
+            {...(listMode
+              ? {
+                  role: "option",
+                  "aria-selected": isOpenRow(row),
+                  "data-key": rowKey(row),
+                  "data-open": isOpenRow(row) ? "true" : undefined,
+                }
+              : {})}
+            onClick={listMode ? (e) => paneClick(e, row) : href ? (e) => openRow(e, href) : undefined}
             className={cn(
               "group h-11 border-b border-row-divider outline-none transition-colors last:border-0 hover:bg-row-hover focus-within:bg-row-hover focus-visible:bg-row-hover focus-visible:shadow-[inset_2px_0_0_var(--color-accent)]",
               href && "cursor-pointer",
@@ -419,6 +534,8 @@ function DataTableInner<T>({
             {cols.map((c, i) => (
               <td
                 key={c.key}
+                role={listMode ? "presentation" : undefined}
+                data-drop={v2 && i > 0 ? c.dropBelow : undefined}
                 className={cn(
                   "px-3 py-1",
                   c.align === "num" ? "num whitespace-nowrap" : "",
@@ -430,6 +547,7 @@ function DataTableInner<T>({
                 {i === 0 && href ? (
                   <Link
                     href={href}
+                    onClick={listMode ? (e) => paneClick(e, row) : undefined}
                     className="inline-flex items-center hover:underline focus-visible:underline focus-visible:outline-none"
                   >
                     {c.cell(row)}
@@ -440,7 +558,7 @@ function DataTableInner<T>({
               </td>
             ))}
             {rowActions && (
-              <td className="px-3 py-1 text-right">
+              <td role={listMode ? "presentation" : undefined} className="px-3 py-1 text-right">
                 <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                   {rowActions(row)}
                 </div>
@@ -471,9 +589,25 @@ function DataTableInner<T>({
       </>
     );
     return (
-      <li key={rowKey(row)} className={cn("relative px-4 py-3 text-sm", rowClassName?.(row))}>
+      <li
+        key={rowKey(row)}
+        {...(listMode
+          ? {
+              role: "option",
+              "aria-selected": isOpenRow(row),
+              "data-key": rowKey(row),
+              "data-open": isOpenRow(row) ? "true" : undefined,
+              onClick: (e: React.MouseEvent) => paneClick(e, row),
+            }
+          : {})}
+        className={cn("relative px-4 py-3 text-sm", rowClassName?.(row))}
+      >
         {href ? (
-          <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Link
+            href={href}
+            onClick={listMode ? (e) => paneClick(e, row) : undefined}
+            className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
             {body}
           </Link>
         ) : (
@@ -485,9 +619,122 @@ function DataTableInner<T>({
 
   }
 
+  const columnsMenu =
+    tableId && hideableCols.length > 0 ? (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="secondary" size="sm">
+            <Columns3 aria-hidden="true" className="h-3.5 w-3.5" />
+            Columns
+            {hidden.length > 0 && <span className="num font-mono text-[11px] text-muted-foreground">{cols.length}/{columns.length}</span>}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuLabel>Show columns</DropdownMenuLabel>
+          {hideableCols.map((c) => (
+            <DropdownMenuCheckboxItem
+              key={c.key}
+              checked={!hidden.includes(c.key)}
+              onCheckedChange={() => toggleColumn(c.key)}
+            >
+              {c.header}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : null;
+  const exportButton = exportCsv ? (
+    <Button variant="secondary" size="sm" onClick={exportRows} disabled={visible.length === 0}>
+      <Download aria-hidden="true" className="h-3.5 w-3.5" />
+      Export CSV
+    </Button>
+  ) : null;
+
+  // New look: the search box, the chips and the extras sit in one filter bar (ui/filter-bar.tsx).
+  // The chips stay single-choice: picking one sets it (tinted, with an x), the x puts it back to "all".
+  const v2Toolbar = (
+    <FilterBar
+      label={`Filter ${label.toLowerCase()}`}
+      className={cn(listMode && "sticky top-[var(--bar-h)] z-[5] bg-background")}
+      chips={(chips ?? []).map((c) => ({ key: c.key, label: c.label, set: state.filter === c.key, count: counts[c.key] ?? 0 }))}
+      onOpen={(key) => writeState({ ...state, filter: key })}
+      onRemove={() => writeState({ ...state, filter: "all" })}
+      onClearAll={clearFilters}
+      showClear={filtersActive}
+      leading={
+        searchText ? (
+          <div className="relative w-56 min-w-[140px] flex-none max-md:w-44">
+            <label htmlFor={`dt-search-${label}`} className="sr-only">
+              {searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
+            </label>
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              id={`dt-search-${label}`}
+              ref={searchRef}
+              value={qInput}
+              onChange={(e) => setQInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  if (qInput) setQInput("");
+                  else (e.target as HTMLInputElement).blur();
+                }
+              }}
+              placeholder={searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
+              autoComplete="off"
+              className="h-9 w-full rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-9 pr-8 text-row text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base"
+            />
+            <kbd
+              aria-hidden="true"
+              className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-sm border border-border px-1.5 font-mono text-[10px] text-muted-foreground sm:block"
+            >
+              /
+            </kbd>
+          </div>
+        ) : undefined
+      }
+      trailing={
+        toolbarExtra || groupBy || columnsMenu || exportButton ? (
+          <>
+            {toolbarExtra}
+            {groupBy && (
+              <>
+                <label htmlFor={`dt-group-${label}`} className="sr-only">
+                  Group {label.toLowerCase()} by
+                </label>
+                <select
+                  id={`dt-group-${label}`}
+                  value={activeGroup?.key ?? ""}
+                  onChange={(e) => setGroupKey(e.target.value)}
+                  className="input-field h-9 w-auto py-0"
+                >
+                  <option value="">No grouping</option>
+                  {groupBy.options.map((o) => (
+                    <option key={o.key} value={o.key}>
+                      Group by {o.label.toLowerCase()}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+            {columnsMenu}
+            {exportButton}
+          </>
+        ) : undefined
+      }
+    />
+  );
+
   return (
-    <div ref={wrapRef} data-datatable="" className={className}>
-      {hasToolbar && (
+    <div
+      ref={wrapRef}
+      data-datatable=""
+      {...(v2 ? { "data-density": density, "data-list-mode": listMode ? "" : undefined } : {})}
+      className={className}
+    >
+      {hasToolbar && (v2 ? v2Toolbar : (
         <div className="mb-3 flex flex-wrap items-center gap-2">
           {searchText && (
             <div className="relative min-w-[200px] max-w-sm flex-1 basis-56">
@@ -570,41 +817,25 @@ function DataTableInner<T>({
           )}
           {(exportCsv || (tableId && hideableCols.length > 0)) && (
             <div className="ml-auto flex items-center gap-1.5">
-              {tableId && hideableCols.length > 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="secondary" size="sm">
-                      <Columns3 aria-hidden="true" className="h-3.5 w-3.5" />
-                      Columns
-                      {hidden.length > 0 && <span className="num font-mono text-[11px] text-muted-foreground">{cols.length}/{columns.length}</span>}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Show columns</DropdownMenuLabel>
-                    {hideableCols.map((c) => (
-                      <DropdownMenuCheckboxItem
-                        key={c.key}
-                        checked={!hidden.includes(c.key)}
-                        onCheckedChange={() => toggleColumn(c.key)}
-                      >
-                        {c.header}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-              {exportCsv && (
-                <Button variant="secondary" size="sm" onClick={exportRows} disabled={visible.length === 0}>
-                  <Download aria-hidden="true" className="h-3.5 w-3.5" />
-                  Export CSV
-                </Button>
-              )}
+              {columnsMenu}
+              {exportButton}
             </div>
           )}
         </div>
-      )}
+      ))}
 
-      {visible.length === 0 ? (
+      {visible.length === 0 && v2 ? (
+        // New look, pattern 12: two plain lines, left to the gutter, and the one action.
+        <div className="px-[var(--row-pad)] py-6">
+          <p className="text-row font-medium text-foreground">No {pluralNoun ?? `${noun}s`} match these filters.</p>
+          <p className="mt-1 text-meta text-muted-foreground">Clear filters to see everything.</p>
+          {filtersActive && (
+            <Button variant="secondary" size="sm" className="mt-3" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          )}
+        </div>
+      ) : visible.length === 0 ? (
         <div className="flex flex-col items-center justify-center border border-border bg-card py-12 text-center">
           <p className="text-sm font-medium text-foreground">No {pluralNoun ?? `${noun}s`} match</p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -633,6 +864,7 @@ function DataTableInner<T>({
                         key={c.key}
                         scope="col"
                         aria-sort={sortable ? ariaSort(active, state.dir) : undefined}
+                        data-drop={v2 && i > 0 ? c.dropBelow : undefined}
                         className={cn(
                           "h-[34px] whitespace-nowrap px-3 font-mono text-label font-semibold uppercase tracking-label text-muted-foreground",
                           c.align === "num" && "text-right",
@@ -666,25 +898,46 @@ function DataTableInner<T>({
                   )}
                 </tr>
               </thead>
-              <tbody>
-                {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => (
+              <tbody {...(listMode ? { role: "listbox", "aria-label": label } : {})}>
+                {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => {
+                  // New look: a group heading collapses on click.
+                  const collapsed = v2 && collapsedGroups.includes(g.id);
+                  const countText = `${g.rows.length} ${g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}`;
+                  return (
                   <Fragment key={g.id || "all"}>
                     {groups && (
-                      <tr data-group="" className="border-b border-border bg-well">
+                      <tr data-group="" role={listMode ? "presentation" : undefined} className="border-b border-border bg-well">
                         <th
                           scope="rowgroup"
+                          role={listMode ? "presentation" : undefined}
                           colSpan={cols.length + (rowActions ? 1 : 0)}
                           className={cn("h-8 px-3 text-left font-semibold text-foreground", cols[0].sticky && "sticky left-0")}
                         >
-                          {g.label}
-                          <span className="num ml-2 font-mono text-[11px] font-normal text-muted-foreground">
-                            {g.rows.length} {g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}
-                          </span>
+                          {v2 ? (
+                            <button
+                              type="button"
+                              aria-expanded={!collapsed}
+                              onClick={() => toggleGroup(g.id)}
+                              className="inline-flex items-center gap-1 rounded-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <ChevronRight
+                                aria-hidden="true"
+                                className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
+                              />
+                              {g.label}
+                              <span className="num ml-1 font-normal text-muted-foreground">{countText}</span>
+                            </button>
+                          ) : (
+                            <>
+                              {g.label}
+                              <span className="num ml-2 font-mono text-[11px] font-normal text-muted-foreground">{countText}</span>
+                            </>
+                          )}
                         </th>
                       </tr>
                     )}
-                    {g.rows.map((row) => renderRow(row))}
-                    {groups && groupBy?.subtotal && (
+                    {!collapsed && g.rows.map((row) => renderRow(row))}
+                    {groups && !collapsed && groupBy?.subtotal && (
                       <tr data-subtotal="" className="h-10 border-b border-border bg-well/60 font-medium">
                         {(() => {
                           const cells = groupBy.subtotal!(g.rows);
@@ -698,29 +951,61 @@ function DataTableInner<T>({
                       </tr>
                     )}
                   </Fragment>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
           {/* Mobile list: title + badge, then the key facts. */}
-          <ul aria-label={label} className="divide-y divide-row-divider border border-border bg-card md:hidden">
-            {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => (
-              <Fragment key={g.id || "all"}>
-                {groups && (
-                  <li className="flex items-baseline justify-between bg-well px-4 py-2 text-sm font-semibold text-foreground">
-                    {g.label}
-                    <span className="num font-mono text-[11px] font-normal text-muted-foreground">{g.rows.length}</span>
-                  </li>
-                )}
-                {g.rows.map((row) => renderMobileRow(row))}
-              </Fragment>
-            ))}
+          <ul
+            aria-label={label}
+            {...(listMode ? { role: "listbox" } : {})}
+            className="divide-y divide-row-divider border border-border bg-card md:hidden"
+          >
+            {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => {
+              const collapsed = v2 && collapsedGroups.includes(g.id);
+              return (
+                <Fragment key={g.id || "all"}>
+                  {groups && (
+                    <li
+                      {...(v2 ? { "data-group": "", role: listMode ? "presentation" : undefined } : {})}
+                      className="flex items-baseline justify-between bg-well px-4 py-2 text-sm font-semibold text-foreground"
+                    >
+                      {v2 ? (
+                        <button
+                          type="button"
+                          aria-expanded={!collapsed}
+                          onClick={() => toggleGroup(g.id)}
+                          className="inline-flex items-center gap-1 rounded-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <ChevronRight
+                            aria-hidden="true"
+                            className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
+                          />
+                          {g.label}
+                        </button>
+                      ) : (
+                        g.label
+                      )}
+                      <span className="num font-mono text-[11px] font-normal text-muted-foreground">{g.rows.length}</span>
+                    </li>
+                  )}
+                  {!collapsed && g.rows.map((row) => renderMobileRow(row))}
+                </Fragment>
+              );
+            })}
           </ul>
         </>
       )}
 
-      <p aria-live="polite" className="mt-2 font-mono text-[11px] text-muted-foreground">
+      <p
+        aria-live="polite"
+        className={cn(
+          "mt-2 font-mono text-[11px] text-muted-foreground",
+          v2 && "mt-0 px-[var(--row-pad)] py-4 font-sans text-meta"
+        )}
+      >
         {resultSummary(visible.length, rows.length, noun, pluralNoun)}
       </p>
     </div>

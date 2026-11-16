@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useRef } from "react";
+import { Suspense, useCallback, useMemo, useState, useRef } from "react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
 import { RefreshIndicator, StaleRegion } from "@/components/ui/stale";
@@ -8,6 +8,11 @@ import { useRouter } from "next/navigation";
 import { Building2, Plus, Upload, Bell } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { SplitView, useOpenParam } from "@/components/layout/split-view";
+import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
+import { companyNextAction } from "@/lib/company-pane";
+import { crumbLabel, stepCursor } from "@/lib/split-view";
+import { statusTone, TONE_CLASSES } from "@/lib/status-tone";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
@@ -83,9 +88,123 @@ const CHIPS: FilterChipDef<Row>[] = [
 
 const CADENCE_ORDER: Record<CadenceKey, number> = { behind: 0, aging: 1, new: 2, current: 3 };
 
+// New look (WS160): the company summary beside the list. Reads the row the list already has.
+function CompanyPane({
+  row,
+  crumb,
+  onPrev,
+  onNext,
+  onClose,
+  reminding,
+  onRemind,
+  onOpenCompany,
+}: {
+  row: Row;
+  crumb: string;
+  onPrev?: () => void;
+  onNext?: () => void;
+  onClose: () => void;
+  reminding: boolean;
+  onRemind: () => void;
+  onOpenCompany: () => void;
+}) {
+  const action = companyNextAction({ cadence: row.cadence, daysSince: row.daysSince, hasFounder: row.hasFounder });
+  const recent = row.recentPublishedUpdates.filter((u) => u.sentAt).slice(0, 5);
+  return (
+    <DetailPane
+      crumb={crumb}
+      title={row.name}
+      mark={<NameTile name={row.name} className="mr-0 v2:h-8 v2:w-8 v2:text-[13px]" />}
+      onPrev={onPrev}
+      onNext={onNext}
+      onClose={onClose}
+      expandHref={`/admin/companies/${row.id}`}
+      chips={
+        <>
+          {row.fundingStage && (
+            <PaneChip className={TONE_CLASSES[statusTone(row.fundingStage)].chip}>{row.fundingStage}</PaneChip>
+          )}
+          <PaneChip>
+            <StatusDot status={row.cadence}>{row.statusLabel}</StatusDot>
+          </PaneChip>
+          {row.hasFounder === false && <PaneChip>No founder yet</PaneChip>}
+        </>
+      }
+      card={
+        <PaneCard
+          heading={action.heading}
+          actions={
+            action.primary === "remind" ? (
+              <>
+                <Button loading={reminding} onClick={onRemind}>
+                  Send a reminder
+                </Button>
+                <Button variant="secondary" onClick={onOpenCompany}>
+                  Open company
+                </Button>
+              </>
+            ) : (
+              <Button onClick={onOpenCompany}>Open company</Button>
+            )
+          }
+        >
+          {action.text}
+        </PaneCard>
+      }
+    >
+      <PaneSection title="Details">
+        <PaneDetails
+          rows={[
+            { label: "Stage", value: row.fundingStage ?? "—" },
+            { label: "Sector", value: row.sector ?? "—" },
+            { label: "Location", value: row.geography ?? "—" },
+            { label: "Members", value: row.memberCount },
+            { label: "Last update", value: row.lastUpdateDate ? formatDate(row.lastUpdateDate) : "None yet" },
+            { label: "Added", value: formatDate(row.createdAt) },
+          ]}
+        />
+      </PaneSection>
+      <PaneSection title="Recent updates">
+        {recent.length === 0 ? (
+          <p>No updates yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {recent.map((u, i) => (
+              <li key={`${u.sentAt}-${i}`} className="flex gap-4">
+                <time className="w-28 flex-none text-muted-foreground" dateTime={u.sentAt ?? undefined}>
+                  {formatDate(u.sentAt as string)}
+                </time>
+                <span>Update published</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PaneSection>
+    </DetailPane>
+  );
+}
+
 export default function AdminCompaniesPage() {
+  // useOpenParam reads ?open=, which needs a Suspense boundary under static prerendering.
+  return (
+    <Suspense fallback={null}>
+      <AdminCompaniesPageInner />
+    </Suspense>
+  );
+}
+
+function AdminCompaniesPageInner() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // New look (WS160): the open company, kept in the address, and the list as shown (for prev / next).
+  const [openId, setOpenId] = useOpenParam();
+  const [visibleRows, setVisibleRows] = useState<Row[]>([]);
+  const visibleKeys = useMemo(() => visibleRows.map((r) => r.id), [visibleRows]);
+  const closePane = useCallback(() => setOpenId(null), [setOpenId]);
+  const step = (delta: 1 | -1) => {
+    const to = stepCursor(visibleKeys, openId, delta);
+    if (to) setOpenId(to);
+  };
 
   // SWR: the list stays on screen (dimmed) while it refetches, and an import or
   // a revisit refreshes it without a blank flash.
@@ -185,7 +304,7 @@ export default function AdminCompaniesPage() {
       sortValue: (r) => r.name,
       cell: (r) => (
         <>
-          <NameTile name={r.name} />
+          <NameTile name={r.name} className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
           {r.name}
           {r.hasFounder === false && (
             <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
@@ -206,6 +325,7 @@ export default function AdminCompaniesPage() {
       key: "sector",
       header: "Sector",
       sortValue: (r) => r.sector,
+      dropBelow: 480,
       mobile: "meta",
       cell: (r) => r.sector ?? <span className="text-muted-foreground">—</span>,
     },
@@ -213,12 +333,14 @@ export default function AdminCompaniesPage() {
       key: "stage",
       header: "Stage",
       sortValue: (r) => r.fundingStage,
+      dropBelow: 480,
       cell: (r) => <StageChip stage={r.fundingStage} />,
     },
     {
       key: "geography",
       header: "Location",
       sortValue: (r) => r.geography,
+      dropBelow: 600,
       mobile: "meta",
       cell: (r) => r.geography ?? <span className="text-muted-foreground">—</span>,
     },
@@ -245,14 +367,30 @@ export default function AdminCompaniesPage() {
       align: "num",
       sortValue: (r) => r.memberCount,
       firstDir: "desc",
+      dropBelow: 600,
       cell: (r) => r.memberCount,
     },
   ];
 
   const importBlockedNames = preview ? preview.rows.filter((r) => existingNames.has(r.name.trim().toLowerCase())).length : 0;
 
+  // The pane shows the open company from the same rows the list uses (no extra request).
+  const openCompany = openId ? (rows.find((r) => r.id === openId) ?? null) : null;
+  const pane = openCompany ? (
+    <CompanyPane
+      row={openCompany}
+      crumb={crumbLabel("Companies", visibleKeys, openCompany.id)}
+      onPrev={visibleKeys.indexOf(openCompany.id) > 0 ? () => step(-1) : undefined}
+      onNext={visibleKeys.indexOf(openCompany.id) < visibleKeys.length - 1 ? () => step(1) : undefined}
+      onClose={closePane}
+      reminding={Boolean(reminding[openCompany.id])}
+      onRemind={() => void sendReminder(openCompany)}
+      onOpenCompany={() => router.push(`/admin/companies/${openCompany.id}`)}
+    />
+  ) : null;
+
   return (
-    <AppShell>
+    <AppShell width="full">
       <PageHeader
         indicator={<RefreshIndicator active={isValidating && !!companiesData} />}
         title="Companies"
@@ -282,7 +420,7 @@ export default function AdminCompaniesPage() {
         }
       />
 
-      <div className="mb-4">
+      <div className="mb-4 v2:mb-0 v2:px-[var(--gutter)] v2:py-3">
         <ComposerDisclosure label="CSV format">
           <p className="text-sm text-muted-foreground">
             To bulk import, upload a CSV with a <code className="rounded bg-muted px-1 text-xs">name</code> column and
@@ -292,8 +430,17 @@ export default function AdminCompaniesPage() {
         </ComposerDisclosure>
       </div>
 
+      <SplitView
+        open={openId}
+        onClose={closePane}
+        paneLabel={openCompany?.name}
+        pane={pane}
+        list={
       <StaleRegion refreshing={isValidating && !!companiesData}>
       <DataTable<Row>
+        onOpenRow={(r) => setOpenId(r.id)}
+        openKey={openId}
+        onVisibleRowsChange={setVisibleRows}
         label="Companies"
         noun="company"
         pluralNoun="companies"
@@ -345,6 +492,8 @@ export default function AdminCompaniesPage() {
         }
       />
       </StaleRegion>
+        }
+      />
 
       <Dialog open={preview !== null} onOpenChange={(o) => !o && !importing && closePreview()}>
         {preview && (

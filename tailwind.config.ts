@@ -182,6 +182,11 @@ const config: Config = {
           to: { transform: "none", opacity: "1" },
         },
         "toast-out": { from: { opacity: "1" }, to: { opacity: "0" } },
+        // The side pane arriving (PLAN-1, WS160): a short slide from the right.
+        "pane-in": {
+          from: { transform: "translateX(12px)", opacity: "0" },
+          to: { transform: "none", opacity: "1" },
+        },
         // A card that just moved or arrived: a Sky wash that fades to the surface.
         land: {
           "0%": { backgroundColor: "rgb(91 141 197 / 0.28)", transform: "translateY(-3px)" },
@@ -210,6 +215,7 @@ const config: Config = {
         "sheet-in": "sheet-in 280ms var(--ease-out)",
         "toast-in": "toast-in 200ms var(--ease-out)",
         "toast-out": "toast-out 120ms var(--ease-in) forwards",
+        "pane-in": "pane-in 160ms var(--ease-out)",
         land: "land 1.4s var(--ease-out)",
         "row-out": "row-out 200ms var(--ease-in) forwards",
         "row-fade": "row-fade 200ms var(--ease-in) forwards",

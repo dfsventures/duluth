@@ -83,12 +83,12 @@ describe("shell css", () => {
 
 describe("FilterBar", () => {
   const noop = () => {};
-  it("shows unset chips dashed with a plus and no Clear all", () => {
+  it("shows unset chips dashed with a plus and no Clear filters", () => {
     const html = renderToStaticMarkup(
       <FilterBar chips={[{ key: "owner", label: "Owner" }]} onOpen={noop} onRemove={noop} onClearAll={noop} />
     );
     expect(html).toContain("border-dashed");
-    expect(html).not.toContain("Clear all");
+    expect(html).not.toContain("Clear filters");
   });
   it("is a 44px bar with 28px chips (52 and 32 on phones)", () => {
     const html = renderToStaticMarkup(
@@ -99,12 +99,30 @@ describe("FilterBar", () => {
     expect(html).toContain("h-7");
     expect(html).toContain("max-md:h-8");
   });
-  it("shows a set chip with its value, a remove button and Clear all", () => {
+  it("shows a set chip with its value, a remove button and Clear filters (copy doc: not Clear all)", () => {
     const html = renderToStaticMarkup(
       <FilterBar chips={[{ key: "owner", label: "Owner", value: "Sam Admin" }]} onOpen={noop} onRemove={noop} onClearAll={noop} />
     );
     expect(html).toContain("Sam Admin");
     expect(html).toContain('aria-label="Remove Owner filter"');
-    expect(html).toContain("Clear all");
+    expect(html).toContain("Clear filters");
+    expect(html).not.toContain("Clear all");
+  });
+  it("a single-choice chip is set by `set`, shows its count, and is announced as pressed", () => {
+    const html = renderToStaticMarkup(
+      <FilterBar
+        chips={[
+          { key: "behind", label: "Behind", set: true, count: 2 },
+          { key: "aging", label: "Aging", count: 1 },
+        ]}
+        onOpen={noop}
+        onRemove={noop}
+        onClearAll={noop}
+      />
+    );
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toContain('aria-label="Remove Behind filter"');
+    expect(html).not.toContain('aria-label="Remove Aging filter"');
   });
 });

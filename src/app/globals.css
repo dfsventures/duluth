@@ -484,6 +484,189 @@ html[data-look="v2"] [data-surface="admin"] select.input-field {
   height: 36px;
   padding-block: 0;
 }
+/* Lists and the side pane (PLAN-1, WS160). DataTable writes data-density on its wrapper only
+   under the new look (and data-list-mode when a page opens records in the pane), and SplitView
+   and DetailPane render only under it, so none of this can reach the old markup. Sizes come
+   from the density tokens above (docs/design/redesign-v1-density.md section 4). */
+
+/* The list area is a size container. Columns drop out by its width, and --row-pad keeps the
+   content in the 1104px column on a wide window while row bands and hairlines run edge to
+   edge (the same trick as the header bar). cqw resolves where --row-pad is used. */
+html[data-look="v2"] [data-surface="admin"] .list-pane {
+  container-type: inline-size;
+  --row-pad: max(var(--gutter), calc((100cqw - var(--column)) / 2));
+}
+/* A list in a page's own column (not beside a pane) pads its edges a little, as tables always did. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density]:not([data-list-mode]) {
+  --row-pad: 12px;
+}
+/* List mode: the filter bar follows the header at once, and the sticky stack (header, filter bar,
+   group heading) is what j and k must scroll clear of. */
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] > .shell-header:first-child {
+  margin-bottom: 0;
+}
+html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-list-mode]) {
+  scroll-padding-top: calc(var(--bar-h) + var(--filter-h) + var(--group-h));
+}
+
+/* The table loses its box: hairlines between rows are the structure. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] .table-scroll-fade,
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul {
+  border-width: 0;
+  background-color: transparent;
+  background-image: none;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] table {
+  font-size: 14px;
+  line-height: 20px;
+}
+/* In list mode the columns shrink and drop out instead of scrolling sideways. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] .table-scroll-fade {
+  overflow: visible;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] table {
+  min-width: 0 !important;
+}
+
+/* Rows: 44px (compact 36), 24 between metadata columns, the title takes the width. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row] {
+  height: var(--list-row-h);
+  border-bottom-color: var(--color-row-divider);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density="compact"] tbody tr[data-row] {
+  height: 36px;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td {
+  padding: 0 0 0 24px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--color-text-muted);
+  vertical-align: middle;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td.num {
+  text-align: right;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:first-child {
+  padding-left: var(--row-pad, 12px);
+  padding-right: 12px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-primary);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:not(.sticky):first-child {
+  position: relative;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:last-child {
+  padding-right: var(--row-pad, 12px);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] td:first-child,
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] th:first-child {
+  width: 100%;
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody td:first-child a:hover {
+  text-decoration: none;
+}
+/* Column headings: sentence case, 12px, muted (not mono caps). */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead tr {
+  border-bottom-width: 0;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th {
+  height: 32px;
+  padding: 0 0 0 24px;
+  border-bottom: 1px solid var(--color-row-divider);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-muted);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th:first-child {
+  padding-left: var(--row-pad, 12px);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th:last-child {
+  padding-right: var(--row-pad, 12px);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th button {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Group headings: a 36px tinted band with 24px above it and no hairline. In list mode they
+   stick under the filter bar (the 24px of air above hides under it when stuck). */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tr[data-group] {
+  border-bottom-width: 0;
+  background: transparent;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tr[data-group] > th {
+  height: calc(var(--group-h) + 24px);
+  padding: 24px var(--row-pad, 12px) 0;
+  background: linear-gradient(var(--color-bg) 0 24px, var(--color-surface) 24px 100%);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] tr[data-group] > th {
+  position: sticky;
+  top: calc(var(--bar-h) + var(--filter-h) - 24px);
+  z-index: 4;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tr[data-group] > th span.num {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+/* The cursor row (keyboard focus) and the open row: a tint, plus the wordmark's Sky underscore
+   at the gutter, on the row's divider. No left-edge bar (the old look's focus bar is cancelled). */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row]:focus-visible {
+  background: var(--color-sel);
+  box-shadow: none;
+  outline: none;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row][data-open="true"],
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li[data-open="true"] {
+  background: var(--color-open);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row]:focus-visible > td:first-child::after,
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row][data-open="true"] > td:first-child::after {
+  content: "";
+  position: absolute;
+  left: var(--row-pad, 12px);
+  bottom: 0;
+  width: 18px;
+  height: 3px;
+  background: var(--color-accent);
+  pointer-events: none;
+}
+
+/* Columns drop out as the list narrows (about 600 and 480). */
+@container (max-width: 600px) {
+  html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] [data-drop="600"] {
+    display: none;
+  }
+}
+@container (max-width: 480px) {
+  html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] [data-drop="480"] {
+    display: none;
+  }
+}
+
+/* Phone: two-line rows, 64px, padded 12 by the gutter, lines 4 apart. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li {
+  min-height: 64px;
+  padding: 12px var(--gutter);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li[data-group] {
+  min-height: 0;
+  padding-block: 8px;
+}
 /* ── End new look ── */
 
 /* ── Base ─────────────────────────────────────────────────── */
