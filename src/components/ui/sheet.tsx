@@ -22,7 +22,7 @@ export interface SheetContentProps
 export function SheetContent({ title, description, className, children, ...props }: SheetContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex justify-end bg-obsidian/35 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex justify-end bg-[color:var(--scrim)] data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
         <DialogPrimitive.Content
           {...(description ? {} : { "aria-describedby": undefined })}
           onInteractOutside={ignoreToastInteraction}

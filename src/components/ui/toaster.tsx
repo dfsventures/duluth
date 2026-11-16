@@ -10,8 +10,8 @@ import { dismissToast, getServerToasts, getToasts, subscribe, type ToastKind } f
 const MARKER: Record<ToastKind, string> = {
   success: "bg-acacia",
   error: "bg-laterite",
-  info: "bg-sky",
-  undo: "bg-sky",
+  info: "bg-mark",
+  undo: "bg-mark",
 };
 
 /**
@@ -48,7 +48,7 @@ export function Toaster() {
             if (!open) close(t.id);
           }}
           className={cn(
-            "flex items-start gap-3 rounded-float bg-obsidian px-4 py-3 text-[13px] text-paper shadow-float",
+            "flex items-start gap-3 rounded-float bg-toast px-4 py-3 text-[13px] text-toast-ink shadow-float",
             "data-[state=open]:animate-toast-in data-[state=closed]:animate-toast-out",
             "data-[swipe=move]:translate-y-[var(--radix-toast-swipe-move-y)]",
             "data-[swipe=cancel]:translate-y-0 data-[swipe=cancel]:transition-transform",
@@ -59,7 +59,7 @@ export function Toaster() {
           <div className="min-w-0 flex-1">
             <ToastPrimitive.Title className="break-words font-medium leading-5">{t.message}</ToastPrimitive.Title>
             {t.description && (
-              <ToastPrimitive.Description className="mt-0.5 break-words text-[12px] leading-4 text-paper/80">
+              <ToastPrimitive.Description className="mt-0.5 break-words text-[12px] leading-4 text-[color:color-mix(in_srgb,var(--color-toast-ink)_80%,transparent)]">
                 {t.description}
               </ToastPrimitive.Description>
             )}
@@ -75,7 +75,7 @@ export function Toaster() {
           )}
           <ToastPrimitive.Close
             aria-label="Dismiss notification"
-            className="shrink-0 rounded-sm p-0.5 text-paper/70 hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-powder"
+            className="shrink-0 rounded-sm p-0.5 text-[color:color-mix(in_srgb,var(--color-toast-ink)_70%,transparent)] hover:text-toast-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-powder"
           >
             <X className="h-4 w-4" />
           </ToastPrimitive.Close>

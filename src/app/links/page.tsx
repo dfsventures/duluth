@@ -275,7 +275,7 @@ export default function FounderLinksPage() {
                       className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
                         expiryDays === opt.days
                           ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-white text-muted-foreground hover:border-primary hover:text-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-primary hover:text-foreground"
                       }`}
                     >
                       {opt.label}

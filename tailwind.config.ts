@@ -73,6 +73,10 @@ const config: Config = {
         "row-hover": "var(--color-row-hover)",
         "row-divider": "var(--color-row-divider)",
         wash: "var(--color-wash)",
+        /* Sky as a small mark (dots, insertion lines, toast bars, active rule).
+           Same #5B8DC5 as `sky` under the old look; lighter in v2 dark (PLAN-1, WS157). */
+        mark: "var(--color-mark)",
+        toast: { DEFAULT: "var(--color-toast)", ink: "var(--color-toast-ink)" },
         /* New look (PLAN-1, WS156). Only defined inside the v2 admin block, so
            nothing should use these until WS158+ puts them behind that scope. */
         pane: "var(--color-pane)",

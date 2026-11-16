@@ -206,7 +206,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             // Active: a white tab with a 2px Sky rule on its left edge.
             "nav-item relative flex items-center gap-3 rounded-sm px-3 py-2 text-sm font-medium transition-colors",
             active
-              ? "bg-card text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:bg-sky"
+              ? "bg-card text-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:bg-mark"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           )}
         >

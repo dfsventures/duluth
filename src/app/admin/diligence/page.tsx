@@ -207,7 +207,7 @@ export default function AdminDiligencePage() {
                 <summary className="cursor-pointer list-none text-xs text-primary hover:underline [&::-webkit-details-marker]:hidden">
                   Read the Stellar answers
                 </summary>
-                <div className="mt-2 space-y-3 border-l-2 border-bone pl-3">
+                <div className="mt-2 space-y-3 border-l-2 border-border pl-3">
                   <DiligenceAnswers diligence={item.diligence} variant="compact" />
                 </div>
               </details>
@@ -215,7 +215,7 @@ export default function AdminDiligencePage() {
 
             <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
               {DD_DOC_TYPES.map((docType) => (
-                <span key={docType.value} className="rounded-sm border border-bone px-1.5 py-0.5">
+                <span key={docType.value} className="rounded-sm border border-border px-1.5 py-0.5">
                   {docType.label}: {item.documentCounts[docType.value] ?? 0}
                 </span>
               ))}

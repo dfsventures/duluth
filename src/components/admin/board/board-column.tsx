@@ -52,8 +52,8 @@ export function BoardColumn({
   }
 
   const line = (
-    <div key="insertion-line" aria-hidden="true" className="relative -my-1 h-0.5 bg-sky">
-      <span className="absolute -left-0.5 -top-0.5 h-1.5 w-1.5 bg-sky" />
+    <div key="insertion-line" aria-hidden="true" className="relative -my-1 h-0.5 bg-mark">
+      <span className="absolute -left-0.5 -top-0.5 h-1.5 w-1.5 bg-mark" />
     </div>
   );
 

@@ -88,7 +88,7 @@ export function MemoBoardCard({ memo, me, desktop, showOwner, dragging = false, 
         "group relative rounded-sm border border-border bg-card px-3 py-2.5 transition-[border-color,opacity] hover:border-cocoa",
         desktop && editable && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-35",
-        landed && "animate-land motion-reduce:outline motion-reduce:outline-2 motion-reduce:outline-sky"
+        landed && "animate-land motion-reduce:outline motion-reduce:outline-2 motion-reduce:outline-mark"
       )}
     >
       <div className="flex items-start gap-2">

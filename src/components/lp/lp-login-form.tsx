@@ -70,8 +70,8 @@ export function LpLoginForm() {
   if (step === "code") {
     return (
       <form onSubmit={handleVerify} className="mt-8 max-w-sm">
-        {info && <p className="mb-4 text-sm text-tide">{info}</p>}
-        <label htmlFor="lp-otp-code" className="mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-tide">
+        {info && <p className="mb-4 text-sm text-secondary">{info}</p>}
+        <label htmlFor="lp-otp-code" className="mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-secondary">
           6-digit code
         </label>
         <input
@@ -84,7 +84,7 @@ export function LpLoginForm() {
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
           placeholder="000000"
-          className="w-full border border-bone bg-white px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-obsidian placeholder:text-muted-foreground focus:border-sky focus:outline-none"
+          className="w-full border border-border bg-card px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none"
         />
         {error && <p className="mt-2 text-sm text-tone-clay-ink">{error}</p>}
         <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">
@@ -98,7 +98,7 @@ export function LpLoginForm() {
             setError(null);
             setInfo(null);
           }}
-          className="mt-3 text-xs text-muted-foreground hover:text-tide"
+          className="mt-3 text-xs text-muted-foreground hover:text-secondary"
         >
           Use a different email
         </button>
@@ -108,7 +108,7 @@ export function LpLoginForm() {
 
   return (
     <form onSubmit={handleRequest} className="mt-8 max-w-sm">
-      <label htmlFor="lp-email" className="mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-tide">
+      <label htmlFor="lp-email" className="mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-secondary">
         Email address
       </label>
       <input
@@ -119,7 +119,7 @@ export function LpLoginForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
-        className="w-full border border-bone bg-white px-4 py-3 text-sm text-obsidian placeholder:text-muted-foreground focus:border-sky focus:outline-none"
+        className="w-full border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none"
       />
       {error && <p className="mt-2 text-sm text-tone-clay-ink">{error}</p>}
       <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">

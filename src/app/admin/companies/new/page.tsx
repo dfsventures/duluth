@@ -258,7 +258,7 @@ export default function NewCompanyPage() {
             )}
 
             {assignUser !== "none" && (
-              <div className="space-y-3 border-t border-bone pt-4">
+              <div className="space-y-3 border-t border-border pt-4">
                 <label className="flex items-center gap-1.5 text-sm cursor-pointer">
                   <input
                     type="checkbox"

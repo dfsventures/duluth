@@ -39,7 +39,7 @@ export function DialogContent({
 }: DialogContentProps) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-obsidian/35 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out sm:items-center sm:p-4">
+      <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-[color:var(--scrim)] data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out sm:items-center sm:p-4">
         <DialogPrimitive.Content
           {...(description ? {} : { "aria-describedby": undefined })}
           onInteractOutside={ignoreToastInteraction}

@@ -139,7 +139,7 @@ export function MemoBoard({ rows, me, showOwner, onMove, landedId = null }: Prop
           const tone = COLUMN_TONE[k];
           // JC-MP-B: the line sits where the card will land (sorted by updatedAt, a move keeps it).
           const landAt = dragged && dropColumn === k && columnOf(dragged.decision) !== k ? landingIndex(cards, dragged) : null;
-          const line = <div aria-hidden className="h-0.5 shrink-0 bg-sky" />;
+          const line = <div aria-hidden className="h-0.5 shrink-0 bg-mark" />;
           if (isCollapsed(k)) {
             return (
               <button

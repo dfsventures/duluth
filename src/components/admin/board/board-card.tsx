@@ -111,7 +111,7 @@ export function BoardCard({
         "group relative border border-border bg-card px-3 py-2.5 rounded-sm transition-[border-color,opacity] hover:border-cocoa",
         desktop && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-35",
-        landed && "animate-land motion-reduce:outline motion-reduce:outline-2 motion-reduce:outline-sky"
+        landed && "animate-land motion-reduce:outline motion-reduce:outline-2 motion-reduce:outline-mark"
       )}
     >
       <div className="flex items-start gap-2">

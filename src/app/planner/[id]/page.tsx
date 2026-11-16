@@ -302,7 +302,7 @@ export default function ScenarioEditorPage() {
     return (
       <div className="space-y-4">
         {rows.map((row, i) => (
-          <div key={`${idPrefix}-${i}`} className="flex flex-wrap items-end gap-3 border-b border-bone pb-4 last:border-0 last:pb-0">
+          <div key={`${idPrefix}-${i}`} className="flex flex-wrap items-end gap-3 border-b border-border pb-4 last:border-0 last:pb-0">
             <Input
               id={`${idPrefix}-name-${i}`}
               label="Name"

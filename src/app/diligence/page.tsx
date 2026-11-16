@@ -300,7 +300,7 @@ export default function DiligencePage() {
             return (
               <div
                 key={docType.value}
-                className="border-b border-bone pb-4 last:border-0 last:pb-0"
+                className="border-b border-border pb-4 last:border-0 last:pb-0"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-48 flex-1">

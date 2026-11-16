@@ -78,7 +78,7 @@ A conflict to note, not a drift: the October overhaul spec chose "light theme on
 
 **JC-RD-D: no new dependency.** Inter comes from `next/font/google`, as Molly's three fonts do today. Radix, cmdk, lucide and swr are already installed.
 
-**JC-RD-E: font override.** next/font puts its variables on `<html>` through a class. `html[data-look="v2"]` has higher specificity (0,1,1) than that class (0,1,0), so `html[data-look="v2"] { --font-sans: var(--font-inter); }` wins without `!important`.
+**JC-RD-E: font override.** *As built (WS156):* Inter is set inside the admin block, not on `<html>`: `--font-sans` and `--font-display` both become `var(--font-inter)` under `html[data-look="v2"] [data-surface="admin"]` (and the `body[data-surface="admin"]` twin for portals). This keeps founder, LP, auth and share pages on Plex even with the switch on. Specificity is not an issue because the variable is redefined on a descendant of `<html>`, closer than the next/font class. (The first draft set `--font-sans` on `html[data-look="v2"]`; that would have reached every surface.)
 
 **JC-RD-F: neutral greys and the accent are Molly's own values.** Nisat sets them in WS155 and the WS156 test enforces them. The accent is Molly's Sky family, as darkened for text today (`globals.css:12`, `#44688E`), with a lighter Sky for dark mode. Lou's values are not copied.
 
@@ -151,9 +151,9 @@ WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can ru
 - `src/lib/look.ts` (new, pure): `readLook()`, `setLook(look: "v1" | "v2")`, `setTheme(theme: "light" | "dark")`. These guard storage access the way `sidebar.tsx:165-185` does, and set the `<html>` attributes.
 - `src/app/globals.css`: one new marked section, `/* ── New look (PLAN-1, WS156) ── */`, placed after the Direction B block:
   ```css
-  html[data-look="v2"] { --font-sans: var(--font-inter); }
   html[data-look="v2"] [data-surface="admin"],
   html[data-look="v2"] body[data-surface="admin"] {
+    --font-sans: var(--font-inter); --font-display: var(--font-inter);   /* as built: inside the admin block */
     --color-bg: …; --color-surface: …; --color-border: …;
     --color-text-primary: …; --color-text-secondary: …; --color-text-muted: …;
     --color-accent: #44688E; --color-accent-rgb: 68 104 142; --color-muted-rgb: …;
@@ -163,7 +163,7 @@ WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can ru
     --tracking-label: 0; --shadow-soft: none; --shadow-lift: none;
   }
   html[data-look="v2"][data-theme="dark"] [data-surface="admin"],
-  html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] { /* dark values, incl. --tone-* pairs */ color-scheme: dark; }
+  html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] { /* dark values, incl. --tone-* pairs, the dark primary scale (--color-primary-50/100/500/600/700) and the destructive pair (--color-destructive-rgb/-foreground), which the first draft left out */ color-scheme: dark; }
   ```
   Values come from WS155. `body { font-size }` is not changed globally. Base sizes change through the new type roles below.
 - `tailwind.config.ts`: add colours `pane`, `sel`, `open` (pointing at the new variables), and three type roles: `row: ["13px", { lineHeight: "20px" }]`, `meta: ["12px", { lineHeight: "18px" }]`, `"pane-title": ["20px", { lineHeight: "28px", letterSpacing: "-0.012em", fontWeight: "600" }]`.
@@ -187,7 +187,7 @@ WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can ru
 **Steps.**
 - Replace the brand-name colour classes and `bg-white`/raw hex in the 41 files that Grep finds with `bg-white|text-white|bg-black|#[0-9A-Fa-f]{6}\b|bg-(paper|bone|…)|text-(paper|…)`, using token classes (`bg-card`, `bg-background`, `text-foreground`, `text-muted-foreground`, `border-border`, `bg-primary`). Two kinds stay: hex inside `share/**` and `company-brand.tsx` (the company theme), and the print stylesheets. Founder and LP files are swept too, because the change is invisible under v1: the token values equal the old literals. Example: `lp/layout.tsx:23` `bg-paper text-obsidian` → `bg-background text-foreground`. Under v1, `--color-bg` is `#EBE8DE` (Paper) and `--color-text-primary` is `#14140F` (Obsidian), so the rendering is the same.
 - `src/components/ui/logo-mark.tsx:20`: the letters' `fill="#14140F"` → `fill="currentColor"`, with `text-foreground` on the `<svg>`. The underscore stays `#5B8DC5`. Under v1, `text-foreground` is Obsidian, so it is unchanged.
-- `sidebar.tsx:207` `before:bg-sky` → `before:bg-primary` (only the v2 sidebar in WS158 drops the rule).
+- `sidebar.tsx:207` `before:bg-sky` → `before:bg-mark` (only the v2 sidebar in WS158 drops the rule). *As built:* not `bg-primary`. Under v1 `--color-accent` is `#44688E`, but the old `sky` is `#5B8DC5`, so `bg-primary` would change the old look. WS157 adds a `--color-mark` token (`#5B8DC5` in `:root` and v2 light, `#7BA9DD` in v2 dark) and a `mark` Tailwind colour, and every Sky dot, insertion line, toast bar, outline and focus border uses it. The same applies to the toast (new `--color-toast` / `--color-toast-ink` tokens, dark in both themes), the scrim (`bg-obsidian/35` → `bg-[color:var(--scrim)]`, same value) and the select chevron (`--select-chevron`, stroke follows the muted text colour).
 - Review the ~149 "legacy coloured-text" usages flagged in October. Any that uses a fixed palette colour as text moves to a tone ink token.
 - Test: `src/lib/__tests__/no-hardcoded-colour.test.ts`, a guard in the style of the Part 32 "Molly team" test. It scans `src/app/admin/**` and `src/components/{ui,layout,admin}/**` for the regex and allows only listed exceptions.
 

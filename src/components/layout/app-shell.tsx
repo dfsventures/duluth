@@ -26,7 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-obsidian/35 md:hidden"
+          className="fixed inset-0 z-30 bg-[color:var(--scrim)] md:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}

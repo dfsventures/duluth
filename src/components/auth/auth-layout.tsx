@@ -76,7 +76,7 @@ export function AuthSteps({ steps, current }: { steps: string[]; current: number
         >
           <span
             aria-hidden="true"
-            className={cn("inline-block h-[7px] w-[7px]", i < current ? "bg-acacia" : i === current ? "bg-sky" : "bg-bone")}
+            className={cn("inline-block h-[7px] w-[7px]", i < current ? "bg-acacia" : i === current ? "bg-mark" : "bg-border")}
           />
           {s}
           {i < current && <span className="sr-only"> (done)</span>}

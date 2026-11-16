@@ -87,7 +87,7 @@ export function CommandPalette() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-start justify-center bg-obsidian/35 px-4 pt-[12vh] data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--scrim)] px-4 pt-[12vh] data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
           <DialogPrimitive.Content
             aria-describedby={undefined}
             className="w-full max-w-[520px] border border-border bg-card shadow-float data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out"

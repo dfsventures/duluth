@@ -53,6 +53,11 @@
   --color-attention-bg: rgb(201 150 58 / 0.10);
   --color-thead: #FFFFFF;       /* table header fill (white on admin; founder/LP warm off-white) */
   --color-sidebar: var(--color-bg);
+  --color-mark: #5B8DC5;        /* Sky as a small mark: dots, insertion lines, toast bars (WS157) */
+  --color-toast: #14140F;       /* toast fill (Obsidian) and its text (Paper); dark toast in both themes */
+  --color-toast-ink: #EBE8DE;
+  /* Select chevron, stroke = --color-text-muted (#66645A here). Redefined in the v2 blocks. */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2366645A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
 
   /* Tinted status / stage / column pairs (spec 11.1): soft fill + deep ink.
      Tinted fills with deep ink carry all coloured text; solid brand hues are for
@@ -171,6 +176,10 @@ html[data-look="v2"] body[data-surface="admin"] {
   --color-accent-rgb: 68 104 142;
   --color-accent-foreground: #FFFFFF;
   --color-accent-soft: rgba(68, 104, 142, 0.10);
+  --color-mark: #5B8DC5;
+  --color-toast: #15181D;
+  --color-toast-ink: #F4F5F7;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235A616C' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); /* stroke = text-muted */
 
   /* State (glyphs and short text) */
   --color-done: #1B7448;
@@ -234,6 +243,10 @@ html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] {
   --color-accent-rgb: 123 169 221;
   --color-accent-foreground: #0C1522;
   --color-accent-soft: rgba(123, 169, 221, 0.16);
+  --color-mark: #7BA9DD;
+  --color-toast: #2A2F37;
+  --color-toast-ink: #E9ECF0;
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239AA1AC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); /* stroke = text-muted */
 
   /* The primary scale (avatar chips and the like) follows the accent */
   --color-primary-50: rgba(123, 169, 221, 0.10);
@@ -331,12 +344,12 @@ html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] {
    @layer base regardless of specificity, so a base-layer rule would lose to
    .input-field's px-3 and to any utility px-*, leaving text under the arrow.
    Unlayered rules beat every layer, so no call site can reintroduce a cramped
-   arrow. Chevron stroke is --color-text-muted (#66645A). Multi-selects and
+   arrow. Chevron stroke follows --color-text-muted via --select-chevron. Multi-selects and
    listboxes are excluded. (Part 37 UI fixes, Nisat review fix 1.) */
 select:not([multiple]):not([size]) {
   -webkit-appearance: none;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2366645A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: var(--select-chevron);
   background-repeat: no-repeat;
   background-position: right 0.625rem center;
   background-size: 1rem 1rem;

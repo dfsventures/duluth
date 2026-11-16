@@ -22,10 +22,10 @@ export default async function LpPortalPage() {
     return (
       <div className="mx-auto max-w-2xl">
         <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">LP Portal</p>
-        <h1 className="mt-3 font-display text-3xl tracking-tight text-obsidian sm:text-4xl">
+        <h1 className="mt-3 font-display text-3xl tracking-tight text-foreground sm:text-4xl">
           Fund reports for our limited partners.
         </h1>
-        <p className="mt-4 max-w-lg text-tide">
+        <p className="mt-4 max-w-lg text-secondary">
           Enter the email address {ORG_NAME} has on file for you and we&rsquo;ll send a one-time access code.
         </p>
         <LpLoginForm />
@@ -49,7 +49,7 @@ export default async function LpPortalPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">LP Portal</p>
-      <h1 className="mt-3 font-display text-3xl tracking-tight text-obsidian sm:text-4xl">Your fund reports.</h1>
+      <h1 className="mt-3 font-display text-3xl tracking-tight text-foreground sm:text-4xl">Your fund reports.</h1>
 
       {reports.length === 0 ? (
         <EmptyState
@@ -63,7 +63,7 @@ export default async function LpPortalPage() {
         <div className="mt-10 space-y-10">
           {[...byFund.entries()].map(([fundId, bucket]) => (
             <section key={fundId}>
-              <h2 className="border-b border-bone pb-2 font-mono text-xs uppercase tracking-[0.1em] text-muted-foreground">
+              <h2 className="border-b border-border pb-2 font-mono text-xs uppercase tracking-[0.1em] text-muted-foreground">
                 {bucket.fundName}
               </h2>
               <ul className="mt-3 divide-y divide-row-divider overflow-hidden rounded-md bg-card shadow-soft">
