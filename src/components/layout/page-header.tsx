@@ -25,7 +25,9 @@ export function PageHeader({ title, description, action, indicator }: PageHeader
           </p>
         )}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {/* New look, phones: the actions take their own line under the title and wrap, instead of
+          running off the screen. */}
+      {action && <div className="shrink-0 max-sm:v2:w-full max-sm:v2:shrink max-sm:v2:pb-2 max-sm:v2:[&>*]:flex-wrap">{action}</div>}
     </div>
   );
 }

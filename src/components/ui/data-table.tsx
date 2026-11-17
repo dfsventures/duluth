@@ -415,6 +415,31 @@ function DataTableInner<T>({
 
   const groups = useMemo(() => (activeGroup ? groupRows(visible, activeGroup.getGroup) : null), [visible, activeGroup]);
 
+  // New look, table that scrolls sideways inside its own box (not a list beside a pane): say so when
+  // more is off to the right, so a column is never just cut off. Nothing happens under the old look.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [moreRight, setMoreRight] = useState(false);
+  const watchScroll = v2 && !listMode;
+  const tableShown = !loading && !error && visible.length > 0;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!watchScroll || !tableShown || !el) {
+      setMoreRight(false);
+      return;
+    }
+    const update = () => setMoreRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+    update();
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(el);
+    const t = el.querySelector("table");
+    if (t) ro?.observe(t);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro?.disconnect();
+    };
+  }, [watchScroll, tableShown, visible.length]);
+
   // The rows on screen in order (a collapsed group's rows are not): what j / k / Enter walk.
   const shownRows = useMemo(
     () => (groups ? groups.flatMap((g) => (collapsedGroups.includes(g.id) ? [] : g.rows)) : visible),
@@ -601,6 +626,52 @@ function DataTableInner<T>({
 
   function renderMobileRow(row: T) {
     const href = rowHref?.(row);
+    // New look: a cell may hold its own link (the Fund in the deal ledger), and a link inside a link
+    // is invalid. So the row's link wraps the title only and is stretched over the whole row (its
+    // ::after), with the cells' own links lifted above it: the same things are clickable.
+    if (v2 && href) {
+      const lift = "[&_a]:relative [&_a]:z-[1]";
+      return (
+        <li
+          key={rowKey(row)}
+          {...(listMode
+            ? {
+                role: "option",
+                "aria-selected": isOpenRow(row),
+                "data-key": rowKey(row),
+                "data-open": isOpenRow(row) ? "true" : undefined,
+                onClick: (e: React.MouseEvent) => paneClick(e, row),
+              }
+            : {})}
+          className={cn("relative px-4 py-3 text-sm", rowClassName?.(row))}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className="min-w-0 font-medium">
+              <Link
+                href={href}
+                onClick={listMode ? (e) => paneClick(e, row) : undefined}
+                className="after:absolute after:inset-0 after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
+              >
+                {titleCol.cell(row)}
+              </Link>
+            </span>
+            {badgeCols.length > 0 && (
+              <span className={cn("num shrink-0 text-[13px]", lift)}>
+                {badgeCols.map((c) => <Fragment key={c.key}>{c.cell(row)}</Fragment>)}
+              </span>
+            )}
+          </div>
+          {metaCols.length > 0 && (
+            <div className={cn("mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground", lift)}>
+              {metaCols.map((c) => (
+                <span key={c.key}>{c.cell(row)}</span>
+              ))}
+            </div>
+          )}
+          {rowActions && <div className="relative z-[1] mt-2 flex items-center gap-1">{rowActions(row)}</div>}
+        </li>
+      );
+    }
     const body = (
       <>
         <div className="flex items-start justify-between gap-3">
@@ -761,7 +832,16 @@ function DataTableInner<T>({
     <div
       ref={wrapRef}
       data-datatable=""
-      {...(v2 ? { "data-density": density, "data-list-mode": listMode ? "" : undefined } : {})}
+      {...(v2
+        ? {
+            "data-density": density,
+            "data-list-mode": listMode ? "" : undefined,
+            // Hover-revealed row actions take no column of their own (they overlay the row's end).
+            "data-hover-actions": rowActions && !actionsAlwaysVisible ? "" : undefined,
+            // With the pane open the list is narrower, so its low-priority columns drop earlier.
+            "data-pane-open": listMode && openKey != null ? "" : undefined,
+          }
+        : {})}
       className={className}
     >
       {hasToolbar && (v2 ? v2Toolbar : (
@@ -881,7 +961,11 @@ function DataTableInner<T>({
       ) : (
         <>
           {/* Desktop table */}
-          <div className="table-scroll-fade hidden overflow-x-auto border border-border bg-card md:block">
+          <div
+            ref={scrollRef}
+            data-scroll-more={watchScroll && moreRight ? "true" : undefined}
+            className="table-scroll-fade hidden overflow-x-auto border border-border bg-card md:block"
+          >
             <table className="w-full text-[13px]" style={minWidth ? { minWidth } : undefined}>
               <caption className="sr-only">{label}</caption>
               <thead>
@@ -922,7 +1006,7 @@ function DataTableInner<T>({
                     );
                   })}
                   {rowActions && (
-                    <th scope="col" className="w-px px-3">
+                    <th scope="col" {...(v2 ? { "data-actions": "" } : {})} className="w-px px-3">
                       <span className="sr-only">{actionsLabel}</span>
                     </th>
                   )}
