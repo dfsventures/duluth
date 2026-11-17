@@ -652,7 +652,7 @@ function AdminFundDetailPageInner() {
   ];
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <Breadcrumb items={[{ label: "Funds", href: "/admin/funds" }, { label: fund.name }]} />
 
 

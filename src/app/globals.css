@@ -336,6 +336,11 @@ html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-ch
   padding-right: max(var(--gutter), calc(100cqw - var(--gutter) - var(--column)));
   background: var(--color-bg);
 }
+/* A wide page has no column cap, so its header ends one gutter from the right edge, on the same
+   line as the table below it. */
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="wide"] > .shell-header:first-child {
+  padding-right: var(--gutter);
+}
 
 /* Focus rings inside the sidebar sit inside the item: 28px rows leave no room for the
    usual 3px offset, and the scroll area would clip it. */

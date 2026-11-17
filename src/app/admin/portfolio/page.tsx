@@ -225,7 +225,7 @@ function LedgerPage() {
   const onVisible = useCallback((r: PortfolioDeal[]) => setShown(r), []);
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="Deal Ledger"
         description="Every deal across every fund — the cross-fund view the per-fund pages don't give you."

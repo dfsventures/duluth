@@ -20,8 +20,11 @@ interface AppShellProps {
    * "page" (default) is today's centred column. "full" is for pages that lay out their own
    * list and pane (PLAN-1, WS160): under the new look it drops the column and the padding.
    * Under the old look both are the same box, so a page can pass "full" before it is ready.
+   * "wide" is for pages whose main content is a wide table: under the new look it is left-aligned
+   * with the same gutter on both sides as "page" but no column cap, so the header, stat strip and
+   * table all span the content area. Under the old look it is the same box as "page".
    */
-  width?: "page" | "full";
+  width?: "page" | "wide" | "full";
 }
 
 export function AppShell({ children, width = "page" }: AppShellProps) {
@@ -107,8 +110,11 @@ export function AppShell({ children, width = "page" }: AppShellProps) {
             // "full": no column and no padding under the new look; the page lays itself out.
             width === "full"
               ? "v2:max-w-none v2:p-0 v2:[--shell-pt:0px]"
-              : // New look: left-aligned, one gutter from the sidebar, content at most --column wide.
-                "v2:mx-0 v2:max-w-[calc(var(--column)+2*var(--gutter))] v2:px-[var(--gutter)]"
+              : width === "wide"
+                ? // New look, wide: left-aligned, one gutter on both sides, no column cap.
+                  "v2:mx-0 v2:max-w-none v2:px-[var(--gutter)]"
+                : // New look: left-aligned, one gutter from the sidebar, content at most --column wide.
+                  "v2:mx-0 v2:max-w-[calc(var(--column)+2*var(--gutter))] v2:px-[var(--gutter)]"
           )}
         >
           {children}
