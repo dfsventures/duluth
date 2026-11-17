@@ -120,6 +120,18 @@ describe("FilterBar", () => {
     expect(html).toContain("h-7");
     expect(html).toContain("max-md:h-8");
   });
+  it("is positioned, so hidden labels inside it cannot widen the page past a phone screen", () => {
+    const html = renderToStaticMarkup(
+      <FilterBar
+        chips={[{ key: "owner", label: "Owner" }]}
+        onOpen={noop}
+        onRemove={noop}
+        onClearAll={noop}
+        trailing={<label className="sr-only">Fund</label>}
+      />
+    );
+    expect(html).toMatch(/class="relative flex h-11/);
+  });
   it("shows a set chip with its value, a remove button and Clear filters (copy doc: not Clear all)", () => {
     const html = renderToStaticMarkup(
       <FilterBar chips={[{ key: "owner", label: "Owner", value: "Sam Admin" }]} onOpen={noop} onRemove={noop} onClearAll={noop} />

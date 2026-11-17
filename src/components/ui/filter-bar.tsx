@@ -49,7 +49,10 @@ export function FilterBar({ chips, onOpen, onRemove, onClearAll, leading, traili
       role="group"
       aria-label={label}
       className={cn(
-        "flex h-11 flex-none items-center gap-2 overflow-x-auto border-b border-border px-[var(--row-pad,var(--gutter,24px))] text-meta max-md:h-[52px]",
+        // relative: the bar is the containing block for the visually hidden labels inside it (sr-only is
+        // position: absolute). Without it they sit at their static spot past the visible edge, outside the
+        // scroll container's clip, and make the whole page scroll sideways on a phone. A caller's sticky wins.
+        "relative flex h-11 flex-none items-center gap-2 overflow-x-auto border-b border-border px-[var(--row-pad,var(--gutter,24px))] text-meta max-md:h-[52px]",
         className
       )}
     >
