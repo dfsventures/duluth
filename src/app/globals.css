@@ -797,14 +797,21 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody
   }
 }
 
-/* Phone: two-line rows, 64px, padded 12 by the gutter, lines 4 apart. */
+/* Phone: two-line rows, 64px, padded 12 top and bottom, lines 4 apart. No side padding: the list
+   box already sits one gutter in (like the title and the filter), so the row text starts on the
+   gutter, directly under the hairlines' left end. */
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li {
   min-height: 64px;
-  padding: 12px var(--gutter);
+  padding: 12px 0;
 }
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li[data-group] {
   min-height: 0;
   padding-block: 8px;
+}
+/* The row-actions line: the ghost buttons have 12px of their own side padding (44px tall on a
+   phone), so pull the line back 12 and the first icon sits on the same edge as the text above. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li > div.mt-2 {
+  margin-left: -12px;
 }
 /* ── End new look ── */
 
