@@ -29,6 +29,27 @@ describe("PageHeader", () => {
     expect(html).toContain("<button>Add</button>");
     expect(html).toContain("shell-header");
   });
+  it("secondaryActions: desktop buttons plus a 'More actions' menu button that only shows on phones; the primary action stays", () => {
+    const html = renderToStaticMarkup(
+      <PageHeader
+        title="Companies"
+        action={<button>Add Company</button>}
+        secondaryActions={[
+          { label: "CSV format", onSelect: () => {} },
+          { label: "Import CSV", onSelect: () => {} },
+        ]}
+      />
+    );
+    expect(html).toContain('aria-label="More actions"');
+    expect(html).toContain("max-md:v2:hidden");
+    expect(html).toContain("hidden max-md:v2:block");
+    expect(html).toContain("CSV format");
+    expect(html).toContain("<button>Add Company</button>");
+  });
+  it("without secondaryActions there is no menu", () => {
+    const html = renderToStaticMarkup(<PageHeader title="Companies" action={<button>Add</button>} />);
+    expect(html).not.toContain("More actions");
+  });
   it("omits the description and action when absent", () => {
     const html = renderToStaticMarkup(<PageHeader title="Audit log" />);
     expect(html).not.toContain("<p");

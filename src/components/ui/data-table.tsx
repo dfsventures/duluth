@@ -799,7 +799,8 @@ function DataTableInner<T>({
       trailing={
         toolbarExtra || groupBy || columnsMenu || exportButton ? (
           <>
-            {toolbarExtra}
+            {/* A filter select is sized to its content, capped at 15rem, so a long company name can't stretch it. */}
+            {toolbarExtra && <div className="flex items-center gap-2 [&_select]:max-w-[15rem]">{toolbarExtra}</div>}
             {groupBy && (
               <>
                 <label htmlFor={`dt-group-${label}`} className="sr-only">

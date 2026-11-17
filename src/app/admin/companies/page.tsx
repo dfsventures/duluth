@@ -406,17 +406,28 @@ export default function AdminCompaniesPage() {
         indicator={<RefreshIndicator active={isValidating && !!companiesData} />}
         title="Companies"
         description="Manage all portfolio companies."
+        // New look: CSV format and Import CSV are secondary actions (a "⋯" menu on phones, so the
+        // title and Add Company keep one row). Old look keeps Import CSV as a header button.
+        secondaryActions={
+          v2
+            ? [
+                { label: "CSV format", variant: "ghost", onSelect: () => setCsvHelpOpen(true) },
+                {
+                  label: "Import CSV",
+                  icon: <Upload className="h-4 w-4" />,
+                  onSelect: () => fileInputRef.current?.click(),
+                },
+              ]
+            : undefined
+        }
         action={
           <div className="flex flex-wrap gap-2">
-            {v2 && (
-              <Button variant="ghost" className="text-muted-foreground" onClick={() => setCsvHelpOpen(true)}>
-                CSV format
+            {!v2 && (
+              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
+                Import CSV
               </Button>
             )}
-            <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="h-4 w-4" />
-              Import CSV
-            </Button>
             <input
               ref={fileInputRef}
               type="file"
