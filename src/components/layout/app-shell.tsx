@@ -105,7 +105,10 @@ export function AppShell({ children, width = "page" }: AppShellProps) {
             // The page header reads this to bleed to the top (see globals.css, .shell-header).
             "[--shell-pt:1.5rem] md:[--shell-pt:2rem]",
             // "full": no column and no padding under the new look; the page lays itself out.
-            width === "full" && "v2:max-w-none v2:p-0 v2:[--shell-pt:0px]"
+            width === "full"
+              ? "v2:max-w-none v2:p-0 v2:[--shell-pt:0px]"
+              : // New look: left-aligned, one gutter from the sidebar, content at most --column wide.
+                "v2:mx-0 v2:max-w-[calc(var(--column)+2*var(--gutter))] v2:px-[var(--gutter)]"
           )}
         >
           {children}

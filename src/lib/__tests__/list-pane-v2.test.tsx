@@ -252,11 +252,19 @@ describe("list and pane css", () => {
     expect(section).toContain("@container (max-width: 600px)");
     expect(section).toContain("@container (max-width: 480px)");
   });
-  it("a full-width page puts the header, the blocks above the list and the rows on one column edge", () => {
-    expect(section).toMatch(/\.shell-page\[data-width="full"\] \{\s*--row-pad: max\(var\(--gutter\), calc\(\(100cqw - var\(--column\)\) \/ 2\)\);/);
-    expect(section).toMatch(/\.shell-header:first-child \{[^}]*padding-inline: var\(--row-pad\)/);
-    // beside an open pane the list and the header both use the gutter
-    expect(section).toMatch(/:has\(\[data-split-pane\]\) \.list-pane \{\s*--row-pad: var\(--gutter\)/);
+  it("nothing is centred: blocks above a list sit one gutter in, and a list is its own content box", () => {
+    expect(section).toMatch(/\.shell-page\[data-width="full"\] \{\s*--row-pad: var\(--gutter\);/);
+    expect(section).not.toContain("100cqw");
+    expect(section).not.toMatch(/:has\(\[data-split-pane\]\)[^{]*\{\s*--row-pad/);
+    // inside the list there is no side padding, so rows, hairlines and tints end with the content
+    expect(section).toMatch(/\[data-datatable\]\[data-density\] \{\s*--row-pad: 0px;/);
+    expect(section).toMatch(/\[data-datatable\]\[data-list-mode\] \{\s*margin-inline: var\(--gutter\);\s*max-width: var\(--column\);/);
+  });
+  it("the row-actions cell has its own space, so it cannot overlap the last column", () => {
+    expect(section).toMatch(/td\[data-actions\] \{\s*width: 1%;\s*max-width: none;\s*overflow: visible;\s*white-space: nowrap;/);
+  });
+  it("column headings get 8px of air under the filter bar", () => {
+    expect(section).toMatch(/thead th \{\s*height: 40px;\s*padding: 8px 0 0 24px;/);
   });
   it("cells are one line with an ellipsis; numbers are not cut", () => {
     expect(section).toMatch(/\[data-density\] td \{[^}]*max-width: var\(--cell-max, 240px\);[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap/);

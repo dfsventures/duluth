@@ -81,11 +81,24 @@ describe("the three pages", () => {
     // the new-look words are muted meta text that truncates before the name does
     expect(companies).toContain("shrink-[1000] truncate text-meta font-normal text-muted-foreground");
   });
-  it("blocks above a full-width list pad by --row-pad so they line up with the title and rows", () => {
+  it("blocks beside a full-width list sit at --row-pad and at most --column wide, left-aligned", () => {
     for (const src of [approvals, companies, updates]) {
       expect(src).not.toContain("v2:px-[var(--gutter)]");
-      expect(src).toContain("v2:px-[var(--row-pad)]");
+      expect(src).not.toContain("v2:px-[var(--row-pad)]");
     }
+    for (const src of [approvals, updates]) {
+      expect(src).toContain("v2:mx-[var(--row-pad)] ");
+      expect(src).toContain("v2:max-w-[var(--column)]");
+    }
+  });
+  it("Companies: the CSV format note leaves the list under the new look (header button and dialog); the old look keeps the disclosure", () => {
+    expect(companies).toContain("{!v2 && (");
+    expect(companies).toContain('<ComposerDisclosure label="CSV format">{csvFormatNote}</ComposerDisclosure>');
+    expect(companies).toContain("setCsvHelpOpen(true)");
+    expect(companies).toContain('<DialogContent title="CSV format"');
+  });
+  it("Approvals: the password-setup and dismissed tables keep their row actions on screen", () => {
+    expect(approvals.match(/actionsAlwaysVisible/g)?.length).toBe(2);
   });
   it("the pane for an update sanitises the body the way the full page does", () => {
     expect(updates).toContain("sanitizeUpdateHtml(detail.body)");

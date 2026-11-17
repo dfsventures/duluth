@@ -217,6 +217,8 @@ export default function AdminCompaniesPage() {
   const [preview, setPreview] = useState<{ fileName: string; rows: CompanyCsvRow[] } | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  // New look: the CSV format note lives behind a quiet button in the header, not above the list.
+  const [csvHelpOpen, setCsvHelpOpen] = useState(false);
 
   const rows = useMemo(() => companies.map(toRow), [companies]);
   const existingNames = useMemo(() => new Set(companies.map((c) => c.name.trim().toLowerCase())), [companies]);
@@ -388,7 +390,15 @@ export default function AdminCompaniesPage() {
     },
   ];
 
-  const importBlockedNames = preview ? preview.rows.filter((r) => existingNames.has(r.name.trim().toLowerCase())).length : 0;
+  const csvFormatNote = (
+    <p className="text-sm text-muted-foreground">
+      To bulk import, upload a CSV with a <code className="rounded bg-muted px-1 text-xs">name</code> column and
+      optional <code className="rounded bg-muted px-1 text-xs">url</code> column. You will see a preview before
+      anything is created. Founders fill in remaining details after gaining access.
+    </p>
+  );
+
+  const importBlockedNames =preview ? preview.rows.filter((r) => existingNames.has(r.name.trim().toLowerCase())).length : 0;
 
   return (
     <AppShell width="full">
@@ -398,6 +408,11 @@ export default function AdminCompaniesPage() {
         description="Manage all portfolio companies."
         action={
           <div className="flex flex-wrap gap-2">
+            {v2 && (
+              <Button variant="ghost" className="text-muted-foreground" onClick={() => setCsvHelpOpen(true)}>
+                CSV format
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
               <Upload className="h-4 w-4" />
               Import CSV
@@ -421,16 +436,19 @@ export default function AdminCompaniesPage() {
         }
       />
 
-      <div className="mb-4 v2:mb-0 v2:px-[var(--row-pad)] v2:py-3">
-        {/* New look: no rule of its own, the header bar's line is the only one under the title. */}
-        <ComposerDisclosure label="CSV format" className="v2:border-t-0 v2:pt-0">
-          <p className="text-sm text-muted-foreground">
-            To bulk import, upload a CSV with a <code className="rounded bg-muted px-1 text-xs">name</code> column and
-            optional <code className="rounded bg-muted px-1 text-xs">url</code> column. You will see a preview before
-            anything is created. Founders fill in remaining details after gaining access.
-          </p>
-        </ComposerDisclosure>
-      </div>
+      {/* Old look keeps the disclosure here; the new look has a "CSV format" button in the header instead. */}
+      {!v2 && (
+        <div className="mb-4">
+          <ComposerDisclosure label="CSV format">{csvFormatNote}</ComposerDisclosure>
+        </div>
+      )}
+      {v2 && (
+        <Dialog open={csvHelpOpen} onOpenChange={setCsvHelpOpen}>
+          <DialogContent title="CSV format" size="sm">
+            <DialogBody>{csvFormatNote}</DialogBody>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <OpenParam fallback={<TableSkeleton rows={6} cols={5} />}>
       {(openId, setOpenId) => {

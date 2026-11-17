@@ -308,19 +308,32 @@ html[data-look="v2"] [data-surface="admin"] .shell-header {
 html[data-look="v2"] [data-surface="admin"] .shell-main {
   container-type: inline-size;
 }
-/* When it is the first thing on the page it also sticks to the top of the scroll area and
-   bleeds to both edges of the main area, however wide the window. In the margin and padding,
-   100% is the column's content width and 100cqw the main area's, so (100cqw - 100%) / 2 is
-   the distance from the column to each edge: the bar reaches the edges and the title stays
-   lined up with the page content. The top bleed comes from the shell as --shell-pt. */
+/* Nothing is centred: a page's content starts one gutter from the sidebar and is at most
+   --column wide. --page-pad is the page's own side padding (the gutter; 0 on a full-width page,
+   which lays itself out). */
+html[data-look="v2"] [data-surface="admin"] .shell-page {
+  --page-pad: var(--gutter);
+}
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
+  --page-pad: 0px;
+}
+/* When it is the first thing on the page the header also sticks to the top of the scroll area
+   and bleeds to both edges of the main area, however wide the window (its hairline is a bar and
+   runs the full width). In the margins, 100% is the page's content width and 100cqw the main
+   area's, so the margins cancel the page's own padding and reach the right edge. The title
+   starts on the gutter, and the actions end where the content ends: gutter + --column from the
+   left, or the window's edge less a gutter when the window is narrower. The top bleed comes from
+   the shell as --shell-pt. */
 html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-child {
   position: sticky;
   top: 0;
   z-index: 10;
   margin-top: calc(var(--shell-pt, 0px) * -1);
   margin-bottom: 32px;
-  margin-inline: calc((100% - 100cqw) / 2);
-  padding-inline: max(calc((100cqw - 100%) / 2), var(--gutter));
+  margin-left: calc(var(--page-pad) * -1);
+  margin-right: calc(100% + var(--page-pad) - 100cqw);
+  padding-left: var(--gutter);
+  padding-right: max(var(--gutter), calc(100cqw - var(--gutter) - var(--column)));
   background: var(--color-bg);
 }
 
@@ -487,33 +500,30 @@ html[data-look="v2"] [data-surface="admin"] select.input-field {
    and DetailPane render only under it, so none of this can reach the old markup. Sizes come
    from the density tokens above (docs/design/redesign-v1-density.md section 4). */
 
-/* The list area is a size container. Columns drop out by its width, and --row-pad keeps the
-   content in the 1104px column on a wide window while row bands and hairlines run edge to
-   edge (the same trick as the header bar). cqw resolves where --row-pad is used. */
+/* The list area is a size container: columns drop out by its width. */
 html[data-look="v2"] [data-surface="admin"] .list-pane {
   container-type: inline-size;
-  --row-pad: max(var(--gutter), calc((100cqw - var(--column)) / 2));
 }
-/* A list in a page's own column (not beside a pane) pads its edges a little, as tables always did. */
-html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density]:not([data-list-mode]) {
-  --row-pad: 12px;
-}
-/* A full-width page puts everything on one column edge: the header's title, the blocks above the
-   list, the filter bar and the rows all pad by --row-pad. Defined on the page here (cqw is the
-   main area) and again on .list-pane (cqw is the list), so beside an open pane the list uses the
-   gutter and the header does too. Bands and hairlines still run edge to edge. */
+/* Left-aligned, never centred. On a full-width page the blocks above the list (tabs, notes) sit
+   one gutter in (--row-pad) and at most --column wide. */
 html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
-  --row-pad: max(var(--gutter), calc((100cqw - var(--column)) / 2));
-}
-html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-split-pane]) .shell-page[data-width="full"],
-html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-split-pane]) .list-pane {
   --row-pad: var(--gutter);
+}
+/* A list is its own content box: one gutter from each side, at most --column wide. Inside it
+   there is no side padding (--row-pad is 0), so the filter bar, headings, rows, hairlines and
+   tints all share the box's edges and none of them runs past the content. A table in a page's
+   own column (not beside a pane) has no margin: it lines up with the heading above it. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] {
+  --row-pad: 0px;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] {
+  margin-inline: var(--gutter);
+  max-width: var(--column);
 }
 /* List mode: the filter bar follows the header at once, and the sticky stack (header, filter bar,
    group heading) is what j and k must scroll clear of. */
 html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] > .shell-header:first-child {
   margin-bottom: 0;
-  padding-inline: var(--row-pad);
 }
 html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-list-mode]) {
   scroll-padding-top: calc(var(--bar-h) + var(--filter-h) + var(--group-h));
@@ -574,6 +584,17 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td.nu
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:has(button) {
   max-width: none;
   overflow: visible;
+}
+/* The row-actions cell has its own space: as wide as its content (a button, or the "No founder in
+   Molly" note) and never squeezed, so it cannot print over the last data column. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td[data-actions] {
+  width: 1%;
+  max-width: none;
+  overflow: visible;
+  white-space: nowrap;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td[data-actions] > div {
+  min-width: max-content;
 }
 /* The first column is the title: wider, and in list mode it takes whatever the others leave. */
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:first-child {
@@ -636,8 +657,9 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead
   border-bottom-width: 0;
 }
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th {
-  height: 32px;
-  padding: 0 0 0 24px;
+  /* 8px of air under the filter bar, then the 32px heading row. */
+  height: 40px;
+  padding: 8px 0 0 24px;
   border-bottom: 1px solid var(--color-row-divider);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;

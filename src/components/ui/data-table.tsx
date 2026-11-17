@@ -99,6 +99,8 @@ export interface DataTableProps<T> {
   rowActions?: (row: T) => React.ReactNode;
   /** Accessible name for the actions column header. */
   actionsLabel?: string;
+  /** New look only: show the row actions all the time instead of on hover (small tables whose rows exist to be acted on). */
+  actionsAlwaysVisible?: boolean;
   /** Extra classes per row, e.g. the row-removal animation. Applied to the table row and the mobile list item. */
   rowClassName?: (row: T) => string | undefined;
 
@@ -178,6 +180,7 @@ function DataTableInner<T>({
   rowActions,
   rowClassName,
   actionsLabel = "Actions",
+  actionsAlwaysVisible,
   searchText,
   searchPlaceholder,
   chips,
@@ -575,8 +578,18 @@ function DataTableInner<T>({
               );
             })}
             {rowActions && (
-              <td role={listMode ? "presentation" : undefined} className="px-3 py-1 text-right">
-                <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+              <td
+                role={listMode ? "presentation" : undefined}
+                {...(v2 ? { "data-actions": "" } : {})}
+                className="px-3 py-1 text-right"
+              >
+                <div
+                  className={
+                    v2 && actionsAlwaysVisible
+                      ? "flex items-center justify-end gap-1"
+                      : "flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                  }
+                >
                   {rowActions(row)}
                 </div>
               </td>
@@ -593,7 +606,7 @@ function DataTableInner<T>({
         <div className="flex items-start justify-between gap-3">
           <span className="min-w-0 font-medium">{titleCol.cell(row)}</span>
           {badgeCols.length > 0 && (
-            <span className="num shrink-0 text-[13px]">{badgeCols.map((c) => c.cell(row))}</span>
+            <span className="num shrink-0 text-[13px]">{badgeCols.map((c) => <Fragment key={c.key}>{c.cell(row)}</Fragment>)}</span>
           )}
         </div>
         {metaCols.length > 0 && (
