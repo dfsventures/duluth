@@ -27,6 +27,7 @@ const PAGES: Record<string, string> = {
   deals: "/admin/portfolio", // the deal ledger
   memos: "/admin/memos",
   board: "/admin/board",
+  fund: "/admin/funds", // opens the funds list, then the first fund's detail page (ids are random)
 };
 const VIEWPORTS: Record<string, { width: number; height: number }> = {
   desktop: { width: 1440, height: 900 },
@@ -241,7 +242,15 @@ async function main() {
         if (authBroken) break;
         const page = await context.newPage();
         watch(page, `${key} ${tag}`);
-        if (await open(page, `${key} ${tag}`, PAGES[key])) await snap(page, `${key}__${tag}.png`);
+        let ok = await open(page, `${key} ${tag}`, PAGES[key]);
+        if (ok && key === "fund") {
+          const href: string | null = await page
+            .$$eval('a[href^="/admin/funds/"]', (as: any[]) => as.map((a) => a.getAttribute("href")).find((h) => h && h.split("/").length === 4) ?? null)
+            .catch(() => null);
+          ok = href ? await open(page, `${key} ${tag}`, href) : false;
+          if (!href) console.log(`  [skip] ${key} ${tag}: no fund link found on /admin/funds`);
+        }
+        if (ok) await snap(page, `${key}__${tag}.png`);
         await page.close();
       }
 

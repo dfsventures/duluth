@@ -71,9 +71,9 @@ describe("shell source", () => {
     expect(css).toMatch(
       /html\[data-look="v2"\] \[data-surface="admin"\] \.shell-page\[data-width="wide"\] > \.shell-header:first-child \{\s*padding-right: var\(--gutter\);/
     );
-    // Deal Ledger and fund detail pass it; text pages do not.
+    // The Deal Ledger passes it. Fund detail stays on the column: its deals table fits, and its cards look loose when stretched.
     expect(read("app/admin/portfolio/page.tsx")).toContain('<AppShell width="wide">');
-    expect(read("app/admin/funds/[id]/page.tsx")).toContain('<AppShell width="wide">');
+    expect(read("app/admin/funds/[id]/page.tsx")).not.toContain('width="wide"');
     expect(read("app/admin/settings/page.tsx")).not.toContain('width="wide"');
   });
   it("has landmarks: labelled sidebar and nav, one main, a skip link to it", () => {
