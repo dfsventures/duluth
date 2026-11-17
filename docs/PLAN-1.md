@@ -1,4 +1,4 @@
-# PLAN-1 — Molly redesign in Lou's layout and feel (WS155–WS168, F161–F167, Q143–Q146, 2026-11-16)
+# PLAN-1 — Molly redesign in Lou's layout and feel (WS155–WS172, F161–F170, Q143–Q146, 2026-11-16; WS169–WS172 added 2026-11-17)
 
 Author: Felix. Plan only; nothing here is built. Board card B-124. The owner asked for "a big redesign of Molly so it looks more modern and has the same UI and UX as Lou". Lou is DFS's own agent inbox app, a separate private product. This plan describes Lou's patterns in Molly's own words and builds them from Molly's own code. **No Lou code, class names, token values or content may be copied into this repo** (the repo is public). Every company, person, fund and amount in mockups, tests and copy is a placeholder (Acme, example.com, round numbers).
 
@@ -68,6 +68,12 @@ The plan below is written for the recommended answers. Where an answer changes t
 - **F166 (already there).** Palette, `g` shortcuts, the `?` sheet and table `j`/`k` exist (see section 1), but they are admin-only and have no layered `Esc`, no pane, and no key hints in buttons. The keyboard work is an extension of these.
 - **F167 (no new API for the inbox).** The admin dashboard's "Needs attention" list is built from a pure function, `buildAttention` (`src/lib/attention.ts:10,41`; kinds `approvals`, `diligence`, `board`, `alert`, `overdue`), and rendered at `src/app/admin/page.tsx:237-337`. A Lou-style "Needs you" inbox can reuse it with no new route or query.
 
+Added 2026-11-17, from the sweep of the admin pages no workstream covered (WS169–WS172):
+
+- **F168 (LPs is on DataTable but still looks old).** Three things, all in `src/app/admin/lps/page.tsx`. (1) It uses the default `AppShell` width (`:296`), so it sits in the 1104 text-page column, while every list page built so far passes `"wide"` or `"full"` and is capped at 1440 (`app-shell.tsx:111-117`; density doc §4 "Page", update of 2026-11-17). The list-page header rules (`globals.css:342-345`, `:534-536`) only match those two widths. (2) The email column is `font-mono text-xs` (`:56`), the one mono column left in a new-look list. (3) The fund slugs are `badge-neutral` with `!px-1.5 !py-0.5 !text-xs` (`:75`); the `!important` padding beats the new-look badge reset (`globals.css:418-427`, padding 0). The edit sheet's fund toggles are mono with a `primary-50` fill (`:427-429`). Found by reading the code; WS169 confirms it with a screenshot before and after.
+- **F169 (the sweep's inventory, corrected).** Funds (`funds/page.tsx:146-169`) and Portfolio Contacts (`portfolio-contacts/page.tsx:244-267`) each have their own tab strip; the Funds one still draws its baseline under the new look (no `v2:border-b-0`). Funds, Fund Reports, Broadcasts and Weekly Digest show a box per record (`Link` or `Card` with a border), not rows. The Audit Log does have filters: five server-side chips with counts from the database (`audit/page.tsx:37-43,106-153`), so DataTable's own chips, which count only the loaded rows, cannot replace them. The Service Providers status filter and search are server-side too (`providers/page.tsx:75-78`). The Weekly Digest list (`digest/page.tsx`, 130 lines) is a simple list and belongs with the lists, not with the bigger pages. The Board tabs are Radix tabs (`board-client.tsx:400-413`), not `TabBar`, and the Settings tabs are server-rendered links (`settings-tabs.tsx`). The digest list wraps a `Button` inside a `Link` (`digest/page.tsx:67-72,110-112`), a button inside a link.
+- **F170 (colour guard gap).** The three earth colours are fixed hex values (`tailwind.config.ts:65-67`: laterite, ochre, acacia), and the WS157 guard does not look for them (`no-hardcoded-colour.test.ts:32-33` lists only paper, bone, obsidian, tide and sky). There are about 27 uses under `src/app/admin`, mostly hand-made notice boxes (`border-ochre/30 bg-ochre/10`) and the Settings status markers (`settings-status-strip.tsx:8-9`). They do not follow the dark theme. WS169–WS172 give each one on their pages a new-look class (the tone fills, or `var(--color-done)` / `var(--color-warn)` for state markers) and leave the old classes in place, so the old look is unchanged. Widening the guard to these names is left to WS167, once the stragglers outside these pages are listed.
+
 A conflict to note, not a drift: the October overhaul spec chose "light theme only" and a flat, editorial, no-gradient look on purpose (`docs/design/app-ui-overhaul.md` §2 assumption 2, §1 "Modern … does not mean rounder, softer, or gradient-y"). It also kept mono uppercase labels (§3 "What is not dated"). Q144 A or B reverses those choices. If the owner agrees, WS168 marks that spec superseded.
 
 ## 5. Technical approach and judgment calls
@@ -89,16 +95,20 @@ A conflict to note, not a drift: the October overhaul spec chose "light theme on
 ```
 Stage 0  WS155 concept (Nisat + Nosa)  ── owner approves
 Stage 1  WS156 tokens + switch ─ WS157 colour sweep ─ WS158 shell ─ WS159 components
-         ─ WS160 lists + pane ─ WS161 Needs you ─ WS162 boards ─ WS163 detail pages
+         ─ WS160 lists + pane ─ WS169 simple lists ─ WS170 Audit Log + Portfolio Contacts
+         ─ WS161 Needs you ─ WS162 boards ─ WS163 detail pages
+         ─ WS171 Providers, Links, Diligence, Settings ─ WS172 editors and forms
          ─ WS164 keyboard ─ WS167 a11y pass (admin)       [all behind the switch]
          owner uses it for a week or two
 Stage 2  WS165 founder ─ WS166 LP + auth ─ WS167 a11y pass (founder/LP)   [needs a fresh go-ahead, Q143 A]
 Finish   WS168 make it the default, remove the old look
 ```
 
-WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can run one at a time in any order after WS159, but never two at once, because they share `data-table.tsx`, `globals.css` and the shell. Each workstream is one commit and can ship alone behind the switch.
+WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 and WS169–WS172 can run one at a time after WS159, but never two at once, because they share `data-table.tsx`, `globals.css` and the shell. Each workstream is one commit and can ship alone behind the switch.
 
-**Concept ≈ 1 day, stage 1 ≈ 14.25 days, stage 2 ≈ 4.5 days, finish ≈ 1 day. Total ≈ 20.75 days.** With Q143 = C (admin only), the total is ≈ 16.25 days.
+**Order note (owner, 2026-11-17).** The simple lists come next after WS160: WS169, then WS170, then WS161. WS171 and WS172 come after WS163, because they reuse the record header WS163 builds. On the board, the WS169 and WS170 cards sit ahead of WS161.
+
+**Concept ≈ 1 day, stage 1 ≈ 20.5 days, stage 2 ≈ 4.5 days, finish ≈ 1 day. Total ≈ 27 days.** With Q143 = C (admin only), the total is ≈ 22.5 days. (WS169–WS172 added 6.25 days to stage 1.)
 
 ## 7. Risks
 
@@ -277,6 +287,7 @@ WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can ru
 - `components/admin/board/card-sheet.tsx`: restyle it as the WS160 `DetailPane` (crumb, title, chips, Edit as the primary). `e` still edits.
 - Owner decisions at concept review (2026-11-16, see `docs/design/redesign-v1.md` and `redesign-v1-copy.md`): columns are the four real statuses (To do, In progress, Blocked, Done); a stuck item reads "Blocked", never "Waiting on you". On a Blocked item the pane's primary is "Mark as unblocked", one click that moves it to In progress with Undo (audit-logged like any status move); Edit is secondary with `e`. Markers are option A: the Sky underscore block for the cursor on tiles and rows, and a red dog-ear for a blocked tile and for the pane's action card. No left-edge bars anywhere.
 - `components/admin/memos/memo-board*.tsx`: the same tile anatomy. The Idle amber time and the Stage moves are unchanged (Parts 43–44).
+- The Board's section tabs (`board-client.tsx:400-413`, Radix `Tabs.List` with mono caps triggers): under v2, no baseline and `TabBar`'s look, by `v2:` classes on the existing elements (they stay Radix tabs): the list gets `v2:border-b-0 v2:gap-6`, each trigger `v2:px-0 v2:py-2.5 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal`. The active trigger keeps its 2px underline; that is the indicator, not a baseline (the same rule bf38e57 applied elsewhere). Density doc §4 "Controls": tabs 40 high, 24 apart, 24 below.
 
 **Acceptance.** Under v2, drag, keyboard move and Undo work on both boards, a blocked card is the loudest tile, and the card sheet opens in the pane style. There is no data or API change.
 
@@ -290,6 +301,7 @@ WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can ru
 - `admin/companies/[id]/page.tsx` and its tabs (`components/admin/company/*`), `updates/[id]/page.tsx` (admin view), `admin/memos/[id]/memo-client.tsx`, `admin/funds/[id]/page.tsx`, `admin/portfolio/[id]/page.tsx`: under v2, a header crumb with a back link to the list, then the title, a property-chip row, and the primary action. Tabs become underline tabs in `text-row`. Sections get `text-meta` headings, not mono caps. Tables inside use DataTable (comfortable unless the table is long). Spacing follows the pane: 32 gutter inside the 720 column, 32 between sections, 12 under a section heading.
 - Founder-update provenance (the "From email · via Marge" line, figure tags and quote lines, B-113/B-116/B-117) keeps its content and order. Only the styling changes.
 - The memo page keeps its print scope (`memo-print-scope`), and printing is checked in WS167.
+- The memo section editor's Write / Preview tabs (`components/admin/memos/section-card.tsx:205-220`) draw a baseline (`border-b border-border` on the tab list). Under v2: `v2:border-b-0` on the list and `v2:text-row` on the tabs; the active tab's underline stays.
 
 **Acceptance.** Under v2, each of the five pages renders with the new header and chips, nothing is lost relative to v1 (owner side-by-side check), and memo print still produces white pages.
 
@@ -375,3 +387,108 @@ WS156 → WS157 → WS158 → WS159 must run in that order. WS160–WS164 can ru
 **Acceptance.** No `data-look` remains in `src`. The pages look as they did with v2 on. The tests and `tsc` pass. The owner does a final click-through of one page per audience.
 
 **UX impact.** Everyone sees the new look from this push. This is the one visible moment, and the owner chooses when it happens. **Cost impact.** None.
+
+---
+
+## The remaining admin pages (WS169–WS172, added 2026-11-17)
+
+The owner found that these admin pages still render in the old look with the switch on. No earlier workstream covered them. They are listed in F168–F170. The run order is in section 6: WS169 and WS170 come straight after WS160, and WS171 and WS172 come after WS163.
+
+**Rules for all four** (the same as the earlier pieces):
+- **The old look stays exactly as it is.** A page that moves to `DataTable` under the new look branches on `useNewLook()` (`src/lib/use-new-look.ts:13`) and keeps its current markup for the old look, as Approvals does (`approvals/page.tsx:796`). Class changes are `v2:` variants only. `data-table-v1-markup.test.tsx` stays green without its snapshot being re-recorded. WS168 deletes the old branches.
+- **No database, package or cost change. No new API route.** Every list and pane reads the endpoint or server query the page already uses.
+- **Sizes come from `docs/design/redesign-v1-density.md` §4.** List and table pages pass `width="wide"` (capped at 1440) or `"full"` (list plus pane). Text and form pages keep the default `"page"` (1104) and put records in a 720 column, as WS163 does. Under the old look all three widths are the same box (`app-shell.tsx:104-118`), so passing one is safe.
+- **Lists have one line before the data** (bf38e57): no box around the table, no border under the filter bar, no tab baseline. A tab strip that is not `TabBar` copies the Updates page's `v2:` classes (`updates/page.tsx:224-246`).
+- **Notice boxes and state markers** in the earth colours (F170) get a `v2:` tone class next to the old one: amber notices `v2:border-transparent v2:bg-tone-amber`, red `…bg-tone-clay`, green `…bg-tone-sage`; a state dot `v2:bg-[color:var(--color-done)]` or `--color-warn`. The text keeps its `text-tone-*-ink`.
+- **Empty states** are `EmptyState` as they are (WS159 already restyles them under v2). The "No matches" box each page draws after its own search goes away under v2, because DataTable shows its own (`data-table.tsx:938-948`).
+- **Checked with the screenshot toolkit before handover.** Every page is added to the `PAGES` map in `scripts/visual/shoot.ts:22-31`, and each workstream ends with a run in both looks and all three sizes (`npx tsx scripts/visual/shoot.ts --pages … `). The old-look pictures must match the ones taken before the change. Detail pages have random ids, so their keys open the list and follow the first row's link, as the `fund` key does (`shoot.ts:245-250`). If the local seed has no record of a kind, the shot shows the empty state, and the handover says so. No seeding against production.
+
+## WS169 — Simple lists on the shared table: Funds, Fund Reports, Broadcasts, Weekly Digest, and LPs, ~1.25 days
+
+**Goal.** Under the new look, these five lists are one-line rows in the shared table, with search and filters in the filter bar, like Companies and the Deal Ledger.
+
+**Confirmed decisions.** Owner, 2026-11-17: this comes next, before WS161. No pane on these pages: a row opens the record's existing page (`rowHref`), because each record already has a full page and none has a summary worth a pane.
+
+**Steps.**
+- `src/app/admin/lps/page.tsx` (F168): `AppShell width="wide"`. Email cell: `v2:font-sans v2:text-meta` on the span at `:56`. Funds cell: under v2, the slugs as plain muted text joined by " · ", with the column's `title` returning the full list, instead of the `badge-neutral !px-1.5 …` spans (`:73-79`). In the edit sheet, the fund toggles (`:427-429`) take the filter-chip look under v2: `v2:font-sans v2:rounded`, and when picked `v2:border-transparent v2:bg-[var(--color-accent-soft)] v2:text-primary` (the set chip in `filter-bar.tsx:64`).
+- `src/app/admin/funds/page.tsx` (131-229): `width="wide"`. The tab strip (`:146-169`) takes the Updates page's `v2:` classes, which removes its baseline. Under v2 the Funds tab is a `DataTable<Fund>`: Name (with the slug after it in muted text), Group, Deals (num), LPs (num), AUM (num), First deal. `rowHref` `/admin/funds/${id}`, `searchText` name, slug and group, `defaultSort` name ascending, `empty` the existing EmptyState. The Sync tab is unchanged apart from sitting in the column.
+- `src/app/admin/reports/page.tsx` (131-213): `width="wide"`. Under v2, `DataTable<Report>`: Title, Status (the existing `Badge`), Fund, Period, Mentions (num), Published. `searchText` title and fund name. `chips` Draft and Published (`test: r => r.status === "DRAFT"`). The fund `Select` moves into `toolbarExtra` (`data-table.tsx:110-111`) and keeps refetching with `?fundId=` (`:47,76-77`), so links from a fund page still land filtered. Delete draft becomes a `rowActions` button for drafts, calling the existing `handleDeleteDraft`.
+- `src/app/admin/broadcasts/page.tsx` (117-183): `width="wide"`. Under v2, `DataTable<Broadcast>`: Subject ("Untitled" when empty), Status (Sent / Draft badge), Companies (num), Recipients (num, blank for drafts), Sent, By. `searchText` subject and sender. `chips` Draft and Sent. Delete draft as a row action, as on Reports.
+- `src/app/admin/digest/page.tsx` (62-129): `width="wide"`. Under v2, `DataTable<DigestSummary>`: Title, Week of, Status (Sent / Draft badge; "From Granola" as a muted word after it), To-dos ("3 of 5", num), with `rowHref` `/admin/digest/${id}`. The per-row View button is dropped under v2 (the row is the link). Under v2 the header's "New Digest" is the `Link` itself with the `.btn-primary` class (WS159 restyled `.btn-*`; `Button` has no `asChild`), so there is no button inside a link (F169). The old look keeps its markup.
+- `scripts/visual/shoot.ts`: add `lps`, `funds` (the list itself; the existing `fund` key keeps opening a fund's page), `reports`, `broadcasts` and `digest`.
+
+**Acceptance.** Under v2, each of the five pages has the header, one filter bar and one-line rows, capped at 1440 on a wide window. Search, the chips and (on Reports) the fund select filter the rows. A row opens the record. Delete draft works and asks first, as today. LPs looks like the other lists: no mono, no boxed slugs. The Funds tabs have no baseline. On a phone the rows are two-line and nothing scrolls sideways. Under v1, the five pages are unchanged (screenshots match) and the v1 snapshot test passes. `tsc` is clean.
+
+**UX impact.** Admin-only, behind the switch. Under v2 the boxes become rows and the search box moves into the filter bar; the content and actions are the same. **Cost impact.** None.
+
+## WS170 — Audit Log and Portfolio Contacts on the shared table, ~1 day
+
+**Goal.** The two table pages that still use the old `ui/table` take the new list look, without losing the Audit Log's server-side filters or the Contacts import.
+
+**Steps.**
+- `src/app/admin/audit/page.tsx`: the page stays a server component and keeps its query, its five filters and their database counts (`:93-123`). Under v2 it renders a new client component, `src/app/admin/audit/audit-table.tsx`, which gets the rows as plain data (dates as ISO strings) and the counts. It needs no new fetch. It must be a client component because DataTable's columns are functions, which a server component cannot pass down.
+  - Filters: a `FilterBar` (`ui/filter-bar.tsx`) with the five filters as single-choice chips and their server counts. Picking one does `router.push("/admin/audit?filter=<key>")`, and the × and "Clear filters" go to `/admin/audit`. The old look keeps the link chips at `:132-153`.
+  - Table: `DataTable` with `density="compact"` (the density doc names Audit Log for it, §3.4), `urlState={false}` (DataTable keeps its own `filter` value in the address, which would fight the page's `?filter=`), no search (the page shows only the last 100 events, so a search box would suggest it searches everything), and `defaultSort` time descending. Columns: Time (relative, with the full timestamp as `title`), Actor, Action (the friendly label if there is one, else the raw action, in the sans font under v2), Target, Details.
+  - Details keeps its native `<details>` (`:52-81`). Judgment call: a row with an open `<details>` may grow, using one marked rule in the WS160 section of `globals.css`: `[data-datatable][data-density] tbody tr[data-row]:has(details[open]) { height: auto }`, with the cell allowed to wrap while it is open. Reversal: show the JSON in a side pane instead.
+  - `width="wide"`.
+- `src/app/admin/portfolio-contacts/page.tsx`: `width="wide"`. The tab strip (`:244-267`) takes the rest of the Updates page's `v2:` classes (it already has `v2:border-b-0`).
+  - Contacts tab, under v2: `DataTable` with Company (`rowHref` `/admin/portfolio/${id}`), Contacts (num, amber ink when 0, as today), Molly account (the existing link, or "Not linked"), and Deals (num). `searchText` is the name. The "Only companies with no contacts" checkbox (`:332-340`) becomes a chip, "No contacts" (`test: c => c.contactCount === 0`). The "X of Y portfolio companies have at least one contact" line stays above the table as a `text-meta` line. The import result and error boxes (`:271-299`) take the F170 tone classes. The CSV format disclosure stays where it is.
+  - Links tab, under v2: the two tables (`:399`, `:460`) become two `DataTable`s with `urlState={false}` (the prop is for pages with two tables). The existing Link button stays as a row action with `actionsAlwaysVisible`, since these rows exist to be acted on. The section headings use the section recipe (density doc §3.2: heading to description 4, description to table 12, section to section 48).
+- `scripts/visual/shoot.ts`: add `audit` and `contacts`, and `contacts-links` (`/admin/portfolio-contacts?tab=links`).
+
+**Acceptance.** Under v2, picking a filter on the Audit Log reloads with that filter and the counts match today's. Rows are 36px, and opening Details shows the full JSON without breaking the row below. On Portfolio Contacts, search, the "No contacts" chip, the CSV import and Link work as today, and the tabs have no baseline. Under v1, both pages are unchanged (screenshots match). `tsc` is clean.
+
+**UX impact.** Admin-only, behind the switch. The checkbox becomes a chip under v2; nothing else moves. **Cost impact.** None.
+
+## WS171 — Service Providers, Investor Links, Diligence and Settings, ~2 days
+
+**Goal.** The four admin pages with their own layouts take the new look. Two of them get the list-plus-pane pattern, because each of their records has more detail than fits on one row.
+
+**Confirmed decisions.** None needed beyond the rules above. Two judgment calls are flagged in the steps.
+
+**Steps.**
+- `src/app/admin/providers/page.tsx` (183-287): `width="wide"`.
+  - Judgment call: under v2 the page loads once with `status=ALL` (already supported, `:78`), and the status filter and search run in the browser through DataTable's `chips` (Pending, Vetted, Rejected) and `searchText` (name, category). Today each keystroke refetches. The directory is small. Reversal: keep the server fetch and pass the status `Select` through `toolbarExtra`.
+  - "Pending review" stays its own section above the rest, as a `DataTable` with `actionsAlwaysVisible` (Approve, Reject, Edit, Delete; the existing handlers). "All providers" is a second table with `urlState={false}`. The headings are sentence case `text-meta`, not mono caps (`:244`, `:267`), and the counts are muted numbers.
+  - The Pending count pill (`:226`, `bg-ochre text-obsidian`, a listed exception in the colour guard) becomes the chip's own count under v2. The Reject button's laterite classes (`:470`) get the F170 treatment.
+- `src/app/admin/links/page.tsx` (236-515): `width="full"`, using `SplitView` and `DetailPane` from WS160, like Companies.
+  - The list: Label ("Untitled link"), Companies (the names as muted text, with the full list as `title`), Expires, Views (num), Created. Expired rows are muted (`rowClassName`). `chips` Active and Expired, and `searchText` label and company names.
+  - The pane: a crumb, then the label as the title. Chips for the companies and the expiry. The action card has "Copy link" as the primary (the existing `copyLink`) and Revoke as secondary, with the existing two-step confirm. The Views section comes next, read from the existing `GET /api/links/${id}` (`:194`).
+  - The "New Link" form stays inline above the list, toggled by the header button. It sits in the 720 column and loses its `Card` box under v2.
+  - The error box (`:250`) takes the F170 tone class.
+- `src/app/admin/diligence/page.tsx` (251-302): `width="full"` with `SplitView`, like Approvals, because each item carries badges, document counts and the questionnaire answers (`:159-248`).
+  - Rows: Company, Founder, Progress ("3 of 5"), Created. They sit under two sticky groups, "Ready for review" and "Awaiting founder", split the same way as today (`:156-157`).
+  - The pane: the founder line, the incorporation and essay badges, and the document counts as property chips. The action card has Promote as the primary for ready items and Decline as secondary, with the existing confirm and the `founderAccountsRetained` notice. Then "Open company", and the questionnaire answers (`DiligenceAnswers`, shown open in the pane).
+  - The group headings lose the uppercase (`:275`, `:289`), and the notice (`:259`) takes the tone class.
+  - Judgment call: the WS161 "Needs you" inbox links diligence items to this page rather than building a second diligence pane. Reversal: export the pane body and reuse it there.
+- Settings (`src/app/admin/settings/*`):
+  - `settings-tabs.tsx`: the tab baseline goes under v2, with the classes on the existing links: `v2:border-b-0` on the nav, and on each link `v2:px-0 v2:py-2.5 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal`. The active link keeps its underline. It stays a server component.
+  - `settings-status-strip.tsx`: under v2, no outer box (`v2:border-0`). It becomes a one-column list of 44px rows with hairlines, at most 720 wide. The markers become the state colours (`v2:bg-[color:var(--color-done)]`, `--color-warn`, and `--color-ctl` for neutral) and 6px round, like `StatusDot`.
+  - `page.tsx`: the `<summary>` at `:173` and the one in `emails-sent-list.tsx:31` lose the mono caps under v2 (`v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal`). Sections follow the section recipe. The same goes for the uppercase labels in `digest-recipients-panel.tsx:96,125`.
+  - `orphaned-documents-panel.tsx:77`: the raw `<table>` becomes a `DataTable` under v2, with `urlState={false}`, the same columns and its existing actions. The storage and email notices (`storage-settings-panel.tsx:63`, `email-settings-panel.tsx:43`) take the tone class.
+- `scripts/visual/shoot.ts`: add `providers`, `links`, `diligence`, `settings`, `settings-storage` and `settings-integrations` (via `?tab=`). For `links` and `diligence`, take a second shot with the first row open in the pane, as `companies-hover` does (`:267`).
+
+**Acceptance.** Under v2, Providers filters by status and search, and Approve or Reject moves a provider between the sections. Investor Links opens a link in the pane: Copy copies it, Revoke asks and then removes it, and the views load. `?open=` survives a reload. Diligence opens an item in the pane, and Promote and Decline behave as today (including the retained-account notice). Settings has no tab baseline and no mono caps, and its status markers are the state colours in both themes. Under v1, all four pages are unchanged (screenshots match). `tsc` is clean.
+
+**UX impact.** Admin-only, behind the switch. Under v2, Investor Links and Diligence open records beside the list instead of in boxes down the page. The actions and their confirms are the same. **Cost impact.** None.
+
+## WS172 — Editors and forms: digest, broadcast and report pages, and the create forms, ~2 days
+
+**Goal.** The admin editor and form pages use WS163's record header and a 720 column under the new look, so writing a digest, a broadcast or a report feels like the rest of the new look.
+
+**Confirmed decisions.** Runs after WS163 and reuses its header (crumb back to the list, title, property chips, the one primary action).
+
+**Steps.**
+- Columns: the editors centre a `max-w-3xl` column today (`broadcasts/[id]/page.tsx:381`, `reports/[id]/page.tsx:349`, `companies/[id]/updates/new/page.tsx:164`). Under v2 they add `v2:mx-0 v2:max-w-[720px]`, left-aligned like WS163. `AppShell` keeps the default `"page"` width.
+- One primary per view: the page's forward action (Send on a broadcast, Publish on a report, Send on a digest, Create on a form) is the only primary `Button`. The rest become secondary or ghost under v2. Each page's actions are listed in the handover, so the owner can check that none was lost.
+- `src/app/admin/digest/[id]/page.tsx` (226-449): the section `Card`s (`:338`, `:362`) lose their `border-b` heading rule under v2 (`v2:border-b-0 v2:pb-0`), with `text-meta` headings and the section recipe. The prose stays as it is.
+- `src/app/admin/digest/new/page.tsx` (193-424): the same treatment for its cards (`:208`, `:255`, `:279`, `:293`). The notice (`:248`), the to-do dots (`:303`) and the source chips (`:334`) take the F170 tone and state classes.
+- `src/app/admin/broadcasts/[id]/page.tsx` (322-532): header and column as above. The notice at `:363` takes the tone class. The Delivery table (`:504`, `ui/table`) becomes a `DataTable` under v2 (`urlState={false}`, the same columns), and its heading (`:497`) becomes `text-meta`.
+- `src/app/admin/reports/[id]/page.tsx` (263-413): header and column as above. The notice at `:296` and the mention chips at `:390` (mono, laterite) take the new-look classes.
+- `src/app/admin/reports/[id]/preview/page.tsx`: this preview renders the LPs' own `ReportView` inside the admin shell (`:96-107`), so under v2 the admin tokens would restyle it and it would no longer show what LPs see (LP pages stay in the old look until WS166). Judgment call: under v2, wrap `ReportView` in an element with `data-surface="founder"` so it keeps the LP look, and confirm with a side-by-side screenshot against `/lp` that no admin-only v2 rule reaches inside. If one does, scope that rule with `:not([data-surface="founder"] *)`. Reversal: let the preview take the new look. Once WS166 ships, the wrapper goes either way.
+- Create forms: `companies/new/page.tsx` (113-305; two `Card`s at `:128`, `:191`), `memos/new/new-memo-form.tsx` (`Card` at `:52`), `memos/template/template-editor.tsx` (a `Card` per section at `:84`) and `companies/[id]/updates/new/page.tsx` (199). Under v2 they keep their fields and order. The cards become sections in the 720 column (section recipe; `v2:border-0 v2:bg-transparent v2:shadow-none v2:p-0` on the card). Check that inputs and selects are 36px (density doc §4 "Controls"); if the shared `Input` and `Select` are not, fix them there with `v2:` classes, not per page. The submit row stays at the bottom with one primary.
+- `scripts/visual/shoot.ts`: add `digest-detail`, `broadcast-detail` and `report-detail` (each opens its list and follows the first row, as `fund` does), plus `report-preview`, `digest-new`, `company-new`, `memo-new` and `memo-template`.
+
+**Acceptance.** Under v2, each page has the WS163 header and sits in the 720 column. Every action that exists under v1 is still there, and there is one primary per view. The report preview looks like the LP report page. Sending, publishing and creating work as today. Under v1, the pages are unchanged (screenshots match). `tsc` is clean.
+
+**UX impact.** Admin-only, behind the switch. The same fields and actions, in the new layout. **Cost impact.** None.
