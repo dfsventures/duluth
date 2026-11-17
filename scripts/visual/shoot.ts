@@ -28,6 +28,11 @@ const PAGES: Record<string, string> = {
   memos: "/admin/memos",
   board: "/admin/board",
   fund: "/admin/funds", // opens the funds list, then the first fund's detail page (ids are random)
+  funds: "/admin/funds", // the funds list itself (WS169)
+  reports: "/admin/reports",
+  broadcasts: "/admin/broadcasts",
+  digest: "/admin/digest",
+  lps: "/admin/lps",
 };
 const VIEWPORTS: Record<string, { width: number; height: number }> = {
   desktop: { width: 1440, height: 900 },

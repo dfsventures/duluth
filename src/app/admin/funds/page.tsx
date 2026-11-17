@@ -14,6 +14,8 @@ import { FundMetricsSyncPanel } from "@/components/admin/fund-metrics-sync-panel
 import { formatDate } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useNewLook } from "@/lib/use-new-look";
 
 type FundsTab = "funds" | "sync";
 
@@ -29,6 +31,46 @@ interface Fund {
   reportCount: number;
 }
 
+// New look (WS169): one-line rows in the shared table. The old look keeps its cards below.
+const fundColumns: DataTableColumn<Fund>[] = [
+  {
+    key: "name",
+    header: "Name",
+    sortValue: (f) => f.name,
+    title: (f) => `${f.name} (${f.slug})`,
+    cell: (f) => (
+      <>
+        {f.name} <span className="text-muted-foreground">{f.slug}</span>
+      </>
+    ),
+  },
+  {
+    key: "group",
+    header: "Group",
+    sortValue: (f) => f.groupLabel,
+    mobile: "meta",
+    cell: (f) => f.groupLabel ?? "—",
+  },
+  { key: "deals", header: "Deals", align: "num", sortValue: (f) => f.dealCount, firstDir: "desc", mobile: "meta", cell: (f) => f.dealCount },
+  { key: "lps", header: "LPs", align: "num", sortValue: (f) => f.lpCount, firstDir: "desc", mobile: "meta", cell: (f) => f.lpCount },
+  {
+    key: "aum",
+    header: "AUM",
+    align: "num",
+    sortValue: (f) => f.aumUsd,
+    firstDir: "desc",
+    cell: (f) => (f.aumUsd === null ? "—" : `$${f.aumUsd.toLocaleString()}`),
+  },
+  {
+    key: "firstDeal",
+    header: "First deal",
+    sortValue: (f) => (f.firstDealDate ? new Date(f.firstDealDate).getTime() : null),
+    firstDir: "desc",
+    className: "whitespace-nowrap text-muted-foreground",
+    cell: (f) => (f.firstDealDate ? formatDate(f.firstDealDate) : "—"),
+  },
+];
+
 export default function AdminFundsPage() {
   return (
     <Suspense fallback={null}>
@@ -39,6 +81,7 @@ export default function AdminFundsPage() {
 
 function AdminFundsPageInner() {
   const router = useRouter();
+  const newLook = useNewLook();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab") === "sync" ? "sync" : "funds";
 
@@ -128,7 +171,7 @@ function AdminFundsPageInner() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="Funds"
         description={`${ORG_NAME}'s investment vehicles — deals, LPs, and fund reports.`}
@@ -143,10 +186,10 @@ function AdminFundsPageInner() {
       />
 
       {syncEnabled && (
-        <div className="mb-6 flex gap-1 overflow-x-auto border-b">
+        <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:border-b-0 v2:mx-[var(--row-pad)] v2:mb-0 v2:max-w-[var(--column-wide)] v2:gap-5">
           <button
             onClick={() => selectTab("funds")}
-            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 v2:px-0 text-sm font-medium transition-colors ${
               activeTab === "funds"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
@@ -157,7 +200,7 @@ function AdminFundsPageInner() {
           </button>
           <button
             onClick={() => selectTab("sync")}
-            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 v2:px-0 text-sm font-medium transition-colors ${
               activeTab === "sync"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
@@ -170,7 +213,7 @@ function AdminFundsPageInner() {
       )}
 
       {activeTab === "sync" ? (
-        <div className="space-y-8">
+        <div className="space-y-8 v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)] v2:py-6">
           <SyncPanel />
           {/* Part 36, WS103.3 — a sibling sub-section, not a new tab/sidebar
               item (Part 11/WS28 consolidated sync onto this one tab). */}
@@ -178,6 +221,21 @@ function AdminFundsPageInner() {
             <FundMetricsSyncPanel />
           </div>
         </div>
+      ) : newLook ? (
+        <DataTable<Fund>
+          label="Funds"
+          noun="fund"
+          rows={funds}
+          rowKey={(f) => f.id}
+          columns={fundColumns}
+          rowHref={(f) => `/admin/funds/${f.id}`}
+          defaultSort={{ key: "name", dir: "asc" }}
+          searchText={(f) => [f.name, f.slug, f.groupLabel]}
+          searchPlaceholder="Search by fund name"
+          loading={loading}
+          minWidth={720}
+          empty={<EmptyState eyebrow="Funds" icon={<Landmark className="h-8 w-8" />} title="No funds yet" description="Create a fund to start recording deals." />}
+        />
       ) : loading ? (
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => (

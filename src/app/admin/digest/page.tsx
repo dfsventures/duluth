@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useNewLook } from "@/lib/use-new-look";
 
 interface DigestSummary {
   id: string;
@@ -23,8 +25,54 @@ interface DigestSummary {
   todos: { completed: boolean }[];
 }
 
+// New look (WS169): one-line rows in the shared table. The old look keeps its cards below.
+function todoCounts(d: DigestSummary) {
+  return { total: d.todos.length, done: d.todos.filter((t) => t.completed).length };
+}
+
+const digestColumns: DataTableColumn<DigestSummary>[] = [
+  { key: "title", header: "Title", sortValue: (d) => d.title, cell: (d) => d.title },
+  {
+    key: "week",
+    header: "Week of",
+    sortValue: (d) => new Date(d.weekOf).getTime(),
+    firstDir: "desc",
+    mobile: "meta",
+    className: "whitespace-nowrap text-muted-foreground",
+    exportValue: (d) => formatDate(d.weekOf),
+    cell: (d) => formatDate(d.weekOf),
+  },
+  {
+    key: "status",
+    header: "Status",
+    sortValue: (d) => (d.sentAt ? "Sent" : "Draft"),
+    mobile: "badge",
+    exportValue: (d) => (d.sentAt ? "Sent" : "Draft"),
+    title: (d) => `${d.sentAt ? "Sent" : "Draft"}${d.source === "GRANOLA" ? " · From Granola" : ""}`,
+    cell: (d) => (
+      <>
+        <Badge variant={d.sentAt ? "success" : "warning"}>{d.sentAt ? "Sent" : "Draft"}</Badge>
+        {d.source === "GRANOLA" && <span className="ml-2 text-muted-foreground">From Granola</span>}
+      </>
+    ),
+  },
+  {
+    key: "todos",
+    header: "To-dos",
+    align: "num",
+    sortValue: (d) => todoCounts(d).total,
+    firstDir: "desc",
+    exportValue: (d) => (todoCounts(d).total > 0 ? `${todoCounts(d).done} of ${todoCounts(d).total}` : ""),
+    cell: (d) => {
+      const { total, done } = todoCounts(d);
+      return total > 0 ? `${done} of ${total}` : "";
+    },
+  },
+];
+
 export default function DigestListPage() {
   const { status: sessionStatus } = useSession();
+  const newLook = useNewLook();
   const [digests, setDigests] = useState<DigestSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,21 +107,49 @@ export default function DigestListPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="Weekly Digest"
         description="AI-generated weekly summaries from your Granola meetings."
         action={
-          <Link href="/admin/digest/new">
-            <Button size="sm" className="flex items-center gap-2">
+          newLook ? (
+            // New look: the link itself is the button (no button inside a link).
+            <Link href="/admin/digest/new" className="btn-primary">
               <Plus className="h-4 w-4" />
               New Digest
-            </Button>
-          </Link>
+            </Link>
+          ) : (
+            <Link href="/admin/digest/new">
+              <Button size="sm" className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                New Digest
+              </Button>
+            </Link>
+          )
         }
       />
 
-      {digests.length === 0 ? (
+      {newLook ? (
+        <DataTable<DigestSummary>
+          label="Weekly digests"
+          noun="digest"
+          rows={digests}
+          rowKey={(d) => d.id}
+          columns={digestColumns}
+          rowHref={(d) => `/admin/digest/${d.id}`}
+          defaultSort={{ key: "week", dir: "desc" }}
+          searchText={(d) => [d.title]}
+          searchPlaceholder="Search by title"
+          minWidth={640}
+          empty={
+            <EmptyState eyebrow="Weekly Digest"
+              icon={<BookOpen className="h-8 w-8" />}
+              title="No digests yet"
+              description="Ask Claude to generate this week's digest from your Granola meetings."
+            />
+          }
+        />
+      ) : digests.length === 0 ? (
         <EmptyState eyebrow="Weekly Digest"
           icon={<BookOpen className="h-8 w-8" />}
           title="No digests yet"

@@ -14,6 +14,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useNewLook } from "@/lib/use-new-look";
 
 interface FundOption {
   id: string;
@@ -32,6 +34,32 @@ interface Report {
   mentionCount: number;
 }
 
+// New look (WS169): one-line rows in the shared table. The old look keeps its boxes below.
+const reportColumns: DataTableColumn<Report>[] = [
+  { key: "title", header: "Title", sortValue: (r) => r.title, cell: (r) => r.title },
+  {
+    key: "status",
+    header: "Status",
+    sortValue: (r) => r.status,
+    mobile: "badge",
+    exportValue: (r) => (r.status === "PUBLISHED" ? "Published" : "Draft"),
+    title: (r) => (r.status === "PUBLISHED" ? "Published" : "Draft"),
+    cell: (r) => <Badge variant={r.status === "PUBLISHED" ? "success" : "warning"}>{r.status === "PUBLISHED" ? "Published" : "Draft"}</Badge>,
+  },
+  { key: "fund", header: "Fund", sortValue: (r) => r.fund.name, mobile: "meta", cell: (r) => r.fund.name },
+  { key: "period", header: "Period", sortValue: (r) => r.periodLabel, mobile: "meta", cell: (r) => r.periodLabel ?? "—" },
+  { key: "mentions", header: "Mentions", align: "num", sortValue: (r) => r.mentionCount, firstDir: "desc", cell: (r) => r.mentionCount },
+  {
+    key: "published",
+    header: "Published",
+    sortValue: (r) => new Date(r.publishedAt ?? r.createdAt).getTime(),
+    firstDir: "desc",
+    className: "whitespace-nowrap text-muted-foreground",
+    exportValue: (r) => (r.publishedAt ? formatDate(r.publishedAt) : ""),
+    cell: (r) => (r.publishedAt ? formatDate(r.publishedAt) : "—"),
+  },
+];
+
 export default function AdminReportsPage() {
   return (
     <Suspense fallback={null}>
@@ -42,6 +70,7 @@ export default function AdminReportsPage() {
 
 function AdminReportsPageInner() {
   const searchParams = useSearchParams();
+  const newLook = useNewLook();
   const [reports, setReports] = useState<Report[]>([]);
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [fundFilter, setFundFilter] = useState(searchParams.get("fundId") ?? "");
@@ -128,7 +157,7 @@ function AdminReportsPageInner() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="Fund Reports"
         description="Letter-style reports authored for LPs, with company mentions and valuation snapshots."
@@ -140,6 +169,54 @@ function AdminReportsPageInner() {
         }
       />
 
+      {newLook ? (
+        <DataTable<Report>
+          label="Fund reports"
+          noun="report"
+          rows={reports}
+          rowKey={(r) => r.id}
+          columns={reportColumns}
+          rowHref={(r) => `/admin/reports/${r.id}`}
+          defaultSort={{ key: "published", dir: "desc" }}
+          searchText={(r) => [r.title, r.fund.name]}
+          searchPlaceholder="Search by report title or fund"
+          chips={[
+            { key: "all", label: "All" },
+            { key: "draft", label: "Draft", test: (r) => r.status === "DRAFT" },
+            { key: "published", label: "Published", test: (r) => r.status === "PUBLISHED" },
+          ]}
+          toolbarExtra={
+            <Select aria-label="Fund" value={fundFilter} onChange={(e) => setFundFilter(e.target.value)} className="max-w-[15rem]">
+              <option value="">All funds</option>
+              {funds.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </Select>
+          }
+          loading={loading}
+          minWidth={760}
+          actionsLabel="Row actions"
+          rowActions={(r) =>
+            r.status === "DRAFT" ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete draft ${r.title}`}
+                title="Delete draft"
+                className="hover:text-tone-clay-ink"
+                disabled={deletingId === r.id}
+                onClick={(e) => handleDeleteDraft(e, r.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            ) : null
+          }
+          empty={<EmptyState eyebrow="Fund Reports" icon={<FileText className="h-8 w-8" />} title="No reports yet" description="Create the first fund report." />}
+        />
+      ) : (
+        <>
       <div className="mb-6">
         <Select
           value={fundFilter}
@@ -210,6 +287,8 @@ function AdminReportsPageInner() {
             </Link>
           ))}
         </div>
+      )}
+        </>
       )}
 
       {showNew && (

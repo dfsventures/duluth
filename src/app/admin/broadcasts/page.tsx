@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useNewLook } from "@/lib/use-new-look";
 
 interface Broadcast {
   id: string;
@@ -30,7 +32,42 @@ interface PortfolioCompanyOption {
   contactCount: number;
 }
 
+// New look (WS169): one-line rows in the shared table. The old look keeps its boxes below.
+const broadcastColumns: DataTableColumn<Broadcast>[] = [
+  { key: "subject", header: "Subject", sortValue: (b) => b.subject || "Untitled", cell: (b) => b.subject || "Untitled" },
+  {
+    key: "status",
+    header: "Status",
+    sortValue: (b) => b.status,
+    mobile: "badge",
+    exportValue: (b) => (b.status === "PUBLISHED" ? "Sent" : "Draft"),
+    title: (b) => (b.status === "PUBLISHED" ? "Sent" : "Draft"),
+    cell: (b) => <Badge variant={b.status === "PUBLISHED" ? "success" : "warning"}>{b.status === "PUBLISHED" ? "Sent" : "Draft"}</Badge>,
+  },
+  { key: "companies", header: "Companies", align: "num", sortValue: (b) => b.targetCount, firstDir: "desc", mobile: "meta", cell: (b) => b.targetCount },
+  {
+    key: "recipients",
+    header: "Recipients",
+    align: "num",
+    sortValue: (b) => (b.status === "PUBLISHED" ? b.recipientCount : null),
+    firstDir: "desc",
+    exportValue: (b) => (b.status === "PUBLISHED" ? b.recipientCount : ""),
+    cell: (b) => (b.status === "PUBLISHED" ? b.recipientCount : ""),
+  },
+  {
+    key: "sent",
+    header: "Sent",
+    sortValue: (b) => new Date(b.publishedAt ?? b.createdAt).getTime(),
+    firstDir: "desc",
+    className: "whitespace-nowrap text-muted-foreground",
+    exportValue: (b) => (b.publishedAt ? formatDate(b.publishedAt) : ""),
+    cell: (b) => (b.publishedAt ? formatDate(b.publishedAt) : "—"),
+  },
+  { key: "by", header: "By", sortValue: (b) => b.senderLabel, mobile: "meta", cell: (b) => b.senderLabel ?? "—" },
+];
+
 export default function AdminBroadcastsPage() {
+  const newLook = useNewLook();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [companies, setCompanies] = useState<PortfolioCompanyOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +151,7 @@ export default function AdminBroadcastsPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="Broadcasts"
         description="Email your portfolio companies — write a draft, choose who gets it, then send."
@@ -126,7 +163,43 @@ export default function AdminBroadcastsPage() {
         }
       />
 
-      {loading ? (
+      {newLook ? (
+        <DataTable<Broadcast>
+          label="Broadcasts"
+          noun="broadcast"
+          rows={broadcasts}
+          rowKey={(b) => b.id}
+          columns={broadcastColumns}
+          rowHref={(b) => `/admin/broadcasts/${b.id}`}
+          defaultSort={{ key: "sent", dir: "desc" }}
+          searchText={(b) => [b.subject, b.senderLabel]}
+          searchPlaceholder="Search by subject or sender"
+          chips={[
+            { key: "all", label: "All" },
+            { key: "draft", label: "Draft", test: (b) => b.status === "DRAFT" },
+            { key: "sent", label: "Sent", test: (b) => b.status === "PUBLISHED" },
+          ]}
+          loading={loading}
+          minWidth={760}
+          actionsLabel="Row actions"
+          rowActions={(b) =>
+            b.status === "DRAFT" ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`Delete draft ${b.subject || "Untitled"}`}
+                title="Delete draft"
+                className="hover:text-tone-clay-ink"
+                disabled={deletingId === b.id}
+                onClick={(e) => handleDeleteDraft(e, b.id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            ) : null
+          }
+          empty={<EmptyState eyebrow="Broadcasts" icon={<Megaphone className="h-8 w-8" />} title="No broadcasts yet" description="Write the first email to your portfolio companies." />}
+        />
+      ) : loading ? (
         <div className="space-y-4">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />

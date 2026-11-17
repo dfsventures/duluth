@@ -494,6 +494,56 @@ async function main() {
       });
     }
 
+    // ── LPs, fund reports, broadcasts, weekly digests (WS169) ──
+    const lpA = await db.limitedPartner.create({
+      data: { name: "Casey Limited Partner", email: "casey@example.com", createdAt: ago(200) },
+    });
+    await db.lpEmail.create({ data: { lpId: lpA.id, email: "casey@example.com", isPrimary: true } });
+    await db.lpEmail.create({ data: { lpId: lpA.id, email: "casey.office@example.com" } });
+    await db.lpFundMembership.createMany({ data: [{ lpId: lpA.id, fundId: fund1.id }, { lpId: lpA.id, fundId: fund2.id }, { lpId: lpA.id, fundId: fund3.id }] });
+    const lpB = await db.limitedPartner.create({
+      data: { name: "Example Family Office and Charitable Foundation of the Northern Territories", email: "office@family-office.example.com", createdAt: ago(90) },
+    });
+    await db.lpEmail.create({ data: { lpId: lpB.id, email: "office@family-office.example.com", isPrimary: true } });
+    await db.lpFundMembership.create({ data: { lpId: lpB.id, fundId: fund2.id } });
+
+    await db.fundReport.create({
+      data: { fundId: fund1.id, title: "Example Fund I: H1 Report", periodLabel: "H1", body: "<p>Placeholder report.</p>", status: "DRAFT", createdById: sam.id, createdAt: ago(5) },
+    });
+    await db.fundReport.create({
+      data: { fundId: fund2.id, title: "Example Fund II: Annual Letter to Limited Partners with a Deliberately Long Title", periodLabel: "FY", body: "<p>Placeholder report.</p>", status: "PUBLISHED", publishedAt: ago(40), createdById: riley.id, createdAt: ago(45) },
+    });
+
+    await db.companyBroadcast.create({
+      data: { subject: "", body: "<p>Placeholder.</p>", status: "DRAFT", createdById: sam.id, createdAt: ago(3),
+        targets: { create: [{ portfolioCompanyId: portco["Acme Robotics"] }] } },
+    });
+    const sent = await db.companyBroadcast.create({
+      data: { subject: "A quick note for the portfolio", body: "<p>Placeholder.</p>", status: "PUBLISHED", publishedAt: ago(20), createdById: riley.id, createdAt: ago(21),
+        targets: { create: [{ portfolioCompanyId: portco["Acme Robotics"] }, { portfolioCompanyId: portco["Globex Energy"] }] } },
+    });
+    await db.companyBroadcastRecipient.createMany({
+      data: [
+        { broadcastId: sent.id, email: "jane@acme-robotics.example.com", name: "Jane Founder", status: "SENT", sentAt: ago(20) },
+        { broadcastId: sent.id, email: "omar@globex-energy.example.com", name: "Omar Okafor", status: "SENT", sentAt: ago(20) },
+        { broadcastId: sent.id, email: "bounced@globex-energy.example.com", status: "FAILED", error: "Mailbox unavailable" },
+      ],
+    });
+
+    const digestSent = await db.weeklyDigest.create({
+      data: { id: "digest-local-sent", weekOf: ago(14), title: "Week in review: placeholder", sections: [], sentAt: ago(12), createdAt: ago(13) },
+    });
+    await db.digestTodo.createMany({
+      data: [
+        { id: "todo-local-1", digestId: digestSent.id, text: "Follow up with Acme", completed: true },
+        { id: "todo-local-2", digestId: digestSent.id, text: "Send the ledger update", completed: false },
+        { id: "todo-local-3", digestId: digestSent.id, text: "Book the next review", completed: false },
+      ],
+    });
+    await db.weeklyDigest.create({
+      data: { id: "digest-local-draft", weekOf: ago(3), title: "Draft digest from a meeting note", sections: [], source: "GRANOLA", granolaNoteId: "local-note-1", createdAt: ago(2) },
+    });
+
     // ── Summary ──────────────────────────────────────────
     const [companies, users, updates, deals, memos, cards] = await Promise.all([
       db.company.count(), db.user.count(), db.update.count(), db.deal.count(), db.memo.count(), db.boardCard.count(),

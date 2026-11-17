@@ -53,7 +53,7 @@ const lpColumns: DataTableColumn<Lp>[] = [
       return !primary ? (
         <span className="text-muted-foreground">No address</span>
       ) : (
-        <span className="font-mono text-xs">
+        <span className="font-mono text-xs v2:font-sans v2:text-meta">
           {primary.email}
           {lp.emails.length > 1 && <span className="ml-1 text-muted-foreground">+{lp.emails.length - 1}</span>}
         </span>
@@ -66,17 +66,23 @@ const lpColumns: DataTableColumn<Lp>[] = [
     sortValue: (lp) => lp.funds.length,
     firstDir: "desc",
     mobile: "meta",
+    // New look: the slugs as plain muted text on one line, full list on hover (WS169).
+    // The old look keeps its slug badges.
+    title: (lp) => lp.funds.map((f) => f.slug).join(" · "),
     cell: (lp) =>
       lp.funds.length === 0 ? (
         <span className="text-xs text-muted-foreground">None</span>
       ) : (
-        <span className="flex flex-wrap gap-1">
-          {lp.funds.map((f) => (
-            <span key={f.id} className="badge-neutral !px-1.5 !py-0.5 !text-xs">
-              {f.slug}
-            </span>
-          ))}
-        </span>
+        <>
+          <span className="flex flex-wrap gap-1 v2:hidden">
+            {lp.funds.map((f) => (
+              <span key={f.id} className="badge-neutral !px-1.5 !py-0.5 !text-xs">
+                {f.slug}
+              </span>
+            ))}
+          </span>
+          <span className="hidden text-muted-foreground v2:inline">{lp.funds.map((f) => f.slug).join(" · ")}</span>
+        </>
       ),
   },
   {
@@ -293,7 +299,7 @@ export default function AdminLpsPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="LPs"
         description="Limited partners who can view fund reports on the LP portal."
@@ -424,8 +430,10 @@ export default function AdminLpsPage() {
                     type="button"
                     key={fund.id}
                     onClick={() => toggleFund(fund.id)}
-                    className={`rounded-sm border px-2.5 py-1 text-xs font-mono transition-colors ${
-                      form.fundIds.includes(fund.id) ? "border-primary bg-primary-50 text-primary-700" : "border-border text-muted-foreground hover:bg-muted"
+                    className={`rounded-sm border px-2.5 py-1 text-xs font-mono v2:rounded v2:font-sans transition-colors ${
+                      form.fundIds.includes(fund.id)
+                        ? "border-primary bg-primary-50 text-primary-700 v2:border-transparent v2:bg-[var(--color-accent-soft)] v2:text-primary"
+                        : "border-border text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     {fund.slug}
