@@ -237,7 +237,7 @@ describe("list and pane css", () => {
     expect(section).toContain("var(--group-h)");
     expect(section).toContain("var(--bar-h)");
     expect(section).toContain("var(--filter-h)");
-    expect(section).toContain("var(--column)");
+    expect(section).toContain("var(--column-wide)");
     expect(section).toContain("var(--gutter)");
     expect(section).not.toMatch(/(^|[^-\w])(44px|1104px)/);
   });
@@ -258,7 +258,7 @@ describe("list and pane css", () => {
     expect(section).not.toMatch(/:has\(\[data-split-pane\]\)[^{]*\{\s*--row-pad/);
     // inside the list there is no side padding, so rows, hairlines and tints end with the content
     expect(section).toMatch(/\[data-datatable\]\[data-density\] \{\s*--row-pad: 0px;/);
-    expect(section).toMatch(/\[data-datatable\]\[data-list-mode\] \{\s*margin-inline: var\(--gutter\);\s*max-width: var\(--column\);/);
+    expect(section).toMatch(/\[data-datatable\]\[data-list-mode\] \{\s*margin-inline: var\(--gutter\);\s*max-width: var\(--column-wide\);/);
   });
   it("the row-actions cell has its own space, so it cannot overlap the last column", () => {
     expect(section).toMatch(/td\[data-actions\] \{\s*width: 1%;\s*max-width: none;\s*overflow: visible;\s*white-space: nowrap;/);

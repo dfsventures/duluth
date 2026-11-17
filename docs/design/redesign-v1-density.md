@@ -134,7 +134,7 @@ If a user-level compact switch is ever wanted, it is one block of variables, bec
 |---|---|---|---|
 | Gutter | 16 (header bar and lists), 24 (page box, md and up) | 24 everywhere, 20 on a phone | One line for everything |
 | Page-mode box | `max-w-6xl` (1152) with 24 padding, so 1104 inside | unchanged | Pages already have a measure |
-| List pages on a wide window | no cap, rows run the full width (concept) | content in the same 1104 column, centred. Row hover and selected bands, hairlines and group bands still run edge to edge | A 1,400px row loses the eye. Same trick as the built header: `padding-inline: max(24px, (100cqw − 1104px) / 2)` |
+| List pages on a wide window | no cap, rows run the full width (concept) | **Update 2026-11-17: lists and table pages (Companies, Updates, Approvals, Deal Ledger) are capped at 1440 (`--column-wide`), left-aligned; the extra width goes to the title column. Text and form pages stay at 1104.** Original note: content in the same 1104 column, centred. Row hover and selected bands, hairlines and group bands still run edge to edge | A 1,400px row loses the eye. Same trick as the built header: `padding-inline: max(24px, (100cqw − 1104px) / 2)` |
 
 ### Lists (WS160)
 
@@ -241,7 +241,8 @@ Everything the new look has built so far reads these values, so most of this is 
 --group-h: 36px;
 --row-h: 44px;
 --gutter: 24px;       /* 20px under md */
---column: 1104px;
+--column: 1104px;       /* text and form pages */
+--column-wide: 1440px;  /* list and table pages */
 --pane-gutter: 32px;
 ```
 

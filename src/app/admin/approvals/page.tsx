@@ -786,7 +786,7 @@ export default function ApprovalsPage() {
       />
 
       {approvals.length === 0 ? (
-        <div className="v2:mx-[var(--row-pad)] v2:max-w-[var(--column)] v2:py-3">
+        <div className="v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)] v2:py-3">
           <EmptyState eyebrow="Approvals"
             icon={<Inbox className="h-10 w-10" />}
             title="No pending approvals"
@@ -897,7 +897,7 @@ export default function ApprovalsPage() {
             </OpenParam>
           )}
           {(processedBlock || caughtUpBlock) && (
-            <div className="space-y-6 v2:mx-[var(--row-pad)] v2:max-w-[var(--column)] v2:pt-6">
+            <div className="space-y-6 v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)] v2:pt-6">
               {processedBlock}
               {caughtUpBlock}
             </div>
@@ -1225,7 +1225,7 @@ export default function ApprovalsPage() {
         ];
 
         return (
-          <div className="mt-8 space-y-8 v2:mx-[var(--row-pad)] v2:max-w-[var(--column)]">
+          <div className="mt-8 space-y-8 v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)]">
             {activeAwaiting.length > 0 && (
               <section aria-labelledby="awaiting-heading" className="space-y-3">
                 <div>
