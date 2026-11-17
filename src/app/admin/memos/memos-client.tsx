@@ -303,7 +303,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
         }
       />
 
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border v2:border-b-0">
         <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" className="mb-0 border-b-0" />
         <div role="group" aria-label="Memo view" className="flex gap-1.5 pb-1.5">
           {(

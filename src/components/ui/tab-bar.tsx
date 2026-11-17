@@ -51,7 +51,7 @@ export function TabBar<T extends string>({
   }, [active, tabs.length]);
 
   return (
-    <nav aria-label={label} className={cn("tab-bar mb-6 overflow-x-auto border-b border-border v2:mb-6", className)}>
+    <nav aria-label={label} className={cn("tab-bar mb-6 overflow-x-auto border-b border-border v2:mb-6 v2:border-b-0", className)}>
       <div ref={listRef} className="relative flex gap-6 v2:gap-6">
         {tabs.map((t) => {
           const isActive = t.key === active;
@@ -79,7 +79,7 @@ export function TabBar<T extends string>({
         {bar && (
           <span
             aria-hidden="true"
-            className="tab-indicator pointer-events-none absolute -bottom-px left-0 h-0.5 w-px origin-left bg-foreground transition-transform duration-slow ease-out"
+            className="tab-indicator pointer-events-none absolute -bottom-px v2:bottom-0 left-0 h-0.5 w-px origin-left bg-foreground transition-transform duration-slow ease-out"
             style={{ transform: `translateX(${bar.x}px) scaleX(${bar.w})` }}
           />
         )}

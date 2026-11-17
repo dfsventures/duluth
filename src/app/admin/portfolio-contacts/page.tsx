@@ -241,7 +241,7 @@ function AdminPortfolioContactsPageInner() {
         }
       />
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b">
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:border-b-0">
         <button
           onClick={() => selectTab("contacts")}
           className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${

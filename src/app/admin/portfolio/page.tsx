@@ -233,7 +233,7 @@ function LedgerPage() {
 
       <dl
         aria-label="Totals for the deals shown"
-        className="mb-5 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 sm:grid-cols-3 lg:grid-cols-5"
+        className="mb-5 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 sm:grid-cols-3 lg:grid-cols-5 v2:mb-0 v2:border-y-0 v2:py-6"
       >
         <Stat label="Total invested" value={`$${summary.totalInvested.toLocaleString()}`} />
         <Stat
