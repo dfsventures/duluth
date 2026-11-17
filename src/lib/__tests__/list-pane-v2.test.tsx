@@ -93,6 +93,37 @@ describe("DataTable under the new look", () => {
   });
 });
 
+describe("DataTable cells are one line under the new look (WS160 follow-up)", () => {
+  const long = "Northwind Trading Cooperative of West Africa";
+  const longRows: Row[] = [{ id: "c1", name: long, status: "Ghana, SA, Nigeria, Egypt", members: 2 }];
+  const withTitle: DataTableColumn<Row>[] = [
+    ...columns.slice(0, 2),
+    { key: "members", header: "Members", title: (r) => `${r.members} people`, sortValue: (r) => r.members, cell: (r) => <b>{r.members}</b> },
+  ];
+
+  it("new look: the title text is a shrinking span inside a flex link, and plain cells carry their text as the title", () => {
+    look.v2 = true;
+    const html = renderToStaticMarkup(<DataTable<Row> {...base} rows={longRows} chips={undefined} />);
+    expect(html).toContain('<span class="min-w-0 truncate">' + long + "</span>");
+    expect(html).toContain('class="flex min-w-0 items-center');
+    expect(html).toContain('title="' + long + '"');
+    expect(html).toContain('title="Ghana, SA, Nigeria, Egypt"');
+  });
+  it("a column's own title wins for a cell that renders markup", () => {
+    look.v2 = true;
+    const html = renderToStaticMarkup(<DataTable<Row> {...base} rows={longRows} chips={undefined} columns={withTitle} />);
+    expect(html).toContain('title="2 people"');
+  });
+  it("old look: no title, no wrapper span, the link stays inline-flex", () => {
+    look.v2 = false;
+    const html = renderToStaticMarkup(<DataTable<Row> {...base} rows={longRows} chips={undefined} columns={withTitle} />);
+    expect(html).not.toContain("title=");
+    expect(html).not.toContain("truncate");
+    expect(html).toContain('class="inline-flex items-center');
+    look.v2 = true;
+  });
+});
+
 describe("SplitView and DetailPane", () => {
   const pane = (
     <DetailPane
@@ -220,6 +251,24 @@ describe("list and pane css", () => {
   it("columns drop at 600 and 480", () => {
     expect(section).toContain("@container (max-width: 600px)");
     expect(section).toContain("@container (max-width: 480px)");
+  });
+  it("a full-width page puts the header, the blocks above the list and the rows on one column edge", () => {
+    expect(section).toMatch(/\.shell-page\[data-width="full"\] \{\s*--row-pad: max\(var\(--gutter\), calc\(\(100cqw - var\(--column\)\) \/ 2\)\);/);
+    expect(section).toMatch(/\.shell-header:first-child \{[^}]*padding-inline: var\(--row-pad\)/);
+    // beside an open pane the list and the header both use the gutter
+    expect(section).toMatch(/:has\(\[data-split-pane\]\) \.list-pane \{\s*--row-pad: var\(--gutter\)/);
+  });
+  it("cells are one line with an ellipsis; numbers are not cut", () => {
+    expect(section).toMatch(/\[data-density\] td \{[^}]*max-width: var\(--cell-max, 240px\);[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap/);
+    expect(section).toMatch(/td\.num \{\s*max-width: none;\s*overflow: visible/);
+  });
+  it("a sticky first column sits on the page background, not a card band", () => {
+    expect(section).toMatch(/td\.sticky \{\s*background-color: var\(--color-bg\)/);
+  });
+  it("only success, warning and danger badges have a glyph", () => {
+    const badges = css.slice(css.indexOf("/* Badges:"), css.indexOf("/* StatusDot:"));
+    expect(badges).toMatch(/\.badge-info::before,\s*html\[data-look="v2"\] \[data-surface="admin"\] \.badge-neutral::before \{\s*display: none;/);
+    expect(badges).not.toContain("1.25px");
   });
   it("the sticky group heading sits under the header bar and filter bar", () => {
     expect(section).toContain("top: calc(var(--bar-h) + var(--filter-h) - 24px)");

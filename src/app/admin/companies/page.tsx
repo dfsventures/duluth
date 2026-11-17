@@ -25,6 +25,7 @@ import { formatDate } from "@/lib/utils";
 import { cadenceStatus } from "@/lib/update-cadence";
 import { parseCompanyCsv, type CompanyCsvRow } from "@/lib/company-csv";
 import { toast } from "@/lib/toast";
+import { useNewLook } from "@/lib/use-new-look";
 import type { FilterChipDef } from "@/lib/data-table";
 
 interface Company {
@@ -128,6 +129,7 @@ function CompanyPane({
           <PaneChip>
             <StatusDot status={row.cadence}>{row.statusLabel}</StatusDot>
           </PaneChip>
+          {row.createdVia === "marge" && <PaneChip>Added via Marge</PaneChip>}
           {row.hasFounder === false && <PaneChip>No founder yet</PaneChip>}
         </>
       }
@@ -187,6 +189,8 @@ function CompanyPane({
 
 export default function AdminCompaniesPage() {
   const router = useRouter();
+  // False on the server and the first render, so the old markup is what hydrates.
+  const v2 = useNewLook();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // New look (WS160): the list as shown, for the pane's previous / next and its position.
   const [visibleRows, setVisibleRows] = useState<Row[]>([]);
@@ -283,28 +287,50 @@ export default function AdminCompaniesPage() {
     }
   }
 
+  // New look: one line per cell. Status and Stage get a width that fits their longest normal value
+  // ("No updates yet", "Pre-seed" / "Series A"); Sector and Location are cut with an ellipsis.
+  // Under the old look none of this is added, so its markup is unchanged.
+  const colClass = (cls: string) => (v2 ? cls : undefined);
   const columns: DataTableColumn<Row>[] = [
     {
       key: "name",
       header: "Company",
       sortValue: (r) => r.name,
-      cell: (r) => (
-        <>
-          <NameTile name={r.name} className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
-          {r.name}
-          {r.hasFounder === false && (
-            <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
-              {r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
+      cell: (r) =>
+        v2 ? (
+          <>
+            <NameTile name={r.name} className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
+            <span className="min-w-0 truncate" title={r.name}>
+              {r.name}
             </span>
-          )}
-        </>
-      ),
+            {r.hasFounder === false && (
+              // Quiet words after the name; they give way first. The pane has the full wording.
+              <span
+                className="ml-2 min-w-0 shrink-[1000] truncate text-meta font-normal text-muted-foreground"
+                title={r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
+              >
+                No founder yet
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <NameTile name={r.name} className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
+            {r.name}
+            {r.hasFounder === false && (
+              <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
+                {r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
+              </span>
+            )}
+          </>
+        ),
     },
     {
       key: "status",
       header: "Status",
       sortValue: (r) => CADENCE_ORDER[r.cadence],
       mobile: "badge",
+      className: colClass("w-[136px] [--cell-max:136px]"),
       cell: (r) => <StatusDot status={r.cadence}>{r.statusLabel}</StatusDot>,
     },
     {
@@ -313,6 +339,7 @@ export default function AdminCompaniesPage() {
       sortValue: (r) => r.sector,
       dropBelow: 480,
       mobile: "meta",
+      className: colClass("[--cell-max:184px]"),
       cell: (r) => r.sector ?? <span className="text-muted-foreground">—</span>,
     },
     {
@@ -320,6 +347,8 @@ export default function AdminCompaniesPage() {
       header: "Stage",
       sortValue: (r) => r.fundingStage,
       dropBelow: 480,
+      className: colClass("w-[112px] [--cell-max:112px]"),
+      title: (r) => r.fundingStage,
       cell: (r) => <StageChip stage={r.fundingStage} />,
     },
     {
@@ -328,6 +357,7 @@ export default function AdminCompaniesPage() {
       sortValue: (r) => r.geography,
       dropBelow: 600,
       mobile: "meta",
+      className: colClass("[--cell-max:224px]"),
       cell: (r) => r.geography ?? <span className="text-muted-foreground">—</span>,
     },
     {
@@ -391,8 +421,9 @@ export default function AdminCompaniesPage() {
         }
       />
 
-      <div className="mb-4 v2:mb-0 v2:px-[var(--gutter)] v2:py-3">
-        <ComposerDisclosure label="CSV format">
+      <div className="mb-4 v2:mb-0 v2:px-[var(--row-pad)] v2:py-3">
+        {/* New look: no rule of its own, the header bar's line is the only one under the title. */}
+        <ComposerDisclosure label="CSV format" className="v2:border-t-0 v2:pt-0">
           <p className="text-sm text-muted-foreground">
             To bulk import, upload a CSV with a <code className="rounded bg-muted px-1 text-xs">name</code> column and
             optional <code className="rounded bg-muted px-1 text-xs">url</code> column. You will see a preview before

@@ -221,7 +221,7 @@ function AdminUpdatesPageInner() {
         }
       />
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:mb-0 v2:px-[var(--gutter)]">
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:mb-0 v2:px-[var(--row-pad)]">
         <button
           onClick={() => selectTab("updates")}
           className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
@@ -247,7 +247,7 @@ function AdminUpdatesPageInner() {
       </div>
 
       {activeTab === "templates" ? (
-        <div className="v2:px-[var(--gutter)] v2:py-6">
+        <div className="v2:px-[var(--row-pad)] v2:py-6">
           <TemplatesPanel />
         </div>
       ) : (

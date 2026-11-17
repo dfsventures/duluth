@@ -786,7 +786,7 @@ export default function ApprovalsPage() {
       />
 
       {approvals.length === 0 ? (
-        <div className="v2:px-[var(--gutter)] v2:py-3">
+        <div className="v2:px-[var(--row-pad)] v2:py-3">
           <EmptyState eyebrow="Approvals"
             icon={<Inbox className="h-10 w-10" />}
             title="No pending approvals"
@@ -856,7 +856,9 @@ export default function ApprovalsPage() {
                               cell: (a) => (
                                 <>
                                   <NameTile name={a.name} kind="person" className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
-                                  {a.name}
+                                  <span className="min-w-0 truncate" title={a.name}>
+                                    {a.name}
+                                  </span>
                                 </>
                               ),
                             },
@@ -895,7 +897,7 @@ export default function ApprovalsPage() {
             </OpenParam>
           )}
           {(processedBlock || caughtUpBlock) && (
-            <div className="space-y-6 v2:px-[var(--gutter)] v2:pt-6">
+            <div className="space-y-6 v2:px-[var(--row-pad)] v2:pt-6">
               {processedBlock}
               {caughtUpBlock}
             </div>
@@ -1223,7 +1225,7 @@ export default function ApprovalsPage() {
         ];
 
         return (
-          <div className="mt-8 space-y-8 v2:px-[var(--gutter)]">
+          <div className="mt-8 space-y-8 v2:px-[var(--row-pad)]">
             {activeAwaiting.length > 0 && (
               <section aria-labelledby="awaiting-heading" className="space-y-3">
                 <div>

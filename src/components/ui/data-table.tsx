@@ -66,6 +66,12 @@ export interface DataTableColumn<T> {
    * column never drops. No effect under the old look.
    */
   dropBelow?: 600 | 480;
+  /**
+   * New look: every cell is one line and is cut with an ellipsis where it is too narrow. A cell that
+   * renders plain text gets that text as its title automatically; set this for a cell that renders
+   * markup (a chip, say) so the full text is still there on hover. No effect under the old look.
+   */
+  title?: (row: T) => string | null | undefined;
 }
 
 /** Group-by (spec 7, Deal Ledger): rows are grouped under a heading, with an optional subtotal row. */
@@ -531,11 +537,16 @@ function DataTableInner<T>({
               rowClassName?.(row)
             )}
           >
-            {cols.map((c, i) => (
+            {cols.map((c, i) => {
+              const content = c.cell(row);
+              const plain = typeof content === "string" || typeof content === "number";
+              return (
               <td
                 key={c.key}
                 role={listMode ? "presentation" : undefined}
                 data-drop={v2 && i > 0 ? c.dropBelow : undefined}
+                // New look: one line per cell, so the full text is the tooltip where it is cut.
+                title={v2 ? (c.title?.(row) ?? (plain ? String(content) : undefined)) : undefined}
                 className={cn(
                   "px-3 py-1",
                   c.align === "num" ? "num whitespace-nowrap" : "",
@@ -548,15 +559,21 @@ function DataTableInner<T>({
                   <Link
                     href={href}
                     onClick={listMode ? (e) => paneClick(e, row) : undefined}
-                    className="inline-flex items-center hover:underline focus-visible:underline focus-visible:outline-none"
+                    className={
+                      v2
+                        ? // A block flex row that may shrink, so the text inside can truncate.
+                          "flex min-w-0 items-center hover:underline focus-visible:underline focus-visible:outline-none"
+                        : "inline-flex items-center hover:underline focus-visible:underline focus-visible:outline-none"
+                    }
                   >
-                    {c.cell(row)}
+                    {v2 && plain ? <span className="min-w-0 truncate">{content}</span> : content}
                   </Link>
                 ) : (
-                  c.cell(row)
+                  content
                 )}
               </td>
-            ))}
+              );
+            })}
             {rowActions && (
               <td role={listMode ? "presentation" : undefined} className="px-3 py-1 text-right">
                 <div className="flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">

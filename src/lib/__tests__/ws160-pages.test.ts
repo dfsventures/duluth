@@ -73,6 +73,20 @@ describe("the three pages", () => {
     expect(updates).toContain("`/api/updates/${update.id}`");
     expect(updates).toContain('"/api/admin/updates"');
   });
+  it("Companies: the row says only 'No founder yet' in quiet words; the pane carries 'Added via Marge'", () => {
+    expect(companies).toContain("<PaneChip>Added via Marge</PaneChip>");
+    expect(companies).toContain("<PaneChip>No founder yet</PaneChip>");
+    // the old-look chip keeps its full wording
+    expect(companies).toContain('{r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}');
+    // the new-look words are muted meta text that truncates before the name does
+    expect(companies).toContain("shrink-[1000] truncate text-meta font-normal text-muted-foreground");
+  });
+  it("blocks above a full-width list pad by --row-pad so they line up with the title and rows", () => {
+    for (const src of [approvals, companies, updates]) {
+      expect(src).not.toContain("v2:px-[var(--gutter)]");
+      expect(src).toContain("v2:px-[var(--row-pad)]");
+    }
+  });
   it("the pane for an update sanitises the body the way the full page does", () => {
     expect(updates).toContain("sanitizeUpdateHtml(detail.body)");
   });

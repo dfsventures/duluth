@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ComposerDisclosureProps {
   label: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
+  /** Extra classes for the wrapper (a `v2:` class to drop the top rule under the new look). */
+  className?: string;
 }
 
 /** Same chevron-toggle pattern as the existing "Schedule for later" disclosure. */
-export function ComposerDisclosure({ label, defaultOpen = false, children }: ComposerDisclosureProps) {
+export function ComposerDisclosure({ label, defaultOpen = false, children, className }: ComposerDisclosureProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-t pt-4">
+    <div className={cn("border-t pt-4", className)}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

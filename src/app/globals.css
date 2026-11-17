@@ -431,11 +431,9 @@ html[data-look="v2"] [data-surface="admin"] .badge-danger::before {
   border-radius: 0;
   clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
-html[data-look="v2"] [data-surface="admin"] .badge-info::before {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.25px currentColor;
-}
-/* Neutral badges are mostly counts and tags, not states, so they get no glyph. */
+/* Only success, warning and danger are states, so only they get a glyph. Info and neutral are
+   mostly types, counts and tags ("Initial", "Team", "3"), so they get none. */
+html[data-look="v2"] [data-surface="admin"] .badge-info::before,
 html[data-look="v2"] [data-surface="admin"] .badge-neutral::before {
   display: none;
 }
@@ -500,10 +498,22 @@ html[data-look="v2"] [data-surface="admin"] .list-pane {
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density]:not([data-list-mode]) {
   --row-pad: 12px;
 }
+/* A full-width page puts everything on one column edge: the header's title, the blocks above the
+   list, the filter bar and the rows all pad by --row-pad. Defined on the page here (cqw is the
+   main area) and again on .list-pane (cqw is the list), so beside an open pane the list uses the
+   gutter and the header does too. Bands and hairlines still run edge to edge. */
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
+  --row-pad: max(var(--gutter), calc((100cqw - var(--column)) / 2));
+}
+html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-split-pane]) .shell-page[data-width="full"],
+html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-split-pane]) .list-pane {
+  --row-pad: var(--gutter);
+}
 /* List mode: the filter bar follows the header at once, and the sticky stack (header, filter bar,
    group heading) is what j and k must scroll clear of. */
 html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] > .shell-header:first-child {
   margin-bottom: 0;
+  padding-inline: var(--row-pad);
 }
 html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-list-mode]) {
   scroll-padding-top: calc(var(--bar-h) + var(--filter-h) + var(--group-h));
@@ -545,6 +555,51 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td {
 }
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td.num {
   text-align: right;
+}
+/* One line per cell, so every row is the same height. Text is cut with an ellipsis (the cell's
+   title carries the full text), never wrapped. A column says how much room it gets with
+   --cell-max (and a width); the default is 240px. Numbers are never cut. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td {
+  max-width: var(--cell-max, 240px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td.num {
+  max-width: none;
+  overflow: visible;
+}
+/* The first column is the title: wider, and in list mode it takes whatever the others leave. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:first-child {
+  max-width: 360px;
+}
+/* A first cell that lays itself out as a wrapping flex row (a title and a tag) stays on one line,
+   and its title is the part that gives way. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:first-child .flex-wrap {
+  flex-wrap: nowrap;
+  min-width: 0;
+  overflow: hidden;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:first-child .flex-wrap > :first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* A sticky first column sits on the page, not on a card-coloured band; a row's hover, open and
+   cursor tints are laid over it so they still show. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th.sticky,
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row] > td.sticky {
+  background-color: var(--color-bg);
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row]:hover > td.sticky,
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row]:focus-within > td.sticky {
+  background-image: linear-gradient(var(--color-row-hover), var(--color-row-hover));
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row]:focus-visible > td.sticky {
+  background-image: linear-gradient(var(--color-sel), var(--color-sel));
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row][data-open="true"] > td.sticky {
+  background-image: linear-gradient(var(--color-open), var(--color-open));
 }
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:first-child {
   padding-left: var(--row-pad, 12px);
