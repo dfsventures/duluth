@@ -110,3 +110,90 @@ describe("cadenceStatus", () => {
     expect(cadenceStatus(acme)).toBe("BEHIND");
   });
 });
+
+// 2026-11-17 (approved by Joseph): a company is only NEW while it has no published updates.
+// Marge creates companies with backdated updates, so a company added yesterday can already have
+// an update that is hundreds of days old. Synthetic fixtures only.
+describe("a company younger than the grace period, with published updates", () => {
+  it("no updates: NEW, not overdue (as before)", () => {
+    const c = company(1, []);
+    expect(cadenceStatus(c)).toBe("NEW");
+    expect(isCompanyOverdue(c)).toBe(false);
+  });
+
+  it("an update inside the last 30 days: CURRENT, not overdue", () => {
+    const c = company(1, [2]);
+    expect(cadenceStatus(c)).toBe("CURRENT");
+    expect(isCompanyOverdue(c)).toBe(false);
+    // a company created 25 days ago whose latest update is 29 days old (backdated): still inside 30
+    const d = company(25, [29, 80]);
+    expect(cadenceStatus(d)).toBe("CURRENT");
+    expect(isCompanyOverdue(d)).toBe(false);
+  });
+
+  it("only update is 660 days old (added yesterday): BEHIND, overdue, no longer 'No updates yet'", () => {
+    const c = company(1, [660]);
+    expect(cadenceStatus(c)).toBe("BEHIND");
+    expect(isCompanyOverdue(c)).toBe(true);
+  });
+
+  it("rule 2: fewer than 3 updates, latest older than 30 days: BEHIND", () => {
+    const c = company(10, [45, 90]);
+    expect(isCompanyOverdue(c)).toBe(true);
+    expect(cadenceStatus(c)).toBe("BEHIND");
+  });
+
+  it("the 30-day line: 29 days old is CURRENT, 31 days old is BEHIND", () => {
+    expect(cadenceStatus(company(5, [29]))).toBe("CURRENT");
+    expect(cadenceStatus(company(5, [31]))).toBe("BEHIND");
+  });
+
+  it("rule 3: three or more updates use the learned cadence when the latest is older than 30 days", () => {
+    // Evenly 30 days apart, latest 100 days ago: far past the learned gap.
+    const behind = company(10, [100, 130, 160]);
+    expect(isCompanyOverdue(behind)).toBe(true);
+    expect(cadenceStatus(behind)).toBe("BEHIND");
+
+    // Gaps of ~70 days, latest 31 days ago: inside the learned gap and under two-thirds of it.
+    const current = company(10, [31, 100, 170]);
+    expect(isCompanyOverdue(current)).toBe(false);
+    expect(cadenceStatus(current)).toBe("CURRENT");
+
+    // Gaps of ~80 days, latest 60 days ago: past two-thirds of the gap, not yet past it.
+    const aging = company(10, [60, 140, 220]);
+    expect(isCompanyOverdue(aging)).toBe(false);
+    expect(cadenceStatus(aging)).toBe("AGING");
+  });
+
+  it("an unsent (null sentAt) update does not count as published", () => {
+    const c: CadenceInput = { createdAt: daysAgo(3), publishedUpdates: [{ sentAt: null }] };
+    expect(cadenceStatus(c)).toBe("NEW");
+    expect(isCompanyOverdue(c)).toBe(false);
+    const d: CadenceInput = { createdAt: daysAgo(3), publishedUpdates: [{ sentAt: null }, { sentAt: daysAgo(400) }] };
+    expect(cadenceStatus(d)).toBe("BEHIND");
+  });
+});
+
+describe("a company 30 days old or more is unchanged", () => {
+  it("one recent update is still fewer than 3: BEHIND", () => {
+    const c = company(GRACE_PERIOD_DAYS, [2]);
+    expect(isCompanyOverdue(c)).toBe(true);
+    expect(cadenceStatus(c)).toBe("BEHIND");
+  });
+  it("no updates: BEHIND, not NEW", () => {
+    expect(cadenceStatus(company(GRACE_PERIOD_DAYS + 1, []))).toBe("BEHIND");
+  });
+});
+
+describe("isCompanyOverdue and cadenceStatus agree", () => {
+  it("BEHIND exactly when overdue, across ages and update histories", () => {
+    const ages = [0, 1, 15, 29, 30, 31, 90, 400];
+    const histories: number[][] = [[], [1], [29], [45], [660], [10, 40], [45, 90], [31, 100, 170], [60, 140, 220], [100, 130, 160], [5, 35, 65, 95, 125], [75, 105, 135, 165, 195]];
+    for (const age of ages) {
+      for (const h of histories) {
+        const c = company(age, h);
+        expect(cadenceStatus(c) === "BEHIND").toBe(isCompanyOverdue(c));
+      }
+    }
+  });
+});
