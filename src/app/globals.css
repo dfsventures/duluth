@@ -569,6 +569,12 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td.nu
   max-width: none;
   overflow: visible;
 }
+/* Cells that hold controls (the row actions: Resend, Dismiss, Delete, Remind…) are never capped
+   or clipped: a cut-off button is worse than a wide column, and clipping would also hide focus rings. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:has(button) {
+  max-width: none;
+  overflow: visible;
+}
 /* The first column is the title: wider, and in list mode it takes whatever the others leave. */
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:first-child {
   max-width: 360px;
