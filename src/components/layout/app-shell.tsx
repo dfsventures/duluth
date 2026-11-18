@@ -9,7 +9,7 @@ import { LogoMark } from "@/components/ui/logo-mark";
 import { CommandPalette, openCommandPalette } from "./command-palette";
 import { Shortcuts } from "./shortcuts";
 import { SurfaceSync } from "./surface-sync";
-import { surfaceForPath } from "@/lib/surface";
+import { surfaceForPath, type Surface } from "@/lib/surface";
 import { cn } from "@/lib/utils";
 
 export const MAIN_ID = "main-content";
@@ -25,13 +25,20 @@ interface AppShellProps {
    * stat strip and table all span the content area up to that cap. Under the old look it is the same box as "page".
    */
   width?: "page" | "wide" | "full";
+  /**
+   * Overrides the surface the path would give. For a page shared with founders and LPs (outside
+   * /admin) that shows an admin the new look: it passes "admin" only for an admin with the new look
+   * on, and nothing otherwise, so every other viewer keeps the surface the path gives.
+   */
+  surface?: Surface;
 }
 
-export function AppShell({ children, width = "page" }: AppShellProps) {
+export function AppShell({ children, width = "page", surface: surfaceOverride }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   // Direction B applies to founder-facing surfaces only; admin keeps Direction A+.
-  const surface = surfaceForPath(usePathname());
+  const pathSurface = surfaceForPath(usePathname());
+  const surface = surfaceOverride ?? pathSurface;
   // The palette and shortcuts are admin only in v1 (spec decision 3).
   const { data: session } = useSession();
   const isAdmin = session?.user?.roles?.includes("ADMIN") ?? false;

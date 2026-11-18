@@ -27,6 +27,8 @@ import { PageSkeleton } from "@/components/ui/skeleton";
 import { sanitizeUpdateHtml } from "@/lib/update-html";
 import { metricChipLabel } from "@/lib/metric-origin";
 import { canEditUpdate, buildEditMetricValues } from "@/lib/update-edit-rules";
+import { useLook } from "@/lib/use-look";
+import { UpdateRecord } from "@/components/admin/updates/update-record";
 
 interface MetricDefinition {
   id: string;
@@ -45,6 +47,8 @@ interface UpdateDetail {
   createdAt: string;
   updatedAt: string;
   companyId: string;
+  // Already returned by GET /api/updates/[id]; used by the new look's details panel.
+  company?: { id: string; name: string } | null;
   // Part 45 (WS151): email-filed updates. sourceRef is sent to admins only.
   source?: "FOUNDER" | "EMAIL_VIA_MARGE";
   sourceRef?: { permalink?: string } | null;
@@ -195,6 +199,12 @@ export default function UpdateDetailPage() {
 
   const confirm = useConfirm();
   const isAdminUser = Boolean(session?.user?.roles?.includes("ADMIN"));
+  // This route is shared with founders and LPs and sits outside /admin, so useNewLook() (path based)
+  // is always false here. The new look applies only to a signed-in admin whose switch is on; the
+  // shell is then told to use the admin surface. Server and first client render are the old look.
+  const { look } = useLook();
+  const newLook = look === "v2" && isAdminUser;
+  const shellSurface = newLook ? ("admin" as const) : undefined;
   // Part 45 (Q142 A): admins can remove an update filed from email.
   async function handleRemoveFiled() {
     if (!update) return;
@@ -416,7 +426,7 @@ export default function UpdateDetailPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell surface={shellSurface}>
         <PageSkeleton />
       </AppShell>
     );
@@ -437,7 +447,7 @@ export default function UpdateDetailPage() {
 
   if (!update) {
     return (
-      <AppShell>
+      <AppShell surface={shellSurface}>
         <PageHeader title="Update Not Found" />
         <p className="text-sm text-muted-foreground">
           This update could not be found or you don&apos;t have access.
@@ -450,8 +460,106 @@ export default function UpdateDetailPage() {
     );
   }
 
+  if (newLook && !editing) {
+    const notices = (
+      <>
+        {update.status === "DRAFT" && update.scheduledFor && (
+          <p className="text-sm text-muted-foreground">Scheduled to publish on {formatDate(update.scheduledFor)}.</p>
+        )}
+        {update.status === "DRAFT" && confirmPublish && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-foreground">Publish and notify the {ORG_NAME} team?</span>
+            <Button variant="secondary" size="sm" disabled={sending} onClick={() => setConfirmPublish(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={sending} onClick={handleSendToDFS}>
+              {sending ? "Publishing..." : "Confirm Publish"}
+            </Button>
+          </div>
+        )}
+        {update.status === "DRAFT" && !update.scheduledFor && showSchedule && (
+          <div className="flex flex-wrap items-end gap-3">
+            <Input
+              id="schedule-date"
+              label="Publish date"
+              type="date"
+              min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+              value={scheduleDate}
+              onChange={(e) => setScheduleDate(e.target.value)}
+            />
+            <Button variant="secondary" size="sm" disabled={!scheduleDate || scheduling} onClick={handleSchedule}>
+              {scheduling ? "Scheduling..." : "Schedule"}
+            </Button>
+            <p className="w-full text-xs text-muted-foreground">
+              Publishes on the morning of the selected date (UTC). You can keep editing until then.
+            </p>
+          </div>
+        )}
+      </>
+    );
+    const hasNotices = update.status === "DRAFT" && (Boolean(update.scheduledFor) || confirmPublish || showSchedule);
+    const comments = (
+      <section aria-labelledby="up-comments">
+        <h2 id="up-comments" className="mb-2 font-sans text-base font-semibold text-foreground">
+          Comments
+        </h2>
+        {update.comments && update.comments.length > 0 ? (
+          <ul className="mb-4">
+            {update.comments.map((comment) => (
+              <li key={comment.id} className="border-b border-border py-3 last:border-0">
+                <div className="mb-1 flex items-center gap-2">
+                  <span className="text-row font-medium">{comment.author.name ?? comment.author.email}</span>
+                  {comment.author.roles.includes("ADMIN") && <Badge variant="info">{ORG_NAME}</Badge>}
+                  <span className="text-meta text-muted-foreground">{formatDate(comment.createdAt)}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-row">{comment.body}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mb-4 text-row text-muted-foreground">No comments yet.</p>
+        )}
+        <form onSubmit={handleAddComment}>
+          <Textarea
+            id="newComment"
+            label="Add a Comment"
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="Write your comment..."
+            rows={3}
+          />
+          <div className="mt-3 flex justify-end">
+            <Button type="submit" size="sm" disabled={postingComment || !newComment.trim()}>
+              {postingComment ? "Posting..." : "Post Comment"}
+            </Button>
+          </div>
+        </form>
+      </section>
+    );
+    return (
+      <AppShell width="full" surface="admin">
+        <UpdateRecord
+          update={update}
+          isAdmin={isAdminUser}
+          canEdit={canEdit}
+          deleting={deleting}
+          sending={sending}
+          onEdit={enterEditMode}
+          onPublish={() => setConfirmPublish(true)}
+          onToggleSchedule={() => setShowSchedule((v) => !v)}
+          onCancelSchedule={handleCancelSchedule}
+          onRemoveFiled={handleRemoveFiled}
+          onDeleteDraft={handleDeleteDraft}
+          onDownloadDoc={handleDownloadDoc}
+          notices={hasNotices ? notices : null}
+          comments={comments}
+        />
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell>
+    <AppShell surface={shellSurface}>
       {/* Edit mode replaces the page header with the composer top bar below
           (Part 8, WS20.4) — view mode keeps the original header untouched. */}
       {!editing && (
