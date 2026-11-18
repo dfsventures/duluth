@@ -53,7 +53,7 @@ export function MemoDetails({ memo, linked, onEditDetails, onChangeCompany }: Pr
   ) : null;
 
   return (
-    <Card className="mb-8">
+    <Card className="mb-8 v2:mb-8 v2:rounded-lg v2:border-0 v2:bg-card v2:p-6">
       <div className="flex items-center justify-between gap-2">
         {filled > 0 ? (
           <button
@@ -73,7 +73,7 @@ export function MemoDetails({ memo, linked, onEditDetails, onChangeCompany }: Pr
         {edit && <div className="memo-no-print shrink-0">{edit}</div>}
       </div>
       {filled > 0 ? (
-        <dl id="memo-details-body" className={cn("mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3", !open && "hidden print:grid")}>
+        <dl id="memo-details-body" className={cn("mt-3 grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3 v2:mt-4 v2:text-body v2:lg:grid-cols-2", !open && "hidden print:grid")}>
           {memo.source && <Detail label="Source">{memo.source}</Detail>}
           {memo.introDate && <Detail label="Intro date">{formatDateOnly(memo.introDate)}</Detail>}
           {memo.websiteUrl && (

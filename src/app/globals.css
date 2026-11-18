@@ -849,6 +849,38 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li > div.mt-2 {
   margin-left: -12px;
 }
+
+/* Memo page (PLAN-1, WS163). The record sits in a 720px column. The header and the Details box
+   line up with the section text, so the contents list has the left rail to itself from lg up
+   (200px list + 32px gap). Screen only: printing is not touched. */
+@media screen {
+  html[data-look="v2"] [data-surface="admin"] .memo-v2-head {
+    max-width: 720px;
+  }
+}
+@media screen and (min-width: 1024px) {
+  html[data-look="v2"] [data-surface="admin"] .memo-v2-head {
+    margin-left: 232px;
+  }
+  html[data-look="v2"] [data-surface="admin"] .memo-v2-body {
+    grid-template-columns: 200px minmax(0, 720px);
+  }
+}
+/* Printing the memo in the dark theme: the colour tokens live on the admin surface, so the text
+   would print light on white. Put the light values back inside the print scope only. */
+@media print {
+  html[data-look="v2"][data-theme="dark"] [data-surface="admin"] .memo-print-scope {
+    --color-text-primary: #15181D;
+    --color-text-secondary: #474D57;
+    --color-text-muted: #5A616C;
+    --color-muted-rgb: 230 233 237;
+    --color-bg: #FFFFFF;
+    --color-surface: #FFFFFF;
+    --color-border: rgba(18, 24, 38, 0.16);
+    --color-accent: #44688E;
+    color-scheme: light;
+  }
+}
 /* ── End new look ── */
 
 /* ── Base ─────────────────────────────────────────────────── */

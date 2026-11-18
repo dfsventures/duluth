@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Link2Off, Lock, MoreHorizontal, Printer, Archive, Share2, Users } from "lucide-react";
+import { ArrowLeft, Building2, Link2Off, Lock, MoreHorizontal, Printer, Archive, Share2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "@/lib/toast";
+import { useNewLook } from "@/lib/use-new-look";
 import {
   MEMO_DECISIONS,
   MEMO_DECISION_LABELS,
@@ -33,6 +34,7 @@ interface Props {
 
 // Part 44 (WS146.2): title row, controls row (Stage, Memo status, Visibility) and a facts line.
 export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
+  const newLook = useNewLook();
   const [stage, setStage] = useState({ decision: memo.decision, version: memo.version });
   useEffect(() => setStage({ decision: memo.decision, version: memo.version }), [memo.decision, memo.version]);
   const [savingStage, setSavingStage] = useState(false);
@@ -133,14 +135,25 @@ export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
   const updated = new Date(memo.updatedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 
   return (
-    <header className="mb-6">
+    <header className="mb-6 v2:mb-8">
       <div className="memo-no-print">
-        <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: memo.title }]} />
+        {newLook ? (
+          // New look (WS163): the crumb is a back link to the list, like the pane's crumb bar.
+          <Link
+            href="/admin/memos"
+            className="mb-4 inline-flex h-8 items-center gap-1.5 rounded-ctl text-meta text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+            Memos
+          </Link>
+        ) : (
+          <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: memo.title }]} />
+        )}
       </div>
 
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="flex items-center gap-2 font-display text-2xl font-semibold tracking-tight text-foreground">
+          <h1 className="flex items-center gap-2 font-display text-2xl font-semibold tracking-tight text-foreground v2:font-sans v2:text-title">
             <span className="min-w-0 break-words">{memo.title}</span>
             {sameAsTitle && <span className="memo-no-print">{companyIcon}</span>}
           </h1>
@@ -151,7 +164,8 @@ export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
             <Printer className="h-4 w-4" />
             Print or save as PDF
           </Button>
-          <Button variant="secondary" onClick={onOpenShare}>
+          {/* One primary action per view in the new look: Share. */}
+          <Button variant={newLook ? "primary" : "secondary"} onClick={onOpenShare}>
             <Share2 className="h-4 w-4" />
             Share
           </Button>
@@ -179,7 +193,7 @@ export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
         </div>
       </div>
 
-      <div className="memo-no-print mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="memo-no-print mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 v2:mt-4 v2:gap-x-5">
         <div className="flex items-center gap-2">
           <label htmlFor="memo-stage" className="label">
             {MEMO_DECISION_NOUN}
@@ -238,7 +252,7 @@ export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
         {`${MEMO_DECISION_NOUN}: ${stageLabel} · ${MEMO_STATUS_NOUN}: ${MEMO_STATUS_LABELS[memo.status]}`}
       </p>
 
-      <p className="mt-2 flex flex-wrap gap-x-2 text-sm text-muted-foreground">
+      <p className="mt-2 flex flex-wrap gap-x-2 text-sm text-muted-foreground v2:mt-4 v2:text-meta">
         <span>Owned by {ownerLabel(memo.owner)}</span>
         <span aria-hidden="true">·</span>
         <span>Updated {updated}</span>

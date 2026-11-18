@@ -141,10 +141,10 @@ export function SectionCard({
   }
 
   return (
-    <section id={`section-${section.key}`} className="memo-section scroll-mt-24 lg:scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0">
+    <section id={`section-${section.key}`} className="memo-section scroll-mt-24 lg:scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0 v2:border-t-0 v2:pt-0">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display text-lg font-semibold text-foreground">{section.title}</h2>
+          <h2 className="font-display text-lg font-semibold text-foreground v2:font-sans v2:text-heading">{section.title}</h2>
           {!section.includeInShare &&
             (onOpenShare ? (
               <button
@@ -202,7 +202,7 @@ export function SectionCard({
             onChange={(e) => setTitle(e.target.value)}
           />
           <div>
-            <div role="tablist" aria-label="Editor mode" className="mb-2 flex gap-4 border-b border-border">
+            <div role="tablist" aria-label="Editor mode" className="mb-2 flex gap-4 border-b border-border v2:border-b-0">
               {(["write", "preview"] as const).map((t) => (
                 <button
                   key={t}
@@ -210,7 +210,7 @@ export function SectionCard({
                   role="tab"
                   aria-selected={tab === t}
                   onClick={() => (t === "preview" ? showPreview() : setTab("write"))}
-                  className={`-mb-px border-b-2 py-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  className={`-mb-px border-b-2 py-2 text-sm font-medium v2:text-row focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     tab === t ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
                   }`}
                 >

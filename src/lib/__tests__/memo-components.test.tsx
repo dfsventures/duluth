@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // Part 40 (WS127): server-render smoke tests of the memo components that need no browser.
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }), usePathname: () => "/admin/memos/m1" }));
 
 import { SectionCard } from "@/components/admin/memos/section-card";
 import { CitationChips } from "@/components/admin/memos/citation-chips";

@@ -72,10 +72,12 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
   return (
     <AppShell>
       <div className="memo-print-scope">
+        {/* memo-v2-head / memo-v2-body: the new look's 720px column (rules in globals.css, screen only). */}
+        <div className="memo-v2-head">
         <MemoHeader memo={memo} onOpenShare={() => setShowShare(true)} onArchive={archive} onChanged={refresh} />
 
         {suggestion && !dismissed && (
-          <div className="memo-no-print mb-6 flex flex-wrap items-center justify-between gap-3 border border-edge bg-muted/40 p-3 text-sm">
+          <div className="memo-no-print mb-6 flex flex-wrap items-center justify-between gap-3 border border-edge bg-muted/40 p-3 text-sm v2:mb-8 v2:rounded-lg v2:border-0 v2:bg-card v2:p-4">
             <span>{suggestion.kind === "ledger" ? `${suggestion.name} is in the deal ledger. Link it?` : `${suggestion.name} is now in Molly. Link it?`}</span>
             <span className="flex gap-2">
               <Button size="sm" onClick={() => setLinking(true)}>
@@ -89,8 +91,9 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
         )}
 
         <MemoDetails memo={memo} linked={linked} onEditDetails={() => setShowMeta(true)} onChangeCompany={() => setLinking(true)} />
+        </div>
 
-        <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="memo-v2-body grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
           <SectionNav sections={sections} />
           <div className="min-w-0 space-y-8">
             {memo.sections.map((s) => (
@@ -105,7 +108,7 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
               />
             ))}
             {memo.canManage && (
-              <div className="memo-no-print border-t border-border pt-6">
+              <div className="memo-no-print border-t border-border pt-6 v2:border-t-0 v2:pt-0">
                 <Button variant="ghost" onClick={archive}>
                   <Archive className="h-4 w-4" />
                   Archive memo
