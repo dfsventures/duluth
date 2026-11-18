@@ -193,7 +193,7 @@ export function DocumentsTab({
           description={showArchived ? "No archived documents." : "No documents have been uploaded for this company."}
         />
       ) : (
-        <Card className="v2:rounded-none v2:border-0 v2:bg-transparent v2:shadow-none">
+        <Card className="v2:rounded-none v2:p-0 v2:border-0 v2:bg-transparent v2:shadow-none">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
