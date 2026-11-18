@@ -864,11 +864,12 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     display: none;
   }
   /* The whole group (header bar, title, reading column, panel) is at most 720 + 40 + 296 wide, so
-     the bar ends where the panel ends. With room to spare it is centred in the main area (100cqw),
-     not in the page box, which is left-aligned. Text and panel keep their widths. */
+     the bar ends where the panel ends. The page is AppShell width="full" (no box, no padding), so
+     the group centres in the whole main area; a gutter is the least it keeps on each side. Text
+     and panel keep their widths. */
   html[data-look="v2"] [data-surface="admin"] .memo-dossier {
     max-width: 1056px;
-    margin-left: max(0px, calc((100cqw - 1056px) / 2 - var(--gutter)));
+    margin-inline: max(var(--gutter), calc((100cqw - 1056px) / 2));
   }
   html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-reading {
     max-width: 720px;
@@ -941,6 +942,12 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-jump {
       display: none;
     }
+  }
+}
+/* The full-width page has no padding of its own, so print keeps the 24px the page box gave it. */
+@media print {
+  html[data-look="v2"] [data-surface="admin"] .memo-dossier {
+    padding-inline: 24px;
   }
 }
 /* Printing the memo in the dark theme: the colour tokens live on the admin surface, so the text

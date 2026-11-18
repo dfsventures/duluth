@@ -108,7 +108,7 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
   // New look: direction B "Dossier" (B-175). The server and first client render are the old look.
   if (newLook) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <div className="memo-print-scope">
           <MemoDossier
             memo={memo}
