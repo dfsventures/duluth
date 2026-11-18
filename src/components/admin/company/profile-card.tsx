@@ -15,23 +15,38 @@ import { normalizeUrl } from "@/lib/utils";
 import type { FlashMessage } from "@/lib/use-flash-message";
 import { FUNDING_STAGES, REMINDER_OPTIONS, type Company } from "./types";
 
-/** Company profile summary with in-place edit. */
+/**
+ * Company profile summary with in-place edit.
+ *
+ * `variant="card"` is the old look's card (unchanged). `variant="panel"` is the new look's right-hand
+ * facts panel (B-133): the same facts and the same edit form, with the title left to the page header
+ * and Edit moved to the header's ⋯ menu (the page passes `editing` / `onEditingChange`).
+ */
 export function ProfileCard({
   companyId,
   company,
   portfolioCompany,
   onSaved,
   setMessage,
+  variant = "card",
+  editing: editingProp,
+  onEditingChange,
 }: {
   companyId: string;
   company: Company;
   portfolioCompany: { id: string; name: string } | null;
   onSaved: (company: Company) => void;
   setMessage: (m: FlashMessage | null) => void;
+  variant?: "card" | "panel";
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [editingInner, setEditingInner] = useState(false);
+  const editing = editingProp ?? editingInner;
+  const setEditing = onEditingChange ?? setEditingInner;
   const [editForm, setEditForm] = useState<Company | null>(company);
   const [saving, setSaving] = useState(false);
+  const panel = variant === "panel";
 
   function updateEditField(field: keyof Company, value: string | number | null) {
     setEditForm((prev) => (prev ? { ...prev, [field]: value } : prev));
@@ -73,6 +88,188 @@ export function ProfileCard({
     }
   }
 
+  const reminderText = company.reminderFrequencyDays
+    ? REMINDER_OPTIONS.find((o) => o.value === company.reminderFrequencyDays)?.label ?? `Every ${company.reminderFrequencyDays}d`
+    : null;
+  const lastSent = company.lastReminderSentAt
+    ? `Last sent ${Math.floor((Date.now() - new Date(company.lastReminderSentAt).getTime()) / 86_400_000)}d ago`
+    : "Never sent";
+
+  const form = editing && editForm && (
+    <div className="space-y-4">
+      <Input
+        id="edit-name"
+        label="Company Name"
+        value={editForm.name}
+        onChange={(e) => updateEditField("name", e.target.value)}
+        required
+      />
+      <Textarea
+        id="edit-description"
+        label="Description"
+        value={editForm.description ?? ""}
+        onChange={(e) => updateEditField("description", e.target.value)}
+        rows={3}
+      />
+      <Input
+        id="edit-website"
+        label="Website"
+        type="text"
+        value={editForm.website ?? ""}
+        onChange={(e) => updateEditField("website", e.target.value)}
+        placeholder="example.com"
+      />
+      <SectorCombobox
+        id="edit-sector"
+        label="Sector"
+        value={editForm.sector ?? ""}
+        onChange={(v) => updateEditField("sector", v || null)}
+        isAdmin
+      />
+      <Input
+        id="edit-geography"
+        label="Geography"
+        value={editForm.geography ?? ""}
+        onChange={(e) => updateEditField("geography", e.target.value)}
+      />
+      <div className="space-y-1">
+        <label htmlFor="edit-aliases" className="label">
+          Aliases
+        </label>
+        <input
+          id="edit-aliases"
+          className="input-field"
+          placeholder="e.g. Acme, AcmeHQ"
+          value={editForm.aliases.join(", ")}
+          onChange={(e) =>
+            setEditForm((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    aliases: e.target.value
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  }
+                : prev
+            )
+          }
+        />
+        <p className="text-xs text-muted-foreground">Comma-separated alternative names used for Granola matching</p>
+      </div>
+      <Select id="edit-fundingStage" label="Funding Stage" value={editForm.fundingStage ?? ""} onChange={(e) => updateEditField("fundingStage", e.target.value)}>
+        <option value="">Select a stage</option>
+        {FUNDING_STAGES.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </Select>
+      <div className="space-y-1">
+        <Select
+          id="edit-reminderFrequency"
+          label="Update Reminder Frequency"
+          value={editForm.reminderFrequencyDays ?? ""}
+          onChange={(e) =>
+            updateEditField(
+              "reminderFrequencyDays",
+              e.target.value === "" ? null : Number(e.target.value)
+            )
+          }
+        >
+          {REMINDER_OPTIONS.map((o) => (
+            <option key={String(o.value)} value={o.value ?? ""}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Founders will receive an email reminder when they haven&apos;t submitted an update within this window.
+        </p>
+      </div>
+      <div className="flex justify-end gap-3 border-t pt-4">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            setEditing(false);
+            setEditForm(company);
+            setMessage(null);
+          }}
+        >
+          Cancel
+        </Button>
+        <Button size="sm" disabled={saving} onClick={handleSaveEdit}>
+          <Save className="mr-2 h-3.5 w-3.5" />
+          {saving ? "Saving..." : "Save Changes"}
+        </Button>
+      </div>
+    </div>
+  );
+
+  if (panel) {
+    const rows: { label: string; value: React.ReactNode }[] = [];
+    if (company.fundingStage) rows.push({ label: "Stage", value: <Badge variant="info">{company.fundingStage}</Badge> });
+    if (company.sector) rows.push({ label: "Sector", value: <Badge variant="neutral">{company.sector}</Badge> });
+    if (company.geography) rows.push({ label: "Geography", value: company.geography });
+    if (company.website)
+      rows.push({
+        label: "Website",
+        value: (
+          <a
+            href={company.website}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex max-w-full items-center gap-1 text-primary underline-offset-4 hover:underline"
+          >
+            <span className="truncate">{company.website.replace(/^https?:\/\//, "")}</span>
+            <ExternalLink aria-hidden="true" className="h-3 w-3 shrink-0" />
+          </a>
+        ),
+      });
+    rows.push({
+      label: "Reminders",
+      value: reminderText ? (
+        <>
+          {reminderText} <span className="text-muted-foreground">· {lastSent}</span>
+        </>
+      ) : (
+        "Off"
+      ),
+    });
+    if (portfolioCompany)
+      rows.push({
+        label: "Portfolio",
+        value: (
+          <Link href={`/admin/portfolio/${portfolioCompany.id}`} className="text-primary underline-offset-4 hover:underline">
+            {portfolioCompany.name} →
+          </Link>
+        ),
+      });
+    return (
+      <div className="rounded-lg bg-muted/60 p-4 v2:bg-card">
+        {editing && editForm ? (
+          <>
+            <h2 className="mb-3 font-sans text-meta font-medium text-muted-foreground">Edit company</h2>
+            {form}
+          </>
+        ) : (
+          <>
+            {company.description && <p className="mb-3 text-body-sm text-muted-foreground">{company.description}</p>}
+            <dl className="grid grid-cols-[84px_minmax(0,1fr)] items-start gap-x-3 gap-y-2 text-row">
+              {rows.map((r) => (
+                <div key={r.label} className="contents">
+                  <dt className="pt-0.5 text-meta text-muted-foreground">{r.label}</dt>
+                  <dd className="min-w-0 break-words">{r.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </>
+        )}
+      </div>
+    );
+  }
+
   return (
   <Card className="mb-6">
     <CardHeader>
@@ -109,115 +306,7 @@ export function ProfileCard({
     </CardHeader>
     <CardContent>
       {editing && editForm ? (
-        <div className="space-y-4">
-          <Input
-            id="edit-name"
-            label="Company Name"
-            value={editForm.name}
-            onChange={(e) => updateEditField("name", e.target.value)}
-            required
-          />
-          <Textarea
-            id="edit-description"
-            label="Description"
-            value={editForm.description ?? ""}
-            onChange={(e) => updateEditField("description", e.target.value)}
-            rows={3}
-          />
-          <Input
-            id="edit-website"
-            label="Website"
-            type="text"
-            value={editForm.website ?? ""}
-            onChange={(e) => updateEditField("website", e.target.value)}
-            placeholder="example.com"
-          />
-          <SectorCombobox
-            id="edit-sector"
-            label="Sector"
-            value={editForm.sector ?? ""}
-            onChange={(v) => updateEditField("sector", v || null)}
-            isAdmin
-          />
-          <Input
-            id="edit-geography"
-            label="Geography"
-            value={editForm.geography ?? ""}
-            onChange={(e) => updateEditField("geography", e.target.value)}
-          />
-          <div className="space-y-1">
-            <label htmlFor="edit-aliases" className="label">
-              Aliases
-            </label>
-            <input
-              id="edit-aliases"
-              className="input-field"
-              placeholder="e.g. Acme, AcmeHQ"
-              value={editForm.aliases.join(", ")}
-              onChange={(e) =>
-                setEditForm((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        aliases: e.target.value
-                          .split(",")
-                          .map((s) => s.trim())
-                          .filter(Boolean),
-                      }
-                    : prev
-                )
-              }
-            />
-            <p className="text-xs text-muted-foreground">Comma-separated alternative names used for Granola matching</p>
-          </div>
-          <Select id="edit-fundingStage" label="Funding Stage" value={editForm.fundingStage ?? ""} onChange={(e) => updateEditField("fundingStage", e.target.value)}>
-            <option value="">Select a stage</option>
-            {FUNDING_STAGES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </Select>
-          <div className="space-y-1">
-            <Select
-              id="edit-reminderFrequency"
-              label="Update Reminder Frequency"
-              value={editForm.reminderFrequencyDays ?? ""}
-              onChange={(e) =>
-                updateEditField(
-                  "reminderFrequencyDays",
-                  e.target.value === "" ? null : Number(e.target.value)
-                )
-              }
-            >
-              {REMINDER_OPTIONS.map((o) => (
-                <option key={String(o.value)} value={o.value ?? ""}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Founders will receive an email reminder when they haven&apos;t submitted an update within this window.
-            </p>
-          </div>
-          <div className="flex justify-end gap-3 border-t pt-4">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setEditing(false);
-                setEditForm(company);
-                setMessage(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button size="sm" disabled={saving} onClick={handleSaveEdit}>
-              <Save className="mr-2 h-3.5 w-3.5" />
-              {saving ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        </div>
+        form
       ) : (
         <div className="space-y-3">
           {company.description && (
@@ -257,22 +346,8 @@ export function ProfileCard({
             <Bell className="h-3.5 w-3.5" />
             {company.reminderFrequencyDays ? (
               <>
-                Reminders:{" "}
-                <span className="font-medium text-foreground">
-                  {REMINDER_OPTIONS.find((o) => o.value === company.reminderFrequencyDays)?.label ?? `Every ${company.reminderFrequencyDays}d`}
-                </span>
-                {company.lastReminderSentAt ? (
-                  <span className="ml-1">
-                    &middot; Last sent{" "}
-                    {Math.floor(
-                      (Date.now() - new Date(company.lastReminderSentAt).getTime()) /
-                        86_400_000
-                    )}
-                    d ago
-                  </span>
-                ) : (
-                  <span className="ml-1">&middot; Never sent</span>
-                )}
+                Reminders: <span className="font-medium text-foreground">{reminderText}</span>
+                <span className="ml-1">&middot; {lastSent}</span>
               </>
             ) : (
               <span>Reminders: Off</span>

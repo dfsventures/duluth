@@ -98,8 +98,8 @@ export function MetricsTab({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold">Metrics</h3>
+      <div className="mb-4 flex items-center justify-between v2:justify-end">
+        <h3 className="font-semibold v2:hidden">Metrics</h3>
         {!showAddMetric && (
           <Button
             size="sm"

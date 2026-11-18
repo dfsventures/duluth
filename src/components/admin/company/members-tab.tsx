@@ -105,8 +105,8 @@ export function MembersTab({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold">Members</h3>
+      <div className="mb-4 flex items-center justify-between v2:justify-end">
+        <h3 className="font-semibold v2:hidden">Members</h3>
         {!showAddMember && (
           <Button
             size="sm"

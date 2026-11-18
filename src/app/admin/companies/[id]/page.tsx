@@ -30,6 +30,8 @@ import { DocumentsTab, type DocumentLoadOpts } from "@/components/admin/company/
 import { MembersTab } from "@/components/admin/company/members-tab";
 import { NotesTab } from "@/components/admin/company/notes-tab";
 import { DiligenceTab } from "@/components/admin/company/diligence-tab";
+import { CompanyRecord } from "@/components/admin/company/company-record";
+import { useNewLook } from "@/lib/use-new-look";
 
 // UI overhaul phase 7: this page used to be 1,812 lines. Data loading, the
 // header and the URL tabs stay here; each tab and the profile card live in
@@ -41,6 +43,7 @@ function AdminCompanyDetailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const confirm = useConfirm();
+  const newLook = useNewLook();
   const companyId = params.id as string;
 
   // The tab lives in the URL (?tab=): back button, shared links and the
@@ -239,40 +242,8 @@ function AdminCompanyDetailPageInner() {
       : []),
   ];
 
-  return (
-    <AppShell>
-      <Breadcrumb items={[{ label: "Companies", href: "/admin/companies" }, { label: company.name }]} />
-      <PageHeader
-        title={company.name}
-        description="Company detail view"
-        action={
-          <Button variant="secondary" size="sm" disabled={deleting} onClick={handleDeleteCompany}>
-            <Trash2 className="mr-2 h-3.5 w-3.5" />
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-        }
-      />
-
-      {adminMeta.hasFounder === false && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          <span className="mr-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">
-            {adminMeta.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
-          </span>
-          Founders will see these updates, figures and comments once they have access.
-        </p>
-      )}
-
-      <ProfileCard
-        companyId={companyId}
-        company={company}
-        portfolioCompany={portfolioCompany}
-        onSaved={setCompany}
-        setMessage={setMessage}
-      />
-
-      {/* Tab navigation (URL tabs) */}
-      <TabBar<Tab> label="Company sections" tabs={tabs} active={activeTab} fallback="updates" />
-
+  const tabContent = (
+    <>
       {activeTab === "updates" && <UpdatesTab companyId={companyId} updates={updates} />}
       {activeTab === "metrics" && (
         <MetricsTab
@@ -299,6 +270,70 @@ function AdminCompanyDetailPageInner() {
       )}
       {/* Shown only when a CompanyDiligence row exists (see `tabs`). */}
       {activeTab === "diligence" && diligence && <DiligenceTab diligence={diligence} />}
+    </>
+  );
+
+  // Part 45 (WS151) note, shown under the title in both looks.
+  const founderNote =
+    adminMeta.hasFounder === false ? (
+      <p className="mb-4 text-sm text-muted-foreground v2:mb-0">
+        <span className="mr-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] v2:text-meta">
+          {adminMeta.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
+        </span>
+        Founders will see these updates, figures and comments once they have access.
+      </p>
+    ) : null;
+
+  // New look (B-133): the memo page's Dossier layout. The server and first client render are the old look.
+  if (newLook) {
+    return (
+      <AppShell width="full">
+        <CompanyRecord
+          companyId={companyId}
+          company={company}
+          portfolioCompany={portfolioCompany}
+          founderNote={founderNote}
+          tabs={tabs}
+          activeTab={activeTab}
+          deleting={deleting}
+          onDelete={handleDeleteCompany}
+          onSaved={setCompany}
+          setMessage={setMessage}
+        >
+          {tabContent}
+        </CompanyRecord>
+      </AppShell>
+    );
+  }
+
+  return (
+    <AppShell>
+      <Breadcrumb items={[{ label: "Companies", href: "/admin/companies" }, { label: company.name }]} />
+      <PageHeader
+        title={company.name}
+        description="Company detail view"
+        action={
+          <Button variant="secondary" size="sm" disabled={deleting} onClick={handleDeleteCompany}>
+            <Trash2 className="mr-2 h-3.5 w-3.5" />
+            {deleting ? "Deleting..." : "Delete"}
+          </Button>
+        }
+      />
+
+      {founderNote}
+
+      <ProfileCard
+        companyId={companyId}
+        company={company}
+        portfolioCompany={portfolioCompany}
+        onSaved={setCompany}
+        setMessage={setMessage}
+      />
+
+      {/* Tab navigation (URL tabs) */}
+      <TabBar<Tab> label="Company sections" tabs={tabs} active={activeTab} fallback="updates" />
+
+      {tabContent}
     </AppShell>
   );
 }

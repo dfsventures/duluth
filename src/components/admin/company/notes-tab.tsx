@@ -30,8 +30,8 @@ export function NotesTab({
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="font-semibold">Notes</h3>
+      <div className="mb-4 flex items-center justify-between v2:justify-end">
+        <h3 className="font-semibold v2:hidden">Notes</h3>
         {!showNoteForm && !editingNote && (
           <Button
             size="sm"
@@ -163,7 +163,7 @@ export function NotesTab({
       ) : (
         <div className="space-y-4">
           {notes.map((note) => (
-            <Card key={note.id}>
+            <Card key={note.id} className="co-item">
               <CardContent className="py-4">
                 <div className="mb-3 flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-48 flex-1">
@@ -190,7 +190,7 @@ export function NotesTab({
                     )}
                     <button
                       onClick={() => setHistoryNote(note)}
-                      className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="co-act rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                       title="View history"
                     >
                       <History className="h-4 w-4" />
@@ -206,7 +206,7 @@ export function NotesTab({
                         });
                         setShowNoteForm(false);
                       }}
-                      className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      className="co-act rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
                       title="Edit note"
                     >
                       <Pencil className="h-4 w-4" />
@@ -225,7 +225,7 @@ export function NotesTab({
                           setDeletingNoteId(null);
                         }
                       }}
-                      className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-40"
+                      className="co-act rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-40"
                       title="Delete note"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -233,7 +233,7 @@ export function NotesTab({
                   </div>
                 </div>
                 <div
-                  className="prose prose-sm max-w-none text-foreground line-clamp-4"
+                  className="prose prose-sm max-w-none text-foreground line-clamp-4 v2:line-clamp-none"
                   dangerouslySetInnerHTML={{ __html: note.body }}
                 />
               </CardContent>

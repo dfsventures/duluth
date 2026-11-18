@@ -939,6 +939,57 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     }
   }
 }
+/* Company page (PLAN-1, WS163; B-133): the same group as the memo page. 720 reading column, 40 gap,
+   296 sticky facts panel; the panel sits under the title below 1040px of main width. */
+@media screen {
+  html[data-look="v2"] [data-surface="admin"] .co-dossier-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  html[data-look="v2"] [data-surface="admin"] .co-dossier {
+    max-width: 1056px;
+    margin-inline: max(var(--gutter), calc((100cqw - 1056px) / 2));
+  }
+  html[data-look="v2"] [data-surface="admin"] .co-dossier .co-main {
+    max-width: 720px;
+  }
+  /* Per-note History, Edit and Delete show on hover or keyboard focus, and always on touch. */
+  html[data-look="v2"] [data-surface="admin"] .co-item .co-act {
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  html[data-look="v2"] [data-surface="admin"] .co-item:hover .co-act,
+  html[data-look="v2"] [data-surface="admin"] .co-item:focus-within .co-act {
+    opacity: 1;
+  }
+}
+@media screen and (hover: none) and (pointer: coarse) {
+  html[data-look="v2"] [data-surface="admin"] .co-item .co-act {
+    opacity: 1;
+  }
+}
+@container (min-width: 1040px) {
+  @media screen {
+    html[data-look="v2"] [data-surface="admin"] .co-dossier-grid {
+      grid-template-columns: minmax(0, 720px) 296px;
+      gap: 40px;
+      align-items: start;
+    }
+    html[data-look="v2"] [data-surface="admin"] .co-dossier .co-main {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    html[data-look="v2"] [data-surface="admin"] .co-dossier .co-aside {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: 24px;
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+    }
+  }
+}
 /* The full-width page has no padding of its own, so print keeps the 24px the page box gave it. */
 @media print {
   html[data-look="v2"] [data-surface="admin"] .memo-dossier {

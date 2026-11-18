@@ -14,7 +14,8 @@ export function UpdatesTab({ companyId, updates }: { companyId: string; updates:
   const router = useRouter();
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      {/* New look: the tab names the section and the header bar holds Create update, so this row goes. */}
+      <div className="mb-4 flex items-center justify-between v2:hidden">
         <h3 className="font-semibold">Updates</h3>
         <Button
           size="sm"
