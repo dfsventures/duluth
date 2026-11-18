@@ -274,7 +274,8 @@ describe("companyNextAction", () => {
 describe("list and pane css", () => {
   const css = readFileSync(join(__dirname, "..", "..", "app", "globals.css"), "utf-8");
   const start = css.indexOf("/* Lists and the side pane (PLAN-1, WS160)");
-  const end = css.indexOf("/* ── End new look ── */");
+  // The list rules end where the memo page block starts (it centres in the main area on purpose).
+  const end = css.indexOf("/* Memo page, direction B");
   const section = css.slice(start, end).replace(/\/\*[\s\S]*?\*\//g, "");
 
   it("sits inside the new-look section", () => {

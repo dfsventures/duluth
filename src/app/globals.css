@@ -863,6 +863,13 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
   html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-contents {
     display: none;
   }
+  /* The whole group (header bar, title, reading column, panel) is at most 720 + 40 + 296 wide, so
+     the bar ends where the panel ends. With room to spare it is centred in the main area (100cqw),
+     not in the page box, which is left-aligned. Text and panel keep their widths. */
+  html[data-look="v2"] [data-surface="admin"] .memo-dossier {
+    max-width: 1056px;
+    margin-left: max(0px, calc((100cqw - 1056px) / 2 - var(--gutter)));
+  }
   html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-reading {
     max-width: 720px;
   }

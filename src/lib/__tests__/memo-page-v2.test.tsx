@@ -125,6 +125,8 @@ describe("new-look CSS", () => {
     expect(col).toContain("@container (min-width: 1040px)");
     expect(col).toContain("grid-template-columns: minmax(0, 720px) 296px");
     expect(col).toContain("position: sticky");
+    // The group (bar, column, panel) is 1056 wide at most and centred in the main area.
+    expect(col).toMatch(/\.memo-dossier \{\s*max-width: 1056px;\s*margin-left: max\(0px, calc\(\(100cqw - 1056px\) \/ 2 - var\(--gutter\)\)\);/);
     expect(col).toMatch(/html\[data-look="v2"\] \[data-surface="admin"\] \.memo-dossier-grid/);
     // Fold and clamp rules sit in the screen block, so print always shows every section open.
     const screenBlock = col.slice(0, col.indexOf("@media screen and (hover: none)"));
