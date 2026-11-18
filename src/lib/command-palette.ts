@@ -56,12 +56,13 @@ export function lookActionItems(look: "v1" | "v2", theme: "light" | "dark"): Pal
 
 export const GROUP_ORDER: PaletteGroup[] = ["Go to", "Actions", "Companies", "Funds", "Deals", "LPs"];
 
-export function buildPaletteItems(index: SearchIndex | null): PaletteItem[] {
+export function buildPaletteItems(index: SearchIndex | null, look: "v1" | "v2" = "v1"): PaletteItem[] {
   const ix = index ?? EMPTY_INDEX;
   const items: PaletteItem[] = [];
 
   for (const p of ALL_ADMIN_PAGES) {
-    items.push({ id: `page:${p.href}`, group: "Go to", label: p.label, hint: "Page", href: p.href, keywords: p.keywords ?? [] });
+    const label = look === "v2" && p.labelV2 ? p.labelV2 : p.label;
+    items.push({ id: `page:${p.href}`, group: "Go to", label, hint: "Page", href: p.href, keywords: p.keywords ?? [] });
   }
   items.push({
     id: "action:add-company",

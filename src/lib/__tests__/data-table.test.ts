@@ -129,6 +129,11 @@ describe("groupRows", () => {
     expect(g[0].rows.map((r) => r.n)).toEqual(["a1", "a2"]);
     expect(g[1].rows.map((r) => r.n)).toEqual(["b1", "b2"]);
   });
+  it("keepOrder leaves the groups in the order their first row appears", () => {
+    const g = groupRows(rows, (r) => ({ id: r.f, label: r.f }), true);
+    expect(g.map((x) => x.label)).toEqual(["Fund B", "Fund A"]);
+    expect(g[1].rows.map((r) => r.n)).toEqual(["a1", "a2"]);
+  });
   it("returns no groups for no rows", () => {
     expect(groupRows([], () => ({ id: "x", label: "x" }))).toEqual([]);
   });

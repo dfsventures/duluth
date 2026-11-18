@@ -767,6 +767,13 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] tr[
   top: calc(var(--bar-h) + var(--filter-h) - 24px);
   z-index: 4;
 }
+/* A list with no filter bar above it (Needs you): its group headings stick right under the header bar. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode][data-no-toolbar] tr[data-group] > th {
+  top: calc(var(--bar-h) - 24px);
+}
+html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-list-mode][data-no-toolbar]) {
+  scroll-padding-top: calc(var(--bar-h) + var(--group-h));
+}
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tr[data-group] > th span.num {
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;

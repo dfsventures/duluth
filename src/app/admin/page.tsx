@@ -19,8 +19,12 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/status-dot";
+import { NeedsYouInbox } from "@/components/admin/needs-you-inbox";
 import { buildAttention } from "@/lib/attention";
+import { buildInboxRows } from "@/lib/needs-you";
+import { useNewLook } from "@/lib/use-new-look";
 import { toast } from "@/lib/toast";
 import { fetcher, NAV_COUNTS_KEY } from "@/lib/fetcher";
 import { useRowCollapse } from "@/lib/use-row-collapse";
@@ -68,6 +72,8 @@ export default function AdminDashboardPage() {
   const [reminding, setReminding] = useState<Record<string, boolean>>({});
   const [remindedAt, setRemindedAt] = useState<Record<string, string>>({});
   const rowCollapse = useRowCollapse();
+  // False on the server and the first render, so the old markup is what hydrates.
+  const v2 = useNewLook();
 
   // SWR keeps the last data on screen during a refetch (spec 6.6) and shares the
   // nav-counts key with the sidebar, so one fetch feeds both.
@@ -104,6 +110,11 @@ export default function AdminDashboardPage() {
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [dashboard, queues.diligence, queues.boardReview, alerts]
+  );
+  // New look (WS161): the same items, grouped for the inbox.
+  const inboxRows = useMemo(
+    () => buildInboxRows(attention, { alerts, overdue: dashboard?.overdueCompanies ?? [] }),
+    [attention, alerts, dashboard]
   );
 
   // Dismiss is reversible, so it is optimistic with an Undo toast (spec 6.5):
@@ -206,11 +217,139 @@ export default function AdminDashboardPage() {
     return `${days}d ago`;
   }
 
+  // The chart and the sector list: the same in both looks (only the spacing around them differs).
+  function renderCharts(className: string) {
+    return (
+      <div className={className}>
+        {/* Updates per month bar chart */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Updates Published — Last 6 Months</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {d.updatesByMonth.every((m) => m.count === 0) ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No published updates yet.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <BarChart data={d.updatesByMonth} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <Tooltip
+                    formatter={(v) => [v, "Updates"]}
+                    contentStyle={{
+                      fontSize: 12,
+                      borderRadius: "2px",
+                      border: "1px solid var(--color-border)",
+                      background: "var(--color-surface)",
+                      color: "var(--color-text-primary)",
+                    }}
+                  />
+                  <Bar dataKey="count" fill="var(--color-accent)" radius={0} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Sector breakdown */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Portfolio by Sector</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {d.sectorBreakdown.length === 0 ? (
+              <p className="py-4 text-sm text-muted-foreground">No sectors assigned.</p>
+            ) : (
+              <ul className="space-y-2">
+                {d.sectorBreakdown.map(({ sector, count }) => (
+                  <li key={sector} className="flex items-center justify-between text-sm">
+                    <span className="truncate text-muted-foreground">{sector}</span>
+                    <Badge variant="neutral">{count}</Badge>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const welcome = `Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}. Here is what needs you today.`;
+
+  // New look (PLAN-1, WS161): "Needs you", an inbox of what is waiting on the team, with the
+  // portfolio numbers and the chart below it. The inbox is the same attention items as the old
+  // "Needs attention" list; nothing is fetched that was not already.
+  if (v2) {
+    const stats = [
+      { label: "Companies", value: d.totalCompanies },
+      { label: "Updates this month", value: d.updatesThisMonth },
+      { label: "Behind on updates", value: d.companiesOverdue },
+      { label: "Awaiting approval", value: d.pendingApprovals },
+    ];
+    return (
+      <AppShell width="full">
+        <PageHeader title="Needs you" description={welcome} indicator={<RefreshIndicator active={refreshing} />} />
+
+        <StaleRegion refreshing={refreshing}>
+          {attention.length === 0 ? (
+            <div className="mx-[var(--row-pad)] max-w-[var(--column-wide)]">
+              <EmptyState
+                title="Nothing needs you right now."
+                description="When someone signs up or an update runs late, it shows here."
+              />
+            </div>
+          ) : (
+            <NeedsYouInbox
+              rows={inboxRows}
+              counts={{ approvals: d.pendingApprovals, diligence: queues.diligence, board: queues.boardReview }}
+              alerts={alerts}
+              overdue={d.overdueCompanies}
+              remindedAt={remindedAt}
+              reminding={reminding}
+              onRemind={(id) => {
+                if (!reminding[id]) void sendReminder(id);
+              }}
+              onDismiss={(id) => void dismissAlert(id, null)}
+              rowClassName={(id) => rowCollapse.className(id, "fade")}
+            />
+          )}
+
+          <section aria-labelledby="portfolio-heading" className="mx-[var(--row-pad)] mt-12 max-w-[var(--column-wide)] pb-12">
+            <h2 id="portfolio-heading" className="mb-3 text-meta font-medium text-muted-foreground">
+              Portfolio
+            </h2>
+            <dl aria-label="Portfolio totals" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              {stats.map((k) => (
+                <div key={k.label} className="rounded-lg bg-card p-4">
+                  <dt className="mb-1 text-meta text-muted-foreground">{k.label}</dt>
+                  <dd className="text-xl font-semibold text-foreground">{k.value}</dd>
+                </div>
+              ))}
+            </dl>
+            {renderCharts("mt-4 grid gap-4 lg:grid-cols-3")}
+          </section>
+        </StaleRegion>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <PageHeader
         title="Dashboard"
-        description={`Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}. Here is what needs you today.`}
+        description={welcome}
         indicator={<RefreshIndicator active={refreshing} />}
       />
 
@@ -339,70 +478,7 @@ export default function AdminDashboardPage() {
         )}
       </section>
 
-      {/* Second row: chart + sector breakdown */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        {/* Updates per month bar chart */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Updates Published — Last 6 Months</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {d.updatesByMonth.every((m) => m.count === 0) ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">No published updates yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <BarChart data={d.updatesByMonth} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-                  <XAxis
-                    dataKey="month"
-                    tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip
-                    formatter={(v) => [v, "Updates"]}
-                    contentStyle={{
-                      fontSize: 12,
-                      borderRadius: "2px",
-                      border: "1px solid var(--color-border)",
-                      background: "var(--color-surface)",
-                      color: "var(--color-text-primary)",
-                    }}
-                  />
-                  <Bar dataKey="count" fill="var(--color-accent)" radius={0} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Sector breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Portfolio by Sector</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {d.sectorBreakdown.length === 0 ? (
-              <p className="py-4 text-sm text-muted-foreground">No sectors assigned.</p>
-            ) : (
-              <ul className="space-y-2">
-                {d.sectorBreakdown.map(({ sector, count }) => (
-                  <li key={sector} className="flex items-center justify-between text-sm">
-                    <span className="truncate text-muted-foreground">{sector}</span>
-                    <Badge variant="neutral">{count}</Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+      {renderCharts("mt-6 grid gap-6 lg:grid-cols-3")}
       </StaleRegion>
     </AppShell>
   );

@@ -164,10 +164,14 @@ async function main() {
   let admin: { id: string; email: string; name: string | null } | null;
   let companyId: string | undefined;
   let pendingId: string | undefined;
+  let behindId: string | undefined;
+  let alertId: string | undefined;
   try {
     admin = await db.user.findUnique({ where: { email: "sam@example.com" }, select: { id: true, email: true, name: true } });
     companyId = (await db.company.findFirst({ where: { name: "Acme Robotics" }, select: { id: true } }))?.id;
     pendingId = (await db.user.findUnique({ where: { email: "chidi@dunder-mifflin-paper.example.com" }, select: { id: true } }))?.id;
+    behindId = (await db.company.findFirst({ where: { name: "Initech Systems" }, select: { id: true } }))?.id;
+    alertId = (await db.metricAlert.findFirst({ where: { dedupeKey: "local-alert-initech-mrr" }, select: { id: true } }))?.id;
   } finally {
     await db.$disconnect();
   }
@@ -289,6 +293,16 @@ async function main() {
           watch(page, `approvals-pane ${tag}`);
           if (await open(page, `approvals-pane ${tag}`, `/admin/approvals?open=${pendingId}`)) await snap(page, `approvals-pane__${tag}.png`);
           await page.close();
+        }
+        // Needs you with a pane open: a company behind on updates (Remind) and a metric alert (Dismiss).
+        if (pageKeys.includes("dashboard")) {
+          for (const [name, id] of [["behind", behindId ? `overdue:${behindId}` : undefined], ["alert", alertId ? `alert:${alertId}` : undefined]] as const) {
+            if (!id) continue;
+            const page = await context.newPage();
+            watch(page, `needs-you-pane-${name} ${tag}`);
+            if (await open(page, `needs-you-pane-${name} ${tag}`, `/admin?open=${encodeURIComponent(id)}`)) await snap(page, `needs-you-pane-${name}__${tag}.png`);
+            await page.close();
+          }
         }
         if (pageKeys.includes("dashboard")) {
           const page = await context.newPage();

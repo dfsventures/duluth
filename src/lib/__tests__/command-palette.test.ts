@@ -23,6 +23,14 @@ describe("buildPaletteItems", () => {
     expect(byId["lp:l1"]).toBe("/admin/lps?q=Sam%20Partner%20%26%20Co");
     expect(new Set(items.map((i) => i.id)).size).toBe(items.length);
   });
+  it("names the home page Dashboard in the old look and Needs you in the new look", () => {
+    const home = (look: "v1" | "v2") => buildPaletteItems(null, look).find((i) => i.id === "page:/admin")!;
+    expect(home("v1").label).toBe("Dashboard");
+    expect(buildPaletteItems(null).find((i) => i.id === "page:/admin")!.label).toBe("Dashboard");
+    expect(home("v2").label).toBe("Needs you");
+    // The old name still finds it.
+    expect(home("v2").keywords).toContain("dashboard");
+  });
   it("only uses groups the UI orders", () => {
     for (const i of buildPaletteItems(ix)) expect(GROUP_ORDER).toContain(i.group);
   });

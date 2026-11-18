@@ -72,7 +72,7 @@ export function CommandPalette() {
   const paletteKey = usePaletteKey();
 
   const items = useMemo(
-    () => [...buildPaletteItems(index), ...lookActionItems(look, theme), ...newUpdateItems(index, query)],
+    () => [...buildPaletteItems(index, look), ...lookActionItems(look, theme), ...newUpdateItems(index, query)],
     [index, query, look, theme]
   );
 

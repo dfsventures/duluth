@@ -291,6 +291,11 @@ async function main() {
       },
     });
 
+    // ── Diligence: one company has finished its answers (the Needs you inbox's diligence row) ──
+    await db.companyDiligence.create({
+      data: { companyId: companyIds["Pied Piper Cloud"], isUsIncorporated: true, completedAt: ago(3) },
+    });
+
     // ── Signups: pending, awaiting setup, dismissed ──────
     const pendingCompany = async (companyName: string, aliases: string[] = []) =>
       db.company.create({ data: { name: companyName, aliases, sector: "Fintech", geography: "Nigeria", fundingStage: "Seed", createdById: sam.id } });

@@ -93,6 +93,8 @@ const ADMIN_ICONS: Record<string, typeof LayoutDashboard> = {
 
 interface NavItem {
   label: string;
+  /** Name under the new look. Both are in the page and CSS shows one, so there is no flash on load. */
+  labelV2?: string;
   href: string;
   icon: typeof LayoutDashboard;
 }
@@ -224,7 +226,14 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           )}
         >
           <item.icon aria-hidden="true" className="h-4 w-4 v2:h-3.5 v2:w-3.5" />
-          {item.label}
+          {item.labelV2 ? (
+            <>
+              <span className="v2:hidden">{item.label}</span>
+              <span className="hidden v2:inline">{item.labelV2}</span>
+            </>
+          ) : (
+            item.label
+          )}
           {marker && (
             <span
               className={cn(

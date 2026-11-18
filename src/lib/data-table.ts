@@ -144,7 +144,11 @@ export interface RowGroup<T> {
  * numbers natural); rows inside a group keep the incoming order, so the table's
  * own sort still applies within each group.
  */
-export function groupRows<T>(rows: readonly T[], getGroup: (row: T) => { id: string; label: string }): RowGroup<T>[] {
+export function groupRows<T>(
+  rows: readonly T[],
+  getGroup: (row: T) => { id: string; label: string },
+  keepOrder = false
+): RowGroup<T>[] {
   const byId = new Map<string, RowGroup<T>>();
   for (const row of rows) {
     const g = getGroup(row);
@@ -152,9 +156,11 @@ export function groupRows<T>(rows: readonly T[], getGroup: (row: T) => { id: str
     if (existing) existing.rows.push(row);
     else byId.set(g.id, { id: g.id, label: g.label, rows: [row] });
   }
-  return [...byId.values()].sort((a, b) =>
-    a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true })
-  );
+  const groups = [...byId.values()];
+  // keepOrder: groups stay in the order their first row appears (a list whose groups have a meaning
+  // order, like the Needs you inbox). Otherwise they are sorted by name.
+  if (keepOrder) return groups;
+  return groups.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base", numeric: true }));
 }
 
 /** Hidden-column keys from storage: JSON string array, filtered to columns that exist. Garbage becomes []. */

@@ -187,6 +187,55 @@ describe("SplitView and DetailPane", () => {
   });
 });
 
+describe("DataTable with a fixed grouping and no filter bar (WS161, Needs you)", () => {
+  const byStatus = {
+    fixed: "status",
+    options: [{ key: "status", label: "Status", getGroup: (r: Row) => ({ id: r.status, label: r.status }) }],
+  };
+  const props = {
+    ...base,
+    chips: undefined,
+    searchText: undefined,
+    groupBy: byStatus,
+    onOpenRow: () => {},
+    // Rows arrive in the order that means something: Current first, then Behind (no column sort applies).
+    rows: [rows[2], rows[0], rows[1]],
+    defaultSort: { key: "none", dir: "asc" as const },
+  };
+
+  it("shows the groups in the order the rows arrive, not by name", () => {
+    look.v2 = true;
+    const html = renderToStaticMarkup(<DataTable<Row> {...props} />);
+    expect(html.indexOf("Current")).toBeGreaterThan(-1);
+    expect(html.indexOf("Current")).toBeLessThan(html.indexOf("Behind"));
+  });
+  it("has no Group by select, and marks the table as having no filter bar", () => {
+    look.v2 = true;
+    const html = renderToStaticMarkup(<DataTable<Row> {...props} />);
+    expect(html).not.toContain("Group by");
+    expect(html).not.toContain("No grouping");
+    expect(html).toContain("data-no-toolbar");
+  });
+  it("hideHeader keeps the headings for screen readers only, under the new look", () => {
+    look.v2 = true;
+    expect(renderToStaticMarkup(<DataTable<Row> {...props} hideHeader />)).toContain('<thead class="sr-only">');
+    expect(renderToStaticMarkup(<DataTable<Row> {...props} />)).toContain("<thead>");
+  });
+  it("an ordinary table with a group select is unchanged", () => {
+    look.v2 = true;
+    const html = renderToStaticMarkup(
+      <DataTable<Row> {...base} groupBy={{ options: byStatus.options }} />
+    );
+    expect(html).toContain("No grouping");
+    expect(html).not.toContain("data-no-toolbar");
+  });
+  it("group headings stick right under the header bar when there is no filter bar", () => {
+    const css = readFileSync(join(__dirname, "..", "..", "app", "globals.css"), "utf-8");
+    expect(css).toMatch(/\[data-no-toolbar\] tr\[data-group\] > th \{\s*top: calc\(var\(--bar-h\) - 24px\);/);
+    expect(css).toMatch(/:has\(\[data-list-mode\]\[data-no-toolbar\]\) \{\s*scroll-padding-top: calc\(var\(--bar-h\) \+ var\(--group-h\)\);/);
+  });
+});
+
 describe("companyNextAction", () => {
   it("behind with a founder: a reminder, with the days", () => {
     const a = companyNextAction({ cadence: "behind", daysSince: 40, hasFounder: true });

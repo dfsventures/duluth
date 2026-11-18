@@ -81,6 +81,12 @@ export interface DataTableGroupBy<T> {
   subtotal?: (rows: T[]) => Record<string, React.ReactNode>;
   /** Label in the first cell of the subtotal row. Default "Subtotal". */
   subtotalLabel?: string;
+  /**
+   * New look (WS161): always group by this option key, with no "Group by" select and nothing in the
+   * URL. The groups stay in the order their first row appears (the rows arrive in the order that
+   * means something).
+   */
+  fixed?: string;
 }
 
 export interface DataTableProps<T> {
@@ -148,6 +154,8 @@ export interface DataTableProps<T> {
   onOpenRow?: (row: T) => void;
   /** Key of the record open in the pane. That row is marked, and j / k step from it. */
   openKey?: string | null;
+  /** New look: keep the column headings for screen readers only (a list whose rows speak for themselves). */
+  hideHeader?: boolean;
 }
 
 export function DataTable<T>(props: DataTableProps<T>) {
@@ -200,6 +208,7 @@ function DataTableInner<T>({
   density = "comfortable",
   onOpenRow,
   openKey = null,
+  hideHeader,
 }: DataTableProps<T>) {
   const router = useRouter();
   const pathname = usePathname();
@@ -237,7 +246,8 @@ function DataTableInner<T>({
   // Group-by: ?group=<option key> (local state when the URL is not used).
   const [localGroup, setLocalGroup] = useState("");
   const groupParam = urlState ? (searchParams.get("group") ?? "") : localGroup;
-  const activeGroup = groupBy?.options.find((o) => o.key === groupParam) ?? null;
+  const activeGroup = groupBy?.options.find((o) => o.key === (groupBy?.fixed ?? groupParam)) ?? null;
+  const groupPicker = Boolean(groupBy) && !groupBy?.fixed;
   function setGroupKey(key: string) {
     if (!urlState) {
       setLocalGroup(key);
@@ -413,7 +423,11 @@ function DataTableInner<T>({
     return col?.sortValue ? sortRows(filtered, col.sortValue, state.dir) : filtered;
   }, [searched, chips, state.filter, state.sort, state.dir, columns]);
 
-  const groups = useMemo(() => (activeGroup ? groupRows(visible, activeGroup.getGroup) : null), [visible, activeGroup]);
+  const keepGroupOrder = Boolean(groupBy?.fixed);
+  const groups = useMemo(
+    () => (activeGroup ? groupRows(visible, activeGroup.getGroup, keepGroupOrder) : null),
+    [visible, activeGroup, keepGroupOrder]
+  );
 
   // New look, table that scrolls sideways inside its own box (not a list beside a pane): say so when
   // more is off to the right, so a column is never just cut off. Nothing happens under the old look.
@@ -484,7 +498,7 @@ function DataTableInner<T>({
   }, [visible, onVisibleRowsChange]);
 
   const hasToolbar = Boolean(
-    searchText || (chips && chips.length > 0) || toolbarExtra || groupBy || exportCsv || (tableId && hideableCols.length > 0)
+    searchText || (chips && chips.length > 0) || toolbarExtra || groupPicker || exportCsv || (tableId && hideableCols.length > 0)
   );
   const filtersActive = state.q.trim() !== "" || state.filter !== "all";
 
@@ -797,11 +811,11 @@ function DataTableInner<T>({
         ) : undefined
       }
       trailing={
-        toolbarExtra || groupBy || columnsMenu || exportButton ? (
+        toolbarExtra || groupPicker || columnsMenu || exportButton ? (
           <>
             {/* A filter select is sized to its content, capped at 15rem, so a long company name can't stretch it. */}
             {toolbarExtra && <div className="flex items-center gap-2 [&_select]:max-w-[15rem]">{toolbarExtra}</div>}
-            {groupBy && (
+            {groupBy && groupPicker && (
               <>
                 <label htmlFor={`dt-group-${label}`} className="sr-only">
                   Group {label.toLowerCase()} by
@@ -841,6 +855,8 @@ function DataTableInner<T>({
             "data-hover-actions": rowActions && !actionsAlwaysVisible ? "" : undefined,
             // With the pane open the list is narrower, so its low-priority columns drop earlier.
             "data-pane-open": listMode && openKey != null ? "" : undefined,
+            // No filter bar above the list, so its sticky group headings sit right under the header.
+            "data-no-toolbar": hasToolbar ? undefined : "",
           }
         : {})}
       className={className}
@@ -906,7 +922,7 @@ function DataTableInner<T>({
             </div>
           )}
           {toolbarExtra}
-          {groupBy && (
+          {groupBy && groupPicker && (
             <>
               <label htmlFor={`dt-group-${label}`} className="sr-only">
                 Group {label.toLowerCase()} by
@@ -969,7 +985,7 @@ function DataTableInner<T>({
           >
             <table className="w-full text-[13px]" style={minWidth ? { minWidth } : undefined}>
               <caption className="sr-only">{label}</caption>
-              <thead>
+              <thead className={v2 && hideHeader ? "sr-only" : undefined}>
                 <tr className="border-b border-border text-left">
                   {cols.map((c, i) => {
                     const sortable = Boolean(c.sortValue);

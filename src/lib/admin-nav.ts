@@ -9,6 +9,8 @@ export interface AdminPage {
   keywords?: string[];
   /** `g` then this key jumps here. Unique across the list. */
   goto?: string;
+  /** The name under the new look (PLAN-1, WS161). The old look keeps `label`. */
+  labelV2?: string;
 }
 
 export interface AdminNavGroup {
@@ -16,7 +18,13 @@ export interface AdminNavGroup {
   items: AdminPage[];
 }
 
-export const ADMIN_DASHBOARD: AdminPage = { label: "Dashboard", href: "/admin", goto: "d", keywords: ["home", "overview"] };
+export const ADMIN_DASHBOARD: AdminPage = {
+  label: "Dashboard",
+  labelV2: "Needs you",
+  href: "/admin",
+  goto: "d",
+  keywords: ["home", "overview", "dashboard", "inbox"],
+};
 
 // Part 11, WS28 (Q28-A): three labelled clusters plus Admin Tools. "Sync" is a
 // tab on /admin/funds and "Update Templates" a tab on /admin/updates, so
