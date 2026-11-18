@@ -21,6 +21,8 @@ interface Props {
   onDropAt: (status: BoardStatus, index: number) => void;
   /** Quick-add: resolves true when the card was created. */
   onQuickAdd?: (status: BoardStatus, title: string) => Promise<boolean>;
+  /** New look: the loud column. The page sets it for Blocked while it has items. */
+  hot?: boolean;
 }
 
 // Desktop column (phase 6): a mono header with a tinted count, a `well` body, a
@@ -35,6 +37,7 @@ export function BoardColumn({
   onDropIndexChange,
   onDropAt,
   onQuickAdd,
+  hot = false,
 }: Props) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const tone = statusTone(BOARD_STATUS_LABELS[status]);
@@ -70,13 +73,31 @@ export function BoardColumn({
 
   return (
     <div className="flex min-w-0 flex-col">
-      <div className="mb-2 flex items-center gap-2 px-0.5">
-        <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", TONE_CLASSES[tone].dot)} />
-        <h2 className="font-mono text-xs font-semibold uppercase tracking-label text-foreground">
+      {/* New look: a sticky 36px header, sentence case, the count after the name. A Blocked column with
+          items has its name and count in the stuck colour (the one loud thing on the board). */}
+      <div
+        className={cn(
+          "mb-2 flex items-center gap-2 px-0.5",
+          "v2:sticky v2:top-[var(--bar-h)] v2:z-[1] v2:mb-0 v2:h-9 v2:bg-[var(--color-bg)] v2:px-0"
+        )}
+      >
+        <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", TONE_CLASSES[tone].dot, "v2:hidden")} />
+        <h2
+          className={cn(
+            "font-mono text-xs font-semibold uppercase tracking-label text-foreground",
+            "v2:font-sans v2:text-meta v2:font-medium v2:normal-case v2:tracking-normal v2:text-secondary",
+            hot && "v2:font-semibold v2:text-[color:var(--color-stuck)]"
+          )}
+        >
           {BOARD_STATUS_LABELS[status]}
         </h2>
         <span
-          className={cn("num ml-auto px-1.5 font-mono text-[11px] font-semibold", TONE_CLASSES[tone].chip)}
+          className={cn(
+            "num ml-auto px-1.5 font-mono text-[11px] font-semibold",
+            TONE_CLASSES[tone].chip,
+            "v2:ml-0 v2:bg-transparent v2:px-0 v2:font-sans v2:text-meta v2:font-normal v2:text-muted-foreground",
+            hot && "v2:font-semibold v2:text-[color:var(--color-stuck)]"
+          )}
           aria-label={`${cards.length} ${cards.length === 1 ? "item" : "items"}`}
         >
           {cards.length}
@@ -113,13 +134,17 @@ export function BoardColumn({
         style={isTarget ? { boxShadow: `inset 0 0 0 1.5px ${TONES[tone].dot}` } : undefined}
         className={cn(
           "flex min-h-24 flex-1 flex-col gap-2 bg-well p-2 transition-shadow",
+          // New look: no well; tiles have no borders, so the 12px gap is what separates them.
+          "v2:gap-3 v2:bg-transparent v2:p-0",
           // Nothing but the empty-column hint inside: centre it.
           cards.length === 0 && "justify-start"
         )}
       >
         {children}
         {cards.length === 0 && !isTarget && (
-          <p className="py-5 text-center font-mono text-[11px] uppercase tracking-label text-muted-foreground">Empty</p>
+          <p className="py-5 text-center font-mono text-[11px] uppercase tracking-label text-muted-foreground v2:py-2 v2:text-left v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
+            Empty
+          </p>
         )}
         {onQuickAdd && <QuickAdd status={status} onAdd={onQuickAdd} />}
       </div>
@@ -151,7 +176,7 @@ function QuickAdd({ status, onAdd }: { status: BoardStatus; onAdd: (s: BoardStat
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 px-1.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-1.5 px-1.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:h-9 v2:rounded-md v2:px-2 v2:py-0 v2:text-meta"
       >
         <Plus aria-hidden="true" className="h-3.5 w-3.5" />
         Add item
@@ -187,7 +212,7 @@ function QuickAdd({ status, onAdd }: { status: BoardStatus; onAdd: (s: BoardStat
         onBlur={() => {
           if (!title.trim()) setOpen(false);
         }}
-        className="h-9 w-full border border-input bg-card px-2.5 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+        className="h-9 w-full border border-input bg-card px-2.5 text-sm v2:rounded-ctl v2:text-row text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
       />
     </div>
   );

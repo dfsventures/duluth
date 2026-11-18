@@ -13,7 +13,10 @@ import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/boa
 import { cn } from "@/lib/utils";
 import { BoardCard } from "@/components/admin/board/board-card";
 import { BoardColumn } from "@/components/admin/board/board-column";
-import { CardSheet } from "@/components/admin/board/card-sheet";
+import { CardPane, CardSheet } from "@/components/admin/board/card-sheet";
+import { SplitView } from "@/components/layout/split-view";
+import { useNewLook } from "@/lib/use-new-look";
+import { crumbLabel } from "@/lib/split-view";
 import { CardDialog } from "@/components/admin/board/card-dialog";
 import { ResolveDialog } from "@/components/admin/board/resolve-dialog";
 import { PeopleProjectsPanel } from "@/components/admin/board/people-projects-panel";
@@ -55,6 +58,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
+  const newLook = useNewLook();
 
   const [data, setData] = useState<BoardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -189,7 +193,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
     status: BoardStatus,
     beforeId?: string,
     afterId?: string,
-    opts: { undo?: boolean; refocus?: boolean } = {}
+    opts: { undo?: boolean; refocus?: boolean; message?: string } = {}
   ) {
     const data = dataRef.current;
     const columns = columnsRef.current;
@@ -239,9 +243,10 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
       if (!opts.undo) maybeNudgeProof(cardId, card.title, fromStatus, status);
       if (!opts.undo && back) {
         toast.undo(
-          status === fromStatus
-            ? `Reordered "${card.title}".`
-            : `Moved "${card.title}" to ${BOARD_STATUS_LABELS[status]}.`,
+          opts.message ??
+            (status === fromStatus
+              ? `Reordered "${card.title}".`
+              : `Moved "${card.title}" to ${BOARD_STATUS_LABELS[status]}.`),
           () => {
             const { status: toStatus, beforeId: b, afterId: a } = back;
             void move(cardId, toStatus, b, a, { undo: true, refocus: opts.refocus });
@@ -377,8 +382,23 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
     if (reviewOnly && data && needsReviewCount === 0) setFilter("review", "");
   }, [reviewOnly, data, needsReviewCount, setFilter]);
 
+  // New look: the card opens in the side pane (WS160 DetailPane) beside the board, not in a sheet.
+  const viewedCard = viewing && data && !editing ? (data.cards.find((c) => c.id === viewing.id) ?? null) : null;
+  const paneKeys = viewedCard ? visible[viewedCard.status].map((c) => c.id) : [];
+  const paneAt = viewedCard ? paneKeys.indexOf(viewedCard.id) : -1;
+  const closePane = () => setViewing(null);
+  const stepPane = (delta: 1 | -1) => {
+    const id = paneKeys[paneAt + delta];
+    if (id) setViewing({ id, focusProof: false });
+  };
+  const editFromPane = (c: BoardCardData) => {
+    setEditFromView(true);
+    setViewing({ id: c.id, focusProof: false });
+    setEditing(c);
+  };
+
   return (
-    <AppShell>
+    <AppShell width="full">
       <PageHeader
         title="Team Board"
         description="Action items from team calls and the weekly digest"
@@ -396,14 +416,47 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
         {announcement}
       </p>
 
-      <Tabs.Root value={tab} onValueChange={setTab}>
-        <Tabs.List className="mb-6 flex gap-6 overflow-x-auto border-b border-border [scrollbar-width:none]" aria-label="Team board sections">
+      <SplitView
+        open={viewedCard?.id ?? null}
+        onClose={closePane}
+        paneLabel={viewedCard?.title}
+        pane={
+          viewedCard ? (
+            <CardPane
+              key={viewedCard.id}
+              card={viewedCard}
+              ownerLabels={viewedCard.ownerIds.map((id) => personById.get(id)?.label).filter((l): l is string => !!l)}
+              projectName={viewedCard.projectId ? (projectById.get(viewedCard.projectId)?.name ?? null) : null}
+              userLabel={(uid) => (uid ? (personByUserId.get(uid)?.label ?? null) : null)}
+              focusProof={viewing?.focusProof}
+              crumb={crumbLabel(`Team Board · ${BOARD_STATUS_LABELS[viewedCard.status]}`, paneKeys, viewedCard.id)}
+              onPrev={paneAt > 0 ? () => stepPane(-1) : undefined}
+              onNext={paneAt !== -1 && paneAt < paneKeys.length - 1 ? () => stepPane(1) : undefined}
+              onEdit={() => editFromPane(viewedCard)}
+              onClose={closePane}
+              onUnblock={() =>
+                void move(viewedCard.id, "IN_PROGRESS", undefined, undefined, { message: `Unblocked "${viewedCard.title}". It's in progress.` })
+              }
+              onLinksChanged={(cardId, links: BoardCardLinkData[]) => {
+                loadSeq.current.invalidate();
+                setData((cur) => (cur ? { ...cur, cards: cur.cards.map((c) => (c.id === cardId ? { ...c, links } : c)) } : cur));
+              }}
+            />
+          ) : null
+        }
+        list={
+      <Tabs.Root value={tab} onValueChange={setTab} className="v2:px-[var(--gutter)]">
+        <Tabs.List
+          className="mb-6 flex gap-6 overflow-x-auto border-b border-border [scrollbar-width:none] v2:border-b-0 v2:gap-6"
+          aria-label="Team board sections"
+        >
           {tabs.map((t) => (
             <Tabs.Trigger
               key={t.value}
               value={t.value}
               className={cn(
                 "shrink-0 border-b-2 border-transparent px-1 pb-2.5 pt-1 font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground",
+                "v2:px-0 v2:py-2.5 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal",
                 "data-[state=active]:border-foreground data-[state=active]:text-foreground"
               )}
             >
@@ -425,7 +478,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           ) : (
             <>
               {/* Filter row: Pattern D */}
-              <div className="mb-4 flex flex-wrap items-end gap-x-4 gap-y-3">
+              <div className="mb-4 flex flex-wrap items-end gap-x-4 gap-y-3 v2:mb-4 v2:gap-x-3">
                 <label className="flex w-full flex-col gap-1 sm:w-auto">
                   <span className="label">Project</span>
                   <select
@@ -496,11 +549,12 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
               )}
 
               {/* Desktop: four columns */}
-              <div className="hidden gap-4 md:grid md:grid-cols-4">
+              <div className="hidden gap-4 md:grid md:grid-cols-4 v2:items-start v2:gap-4 v2:py-4">
                 {BOARD_STATUSES.map((s) => (
                   <BoardColumn
                     key={s}
                     status={s}
+                    hot={s === "BLOCKED" && visible[s].length > 0}
                     cards={visible[s].map((c) => ({ id: c.id, node: renderCard(c, visible[s], true) }))}
                     droppable
                     draggingId={draggingId}
@@ -518,16 +572,20 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                   <details
                     key={s}
                     open={s === "TODO" || s === "IN_PROGRESS"}
-                    className="group rounded-sm border border-border"
+                    className="group rounded-sm border border-border v2:rounded-md v2:border-0"
                   >
-                    <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-foreground [&::-webkit-details-marker]:hidden">
+                    <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-foreground [&::-webkit-details-marker]:hidden v2:min-h-11 v2:px-0 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal">
                       <span>{BOARD_STATUS_LABELS[s]}</span>
                       <span className="ml-auto text-muted-foreground">{visible[s].length}</span>
                       <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
                     </summary>
-                    <div className="space-y-2 bg-well p-2">
+                    <div className="space-y-2 bg-well p-2 v2:space-y-3 v2:bg-transparent v2:p-0">
                       {visible[s].map((c) => renderCard(c, visible[s], false))}
-                      {visible[s].length === 0 && <p className="py-3 text-center font-mono text-[11px] uppercase tracking-widest text-muted-foreground">Empty</p>}
+                      {visible[s].length === 0 && (
+                        <p className="py-3 text-center font-mono text-[11px] uppercase tracking-widest text-muted-foreground v2:text-left v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
+                          Empty
+                        </p>
+                      )}
                     </div>
                   </details>
                 ))}
@@ -546,8 +604,10 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           </Tabs.Content>
         )}
       </Tabs.Root>
+        }
+      />
 
-      {viewing && data && (() => {
+      {!newLook && viewing && data && (() => {
         const vc = data.cards.find((c) => c.id === viewing.id);
         if (!vc || editing) return null;
         return (

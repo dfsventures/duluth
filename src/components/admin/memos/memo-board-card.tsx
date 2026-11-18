@@ -50,7 +50,7 @@ export function MemoBoardCard({ memo, me, desktop, showOwner, dragging = false, 
       role="img"
       title={`Owner: ${ownerTip}`}
       aria-label={`Owner: ${ownerTip}`}
-      className={cn("ml-auto inline-grid h-5 w-5 shrink-0 place-items-center font-display text-[10px] font-semibold", TONE_CLASSES[tileTone(ownerName)].chip)}
+      className={cn("ml-auto inline-grid h-5 w-5 shrink-0 place-items-center font-display text-[10px] font-semibold v2:rounded-full", TONE_CLASSES[tileTone(ownerName)].chip)}
     >
       {initials(ownerName)}
     </span>
@@ -86,6 +86,10 @@ export function MemoBoardCard({ memo, me, desktop, showOwner, dragging = false, 
       onKeyDown={onKeyDown}
       className={cn(
         "group relative rounded-sm border border-border bg-card px-3 py-2.5 transition-[border-color,opacity] hover:border-cocoa",
+        // New look: the Team Board's tile (raised, no border, 8px radius, 12 x 16) and its cursor,
+        // the Sky underscore block on the lower edge while the tile has focus.
+        "v2:rounded-md v2:border-0 v2:px-4 v2:py-3 v2:transition-[background-color,opacity] v2:hover:bg-[color-mix(in_srgb,var(--color-text-primary)_4%,var(--color-surface))]",
+        "v2:after:pointer-events-none v2:after:absolute v2:after:-bottom-0.5 v2:after:left-4 v2:after:hidden v2:after:h-1 v2:after:w-[18px] v2:after:bg-mark v2:focus-within:after:block",
         desktop && editable && "cursor-grab active:cursor-grabbing",
         dragging && "opacity-35",
         landed && "animate-land motion-reduce:outline motion-reduce:outline-2 motion-reduce:outline-mark"
@@ -97,7 +101,7 @@ export function MemoBoardCard({ memo, me, desktop, showOwner, dragging = false, 
           draggable={false}
           data-card-title
           title={memo.title}
-          className="line-clamp-2 min-w-0 flex-1 break-words text-left text-sm text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="line-clamp-2 min-w-0 flex-1 break-words text-left text-sm text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:line-clamp-3 v2:text-row v2:hover:no-underline v2:focus-visible:ring-0"
         >
           {memo.title}
         </Link>
@@ -114,6 +118,7 @@ export function MemoBoardCard({ memo, me, desktop, showOwner, dragging = false, 
               aria-label={`Actions for "${memo.title}"`}
               className={cn(
                 "-m-1 flex h-7 w-7 shrink-0 items-center justify-center text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground",
+                "v2:m-0 v2:h-6 v2:w-6 v2:rounded v2:hover:bg-row-hover",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
                 menuOpen && "opacity-100"
@@ -153,13 +158,13 @@ export function MemoBoardCard({ memo, me, desktop, showOwner, dragging = false, 
       </div>
 
       {(memo.companyRef.kind === "none" || !sameName(memo.companyRef.name, memo.title)) && (
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+        <p className="mt-0.5 truncate text-xs text-muted-foreground v2:mt-1 v2:text-meta">
           <MemoCompanyLabel companyRef={memo.companyRef} noneLabel="No company" badge={false} />
         </p>
       )}
 
-      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", dot)} />
+      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground v2:mt-2 v2:gap-2 v2:text-meta">
+        <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", dot, "v2:rounded-full")} />
         {memo.status === "FINAL" ? <span className="sr-only">Final</span> : <span>{MEMO_STATUS_LABELS[memo.status]}</span>}
         {memo.status !== "FINAL" && <span aria-hidden="true">·</span>}
         <span title={new Date(memo.updatedAt).toLocaleString()} className={cn(idle && "text-tone-amber-ink")}>
@@ -169,7 +174,7 @@ export function MemoBoardCard({ memo, me, desktop, showOwner, dragging = false, 
       </div>
 
       {tags.length > 0 && (
-        <p className="mt-1 truncate text-xs text-muted-foreground" title={tags.join(", ")}>
+        <p className="mt-1 truncate text-xs text-muted-foreground v2:text-meta" title={tags.join(", ")}>
           <span className="sr-only">Tags: </span>
           {tagText}
           {more > 0 && ` +${more}`}

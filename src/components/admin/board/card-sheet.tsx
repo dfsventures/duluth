@@ -1,14 +1,17 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Ban, ExternalLink, Pencil, Trash2 } from "lucide-react";
+import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
+import { isTypingTarget } from "@/lib/shortcuts";
+import { statusTone, TONE_CLASSES } from "@/lib/status-tone";
 import { Sheet, SheetContent, SheetBody } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BOARD_STATUS_LABELS } from "@/lib/board";
 import { hostOf, linkifyNotes, MAX_LINKS_PER_CARD, MAX_LINK_LABEL_LENGTH, MAX_LINK_URL_LENGTH } from "@/lib/board-links";
 import { toast } from "@/lib/toast";
-import { dueLabel, type BoardCardData, type BoardCardLinkData } from "./types";
+import { dueLabel, isOverdue, type BoardCardData, type BoardCardLinkData } from "./types";
 
 const SOURCE_LABELS: Record<string, string> = {
   MANUAL: "Manual",
@@ -44,9 +47,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-// Read-only view of a card. Notes are plain text: auto-linked http(s) URLs are
-// rendered as React elements, never as HTML.
-export function CardSheet({ card, ownerLabels, projectName, userLabel, focusProof, onEdit, onClose, onLinksChanged }: Props) {
+// The proof-link form and its add / remove calls, shared by the sheet (old look) and the pane
+// (new look) so both hit the same endpoints with the same messages.
+function useProofLinks(card: BoardCardData, onLinksChanged: Props["onLinksChanged"]) {
   const links = card.links ?? [];
   const [url, setUrl] = useState("");
   const [label, setLabel] = useState("");
@@ -102,6 +105,16 @@ export function CardSheet({ card, ownerLabels, projectName, userLabel, focusProo
     }
   }
 
+  return { links, url, setUrl, label, setLabel, busy, error, confirmId, setConfirmId, urlRef, atCap, add, remove };
+}
+
+// Read-only view of a card. Notes are plain text: auto-linked http(s) URLs are
+// rendered as React elements, never as HTML.
+export function CardSheet({ card, ownerLabels, projectName, userLabel, focusProof, onEdit, onClose, onLinksChanged }: Props) {
+  const { links, url, setUrl, label, setLabel, busy, error, confirmId, setConfirmId, urlRef, atCap, add, remove } = useProofLinks(
+    card,
+    onLinksChanged
+  );
   const createdBy = card.createdById ? userLabel(card.createdById) : null;
   const editedBy = userLabel(card.updatedById);
   const edited = card.humanEditedAt ?? null;
@@ -268,5 +281,250 @@ export function CardSheet({ card, ownerLabels, projectName, userLabel, focusProo
         </SheetBody>
       </SheetContent>
     </Sheet>
+  );
+}
+
+interface PaneProps extends Props {
+  /** "Team Board · In progress · 2 of 5". */
+  crumb: string;
+  onPrev?: () => void;
+  onNext?: () => void;
+  /** Blocked items: one click moves the item to In progress (Undo and the audit log are the board's move). */
+  onUnblock: () => void;
+}
+
+// New look (PLAN-1, WS162): the same card as the WS160 DetailPane. Order is fixed: crumb, title,
+// property chips, then the one thing to do, then notes, proof and history. A blocked item's card
+// is the red dog-ear one with "Mark as unblocked" as the primary and Edit beside it; any other
+// item has Edit as a single quiet button. `e` edits, and `u` unblocks a blocked item.
+export function CardPane({
+  card,
+  ownerLabels,
+  projectName,
+  userLabel,
+  focusProof,
+  crumb,
+  onPrev,
+  onNext,
+  onEdit,
+  onClose,
+  onLinksChanged,
+  onUnblock,
+}: PaneProps) {
+  const { links, url, setUrl, label, setLabel, busy, error, confirmId, setConfirmId, urlRef, atCap, add, remove } = useProofLinks(
+    card,
+    onLinksChanged
+  );
+  const blocked = card.status === "BLOCKED";
+  const overdue = isOverdue(card.dueDate, card.status);
+  const owners = [...ownerLabels].sort((a, b) => a.localeCompare(b));
+
+  useEffect(() => {
+    if (focusProof) urlRef.current?.focus();
+  }, [focusProof, urlRef]);
+
+  // Keyboard: `e` edits, `u` unblocks. Not while typing, in a dialog or menu, or with a modifier;
+  // and not when the card tile already took the key (it calls preventDefault).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (isTypingTarget(t) || t?.closest?.("[role=menu]")) return;
+      if (e.key === "e") {
+        e.preventDefault();
+        onEdit();
+      } else if (e.key === "u" && blocked) {
+        e.preventDefault();
+        onUnblock();
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onEdit, onUnblock, blocked]);
+
+  const createdBy = card.createdById ? userLabel(card.createdById) : null;
+  const editedBy = userLabel(card.updatedById);
+  const edited = card.humanEditedAt ?? null;
+  const tone = TONE_CLASSES[statusTone(BOARD_STATUS_LABELS[card.status])];
+
+  return (
+    <DetailPane
+      crumb={crumb}
+      title={card.title}
+      onPrev={onPrev}
+      onNext={onNext}
+      onClose={onClose}
+      chips={
+        <>
+          <PaneChip className={tone.chip}>{BOARD_STATUS_LABELS[card.status]}</PaneChip>
+          <PaneChip>{owners.length ? owners.join(", ") : "Unassigned"}</PaneChip>
+          {card.dueDate && (
+            <PaneChip className={overdue ? "text-[color:var(--color-stuck)]" : undefined}>
+              {overdue ? "Overdue " : "Due "}
+              {dueLabel(card.dueDate)}
+            </PaneChip>
+          )}
+          {projectName && <PaneChip>{projectName}</PaneChip>}
+        </>
+      }
+      card={
+        blocked ? (
+          <PaneCard
+            hot
+            heading={
+              <span className="inline-flex items-center gap-2">
+                <Ban aria-hidden="true" className="h-4 w-4" />
+                Blocked
+              </span>
+            }
+            actions={
+              <>
+                <Button onClick={onUnblock} kbd="U">
+                  Mark as unblocked
+                </Button>
+                <Button variant="secondary" onClick={onEdit} kbd="E">
+                  Edit
+                </Button>
+              </>
+            }
+          >
+            This item is stuck. When that&apos;s cleared, mark it as unblocked and it moves to In progress.
+          </PaneCard>
+        ) : (
+          <Button variant="secondary" onClick={onEdit} kbd="E">
+            <Pencil aria-hidden="true" className="h-3.5 w-3.5" /> Edit
+          </Button>
+        )
+      }
+    >
+      <PaneSection title="Notes">
+        {card.notes ? (
+          <p className="whitespace-pre-wrap break-words text-foreground">
+            {linkifyNotes(card.notes).map((seg, i) =>
+              seg.type === "link" ? (
+                <a
+                  key={i}
+                  href={seg.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2 hover:text-primary-hover"
+                >
+                  {seg.text}
+                </a>
+              ) : (
+                <span key={i}>{seg.text}</span>
+              )
+            )}
+          </p>
+        ) : (
+          <p>No notes yet.</p>
+        )}
+      </PaneSection>
+
+      <PaneSection title={`Proof links (${links.length}/${MAX_LINKS_PER_CARD})`}>
+        {links.length === 0 ? (
+          <p className="mb-3">No links yet. Add a link to the work.</p>
+        ) : (
+          <ul className="mb-3 divide-y divide-border">
+            {links.map((l) => (
+              <li key={l.id} className="flex items-start gap-2 py-2">
+                <div className="min-w-0 flex-1">
+                  <a
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex max-w-full items-center gap-1 break-all text-primary underline underline-offset-2 hover:text-primary-hover"
+                  >
+                    {l.label || l.url}
+                    <ExternalLink aria-hidden="true" className="h-3 w-3 shrink-0" />
+                  </a>
+                  <p className="text-meta text-muted-foreground">{hostOf(l.url)}</p>
+                </div>
+                {confirmId === l.id ? (
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button size="sm" variant="destructive" disabled={busy} onClick={() => remove(l.id)}>
+                      Remove
+                    </Button>
+                    <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmId(null)}>
+                      Keep
+                    </Button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`Remove link ${l.label || hostOf(l.url)}`}
+                    onClick={() => setConfirmId(l.id)}
+                    className="-m-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-ctl text-muted-foreground hover:bg-row-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {atCap ? (
+          <p className="text-meta text-muted-foreground">This item has the maximum of {MAX_LINKS_PER_CARD} links. Remove one to add another.</p>
+        ) : (
+          <form onSubmit={add} className="space-y-3">
+            <Input
+              ref={urlRef}
+              id="cs-link-url"
+              label="Link"
+              type="url"
+              inputMode="url"
+              placeholder="https://"
+              value={url}
+              maxLength={MAX_LINK_URL_LENGTH}
+              onChange={(e) => setUrl(e.target.value)}
+            />
+            <Input
+              id="cs-link-label"
+              label="Label (optional)"
+              value={label}
+              maxLength={MAX_LINK_LABEL_LENGTH}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+            {error && <p className="text-meta text-tone-clay-ink">{error}</p>}
+            <Button type="submit" size="sm" variant="secondary" disabled={busy}>
+              {busy ? "Adding..." : "Add link"}
+            </Button>
+          </form>
+        )}
+      </PaneSection>
+
+      <PaneSection title="Details">
+        <PaneDetails
+          rows={[
+            { label: "Source", value: SOURCE_LABELS[card.source ?? "MANUAL"] ?? card.source },
+            ...(card.unmatchedOwnerNames.length > 0
+              ? [{ label: "Not yet matched", value: card.unmatchedOwnerNames.map((n) => `'${n}'`).join(", ") }]
+              : []),
+          ]}
+        />
+      </PaneSection>
+
+      <PaneSection title="History">
+        <PaneDetails
+          rows={[
+            ...(card.createdAt
+              ? [{ label: "Created", value: `${fmt(card.createdAt)}${createdBy ? ` by ${createdBy}` : card.createdById ? "" : " (automated)"}` }]
+              : []),
+            {
+              label: "Last edited",
+              value: (
+                <>
+                  {fmt(edited ?? card.updatedAt)}
+                  {editedBy ? ` by ${editedBy}` : ""}
+                  {!edited && <span className="block text-meta text-muted-foreground">Not edited by a person yet</span>}
+                </>
+              ),
+            },
+            ...(card.completedAt ? [{ label: "Completed", value: fmt(card.completedAt) }] : []),
+            ...(card.archivedAt ? [{ label: "Archived", value: fmt(card.archivedAt) }] : []),
+          ]}
+        />
+      </PaneSection>
+    </DetailPane>
   );
 }
