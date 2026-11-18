@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { EyeOff, History, Pencil } from "lucide-react";
+import { ChevronDown, EyeOff, History, MoreHorizontal, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
 import { MEMO_LIMITS } from "@/lib/memos";
+import { cn } from "@/lib/utils";
+import { useNewLook } from "@/lib/use-new-look";
+import { CLAMP_WORDS, firstSentence, wordCount } from "./dossier-utils";
 import { CitationChips } from "./citation-chips";
 import { CitationsEditor } from "./citations-editor";
 import { HistoryDialog } from "./history-dialog";
@@ -29,6 +33,8 @@ export function SectionCard({
   canManage,
   onChanged,
   onOpenShare,
+  folded,
+  onToggleFold,
 }: {
   memoId: string;
   section: MemoSectionView;
@@ -37,6 +43,9 @@ export function SectionCard({
   onChanged: () => void;
   /** Opens the Share panel from the "Hidden from share links" note. */
   onOpenShare?: () => void;
+  /** New look only: the section is folded (the page owns the state so Fold all / Unfold all work). */
+  folded?: boolean;
+  onToggleFold?: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(section.title);
@@ -140,44 +149,129 @@ export function SectionCard({
     }
   }
 
+  const hiddenMarker = !section.includeInShare
+    ? onOpenShare
+      ? (
+        <button
+          type="button"
+          onClick={onOpenShare}
+          title="Left out of share links. The owner changes this when editing the section."
+          className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <EyeOff aria-hidden className="h-3.5 w-3.5" />
+          Hidden from share links
+        </button>
+      )
+      : (
+        <span className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground">
+          <EyeOff aria-hidden className="h-3.5 w-3.5" />
+          Hidden from share links
+        </span>
+      )
+    : null;
+
+  // New look (direction B): fold, word count, Show all on long sections, Edit/History on hover or focus.
+  const newLook = useNewLook();
+  const [expanded, setExpanded] = useState(false);
+  const words = wordCount(section.markdown);
+  const clampable = newLook && !!section.html && words > CLAMP_WORDS;
+  const isFolded = newLook && !!folded && !editing;
+  const isClamped = clampable && !expanded && !editing;
+
+  function startEditUnfolded() {
+    if (folded) onToggleFold?.();
+    startEdit();
+  }
+
   return (
-    <section id={`section-${section.key}`} className="memo-section scroll-mt-24 lg:scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0 v2:border-t-0 v2:pt-0">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display text-lg font-semibold text-foreground v2:font-sans v2:text-heading">{section.title}</h2>
-          {!section.includeInShare &&
-            (onOpenShare ? (
-              <button
-                type="button"
-                onClick={onOpenShare}
-                title="Left out of share links. The owner changes this when editing the section."
-                className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <EyeOff aria-hidden className="h-3.5 w-3.5" />
-                Hidden from share links
-              </button>
-            ) : (
-              <span className="memo-no-print inline-flex items-center gap-1 text-xs text-muted-foreground">
-                <EyeOff aria-hidden className="h-3.5 w-3.5" />
-                Hidden from share links
-              </span>
-            ))}
+    <section
+      id={`section-${section.key}`}
+      data-folded={newLook ? String(isFolded) : undefined}
+      data-clamped={newLook ? String(isClamped) : undefined}
+      className="memo-section scroll-mt-24 lg:scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0 v2:border-t-0 v2:pt-0"
+    >
+      {newLook ? (
+        <div className="mb-2 flex min-h-9 items-center gap-3">
+          <h2 className="min-w-0 font-sans text-heading font-semibold text-foreground">
+            <button
+              type="button"
+              aria-expanded={!isFolded}
+              onClick={onToggleFold}
+              className="-ml-1 flex min-w-0 items-center gap-2 rounded-ctl px-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChevronDown aria-hidden className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform print:hidden", isFolded && "-rotate-90")} />
+              <span className="min-w-0 break-words">{section.title}</span>
+            </button>
+          </h2>
+          {hiddenMarker}
+          <span className="memo-no-print shrink-0 text-meta text-muted-foreground">
+            {words ? `${words.toLocaleString("en-US")} ${words === 1 ? "word" : "words"}` : "empty"}
+          </span>
+          {!editing && (
+            <>
+              <div className="memo-sact memo-no-print ml-auto flex gap-1">
+                <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} aria-label={`History of ${section.title}`}>
+                  <History className="h-4 w-4" />
+                  History
+                </Button>
+                {canEdit && (
+                  <Button variant="ghost" size="sm" onClick={startEditUnfolded} aria-label={`Edit ${section.title}`}>
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </Button>
+                )}
+              </div>
+              <div className="memo-smore memo-no-print ml-auto">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" aria-label={`Actions for ${section.title}`}>
+                      <MoreHorizontal aria-hidden className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {canEdit && (
+                      <DropdownMenuItem onSelect={startEditUnfolded}>
+                        <Pencil aria-hidden className="h-3.5 w-3.5" />
+                        Edit
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onSelect={() => setShowHistory(true)}>
+                      <History aria-hidden className="h-3.5 w-3.5" />
+                      History
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </>
+          )}
         </div>
-        {!editing && (
-          <div className="memo-no-print flex gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} aria-label={`History of ${section.title}`}>
-              <History className="h-4 w-4" />
-              History
-            </Button>
-            {canEdit && (
-              <Button variant="ghost" size="sm" onClick={startEdit} aria-label={`Edit ${section.title}`}>
-                <Pencil className="h-4 w-4" />
-                Edit
-              </Button>
-            )}
+      ) : (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="font-display text-lg font-semibold text-foreground v2:font-sans v2:text-heading">{section.title}</h2>
+            {hiddenMarker}
           </div>
-        )}
-      </div>
+          {!editing && (
+            <div className="memo-no-print flex gap-1">
+              <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} aria-label={`History of ${section.title}`}>
+                <History className="h-4 w-4" />
+                History
+              </Button>
+              {canEdit && (
+                <Button variant="ghost" size="sm" onClick={startEdit} aria-label={`Edit ${section.title}`}>
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {newLook && (
+        <p className="memo-fold-sum memo-no-print ml-6 hidden truncate text-body text-muted-foreground" >
+          {firstSentence(section.markdown) || "No text yet."}
+        </p>
+      )}
 
       {editing ? (
         <div className="memo-no-print space-y-4">
@@ -268,14 +362,25 @@ export function SectionCard({
       ) : (
         <>
           {section.html ? (
-            <div className="prose prose-sm max-w-none leading-relaxed" dangerouslySetInnerHTML={{ __html: section.html }} />
+            <div className="memo-body prose prose-sm max-w-none leading-relaxed" dangerouslySetInnerHTML={{ __html: section.html }} />
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="memo-body text-sm text-muted-foreground">
               No text yet.
               {section.guidance && <span className="memo-no-print"> {section.guidance}</span>}
             </p>
           )}
-          <CitationChips citations={section.citations} />
+          {clampable && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="memo-more memo-no-print mt-1 h-8 rounded-ctl text-row text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {expanded ? "Show less" : `Show all ${words.toLocaleString("en-US")} words`}
+            </button>
+          )}
+          <div className="memo-cites contents">
+            <CitationChips citations={section.citations} />
+          </div>
         </>
       )}
 

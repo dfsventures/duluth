@@ -850,20 +850,90 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
   margin-left: -12px;
 }
 
-/* Memo page (PLAN-1, WS163). The record sits in a 720px column. The header and the Details box
-   line up with the section text, so the contents list has the left rail to itself from lg up
-   (200px list + 32px gap). Screen only: printing is not touched. */
+/* Memo page, direction B "Dossier" (PLAN-1, WS163; B-175). A 720px reading column with a sticky
+   deal panel (296px) on its right. Layout follows the width of the main area (a size container, see
+   .shell-main), so a narrow window or a phone puts the panel under the title and swaps the
+   contents list for the Jump to menu. Screen only: printing is not touched. */
 @media screen {
-  html[data-look="v2"] [data-surface="admin"] .memo-v2-head {
+  html[data-look="v2"] [data-surface="admin"] .memo-dossier-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-contents {
+    display: none;
+  }
+  html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-reading {
     max-width: 720px;
   }
-}
-@media screen and (min-width: 1024px) {
-  html[data-look="v2"] [data-surface="admin"] .memo-v2-head {
-    margin-left: 232px;
+  /* Folds: a folded section shows its heading and first sentence only. */
+  html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-body,
+  html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-cites,
+  html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-more {
+    display: none;
   }
-  html[data-look="v2"] [data-surface="admin"] .memo-v2-body {
-    grid-template-columns: 200px minmax(0, 720px);
+  html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-fold-sum {
+    display: block;
+  }
+  /* Long sections are cut to about 8 lines behind "Show all N words". */
+  html[data-look="v2"] [data-surface="admin"] .memo-section[data-clamped="true"] .memo-body {
+    max-height: 196px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(#000 55%, transparent);
+    mask-image: linear-gradient(#000 55%, transparent);
+  }
+  /* Edit and History show on hover or keyboard focus of the section (always where there is no
+     hover, e.g. touch). In a narrow reading column one ⋯ button replaces them. */
+  html[data-look="v2"] [data-surface="admin"] .memo-section .memo-sact {
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  html[data-look="v2"] [data-surface="admin"] .memo-section:hover .memo-sact,
+  html[data-look="v2"] [data-surface="admin"] .memo-section:focus-within .memo-sact {
+    opacity: 1;
+  }
+  html[data-look="v2"] [data-surface="admin"] .memo-section .memo-smore {
+    display: none;
+  }
+}
+@media screen and (hover: none) {
+  html[data-look="v2"] [data-surface="admin"] .memo-section .memo-sact {
+    opacity: 1;
+  }
+}
+@container (max-width: 900px) {
+  html[data-look="v2"] [data-surface="admin"] .memo-section .memo-sact {
+    display: none;
+  }
+  html[data-look="v2"] [data-surface="admin"] .memo-section .memo-smore {
+    display: block;
+  }
+}
+@container (min-width: 1040px) {
+  @media screen {
+    html[data-look="v2"] [data-surface="admin"] .memo-dossier-grid {
+      grid-template-columns: minmax(0, 720px) 296px;
+      gap: 40px;
+      align-items: start;
+    }
+    html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-reading {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-aside {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: 24px;
+    }
+    html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-contents {
+      display: block;
+      max-height: max(160px, calc(100vh - 520px));
+      overflow: auto;
+    }
+    html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-jump {
+      display: none;
+    }
   }
 }
 /* Printing the memo in the dark theme: the colour tokens live on the admin surface, so the text

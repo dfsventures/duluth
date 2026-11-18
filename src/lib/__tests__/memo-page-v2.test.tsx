@@ -96,23 +96,43 @@ describe("section card", () => {
   } as unknown as Parameters<typeof SectionCard>[0]["section"];
 
   it("keeps the section hook and gets the new-look classes", () => {
+    look.v2 = true;
     const html = renderToStaticMarkup(<SectionCard memoId="m1" section={section} canEdit canManage onChanged={noop} />);
     expect(html).toContain('id="section-summary"');
     expect(html).toContain("memo-section");
     expect(html).toContain("v2:border-t-0");
-    expect(html).toContain("v2:text-heading");
+    expect(html).toContain("text-heading");
+  });
+
+  it("old look: no fold, word count or hover actions; History and Edit stay plain buttons", () => {
+    look.v2 = false;
+    const html = renderToStaticMarkup(<SectionCard memoId="m1" section={section} canEdit canManage onChanged={noop} />);
+    expect(html).not.toContain("data-folded");
+    expect(html).not.toContain("memo-sact");
+    expect(html).not.toContain("aria-expanded");
+    expect(html).toContain('aria-label="History of Summary"');
+    expect(html).toContain('aria-label="Edit Summary"');
+    look.v2 = true;
   });
 });
 
 describe("new-look CSS", () => {
   const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
-  it("the 720px column rules are screen-only and scoped to the admin new look", () => {
-    const col = css.slice(css.indexOf("Memo page (PLAN-1, WS163)"), css.indexOf("End new look"));
+  it("the dossier layout rules are scoped to the admin new look and follow the container width", () => {
+    const col = css.slice(css.indexOf("Memo page, direction B"), css.indexOf("Printing the memo in the dark theme"));
     expect(col).toContain("@media screen {");
-    expect(col).toContain("@media screen and (min-width: 1024px)");
-    expect(col).toMatch(/html\[data-look="v2"\] \[data-surface="admin"\] \.memo-v2-head/);
-    expect(col).toContain("max-width: 720px");
+    expect(col).toContain("@container (min-width: 1040px)");
+    expect(col).toContain("grid-template-columns: minmax(0, 720px) 296px");
+    expect(col).toContain("position: sticky");
+    expect(col).toMatch(/html\[data-look="v2"\] \[data-surface="admin"\] \.memo-dossier-grid/);
+    // Fold and clamp rules sit in the screen block, so print always shows every section open.
+    const screenBlock = col.slice(0, col.indexOf("@media screen and (hover: none)"));
+    expect(screenBlock).toContain('[data-folded="true"]');
+    expect(screenBlock).toContain('[data-clamped="true"]');
+    // Hover reveal, and always shown without hover.
+    expect(col).toContain(".memo-section:hover .memo-sact");
+    expect(col).toContain("@media screen and (hover: none)");
   });
 
   it("printing puts light colour tokens back for the dark theme, inside the print scope only", () => {

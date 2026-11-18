@@ -1,0 +1,167 @@
+import { describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+
+// B-175 (memo page, direction B "Dossier"). Placeholder data only.
+const look = vi.hoisted(() => ({ v2: true }));
+vi.mock("@/lib/use-new-look", () => ({ useNewLook: () => look.v2 }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/admin/memos/m1",
+}));
+vi.mock("next/link", () => ({
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+import { MemoDossier } from "@/components/admin/memos/memo-dossier";
+import { CLAMP_WORDS, firstSentence, relativeAge, wordCount } from "@/components/admin/memos/dossier-utils";
+import type { MemoView } from "@/components/admin/memos/types";
+
+const long = Array.from({ length: CLAMP_WORDS + 40 }, (_, i) => `word${i}`).join(" ");
+
+function makeMemo(over: Partial<MemoView> = {}): MemoView {
+  return {
+    id: "m1",
+    title: "Example Co",
+    status: "DRAFT",
+    visibility: "PRIVATE",
+    draftedByMarge: true,
+    importedFromNotion: false,
+    decision: "IN_PROGRESS",
+    source: "Partner event",
+    tags: ["Fintech", "Seed"],
+    introDate: "2026-10-14",
+    websiteUrl: "https://example.com",
+    introCalls: [{ label: "Intro call", url: "https://example.com/call", date: "2026-10-06" }],
+    version: 3,
+    updatedAt: "2026-11-01T10:00:00.000Z",
+    companyNamePending: "Example Co",
+    company: null,
+    companyRef: { kind: "pending", name: "Example Co" },
+    owner: { id: "u1", name: "Sample Person", email: "sample@example.com" },
+    sections: [
+      { key: "summary", title: "Summary", markdown: "Short text. More.", html: "<p>Short text. More.</p>", citations: [], includeInShare: true, version: 1, guidance: null },
+      { key: "market", title: "Market", markdown: long, html: `<p>${long}</p>`, citations: [], includeInShare: false, version: 1, guidance: null },
+      { key: "team", title: "Team", markdown: "", html: "", citations: [], includeInShare: true, version: 1, guidance: "Who are the founders?" },
+    ],
+    canEdit: true,
+    canManage: true,
+    ...over,
+  } as MemoView;
+}
+
+const noop = () => {};
+const render = (memo = makeMemo()) =>
+  renderToStaticMarkup(
+    <MemoDossier memo={memo} linked={false} banner={<div>Banner here</div>} onOpenShare={noop} onArchive={noop} onChanged={noop} onEditDetails={noop} onChangeCompany={noop} />
+  );
+
+describe("dossier helpers", () => {
+  it("counts words and ignores Markdown marks", () => {
+    expect(wordCount("")).toBe(0);
+    expect(wordCount("## Heading\n\n- one **two** [three](https://x.test)\n\n| a | b |")).toBe(6);
+  });
+  it("takes the first sentence and trims long ones", () => {
+    expect(firstSentence("**Bold** start. Second sentence.")).toBe("Bold start.");
+    expect(firstSentence("")).toBe("");
+    expect(firstSentence("x".repeat(300)).length).toBeLessThanOrEqual(140);
+  });
+  it("describes an intro date in plain relative words", () => {
+    const now = new Date("2026-11-18T12:00:00Z");
+    expect(relativeAge("2026-11-18", now)).toBe("today");
+    expect(relativeAge("2026-11-17", now)).toBe("yesterday");
+    expect(relativeAge("2026-11-10", now)).toBe("8 days ago");
+    expect(relativeAge("2026-10-14", now)).toBe("5 weeks ago");
+    expect(relativeAge("2026-07-18", now)).toBe("4 months ago");
+    expect(relativeAge("2024-11-18", now)).toBe("2 years ago");
+  });
+});
+
+describe("dossier layout", () => {
+  it("has the panel with every fact, the contents list and the grid hooks", () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-18T12:00:00Z"));
+    const html = render();
+    vi.useRealTimers();
+    expect(html).toContain('aria-label="Deal facts"');
+    expect(html).toContain("memo-dossier-grid");
+    for (const text of ["Access", "Private", "Partner event", "Intro", "5 weeks ago", "example.com", "Fintech", "Intro calls", "Contents"]) {
+      expect(html).toContain(text);
+    }
+    expect(html).toContain('aria-label="Stage: Evaluating"');
+    expect(html).toContain('aria-label="Memo status: Draft"');
+    // Contents entries and the phone's Jump to.
+    expect(html).toContain('href="#section-market"');
+    expect(html).toContain('id="memo-jump"');
+    // The intro text may wrap inside the panel (the mockup's "5 weeks ago" overflow): values break, never nowrap.
+    const panel = html.slice(html.indexOf('aria-label="Deal facts"'), html.indexOf('aria-label="Sections"'));
+    expect(panel.includes("whitespace-nowrap")).toBe(false);
+    expect(panel.includes("min-w-0 break-words")).toBe(true);
+  });
+
+  it("keeps every old action reachable", () => {
+    const html = render();
+    for (const text of ["Share", "Edit details", "Link to company", "Print or save as PDF", "Archive memo", "Banner here", "Drafted by Marge", "Drafted with Marge", "Hidden from share links", "Unfold all", "Fold all"]) {
+      // The ⋯ menu items render only when open; the foot Archive button and the others are in the markup.
+      if (["Edit details", "Link to company", "Print or save as PDF"].includes(text)) continue;
+      expect(html).toContain(text);
+    }
+    expect(html).toContain('aria-label="More actions"');
+    expect(html).toContain('aria-label="History of Summary"');
+    expect(html).toContain('aria-label="Edit Summary"');
+    expect(html).toContain("Stage: Evaluating · Memo status: Draft");
+  });
+
+  it("does not show placeholders for Round and Ask", () => {
+    const html = render();
+    expect(html).not.toContain("Round");
+    expect(html).not.toContain(">Ask<");
+  });
+
+  it("has no left-edge bar on the contents list, and marks the active section with an underscore", () => {
+    const html = render();
+    expect(html).not.toContain("border-l-2");
+    expect(html).toContain("bg-mark");
+  });
+
+  it("sections open unfolded; the long one is clamped behind Show all N words", () => {
+    const html = render();
+    expect(html).toContain('data-folded="false"');
+    expect(html).not.toContain('data-folded="true"');
+    expect(html).toContain('data-clamped="true"');
+    expect(html).toContain(`Show all ${(CLAMP_WORDS + 40).toLocaleString("en-US")} words`);
+    // The short section is not clamped and has no Show all button.
+    expect(html.match(/Show all/g)).toHaveLength(1);
+    expect(html).toContain("3 words");
+    expect(html).toContain("empty");
+  });
+
+  it("controls and panel stay off paper; the Stage/Status line and facts print", () => {
+    const html = render();
+    expect(html).toMatch(/<aside[^>]*memo-aside memo-no-print/);
+    expect(html).toContain("print:block");
+    // Print-only facts list
+    expect(html).toContain("print:grid");
+    expect(html).toContain("Intro date");
+  });
+
+  it("read-only people see the chips without menus and no Edit", () => {
+    const html = render(makeMemo({ canEdit: false, canManage: false }));
+    expect(html).not.toContain('aria-label="Stage: Evaluating"');
+    expect(html).toContain("Evaluating");
+    expect(html).not.toContain('aria-label="Edit Summary"');
+    expect(html).toContain('aria-label="History of Summary"');
+    expect(html).not.toContain("Archive memo");
+  });
+
+  it("leaves out facts the memo does not have", () => {
+    const html = render(makeMemo({ source: null, introDate: null, websiteUrl: null, tags: [], introCalls: [] }));
+    expect(html).not.toContain("Source");
+    expect(html).not.toContain("Website");
+    expect(html).not.toContain("Tags");
+    expect(html).not.toContain("Intro calls");
+  });
+});

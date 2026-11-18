@@ -13,6 +13,8 @@ import { SharePanel } from "@/components/admin/memos/share-panel";
 import { LinkCompanyDialog } from "@/components/admin/memos/link-company-dialog";
 import { MemoHeader } from "@/components/admin/memos/memo-header";
 import { MemoDetails } from "@/components/admin/memos/memo-details";
+import { MemoDossier } from "@/components/admin/memos/memo-dossier";
+import { useNewLook } from "@/lib/use-new-look";
 import { SectionNav } from "@/components/admin/memos/section-nav";
 import { readError, refValue, type LinkTargets, type MemoView } from "@/components/admin/memos/types";
 
@@ -21,6 +23,7 @@ type Suggestion = { id: string; name: string; kind?: "ledger" };
 export default function MemoClient({ memo, targets }: { memo: MemoView; targets: LinkTargets }) {
   const router = useRouter();
   const confirm = useConfirm();
+  const newLook = useNewLook();
   const [showMeta, setShowMeta] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -69,31 +72,70 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
   const linked = ref.kind === "company" || ref.kind === "ledger";
   const sections = memo.sections.map((s) => ({ key: s.key, title: s.title }));
 
+  const banner =
+    suggestion && !dismissed ? (
+      <div className="memo-no-print mb-6 flex flex-wrap items-center justify-between gap-3 border border-edge bg-muted/40 p-3 text-sm v2:mb-0 v2:rounded-lg v2:border-0 v2:bg-card v2:p-4">
+        <span>{suggestion.kind === "ledger" ? `${suggestion.name} is in the deal ledger. Link it?` : `${suggestion.name} is now in Molly. Link it?`}</span>
+        <span className="flex gap-2">
+          <Button size="sm" onClick={() => setLinking(true)}>
+            Link {suggestion.name}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setDismissed(true)}>
+            Not now
+          </Button>
+        </span>
+      </div>
+    ) : null;
+
+  const overlays = (
+    <>
+      {showMeta && <MetaSheet memo={memo} onClose={() => setShowMeta(false)} onSaved={refresh} />}
+      {showShare && <SharePanel memo={memo} onClose={() => setShowShare(false)} onChanged={refresh} />}
+      {linking && (
+        <LinkCompanyDialog
+          memoId={memo.id}
+          version={memo.version}
+          targets={targets}
+          initialValue={suggestion && !linked ? `${suggestion.kind === "ledger" ? "p" : "c"}:${suggestion.id}` : undefined}
+          currentValue={linked ? refValue(ref) : undefined}
+          onClose={() => setLinking(false)}
+          onLinked={refresh}
+        />
+      )}
+    </>
+  );
+
+  // New look: direction B "Dossier" (B-175). The server and first client render are the old look.
+  if (newLook) {
+    return (
+      <AppShell>
+        <div className="memo-print-scope">
+          <MemoDossier
+            memo={memo}
+            linked={linked}
+            banner={banner}
+            onOpenShare={() => setShowShare(true)}
+            onArchive={archive}
+            onChanged={refresh}
+            onEditDetails={() => setShowMeta(true)}
+            onChangeCompany={() => setLinking(true)}
+          />
+        </div>
+        {overlays}
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <div className="memo-print-scope">
-        {/* memo-v2-head / memo-v2-body: the new look's 720px column (rules in globals.css, screen only). */}
-        <div className="memo-v2-head">
         <MemoHeader memo={memo} onOpenShare={() => setShowShare(true)} onArchive={archive} onChanged={refresh} />
 
-        {suggestion && !dismissed && (
-          <div className="memo-no-print mb-6 flex flex-wrap items-center justify-between gap-3 border border-edge bg-muted/40 p-3 text-sm v2:mb-8 v2:rounded-lg v2:border-0 v2:bg-card v2:p-4">
-            <span>{suggestion.kind === "ledger" ? `${suggestion.name} is in the deal ledger. Link it?` : `${suggestion.name} is now in Molly. Link it?`}</span>
-            <span className="flex gap-2">
-              <Button size="sm" onClick={() => setLinking(true)}>
-                Link {suggestion.name}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setDismissed(true)}>
-                Not now
-              </Button>
-            </span>
-          </div>
-        )}
+        {banner}
 
         <MemoDetails memo={memo} linked={linked} onEditDetails={() => setShowMeta(true)} onChangeCompany={() => setLinking(true)} />
-        </div>
 
-        <div className="memo-v2-body grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
+        <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
           <SectionNav sections={sections} />
           <div className="min-w-0 space-y-8">
             {memo.sections.map((s) => (
@@ -108,7 +150,7 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
               />
             ))}
             {memo.canManage && (
-              <div className="memo-no-print border-t border-border pt-6 v2:border-t-0 v2:pt-0">
+              <div className="memo-no-print border-t border-border pt-6">
                 <Button variant="ghost" onClick={archive}>
                   <Archive className="h-4 w-4" />
                   Archive memo
@@ -119,19 +161,7 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
         </div>
       </div>
 
-      {showMeta && <MetaSheet memo={memo} onClose={() => setShowMeta(false)} onSaved={refresh} />}
-      {showShare && <SharePanel memo={memo} onClose={() => setShowShare(false)} onChanged={refresh} />}
-      {linking && (
-        <LinkCompanyDialog
-          memoId={memo.id}
-          version={memo.version}
-          targets={targets}
-          initialValue={suggestion && !linked ? `${suggestion.kind === "ledger" ? "p" : "c"}:${suggestion.id}` : undefined}
-          currentValue={linked ? refValue(ref) : undefined}
-          onClose={() => setLinking(false)}
-          onLinked={refresh}
-        />
-      )}
+      {overlays}
     </AppShell>
   );
 }
