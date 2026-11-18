@@ -219,7 +219,7 @@ html[data-look="v2"] body[data-surface="admin"] {
   --list-row-h: 44px;   /* not --row-h: use-row-collapse.ts sets that inline for the exit animation */
   --gutter: 24px;       /* 20px under md, set below */
   --column: 1104px;       /* text and form pages */
-  --column-wide: 1440px;  /* list and table pages */
+  --column-wide: 100000px;  /* list and table pages: no cap, they fill the screen (Joseph, 2026-11-18) */
   --pane-gutter: 32px;
 }
 @media (max-width: 767px) {

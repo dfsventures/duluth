@@ -64,11 +64,11 @@ describe("shell source", () => {
     expect(shell).toContain("max-w-6xl px-4 py-6 md:px-6 md:py-8");
     expect(shell).toContain('v2:max-w-none');
   });
-  it('"wide" is capped at --column-wide (1440) under the new look only, and its header ends where the content ends', () => {
+  it('"wide" uses --column-wide (no cap, fills the screen) under the new look only, and its header ends where the content ends', () => {
     expect(shell).toContain('"page" | "wide" | "full"');
     expect(shell).toContain('v2:mx-0 v2:max-w-[calc(var(--column-wide)+2*var(--gutter))] v2:px-[var(--gutter)]');
     const css = read("app/globals.css");
-    expect(css).toContain("--column-wide: 1440px;");
+    expect(css).toContain("--column-wide: 100000px;");
     expect(css).toMatch(
       /\.shell-page\[data-width="wide"\] > \.shell-header:first-child,\s*html\[data-look="v2"\] \[data-surface="admin"\] \.shell-page\[data-width="full"\] > \.shell-header:first-child \{\s*padding-right: max\(var\(--gutter\), calc\(100cqw - var\(--gutter\) - var\(--column-wide\)\)\);/
     );
