@@ -1041,6 +1041,57 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     }
   }
 }
+/* Deal Ledger company page (PLAN-1, WS163; B-133): the same group again. 720 column, 40 gap, 296 sticky
+   panel; the panel sits under the title below 1040px of main width. */
+@media screen {
+  html[data-look="v2"] [data-surface="admin"] .dl-dossier-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+  html[data-look="v2"] [data-surface="admin"] .dl-dossier {
+    max-width: 1056px;
+    margin-inline: max(var(--gutter), calc((100cqw - 1056px) / 2));
+  }
+  html[data-look="v2"] [data-surface="admin"] .dl-dossier .dl-main {
+    max-width: 720px;
+  }
+  /* Per-row Edit and Delete show on hover or keyboard focus, and always on touch. */
+  html[data-look="v2"] [data-surface="admin"] .dl-item .dl-act {
+    opacity: 0;
+    transition: opacity 120ms;
+  }
+  html[data-look="v2"] [data-surface="admin"] .dl-item:hover .dl-act,
+  html[data-look="v2"] [data-surface="admin"] .dl-item:focus-within .dl-act {
+    opacity: 1;
+  }
+}
+@media screen and (hover: none) and (pointer: coarse) {
+  html[data-look="v2"] [data-surface="admin"] .dl-item .dl-act {
+    opacity: 1;
+  }
+}
+@container (min-width: 1040px) {
+  @media screen {
+    html[data-look="v2"] [data-surface="admin"] .dl-dossier-grid {
+      grid-template-columns: minmax(0, 720px) 296px;
+      gap: 40px;
+      align-items: start;
+    }
+    html[data-look="v2"] [data-surface="admin"] .dl-dossier .dl-main {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    html[data-look="v2"] [data-surface="admin"] .dl-dossier .dl-aside {
+      grid-column: 2;
+      grid-row: 1;
+      position: sticky;
+      top: 24px;
+      max-height: calc(100vh - 48px);
+      overflow: auto;
+    }
+  }
+}
 /* Fund page (PLAN-1, WS163; B-133): the same group, but the main column is 960 instead of 720 because the
    Deals table has eleven columns and needs about 900px. 960 + 40 gap + 296 panel = 1296, centred. The
    panel sits under the title below 1040px of main width. */

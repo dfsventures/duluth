@@ -30,6 +30,7 @@ const PAGES: Record<string, string> = {
   fund: "/admin/funds", // opens the funds list, then the first fund's detail page (ids are random)
   funds: "/admin/funds", // the funds list itself (WS169)
   company: "/admin/companies", // opens the companies list, then the first company's own page (WS163)
+  deal: "/admin/portfolio", // opens the Deal Ledger, then the first company's own page (ids are random; WS163)
   memo: "/admin/memos", // opens the memos board, then the first memo's own page (ids are random; WS163)
   update: "/admin/updates", // opens the updates list, then the first update's own page (ids are random; WS163)
   reports: "/admin/reports",
@@ -271,6 +272,13 @@ async function main() {
             .catch(() => null);
           ok = href ? await open(page, `${key} ${tag}`, href) : false;
           if (!href) console.log(`  [skip] ${key} ${tag}: no company link found on /admin/companies`);
+        }
+        if (ok && key === "deal") {
+          const href: string | null = await page
+            .$$eval('a[href^="/admin/portfolio/"]', (as: any[]) => as.map((a) => a.getAttribute("href")).find((h) => h && h.split("/").length === 4) ?? null)
+            .catch(() => null);
+          ok = href ? await open(page, `${key} ${tag}`, href) : false;
+          if (!href) console.log(`  [skip] ${key} ${tag}: no deal link found on /admin/portfolio`);
         }
         if (ok && key === "memo") {
           const href: string | null = await page

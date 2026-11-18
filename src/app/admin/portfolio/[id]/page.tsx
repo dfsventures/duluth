@@ -19,6 +19,8 @@ import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { ModalDialog } from "@/components/ui/dialog";
+import { DealRecord } from "@/components/admin/portfolio/deal-record";
+import { useNewLook } from "@/lib/use-new-look";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
 
@@ -106,6 +108,7 @@ export default function AdminPortfolioCompanyPage() {
   const params = useParams();
   const router = useRouter();
   const companyId = params.id as string;
+  const newLook = useNewLook();
 
   const [data, setData] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -409,6 +412,42 @@ export default function AdminPortfolioCompanyPage() {
     );
   }
 
+  // New look (B-133): header bar, 720 column of sections and a properties panel. The server and first
+  // client render are the old look.
+  if (newLook) {
+    return (
+      <AppShell width="full">
+        <DealRecord
+          name={data.name}
+          country={data.country}
+          latestValuation={data.latestValuation}
+          linked={data.company}
+          onNewRound={openNewRound}
+          onLink={() => setShowLinkModal(true)}
+          onUnlink={() => setShowUnlinkConfirm(true)}
+          notices={
+            showUnlinkConfirm && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm text-foreground">
+                <span>Unlink {data.company?.name} from this portfolio company?</span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" size="sm" disabled={unlinking} onClick={() => setShowUnlinkConfirm(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" size="sm" disabled={unlinking} onClick={handleUnlink}>
+                    {unlinking ? "Unlinking..." : "Confirm Unlink"}
+                  </Button>
+                </div>
+              </div>
+            )
+          }
+        >
+          {renderSections(data)}
+        </DealRecord>
+        {renderModals(data)}
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <Breadcrumb items={[{ label: "Deal Ledger", href: "/admin/portfolio" }, { label: data.name }]} />
@@ -461,10 +500,20 @@ export default function AdminPortfolioCompanyPage() {
         </div>
       </div>
 
+      {renderSections(data)}
+      {renderModals(data)}
+    </AppShell>
+  );
+
+  // The record's sections (contacts, positions, deals, rounds, valuation history), shared by both looks.
+  // Declared after the return (function declarations are hoisted) so the old look's markup stays put.
+  function renderSections(data: CompanyDetail) {
+    return (
+      <>
       {/* Contacts (Part 30, WS70.4) — people first, then numbers */}
-      <div className="mb-6">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold">
-          <Users className="h-4 w-4" />
+      <div className="mb-6 v2:mb-8">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
+          <Users className="h-4 w-4 v2:hidden" />
           Contacts
         </h3>
 
@@ -501,19 +550,19 @@ export default function AdminPortfolioCompanyPage() {
         {data.contacts.length === 0 ? (
           <EmptyState icon={<Users className="h-6 w-6" />} title="No contacts yet — broadcasts to this company would reach nobody." />
         ) : (
-          <div className="mb-3 space-y-1.5">
+          <div className="mb-3 space-y-1.5 v2:space-y-0">
             {data.contacts.map((c) => (
-              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border px-2.5 py-1.5">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
+              <div key={c.id} className="dl-item flex flex-wrap items-center justify-between gap-2 rounded-sm border border-border px-2.5 py-1.5 v2:min-h-11 v2:rounded-none v2:border-0 v2:border-b v2:px-0">
+                <div className="flex flex-wrap items-center gap-2 text-sm v2:text-row">
                   {c.name && <span className="font-medium">{c.name}</span>}
-                  <span className="font-mono text-xs">{c.email}</span>
+                  <span className="font-mono text-xs v2:font-sans v2:text-meta">{c.email}</span>
                   {c.role && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{c.role}</span>}
                 </div>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => startEditContact(c)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
+                <div className="dl-act flex items-center gap-1">
+                  <button onClick={() => startEditContact(c)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => handleDeleteContact(c.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Remove">
+                  <button onClick={() => handleDeleteContact(c.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Remove">
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -587,21 +636,21 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Positions (computed, per fund) */}
-      <div className="mb-6">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold">
-          <TrendingUp className="h-4 w-4" />
+      <div className="mb-6 v2:mb-8">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
+          <TrendingUp className="h-4 w-4 v2:hidden" />
           Positions by fund
         </h3>
         {data.positions.length === 0 ? (
           <EmptyState icon={<Layers className="h-6 w-6" />} title="No positions yet" />
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 v2:gap-0 sm:v2:grid-cols-1 lg:v2:grid-cols-1">
             {data.positions.map((p) => (
-              <div key={p.fund.id} className="rounded-md border border-border bg-card p-3">
-                <Link href={`/admin/funds/${p.fund.id}`} className="text-sm font-medium hover:underline">
+              <div key={p.fund.id} className="rounded-md border border-border bg-card p-3 v2:flex v2:min-h-11 v2:flex-wrap v2:items-baseline v2:justify-between v2:gap-x-4 v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:px-0 v2:py-2.5">
+                <Link href={`/admin/funds/${p.fund.id}`} className="text-sm font-medium hover:underline v2:text-row">
                   {p.fund.name}
                 </Link>
-                <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground v2:mt-0 v2:text-meta">
                   <span>${p.invested.toLocaleString()} invested</span>
                   <span>{p.dealCount} deal{p.dealCount !== 1 ? "s" : ""}</span>
                   <span>{multipleLabel(p.latestMultiple)}</span>
@@ -617,15 +666,15 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Deals across funds */}
-      <div className="mb-6">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold">
-          <Layers className="h-4 w-4" />
+      <div className="mb-6 v2:mb-8">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
+          <Layers className="h-4 w-4 v2:hidden" />
           Deals across funds
         </h3>
         {data.deals.length === 0 ? (
           <EmptyState icon={<Layers className="h-6 w-6" />} title="No deals yet" />
         ) : (
-          <Table tableClassName="min-w-[960px]">
+          <Table tableClassName="min-w-[960px] v2:min-w-[720px]">
             <TableHead>
               <Th>Fund</Th>
               <Th>Type</Th>
@@ -694,13 +743,14 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Rounds timeline */}
-      <div className="mb-6">
-        <div className="mb-3 flex items-center justify-between">
-          <h3 className="flex items-center gap-2 font-semibold">
-            <History className="h-4 w-4" />
+      <div className="mb-6 v2:mb-8">
+        <div className="mb-3 flex items-center justify-between v2:mb-2">
+          <h3 className="flex items-center gap-2 font-semibold v2:font-sans v2:text-base">
+            <History className="h-4 w-4 v2:hidden" />
             Financing rounds
           </h3>
-          <Button size="sm" onClick={openNewRound}>
+          {/* The new look has New round in the header bar. */}
+          <Button size="sm" onClick={openNewRound} className="v2:hidden">
             <Plus className="mr-2 h-4 w-4" />
             New Round
           </Button>
@@ -708,9 +758,9 @@ export default function AdminPortfolioCompanyPage() {
         {data.rounds.length === 0 ? (
           <EmptyState icon={<History className="h-6 w-6" />} title="No rounds recorded" />
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 v2:space-y-0">
             {data.rounds.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
+              <div key={r.id} className="dl-item flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3 v2:min-h-11 v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:px-0 v2:py-2.5">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{r.label ?? "Untitled round"}</span>
@@ -723,11 +773,11 @@ export default function AdminPortfolioCompanyPage() {
                     {r.postMoneyUsd !== null && <span>Post-money ${r.postMoneyUsd.toLocaleString()}</span>}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <button onClick={() => openEditRound(r)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" title="Edit">
+                <div className="dl-act flex shrink-0 items-center gap-1">
+                  <button onClick={() => openEditRound(r)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Edit">
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
-                  <button onClick={() => handleDeleteRound(r.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Delete">
+                  <button onClick={() => handleDeleteRound(r.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Delete">
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
@@ -738,24 +788,24 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Valuation marks */}
-      <div className="mb-6">
-        <h3 className="mb-3 flex items-center gap-2 font-semibold">
-          <TrendingUp className="h-4 w-4" />
+      <div className="mb-6 v2:mb-8">
+        <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
+          <TrendingUp className="h-4 w-4 v2:hidden" />
           Valuation history
         </h3>
         {data.marks.length === 0 ? (
           <EmptyState icon={<TrendingUp className="h-6 w-6" />} title="No valuation marks yet" />
         ) : (
-          <div className="mb-4 space-y-2">
+          <div className="mb-4 space-y-2 v2:space-y-0">
             {data.marks.map((m) => (
-              <div key={m.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3">
+              <div key={m.id} className="dl-item flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card p-3 v2:min-h-11 v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:px-0 v2:py-2.5">
                 <div className="flex flex-wrap items-center gap-3 text-sm">
                   <span className="font-medium">${m.valuationUsd.toLocaleString()}</span>
                   <span className="text-xs text-muted-foreground">{formatDate(m.asOf)}</span>
                   {m.source === "BACKFILL" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">backfilled</span>}
                   {m.source === "SHEET" && <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">from sheet</span>}
                 </div>
-                <button onClick={() => handleDeleteMark(m.id)} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Delete (history only)">
+                <button onClick={() => handleDeleteMark(m.id)} className="dl-act rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Delete (history only)">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -792,6 +842,14 @@ export default function AdminPortfolioCompanyPage() {
         </form>
       </div>
 
+      </>
+    );
+  }
+
+  // The round and link dialogs, shared by both looks.
+  function renderModals(data: CompanyDetail) {
+    return (
+      <>
       {showRoundModal && (
         <ModalDialog title={editingRound ? "Edit Round" : "New Round"} onClose={() => setShowRoundModal(false)}>
             <form onSubmit={handleSaveRound} className="space-y-3">
@@ -834,6 +892,7 @@ export default function AdminPortfolioCompanyPage() {
           onLinked={handleLinked}
         />
       )}
-    </AppShell>
-  );
+      </>
+    );
+  }
 }
