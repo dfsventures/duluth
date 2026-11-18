@@ -139,7 +139,7 @@ export default function DigestListPage() {
           rowHref={(d) => `/admin/digest/${d.id}`}
           defaultSort={{ key: "week", dir: "desc" }}
           searchText={(d) => [d.title]}
-          searchPlaceholder="Search by title"
+          searchPlaceholder="Filter digests"
           minWidth={640}
           empty={
             <EmptyState eyebrow="Weekly Digest"

@@ -40,7 +40,8 @@ const fundColumns: DataTableColumn<Fund>[] = [
     title: (f) => `${f.name} (${f.slug})`,
     cell: (f) => (
       <>
-        {f.name} <span className="text-muted-foreground">{f.slug}</span>
+        {f.name}
+        <span className="ml-2 text-muted-foreground">{f.slug}</span>
       </>
     ),
   },
@@ -231,7 +232,7 @@ function AdminFundsPageInner() {
           rowHref={(f) => `/admin/funds/${f.id}`}
           defaultSort={{ key: "name", dir: "asc" }}
           searchText={(f) => [f.name, f.slug, f.groupLabel]}
-          searchPlaceholder="Search by fund name"
+          searchPlaceholder="Filter funds"
           loading={loading}
           minWidth={720}
           empty={<EmptyState eyebrow="Funds" icon={<Landmark className="h-8 w-8" />} title="No funds yet" description="Create a fund to start recording deals." />}

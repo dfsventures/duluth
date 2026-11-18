@@ -179,7 +179,7 @@ function AdminReportsPageInner() {
           rowHref={(r) => `/admin/reports/${r.id}`}
           defaultSort={{ key: "published", dir: "desc" }}
           searchText={(r) => [r.title, r.fund.name]}
-          searchPlaceholder="Search by report title or fund"
+          searchPlaceholder="Filter reports"
           chips={[
             { key: "all", label: "All" },
             { key: "draft", label: "Draft", test: (r) => r.status === "DRAFT" },

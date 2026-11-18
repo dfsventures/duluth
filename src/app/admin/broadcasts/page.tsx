@@ -173,7 +173,7 @@ export default function AdminBroadcastsPage() {
           rowHref={(b) => `/admin/broadcasts/${b.id}`}
           defaultSort={{ key: "sent", dir: "desc" }}
           searchText={(b) => [b.subject, b.senderLabel]}
-          searchPlaceholder="Search by subject or sender"
+          searchPlaceholder="Filter broadcasts"
           chips={[
             { key: "all", label: "All" },
             { key: "draft", label: "Draft", test: (b) => b.status === "DRAFT" },

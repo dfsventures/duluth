@@ -321,7 +321,7 @@ export default function AdminLpsPage() {
         // Part 32, WS86 (D2): an LP has many LpEmail rows (Part 26), so search
         // matches any of them, not just the primary one shown in the table.
         searchText={(lp) => [lp.name, ...lp.emails.map((e) => e.email)]}
-        searchPlaceholder="Filter by LP name or email"
+        searchPlaceholder="Filter LPs"
         loading={loading}
         minWidth={640}
         actionsLabel="Row actions"
