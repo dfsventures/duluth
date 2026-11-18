@@ -33,8 +33,10 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { TabBar } from "@/components/ui/tab-bar";
 import { parseTab } from "@/lib/url-tab";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
+import { FundRecord, type FundTab } from "@/components/admin/funds/fund-record";
+import { useNewLook } from "@/lib/use-new-look";
 
-type Tab = "deals" | "lps" | "reports" | "cashflows";
+type Tab = FundTab;
 
 interface Deal {
   id: string;
@@ -156,6 +158,7 @@ function AdminFundDetailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fundId = params.id as string;
+  const newLook = useNewLook();
 
   const [fund, setFund] = useState<FundDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -651,6 +654,60 @@ function AdminFundDetailPageInner() {
     { key: "notes", header: "Notes", mobile: "meta", cell: (c) => c.notes ?? <span className="text-muted-foreground">—</span> },
   ];
 
+  // New look (B-133): header bar, a wider main column and a facts panel. The server and first client
+  // render are the old look.
+  if (newLook) {
+    const detailsForm = (
+      <div className="space-y-3">
+        <Input label="Name" value={headerName} onChange={(e) => setHeaderName(e.target.value)} />
+        <Input label="Group label" value={headerGroupLabel} onChange={(e) => setHeaderGroupLabel(e.target.value)} />
+        <Input label="AUM (USD)" type="number" value={headerAum} onChange={(e) => setHeaderAum(e.target.value)} />
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setEditingHeader(false)} disabled={savingHeader}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleSaveHeader} disabled={savingHeader}>
+            {savingHeader ? "Saving..." : "Save"}
+          </Button>
+        </div>
+      </div>
+    );
+    return (
+      <AppShell width="full">
+        <FundRecord
+          fund={fund}
+          editingDetails={editingHeader}
+          detailsForm={detailsForm}
+          onEditDetails={() => setEditingHeader(true)}
+          onAddDeal={openAddDeal}
+          editingPerformance={editingOverrides}
+          onEditPerformance={openEditOverrides}
+          performance={
+            <FundPerformanceCard
+              performance={fund.performance}
+              overrides={{
+                grossMoic: fund.grossMoicOverride,
+                netTvpi: fund.netTvpiOverride,
+                netDpi: fund.netDpiOverride,
+                netIrr: fund.netIrrOverride,
+                netNav: fund.netNavOverride,
+                showGrossMoic: fund.showGrossMoic,
+                showNetTvpi: fund.showNetTvpi,
+                showNetIrr: fund.showNetIrr,
+                showNetNav: fund.showNetNav,
+              }}
+            />
+          }
+          performanceForm={renderOverrides()}
+          tabs={tabs}
+          activeTab={activeTab}
+        >
+          {renderTail(fund)}
+        </FundRecord>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <Breadcrumb items={[{ label: "Funds", href: "/admin/funds" }, { label: fund.name }]} />
@@ -713,6 +770,18 @@ function AdminFundDetailPageInner() {
         }}
       />
 
+      {renderOverrides()}
+
+      <TabBar<Tab> label="Fund sections" tabs={tabs} active={activeTab} fallback="deals" />
+
+      {renderTail(fund)}
+    </AppShell>
+  );
+
+  // The performance-override form (or its Edit button in the old look), shared by both looks.
+  function renderOverrides() {
+    return (
+      <>
       {/* Part 15, WS37.4 — manual performance override edit affordance. Lives
           only here, in the admin-only fund detail page — never inside
           FundPerformanceCard/FundSnapshotBlock themselves, since that same
@@ -730,7 +799,7 @@ function AdminFundDetailPageInner() {
             including in LP reports published from now on. Reports already published keep whatever was frozen
             into them at publish time.
           </p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-5 v2:lg:grid-cols-3">
             <Input label="Gross MOIC" type="number" step="0.01" value={overrideGrossMoic} onChange={(e) => setOverrideGrossMoic(e.target.value)} />
             <Input label="Net TVPI" type="number" step="0.01" value={overrideNetTvpi} onChange={(e) => setOverrideNetTvpi(e.target.value)} />
             <Input label="Net DPI" type="number" step="0.01" value={overrideNetDpi} onChange={(e) => setOverrideNetDpi(e.target.value)} />
@@ -789,11 +858,18 @@ function AdminFundDetailPageInner() {
         </Button>
       )}
 
-      <TabBar<Tab> label="Fund sections" tabs={tabs} active={activeTab} fallback="deals" />
+      </>
+    );
+  }
 
+  // The tab content and the Add Deal modal, shared by both looks. Declared after the return (function
+  // declarations are hoisted) so the old look's markup stays exactly where it was.
+  function renderTail(fund: FundDetail) {
+    return (
+      <>
       {activeTab === "deals" && (
         <div>
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex items-center justify-between v2:hidden">
             <h3 className="font-semibold">Deals</h3>
             <Button size="sm" onClick={openAddDeal}>
               <Plus className="mr-2 h-4 w-4" />
@@ -855,14 +931,14 @@ function AdminFundDetailPageInner() {
           {fund.lps.length === 0 ? (
             <EmptyState icon={<Handshake className="h-8 w-8" />} title="No LPs assigned" description="Assign an LP to this fund." />
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 v2:space-y-0">
               {fund.lps.map((m) => (
-                <div key={m.id} className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-2.5">
+                <div key={m.id} className="fund-item flex items-center justify-between rounded-md border border-border bg-card px-4 py-2.5 v2:min-h-11 v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:px-0 v2:py-2 v2:text-row">
                   <div>
-                    <span className="text-sm font-medium">{m.lp.name ?? m.lp.email}</span>
-                    {m.lp.name && <span className="ml-2 text-xs text-muted-foreground">{m.lp.email}</span>}
+                    <span className="text-sm font-medium v2:text-row">{m.lp.name ?? m.lp.email}</span>
+                    {m.lp.name && <span className="ml-2 text-xs text-muted-foreground v2:text-meta">{m.lp.email}</span>}
                   </div>
-                  <button onClick={() => handleUnassignLp(m.lp.id)} className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink" title="Remove">
+                  <button onClick={() => handleUnassignLp(m.lp.id)} className="fund-act rounded p-1 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Remove" aria-label={`Remove ${m.lp.name ?? m.lp.email}`}>
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
@@ -875,8 +951,8 @@ function AdminFundDetailPageInner() {
       {activeTab === "reports" && (
         <div>
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold">Reports</h3>
-            <Link href={`/admin/reports?fundId=${fund.id}`} className="text-sm text-primary hover:underline">
+            <h3 className="font-semibold v2:font-sans v2:text-base">Reports</h3>
+            <Link href={`/admin/reports?fundId=${fund.id}`} className="text-sm text-primary hover:underline v2:text-meta">
               Manage reports for this fund →
             </Link>
           </div>
@@ -892,12 +968,12 @@ function AdminFundDetailPageInner() {
               }
             />
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 v2:space-y-0">
               {fund.reports.map((r) => (
                 <Link
                   key={r.id}
                   href={`/admin/reports/${r.id}`}
-                  className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-2.5 hover:border-primary/40 transition-colors"
+                  className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-2.5 hover:border-primary/40 transition-colors v2:min-h-11 v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:px-0 v2:py-2 v2:hover:bg-muted/50"
                 >
                   <div>
                     <span className="text-sm font-medium">{r.title}</span>
@@ -913,7 +989,7 @@ function AdminFundDetailPageInner() {
 
       {activeTab === "cashflows" && (
         <div>
-          <div className="mb-4 rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+          <div className="mb-4 rounded-md border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0 v2:text-meta">
             Recording capital calls, distributions, and fees here feeds the Performance card above (Part 10, WS26) — DPI moves as distributions are added, and TVPI/DPI drop their &quot;≈&quot; badge once a capital call is recorded.
           </div>
           <form onSubmit={handleAddCashflow} className="mb-4 rounded-md border border-border bg-card p-4">
@@ -1061,6 +1137,7 @@ function AdminFundDetailPageInner() {
           </form>
         </Modal>
       )}
-    </AppShell>
-  );
+      </>
+    );
+  }
 }
