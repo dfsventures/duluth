@@ -378,7 +378,7 @@ function AdminPortfolioContactsPageInner() {
             </div>
           )}
           <div className="mb-6 v2:mb-4 v2:mt-4">
-            <ComposerDisclosure label="CSV format">
+            <ComposerDisclosure label="CSV format" className="v2:border-t-0">
               <p className="text-sm text-muted-foreground">
                 CSV columns: <code className="rounded bg-muted px-1">company</code>,{" "}
                 <code className="rounded bg-muted px-1">name</code>, <code className="rounded bg-muted px-1">email</code>, optional{" "}
