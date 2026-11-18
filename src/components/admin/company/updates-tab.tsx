@@ -45,18 +45,19 @@ export function UpdatesTab({ companyId, updates }: { companyId: string; updates:
           }
         />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 v2:space-y-0">
           {updates.map((update) => (
             <Link
               key={update.id}
               href={`/updates/${update.id}`}
               className="block"
             >
-              <Card className="transition-colors hover:bg-muted/50">
-                <CardContent className="flex items-center justify-between py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{update.title}</p>
-                    <p className="text-sm text-muted-foreground">
+              {/* New look: a 44px list row (title, then period and date, status at the right) with a hairline, not a card. */}
+              <Card className="transition-colors hover:bg-muted/50 v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:shadow-none v2:hover:bg-muted/50">
+                <CardContent className="flex items-center justify-between gap-3 py-3 v2:min-h-11 v2:px-3 v2:py-1.5">
+                  <div className="min-w-0 flex-1 v2:flex v2:flex-wrap v2:items-baseline v2:gap-x-3">
+                    <p className="truncate font-medium v2:max-w-full v2:text-row">{update.title}</p>
+                    <p className="text-sm text-muted-foreground v2:min-w-0 v2:text-meta">
                       {update.period} &middot; {formatDate(update.createdAt)}
                       {update.source === "EMAIL_VIA_MARGE" && (
                         <> &middot; From email &middot; added by {update.createdBy?.name ?? "a teammate"} via Marge</>

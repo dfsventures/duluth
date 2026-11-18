@@ -193,7 +193,7 @@ export function DocumentsTab({
           description={showArchived ? "No archived documents." : "No documents have been uploaded for this company."}
         />
       ) : (
-        <Card>
+        <Card className="v2:rounded-none v2:border-0 v2:bg-transparent v2:shadow-none">
           <CardContent className="p-0">
             <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-sm">
@@ -212,7 +212,7 @@ export function DocumentsTab({
                 {documents.map((doc) => (
                   <tr
                     key={doc.id}
-                    className={`border-b last:border-0 hover:bg-muted/50 ${doc.archivedAt ? "opacity-60" : ""}`}
+                    className={`border-b last:border-0 hover:bg-muted/50 v2:border-border ${doc.archivedAt ? "opacity-60" : ""}`}
                   >
                     <td className="px-4 py-3 font-medium">
                       <div className="flex items-center gap-2">

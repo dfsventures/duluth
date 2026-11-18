@@ -167,10 +167,11 @@ export function MembersTab({
           description="No users are associated with this company. Add a member by their email address."
         />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2 v2:space-y-0">
           {members.map((member) => (
-            <Card key={member.membershipId}>
-              <CardContent className="flex flex-wrap items-center gap-3 py-3">
+            // New look: list rows with a hairline instead of cards.
+            <Card key={member.membershipId} className="v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:shadow-none v2:hover:bg-muted/50">
+              <CardContent className="flex flex-wrap items-center gap-3 py-3 v2:min-h-11 v2:px-3 v2:py-1.5">
                 <div className="min-w-48 flex-1 flex items-center gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
                     {member.name?.[0]?.toUpperCase() ??

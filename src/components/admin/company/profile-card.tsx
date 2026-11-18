@@ -209,8 +209,8 @@ export function ProfileCard({
 
   if (panel) {
     const rows: { label: string; value: React.ReactNode }[] = [];
-    if (company.fundingStage) rows.push({ label: "Stage", value: <Badge variant="info">{company.fundingStage}</Badge> });
-    if (company.sector) rows.push({ label: "Sector", value: <Badge variant="neutral">{company.sector}</Badge> });
+    if (company.fundingStage) rows.push({ label: "Stage", value: company.fundingStage });
+    if (company.sector) rows.push({ label: "Sector", value: company.sector });
     if (company.geography) rows.push({ label: "Geography", value: company.geography });
     if (company.website)
       rows.push({
@@ -260,7 +260,7 @@ export function ProfileCard({
               {rows.map((r) => (
                 <div key={r.label} className="contents">
                   <dt className="pt-0.5 text-meta text-muted-foreground">{r.label}</dt>
-                  <dd className="min-w-0 break-words">{r.value}</dd>
+                  <dd className="min-w-0 break-words text-row text-foreground">{r.value}</dd>
                 </div>
               ))}
             </dl>
