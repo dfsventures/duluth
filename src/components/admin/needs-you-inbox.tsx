@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { OpenParam, SplitView } from "@/components/layout/split-view";
 import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
 import { DataTable, type DataTableColumn, type DataTableGroupBy } from "@/components/ui/data-table";
@@ -59,7 +59,9 @@ const COLUMNS: DataTableColumn<InboxRow>[] = [
     header: "Item",
     title: (r) => (r.detail ? `${r.title}. ${r.detail}` : r.title),
     cell: (r) => (
-      <>
+      // One flex line that may shrink: on a phone the cell sits inside the row's link, and without
+      // this wrapper the glyph slot and the mark each break onto their own line.
+      <span className="flex min-w-0 items-center">
         {/* A 20px slot for the state glyph and one for the company mark, so every title starts on the same line. */}
         <span aria-hidden="true" className="mr-3 grid h-5 w-5 shrink-0 place-items-center">
           <StatusDot tone={r.tone} />
@@ -70,11 +72,22 @@ const COLUMNS: DataTableColumn<InboxRow>[] = [
           <span aria-hidden="true" className="mr-3 h-5 w-5 shrink-0" />
         )}
         <span className="min-w-0 truncate">{r.title}</span>
-        {r.detail && <span className="ml-3 min-w-0 truncate text-muted-foreground">{r.detail}</span>}
-      </>
+        {/* The secondary sentence moves to the phone's second line (the Detail column below). */}
+        {r.detail && <span className="ml-3 min-w-0 truncate text-muted-foreground max-md:hidden">{r.detail}</span>}
+      </span>
     ),
   },
   { key: "kind", header: "Kind", mobile: "meta", dropBelow: 480, cell: (r) => r.kindLabel },
+  {
+    // Phone only: line 2 reads "Kind  Detail". Hidden in the desktop table, where the detail already
+    // sits after the title.
+    key: "detail",
+    header: "Detail",
+    mobile: "meta",
+    hideable: false,
+    className: "hidden",
+    cell: (r) => (r.detail ? <span className="block truncate">{r.detail}</span> : null),
+  },
   {
     key: "age",
     header: "Age",
@@ -82,7 +95,20 @@ const COLUMNS: DataTableColumn<InboxRow>[] = [
     mobile: "badge",
     title: (r) => r.age,
     cell: (r) => (
-      <span className={r.kind === "overdue" && r.tone === "clay" ? "text-[color:var(--color-stuck)]" : undefined}>{r.age}</span>
+      // The age takes the colour of the row's dot: amber (up to 60 days) or red (over 60, or never updated).
+      <span
+        className={
+          r.kind === "overdue"
+            ? r.tone === "clay"
+              ? "text-[color:var(--color-stuck)]"
+              : r.tone === "amber"
+                ? "text-[color:var(--color-warn)]"
+                : undefined
+            : undefined
+        }
+      >
+        {r.age}
+      </span>
     ),
   },
 ];
@@ -247,6 +273,7 @@ export function NeedsYouInbox(props: NeedsYouInboxProps) {
                       )
                     ) : r.kind === "alert" && r.alertId ? (
                       <Button variant="ghost" size="sm" onClick={() => onDismiss(r.alertId!)}>
+                        <X className="h-3.5 w-3.5" />
                         Dismiss
                         <span className="sr-only">: {r.title}</span>
                       </Button>

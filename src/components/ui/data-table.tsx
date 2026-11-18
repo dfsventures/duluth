@@ -1115,11 +1115,15 @@ function DataTableInner<T>({
                             className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
                           />
                           {g.label}
+                          {/* New look: the count sits beside the label, "2 items", as on desktop. */}
+                          <span className="num ml-1 font-normal text-muted-foreground">
+                            {g.rows.length} {g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}
+                          </span>
                         </button>
                       ) : (
                         g.label
                       )}
-                      <span className="num font-mono text-[11px] font-normal text-muted-foreground">{g.rows.length}</span>
+                      {!v2 && <span className="num font-mono text-[11px] font-normal text-muted-foreground">{g.rows.length}</span>}
                     </li>
                   )}
                   {!collapsed && g.rows.map((row) => renderMobileRow(row))}
