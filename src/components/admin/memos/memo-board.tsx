@@ -154,11 +154,21 @@ export function MemoBoard({ rows, me, showOwner, onMove, landedId = null }: Prop
                 {...dropProps(k)}
               >
                 <ChevronsRight aria-hidden="true" className="h-3.5 w-3.5 text-muted-foreground" />
-                <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", TONE_CLASSES[tone].dot)} />
-                <span aria-hidden="true" className={cn("num px-1.5 font-mono text-[11px] font-semibold", TONE_CLASSES[tone].chip)}>
+                <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", TONE_CLASSES[tone].dot, "v2:hidden")} />
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "num px-1.5 font-mono text-[11px] font-semibold",
+                    TONE_CLASSES[tone].chip,
+                    "v2:bg-transparent v2:px-0 v2:font-sans v2:text-meta v2:font-normal v2:text-muted-foreground"
+                  )}
+                >
                   {cards.length}
                 </span>
-                <span aria-hidden="true" className="font-mono text-xs font-semibold uppercase tracking-label text-foreground [writing-mode:vertical-rl]">
+                <span
+                  aria-hidden="true"
+                  className="font-mono text-xs font-semibold uppercase tracking-label text-foreground [writing-mode:vertical-rl] v2:font-sans v2:text-meta v2:font-medium v2:normal-case v2:tracking-normal v2:text-secondary"
+                >
                   {COLUMN_LABELS[k]}
                 </span>
               </button>
@@ -241,7 +251,7 @@ export function MemoBoard({ rows, me, showOwner, onMove, landedId = null }: Prop
             className="group rounded-sm border border-border v2:rounded-md v2:border-0"
           >
             <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-foreground [&::-webkit-details-marker]:hidden v2:min-h-11 v2:px-0 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal">
-              <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", TONE_CLASSES[COLUMN_TONE[k]].dot)} />
+              <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", TONE_CLASSES[COLUMN_TONE[k]].dot, "v2:hidden")} />
               <span>{COLUMN_LABELS[k]}</span>
               <span className="ml-auto text-muted-foreground" aria-label={countLabel(grouped[k].length)}>
                 {grouped[k].length}

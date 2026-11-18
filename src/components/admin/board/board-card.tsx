@@ -222,7 +222,7 @@ export function BoardCard({
             key={label}
             aria-hidden="true"
             className={cn(
-              "-ml-1.5 inline-grid h-5 w-5 place-items-center rounded-full text-[10px] font-semibold ring-2 ring-card first:ml-0",
+              "ml-1 inline-grid h-5 w-5 place-items-center rounded-full text-[10px] font-semibold first:ml-0",
               TONE_CLASSES[tileTone(label)].chip
             )}
           >
@@ -232,7 +232,7 @@ export function BoardCard({
         {tiles.extra > 0 && (
           <span
             aria-hidden="true"
-            className="-ml-1.5 inline-grid h-5 min-w-5 place-items-center rounded-full bg-muted px-1 text-[10px] font-semibold text-foreground ring-2 ring-card"
+            className="ml-1 inline-grid h-5 min-w-5 place-items-center rounded-full bg-muted px-1 text-[10px] font-semibold text-foreground"
           >
             +{tiles.extra}
           </span>

@@ -285,7 +285,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
   );
 
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="Memos"
         description="Your team's deal pipeline and investment memos. New memos are private until the owner shares them."
@@ -320,7 +320,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
               className={cn(
                 "inline-flex h-8 items-center justify-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 view === key
-                  ? "border-foreground bg-foreground text-background"
+                  ? "border-foreground bg-foreground text-background v2:border-transparent v2:bg-sel v2:font-medium v2:text-foreground"
                   : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground"
               )}
             >
