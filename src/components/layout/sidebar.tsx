@@ -134,9 +134,11 @@ export const SIDEBAR_ID = "app-sidebar";
 interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
+  /** The surface the shell is on, when it differs from what the path gives (AppShell's override). */
+  surface?: "founder" | "admin";
 }
 
-export function Sidebar({ open = false, onClose }: SidebarProps) {
+export function Sidebar({ open = false, onClose, surface }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const { selectedCompany } = useCompany();
@@ -144,6 +146,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const paletteKey = usePaletteKey();
 
   const isAdminPath = pathname.startsWith("/admin");
+  // The footer switches (look, theme) belong to the admin surface: an /admin path, or a shared page
+  // that the shell has put on the admin surface for an admin with the new look on.
+  const onAdminSurface = isAdminPath || surface === "admin";
   const isAdmin =
     status === "authenticated"
       ? (session?.user?.roles?.includes("ADMIN") ?? false)
@@ -368,7 +373,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* New-look switch (PLAN-1, WS156): admin pages only, saved in this browser.
             Both labels are in the page and CSS shows the right one, so there is no
             flash of the wrong word on load. Under the new look it sits below the person. */}
-        {isAdminPath && isAdmin && (
+        {onAdminSurface && isAdmin && (
           <div className="mb-3 flex flex-col items-start gap-1 v2:order-2 v2:mb-0 v2:mt-0.5 v2:items-stretch">
             <button
               type="button"
@@ -393,7 +398,7 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
             </p>
           </div>
           {/* Light / dark: new look only (the old look has one theme). Also in the palette. */}
-          {isAdminPath && isAdmin && (
+          {onAdminSurface && isAdmin && (
             <button
               type="button"
               onClick={toggleTheme}

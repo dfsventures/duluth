@@ -75,7 +75,7 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
         />
       )}
 
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} surface={surfaceOverride} />
       {isAdmin && (
         <>
           <CommandPalette />
