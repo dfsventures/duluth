@@ -33,6 +33,9 @@ const PAGES: Record<string, string> = {
   broadcasts: "/admin/broadcasts",
   digest: "/admin/digest",
   lps: "/admin/lps",
+  audit: "/admin/audit", // WS170: the last 100 events, compact rows
+  contacts: "/admin/portfolio-contacts", // WS170: the Contacts tab
+  "contacts-links": "/admin/portfolio-contacts?tab=links", // WS170: the Links tab (two tables)
 };
 const VIEWPORTS: Record<string, { width: number; height: number }> = {
   desktop: { width: 1440, height: 900 },

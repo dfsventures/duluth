@@ -8,6 +8,7 @@ import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { ScrollText } from "lucide-react";
 import Link from "next/link";
 import { relativeTime } from "@/lib/relative-time";
+import { AuditLook } from "./audit-table";
 
 function formatTimestamp(date: Date): string {
   return date.toLocaleString("en-US", {
@@ -122,13 +123,10 @@ export default async function AuditLogPage({
     marge: margeCount,
   };
 
-  return (
-    <AppShell>
-      <PageHeader
-        title="Audit Log"
-        description="The last 100 matching events: admin actions and sign-in attempts."
-      />
-
+  // The old look's markup, unchanged. AuditLook shows it unless the new look is on, in which case it
+  // shows the shared table (audit-table.tsx, WS170) from the same rows and counts.
+  const oldLook = (
+    <>
       <nav aria-label="Filter audit events" className="mb-3 flex flex-wrap gap-1.5">
         {FILTERS.map((f) => {
           const pressed = filter === f.key;
@@ -191,6 +189,30 @@ export default async function AuditLogPage({
           </tbody>
         </Table>
       )}
+    </>
+  );
+
+  return (
+    <AppShell width="wide">
+      <PageHeader
+        title="Audit Log"
+        description="The last 100 matching events: admin actions and sign-in attempts."
+      />
+      <AuditLook
+        oldLook={oldLook}
+        rows={logs.map((log) => ({
+          id: log.id,
+          createdAt: log.createdAt.toISOString(),
+          actorEmail: log.actorEmail,
+          action: log.action,
+          targetType: log.targetType,
+          targetId: log.targetId,
+          metadata: log.metadata,
+        }))}
+        counts={counts}
+        filters={FILTERS}
+        filter={filter}
+      />
     </AppShell>
   );
 }

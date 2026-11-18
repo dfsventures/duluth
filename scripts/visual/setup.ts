@@ -494,6 +494,62 @@ async function main() {
       });
     }
 
+    // ── Many audit rows, for the compact table and the 100-row cap (WS170) ──
+    // 115 rows (the page shows the newest 100): admin actions, sign-ins, failed sign-ins and rows Marge
+    // acted on, plus a few edge cases (very long action, actor, target and details; no details at all).
+    const auditRows: {
+      actorId: string | null; actorEmail: string; action: string; targetType: string | null;
+      targetId: string | null; metadata?: object; createdAt: Date;
+    }[] = [];
+    const adminActions = ["UPDATE_PUBLISHED", "MEMO_STAGE_CHANGED", "BROADCAST_PUBLISHED", "LP_UPDATED", "SETTING_CHANGED", "BOARD_CARD_MOVED"];
+    for (let i = 0; i < 110; i++) {
+      const when = ago(0.2 + i * 0.35);
+      const kind = i % 6;
+      if (kind <= 2) {
+        const who = kind === 1 ? riley : sam;
+        auditRows.push({
+          actorId: who.id, actorEmail: who.email, action: adminActions[i % adminActions.length], targetType: "Company",
+          targetId: companyIds["Acme Robotics"], createdAt: when,
+          metadata: { name: "Acme Robotics", field: "status", from: "Draft", to: "Published" },
+        });
+      } else if (kind === 3) {
+        auditRows.push({ actorId: null, actorEmail: "casey@example.com", action: "SIGN_IN_SUCCEEDED", targetType: "User", targetId: null, createdAt: when, metadata: { method: "password", ip: "203.0.113.7" } });
+      } else if (kind === 4) {
+        auditRows.push({ actorId: null, actorEmail: "unknown@example.com", action: "SIGN_IN_FAILED", targetType: null, targetId: null, createdAt: when, metadata: { reason: "bad_password", ip: "198.51.100.23" } });
+      } else {
+        auditRows.push({ actorId: sam.id, actorEmail: sam.email, action: "UPDATE_CREATED", targetType: "Update", targetId: "update-local-placeholder", createdAt: when, metadata: { via: "marge", company: "Acme Robotics", source: "email" } });
+      }
+    }
+    auditRows.push({
+      actorId: sam.id,
+      actorEmail: "a.very.long.placeholder.address.for.layout.checks@example-organisation-with-a-long-name.example.com",
+      action: "COMPANY_IMPORT_COMPLETED_WITH_WARNINGS_FOR_A_VERY_LONG_ACTION_NAME",
+      targetType: "PortfolioCompany",
+      targetId: "clplaceholder0123456789abcdefghij0123456789abcdefghij",
+      createdAt: ago(0.1),
+      metadata: {
+        file: "placeholder-contacts-import-with-a-very-long-file-name-for-layout-checks.csv",
+        created: 12, updated: 4, skipped: 2,
+        warnings: ["Row 3: placeholder warning", "Row 9: placeholder warning with a longer explanation of what went wrong"],
+        nested: { a: 1, b: { c: [1, 2, 3] } },
+        note: "A deliberately long placeholder note, so the closed row has to cut it and the open row has to wrap it across several lines.",
+      },
+    });
+    auditRows.push({ actorId: sam.id, actorEmail: sam.email, action: "SETTING_CHANGED", targetType: null, targetId: null, createdAt: ago(0.15) });
+    await db.auditLog.createMany({ data: auditRows });
+
+    // A deal-ledger company with a long name and no contacts, and a second contact on one that has some
+    // (Portfolio Contacts: a long name, the amber zero, a count above one).
+    await db.portfolioCompany.create({
+      data: { name: "Example Pan-African Agricultural Logistics and Cold-Chain Holdings Incorporated", country: "Ghana" },
+    });
+    await db.portfolioCompanyContact.create({
+      data: { portfolioCompanyId: portco["Acme Robotics"], name: "Sam Cofounder", email: "sam.cofounder@acme-robotics.example.com", role: "CTO" },
+    });
+    await db.portfolioCompanyContact.create({
+      data: { portfolioCompanyId: portco["Globex Energy"], name: "Omar Okafor", email: "omar@globex-energy.example.com", role: "CEO" },
+    });
+
     // ── LPs, fund reports, broadcasts, weekly digests (WS169) ──
     const lpA = await db.limitedPartner.create({
       data: { name: "Casey Limited Partner", email: "casey@example.com", createdAt: ago(200) },

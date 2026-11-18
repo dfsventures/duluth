@@ -14,6 +14,8 @@ import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { formatDate } from "@/lib/utils";
 import { parseContactsCSV } from "@/lib/csv";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useNewLook } from "@/lib/use-new-look";
 
 type ContactsTab = "contacts" | "links";
 
@@ -54,6 +56,52 @@ interface ContactsImportResult {
   unmatchedCompanies: string[];
 }
 
+// New look (WS170): one-line rows in the shared table. The old look keeps its tables below.
+const contactColumns: DataTableColumn<PortfolioCompanyRow>[] = [
+  { key: "name", header: "Company", sortValue: (c) => c.name, cell: (c) => c.name },
+  {
+    key: "contacts",
+    header: "Contacts",
+    align: "num",
+    sortValue: (c) => c.contactCount,
+    firstDir: "desc",
+    mobile: "badge",
+    cell: (c) => <span className={c.contactCount === 0 ? "text-tone-amber-ink" : undefined}>{c.contactCount}</span>,
+  },
+  {
+    key: "account",
+    header: "Molly account",
+    sortValue: (c) => c.company?.name ?? null,
+    mobile: "meta",
+    exportValue: (c) => c.company?.name ?? "Not linked",
+    title: (c) => c.company?.name ?? "Not linked",
+    cell: (c) =>
+      c.company ? (
+        <Link href={`/admin/companies/${c.company.id}`} className="text-primary hover:underline">
+          {c.company.name}
+        </Link>
+      ) : (
+        <span className="text-muted-foreground">Not linked</span>
+      ),
+  },
+  { key: "deals", header: "Deals", align: "num", sortValue: (c) => c.dealCount, firstDir: "desc", mobile: "meta", cell: (c) => c.dealCount },
+];
+
+const orphanColumns: DataTableColumn<OrphanCompany>[] = [
+  { key: "name", header: "Company", sortValue: (c) => c.name, cell: (c) => c.name },
+  {
+    key: "created",
+    header: "Created",
+    sortValue: (c) => new Date(c.createdAt).getTime(),
+    firstDir: "desc",
+    mobile: "meta",
+    className: "whitespace-nowrap",
+    exportValue: (c) => formatDate(c.createdAt),
+    cell: (c) => formatDate(c.createdAt),
+  },
+  { key: "owner", header: "Owner", sortValue: (c) => c.ownerEmail, mobile: "meta", cell: (c) => c.ownerEmail ?? "—" },
+];
+
 export default function AdminPortfolioContactsPage() {
   return (
     <Suspense fallback={null}>
@@ -64,6 +112,7 @@ export default function AdminPortfolioContactsPage() {
 
 function AdminPortfolioContactsPageInner() {
   const router = useRouter();
+  const newLook = useNewLook();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab") === "links" ? "links" : "contacts";
   const [activeTab, setActiveTab] = useState<ContactsTab>(requestedTab);
@@ -214,8 +263,39 @@ function AdminPortfolioContactsPageInner() {
     loadLinks();
   }
 
+  // New look: the unlinked table's columns need the suggestions, so they are built here.
+  const unlinkedColumns = useMemo<DataTableColumn<UnlinkedPortfolioCompany>[]>(
+    () => [
+      { key: "name", header: "Portfolio company", sortValue: (pc) => pc.name, cell: (pc) => pc.name },
+      { key: "contacts", header: "Contacts", align: "num", sortValue: (pc) => pc.contactCount, firstDir: "desc", mobile: "badge", cell: (pc) => pc.contactCount },
+      {
+        key: "suggestion",
+        header: "Top suggestion",
+        mobile: "meta",
+        sortValue: (pc) => suggestionsByPortco[pc.id]?.[0]?.companyName ?? null,
+        exportValue: (pc) => suggestionsByPortco[pc.id]?.[0]?.companyName ?? "",
+        title: (pc) => {
+          const top = suggestionsByPortco[pc.id]?.[0];
+          return top ? `${top.companyName} (${top.tier.toLowerCase()})` : "No suggestion";
+        },
+        cell: (pc) => {
+          const top = suggestionsByPortco[pc.id]?.[0];
+          return top ? (
+            <>
+              {top.companyName}
+              <span className="ml-2 text-muted-foreground">({top.tier.toLowerCase()})</span>
+            </>
+          ) : (
+            <span className="text-muted-foreground">No suggestion</span>
+          );
+        },
+      },
+    ],
+    [suggestionsByPortco]
+  );
+
   return (
-    <AppShell>
+    <AppShell width="wide">
       <PageHeader
         title="Portfolio Contacts"
         description="Who we email at each portfolio company, and which cap-table entries are linked to a Molly account."
@@ -241,10 +321,10 @@ function AdminPortfolioContactsPageInner() {
         }
       />
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:border-b-0">
+      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:border-b-0 v2:mx-[var(--row-pad)] v2:mb-0 v2:max-w-[var(--column-wide)] v2:gap-5">
         <button
           onClick={() => selectTab("contacts")}
-          className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 v2:px-0 text-sm font-medium transition-colors ${
             activeTab === "contacts"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
@@ -255,7 +335,7 @@ function AdminPortfolioContactsPageInner() {
         </button>
         <button
           onClick={() => selectTab("links")}
-          className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+          className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 v2:px-0 text-sm font-medium transition-colors ${
             activeTab === "links"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
@@ -269,7 +349,7 @@ function AdminPortfolioContactsPageInner() {
       {activeTab === "contacts" ? (
         <>
           {importResult && (
-            <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-tone-sage-ink">
+            <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-tone-sage-ink v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-sage">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="flex-1">
                 <span className="font-medium">Import complete.</span> {importResult.created} created, {importResult.updated} updated
@@ -289,7 +369,7 @@ function AdminPortfolioContactsPageInner() {
             </div>
           )}
           {importError && (
-            <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
+            <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-clay">
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1">{importError}</span>
               <button onClick={() => setImportError(null)}>
@@ -297,7 +377,7 @@ function AdminPortfolioContactsPageInner() {
               </button>
             </div>
           )}
-          <div className="mb-6">
+          <div className="mb-6 v2:mb-4 v2:mt-4">
             <ComposerDisclosure label="CSV format">
               <p className="text-sm text-muted-foreground">
                 CSV columns: <code className="rounded bg-muted px-1">company</code>,{" "}
@@ -308,7 +388,35 @@ function AdminPortfolioContactsPageInner() {
             </ComposerDisclosure>
           </div>
 
-          {!companiesLoaded ? (
+          {newLook ? (
+            companiesLoaded && companies.length === 0 ? (
+              <EmptyState icon={<Users className="h-8 w-8" />} title="No portfolio companies yet" />
+            ) : (
+              <>
+                {companiesLoaded && (
+                  <p className="text-meta text-muted-foreground">
+                    {companiesWithContacts} of {companies.length} portfolio companies have at least one contact.
+                  </p>
+                )}
+                <DataTable<PortfolioCompanyRow>
+                  label="Contacts"
+                  noun="company"
+                  pluralNoun="companies"
+                  rows={companies}
+                  rowKey={(c) => c.id}
+                  columns={contactColumns}
+                  rowHref={(c) => `/admin/portfolio/${c.id}`}
+                  defaultSort={{ key: "name", dir: "asc" }}
+                  searchText={(c) => [c.name]}
+                  searchPlaceholder="Filter contacts"
+                  chips={[{ key: "none", label: "No contacts", test: (c) => c.contactCount === 0 }]}
+                  loading={!companiesLoaded}
+                  minWidth={640}
+                  empty={<EmptyState icon={<Users className="h-8 w-8" />} title="No portfolio companies yet" />}
+                />
+              </>
+            )
+          ) : !companiesLoaded ? (
             <div className="space-y-3">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
@@ -380,14 +488,36 @@ function AdminPortfolioContactsPageInner() {
           )}
         </>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-8 v2:space-y-12 v2:pt-6">
           <div>
             <h2 className="mb-1 text-sm font-semibold text-foreground">Unlinked portfolio companies</h2>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <p className="mb-4 text-sm text-muted-foreground v2:mb-3">
               Cap-table entries with no linked Molly account. Linking is always an explicit choice — nothing here is
               automatic.
             </p>
-            {linksLoading && !linksLoaded ? (
+            {newLook ? (
+              <DataTable<UnlinkedPortfolioCompany>
+                label="Unlinked portfolio companies"
+                noun="company"
+                pluralNoun="companies"
+                rows={unlinkedPortcos}
+                rowKey={(pc) => pc.id}
+                columns={unlinkedColumns}
+                rowHref={(pc) => `/admin/portfolio/${pc.id}`}
+                defaultSort={{ key: "name", dir: "asc" }}
+                urlState={false}
+                loading={!linksLoaded}
+                minWidth={560}
+                actionsLabel="Link"
+                actionsAlwaysVisible
+                rowActions={(pc) => (
+                  <Button variant="secondary" size="sm" onClick={() => openLinkDialog({ id: pc.id, name: pc.name })}>
+                    {suggestionsByPortco[pc.id]?.[0] ? "Link" : "Find match"}
+                  </Button>
+                )}
+                empty={<EmptyState icon={<LinkIcon className="h-8 w-8" />} title="Every portfolio company is linked." />}
+              />
+            ) : linksLoading && !linksLoaded ? (
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
                   <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />
@@ -444,11 +574,26 @@ function AdminPortfolioContactsPageInner() {
 
           <div>
             <h2 className="mb-1 text-sm font-semibold text-foreground">Operational companies with no portfolio company</h2>
-            <p className="mb-4 text-sm text-muted-foreground">
+            <p className="mb-4 text-sm text-muted-foreground v2:mb-3">
               Molly accounts not yet represented in the cap table. Read-only — linking always happens from the
               portfolio-company side.
             </p>
-            {linksLoading && !linksLoaded ? (
+            {newLook ? (
+              <DataTable<OrphanCompany>
+                label="Operational companies with no portfolio company"
+                noun="company"
+                pluralNoun="companies"
+                rows={orphanCompanies}
+                rowKey={(c) => c.id}
+                columns={orphanColumns}
+                rowHref={(c) => `/admin/companies/${c.id}`}
+                defaultSort={{ key: "name", dir: "asc" }}
+                urlState={false}
+                loading={!linksLoaded}
+                minWidth={560}
+                empty={<EmptyState icon={<Unlink className="h-8 w-8" />} title="Every Molly account has a portfolio company." />}
+              />
+            ) : linksLoading && !linksLoaded ? (
               <div className="space-y-3">
                 {[...Array(2)].map((_, i) => (
                   <div key={i} className="h-12 rounded-md bg-muted animate-pulse" />

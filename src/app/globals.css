@@ -594,6 +594,23 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:ha
   max-width: none;
   overflow: visible;
 }
+/* WS170 (Audit Log): a row whose native <details> is open grows to show the full JSON; the cell wraps
+   and is no longer cut. Every other row stays one line. */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody tr[data-row]:has(details[open]) {
+  height: auto;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:has(details[open]) {
+  max-width: none;
+  overflow: visible;
+  white-space: normal;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:has(details[open]) summary {
+  white-space: normal;
+  overflow: visible;
+}
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td:has(details[open]) pre {
+  margin-block: 8px;
+}
 /* The row-actions cell has its own space: as wide as its content (a button, or the "No founder in
    Molly" note) and never squeezed, so it cannot print over the last data column. */
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td[data-actions] {
