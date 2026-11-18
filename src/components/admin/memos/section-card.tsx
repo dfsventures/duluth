@@ -10,7 +10,7 @@ import { toast } from "@/lib/toast";
 import { MEMO_LIMITS } from "@/lib/memos";
 import { cn } from "@/lib/utils";
 import { useNewLook } from "@/lib/use-new-look";
-import { CLAMP_WORDS, firstSentence, wordCount } from "./dossier-utils";
+import { firstSentence } from "./dossier-utils";
 import { CitationChips } from "./citation-chips";
 import { CitationsEditor } from "./citations-editor";
 import { HistoryDialog } from "./history-dialog";
@@ -43,7 +43,7 @@ export function SectionCard({
   onChanged: () => void;
   /** Opens the Share panel from the "Hidden from share links" note. */
   onOpenShare?: () => void;
-  /** New look only: the section is folded (the page owns the state so Fold all / Unfold all work). */
+  /** New look only: the section is folded (the page owns the state so a jump to the section can unfold it). */
   folded?: boolean;
   onToggleFold?: () => void;
 }) {
@@ -170,13 +170,9 @@ export function SectionCard({
       )
     : null;
 
-  // New look (direction B): fold, word count, Show all on long sections, Edit/History on hover or focus.
+  // New look (direction B): fold, Edit/History on hover or focus.
   const newLook = useNewLook();
-  const [expanded, setExpanded] = useState(false);
-  const words = wordCount(section.markdown);
-  const clampable = newLook && !!section.html && words > CLAMP_WORDS;
   const isFolded = newLook && !!folded && !editing;
-  const isClamped = clampable && !expanded && !editing;
 
   function startEditUnfolded() {
     if (folded) onToggleFold?.();
@@ -187,7 +183,6 @@ export function SectionCard({
     <section
       id={`section-${section.key}`}
       data-folded={newLook ? String(isFolded) : undefined}
-      data-clamped={newLook ? String(isClamped) : undefined}
       className="memo-section scroll-mt-24 lg:scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0 v2:border-t-0 v2:pt-0"
     >
       {newLook ? (
@@ -204,9 +199,6 @@ export function SectionCard({
             </button>
           </h2>
           {hiddenMarker}
-          <span className="memo-no-print shrink-0 text-meta text-muted-foreground">
-            {words ? `${words.toLocaleString("en-US")} ${words === 1 ? "word" : "words"}` : "empty"}
-          </span>
           {!editing && (
             <>
               <div className="memo-sact memo-no-print ml-auto flex gap-1">
@@ -368,15 +360,6 @@ export function SectionCard({
               No text yet.
               {section.guidance && <span className="memo-no-print"> {section.guidance}</span>}
             </p>
-          )}
-          {clampable && (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="memo-more memo-no-print mt-1 h-8 rounded-ctl text-row text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {expanded ? "Show less" : `Show all ${words.toLocaleString("en-US")} words`}
-            </button>
           )}
           <div className="memo-cites contents">
             <CitationChips citations={section.citations} />

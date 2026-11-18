@@ -128,13 +128,18 @@ describe("new-look CSS", () => {
     // The group (bar, column, panel) is 1056 wide at most and centred in the main area.
     expect(col).toMatch(/\.memo-dossier \{\s*max-width: 1056px;\s*margin-inline: max\(var\(--gutter\), calc\(\(100cqw - 1056px\) \/ 2\)\);/);
     expect(col).toMatch(/html\[data-look="v2"\] \[data-surface="admin"\] \.memo-dossier-grid/);
-    // Fold and clamp rules sit in the screen block, so print always shows every section open.
+    // The fold rule sits in the screen block, so print always shows every section open. No clamp rule.
     const screenBlock = col.slice(0, col.indexOf("@media screen and (hover: none)"));
     expect(screenBlock).toContain('[data-folded="true"]');
-    expect(screenBlock).toContain('[data-clamped="true"]');
-    // Hover reveal, and always shown without hover.
+    expect(col).not.toContain("data-clamped");
+    expect(col).not.toContain("mask-image");
+    // Edit and History: hidden by default, shown on hover or focus, and always only on a real touch
+    // screen (hover none AND a coarse pointer), never on "hover: none" alone.
+    expect(screenBlock).toMatch(/\.memo-section \.memo-sact \{\s*opacity: 0;/);
     expect(col).toContain(".memo-section:hover .memo-sact");
-    expect(col).toContain("@media screen and (hover: none)");
+    expect(col).toContain(".memo-section:focus-within .memo-sact");
+    expect(col).toContain("@media screen and (hover: none) and (pointer: coarse)");
+    expect(col).not.toMatch(/@media screen and \(hover: none\) \{/);
   });
 
   it("printing puts light colour tokens back for the dark theme, inside the print scope only", () => {

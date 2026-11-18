@@ -1,15 +1,5 @@
 // Memo page, direction B "Dossier" (B-175). Small pure helpers for the new look.
 
-/** Sections longer than this many words are clamped behind "Show all N words". */
-export const CLAMP_WORDS = 170;
-
-/** Words in a section's Markdown (whitespace-separated, Markdown marks dropped). */
-export function wordCount(markdown: string): number {
-  const text = markdown.replace(/[#>*_`|~\-]+/g, " ").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
-  const words = text.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
-  return words.length;
-}
-
 /** The first sentence of a section, for the line a folded section shows. */
 export function firstSentence(markdown: string, max = 140): string {
   const plain = markdown

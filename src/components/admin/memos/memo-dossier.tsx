@@ -52,8 +52,6 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
   const stageTone = COLUMN_TONE[stage.decision ?? "NONE"];
   const team = memo.visibility === "TEAM";
   const updated = new Date(memo.updatedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  const allFolded = memo.sections.length > 0 && memo.sections.every((s) => folded[s.key]);
-  const setAll = (value: boolean) => setFolded(Object.fromEntries(memo.sections.map((s) => [s.key, value])));
 
   // Facts that exist today. Round and Ask will be two more rows here once the memo has fields for them.
   const rows: { label: string; value: ReactNode }[] = [];
@@ -299,14 +297,6 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
 
         <div className="memo-reading min-w-0">
           <JumpTo sections={navSections} active={active} onJump={jump} />
-          <div className="memo-no-print mb-4 flex gap-1">
-            <Button variant="ghost" size="sm" onClick={() => setAll(false)} disabled={!Object.values(folded).some(Boolean)}>
-              Unfold all
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setAll(true)} disabled={allFolded}>
-              Fold all
-            </Button>
-          </div>
           <div className="space-y-8">
             {memo.sections.map((s) => (
               <SectionCard

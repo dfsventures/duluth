@@ -17,10 +17,11 @@ vi.mock("next/link", () => ({
 }));
 
 import { MemoDossier } from "@/components/admin/memos/memo-dossier";
-import { CLAMP_WORDS, firstSentence, relativeAge, wordCount } from "@/components/admin/memos/dossier-utils";
+import { firstSentence, relativeAge } from "@/components/admin/memos/dossier-utils";
 import type { MemoView } from "@/components/admin/memos/types";
 
-const long = Array.from({ length: CLAMP_WORDS + 40 }, (_, i) => `word${i}`).join(" ");
+// A long section: it must show in full.
+const long = Array.from({ length: 210 }, (_, i) => `word${i}`).join(" ");
 
 function makeMemo(over: Partial<MemoView> = {}): MemoView {
   return {
@@ -60,10 +61,6 @@ const render = (memo = makeMemo()) =>
   );
 
 describe("dossier helpers", () => {
-  it("counts words and ignores Markdown marks", () => {
-    expect(wordCount("")).toBe(0);
-    expect(wordCount("## Heading\n\n- one **two** [three](https://x.test)\n\n| a | b |")).toBe(6);
-  });
   it("takes the first sentence and trims long ones", () => {
     expect(firstSentence("**Bold** start. Second sentence.")).toBe("Bold start.");
     expect(firstSentence("")).toBe("");
@@ -104,7 +101,7 @@ describe("dossier layout", () => {
 
   it("keeps every old action reachable", () => {
     const html = render();
-    for (const text of ["Share", "Edit details", "Link to company", "Print or save as PDF", "Archive memo", "Banner here", "Drafted by Marge", "Drafted with Marge", "Hidden from share links", "Unfold all", "Fold all"]) {
+    for (const text of ["Share", "Edit details", "Link to company", "Print or save as PDF", "Archive memo", "Banner here", "Drafted by Marge", "Drafted with Marge", "Hidden from share links"]) {
       // The ⋯ menu items render only when open; the foot Archive button and the others are in the markup.
       if (["Edit details", "Link to company", "Print or save as PDF"].includes(text)) continue;
       expect(html).toContain(text);
@@ -127,16 +124,16 @@ describe("dossier layout", () => {
     expect(html).toContain("bg-mark");
   });
 
-  it("sections open unfolded; the long one is clamped behind Show all N words", () => {
+  it("sections open unfolded and in full: a chevron folds one, with no clamp, word count or fold-all", () => {
     const html = render();
     expect(html).toContain('data-folded="false"');
     expect(html).not.toContain('data-folded="true"');
-    expect(html).toContain('data-clamped="true"');
-    expect(html).toContain(`Show all ${(CLAMP_WORDS + 40).toLocaleString("en-US")} words`);
-    // The short section is not clamped and has no Show all button.
-    expect(html.match(/Show all/g)).toHaveLength(1);
-    expect(html).toContain("3 words");
-    expect(html).toContain("empty");
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).toContain(long);
+    for (const gone of ["data-clamped", "Show all", "Show less", "memo-more", "Unfold all", "Fold all"]) {
+      expect(html.includes(gone), gone).toBe(false);
+    }
+    expect(html).not.toMatch(/\d words?</);
   });
 
   it("controls and panel stay off paper; the Stage/Status line and facts print", () => {

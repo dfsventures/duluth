@@ -876,22 +876,14 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
   }
   /* Folds: a folded section shows its heading and first sentence only. */
   html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-body,
-  html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-cites,
-  html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-more {
+  html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-cites {
     display: none;
   }
   html[data-look="v2"] [data-surface="admin"] .memo-section[data-folded="true"] .memo-fold-sum {
     display: block;
   }
-  /* Long sections are cut to about 8 lines behind "Show all N words". */
-  html[data-look="v2"] [data-surface="admin"] .memo-section[data-clamped="true"] .memo-body {
-    max-height: 196px;
-    overflow: hidden;
-    -webkit-mask-image: linear-gradient(#000 55%, transparent);
-    mask-image: linear-gradient(#000 55%, transparent);
-  }
-  /* Edit and History show on hover or keyboard focus of the section (always where there is no
-     hover, e.g. touch). In a narrow reading column one ⋯ button replaces them. */
+  /* Edit and History show on hover or keyboard focus of the section, and always on a real touch
+     screen (see below). In a narrow reading column one ⋯ button replaces them. */
   html[data-look="v2"] [data-surface="admin"] .memo-section .memo-sact {
     opacity: 0;
     transition: opacity 120ms;
@@ -904,7 +896,10 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     display: none;
   }
 }
-@media screen and (hover: none) {
+/* Touch only: the main pointer cannot hover AND is coarse. "hover: none" alone is also reported by
+   some desktop setups (a primary pointer that cannot hover), which showed the buttons on every
+   section with no hover. */
+@media screen and (hover: none) and (pointer: coarse) {
   html[data-look="v2"] [data-surface="admin"] .memo-section .memo-sact {
     opacity: 1;
   }
