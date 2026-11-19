@@ -4,12 +4,12 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { AlertCircle, ChevronDown, Plus, Search } from "lucide-react";
+import { AlertCircle, ChevronDown, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FilterBar } from "@/components/ui/filter-bar";
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { noticeClasses } from "@/components/ui/notice";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/board";
 import { cn } from "@/lib/utils";
@@ -449,9 +449,11 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           ) : null
         }
         list={
-      <Tabs.Root value={tab} onValueChange={setTab} className="v2:px-[var(--gutter)]">
+      <Tabs.Root value={tab} onValueChange={setTab}>
+        {/* Page types v1 (D12): the tab hairline is back; 16 to the filter row. */}
         <Tabs.List
-          className="mb-6 flex gap-6 overflow-x-auto border-b border-border [scrollbar-width:none] v2:border-b-0 v2:gap-6"
+          data-align="tabs"
+          className="mb-6 flex gap-6 overflow-x-auto border-b border-border [scrollbar-width:none] v2:mb-4 v2:gap-6"
           aria-label="Team board sections"
         >
           {tabs.map((t) => (
@@ -461,7 +463,8 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
               className={cn(
                 "shrink-0 border-b-2 border-transparent px-1 pb-2.5 pt-1 font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground hover:text-foreground",
                 "v2:px-0 v2:py-2.5 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal",
-                "data-[state=active]:border-foreground data-[state=active]:text-foreground"
+                "data-[state=active]:border-foreground data-[state=active]:text-foreground",
+                "v2:-mb-px v2:pb-2 v2:pt-2.5 v2:text-secondary v2:data-[state=active]:border-[var(--color-accent)] v2:data-[state=active]:text-foreground"
               )}
             >
               {t.label}
@@ -491,21 +494,16 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                   onOpen={() => {}}
                   onRemove={() => {}}
                   onClearAll={() => {}}
-                  className="mb-2 px-0"
                   leading={
                     <>
-                      <div className="relative w-56 min-w-[140px] flex-none max-md:w-40">
-                        <label htmlFor="board-search" className="sr-only">Search items</label>
-                        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                        <input
-                          id="board-search"
-                          value={search}
-                          onChange={(e) => setSearch(e.target.value)}
-                          placeholder="Search titles…"
-                          autoComplete="off"
-                          className="h-9 w-full rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-9 pr-3 text-row text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base"
-                        />
-                      </div>
+                      <FilterSearch
+                        id="board-search"
+                        label="Search items"
+                        value={search}
+                        onChange={setSearch}
+                        placeholder="Search titles…"
+                        hint={false}
+                      />
                       <select
                         aria-label="Filter by project"
                         value={projectFilter}

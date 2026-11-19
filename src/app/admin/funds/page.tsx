@@ -187,7 +187,7 @@ function AdminFundsPageInner() {
       />
 
       {syncEnabled && (
-        <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:border-b-0 v2:mx-[var(--row-pad)] v2:mb-0 v2:max-w-[var(--column-wide)] v2:gap-5">
+        <div data-align="tabs" className="page-tabs mb-6 flex gap-1 overflow-x-auto border-b">
           <button
             onClick={() => selectTab("funds")}
             className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 v2:px-0 text-sm font-medium transition-colors ${
@@ -207,14 +207,14 @@ function AdminFundsPageInner() {
                 : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
             }`}
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4 v2:hidden" />
             Sync
           </button>
         </div>
       )}
 
       {activeTab === "sync" ? (
-        <div className="space-y-8 v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)] v2:py-6">
+        <div className="space-y-8 v2:pt-2">
           <SyncPanel />
           {/* Part 36, WS103.3 — a sibling sub-section, not a new tab/sidebar
               item (Part 11/WS28 consolidated sync onto this one tab). */}

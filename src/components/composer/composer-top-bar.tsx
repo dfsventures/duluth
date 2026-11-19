@@ -73,23 +73,36 @@ export function ComposerTopBar({
     // hairline, the bleed and the stick when it is the first thing on the page) with a "‹ Back" link and
     // the status on the left and the actions on the right. Sentence-case status in sans.
     // Same rhythm as PageHeader: the bar's height, padding and bottom margin come from .shell-header alone.
-    <div className="shell-header mb-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b pb-4 v2:pb-0">
-      <div className="flex min-w-0 flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
+    // Page types v1 (§4.3, §5): one text size (14/20), items centred on one line (not baselines), a
+    // 1x16 divider after the back link, buttons 32. The status truncates; the buttons never wrap.
+    <div className="shell-header editor-bar mb-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b pb-4 v2:pb-0">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground v2:flex-1 v2:flex-nowrap v2:items-center v2:font-sans v2:text-row v2:normal-case v2:tracking-normal">
         {back && (
-          <Link
-            href={back.href}
-            className="hidden items-center gap-0.5 text-row text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:inline-flex"
-          >
-            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-            {back.label}
-          </Link>
+          <>
+            <Link
+              href={back.href}
+              data-align="back"
+              className="hidden h-5 shrink-0 items-center gap-1 text-row text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:-ml-1 v2:inline-flex max-md:v2:h-11 max-md:v2:w-11 max-md:v2:justify-center"
+            >
+              <ChevronLeft aria-hidden="true" className="h-4 w-4 text-muted-foreground" />
+              <span className="max-md:v2:sr-only">{back.label}</span>
+            </Link>
+            <span aria-hidden="true" className="hidden h-4 w-px shrink-0 bg-[var(--color-border-hover)] v2:block" />
+          </>
         )}
-        <span>{draftLabel}</span>
-        {saveStateLabel && <span className="normal-case tracking-normal text-muted-foreground/80">{saveStateLabel}</span>}
-        {statusExtra}
+        <span className="v2:min-w-0 v2:truncate">
+          <span className="v2:font-medium v2:text-secondary">{draftLabel}</span>
+          {saveStateLabel && (
+            <span className="ml-3 normal-case tracking-normal text-muted-foreground/80 v2:ml-0 v2:text-muted-foreground">
+              <span className="hidden v2:inline"> · </span>
+              {saveStateLabel}
+            </span>
+          )}
+        </span>
+        {statusExtra && <span className="v2:shrink-0 v2:truncate">{statusExtra}</span>}
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      <div data-align="actions" className="flex flex-wrap items-center justify-end gap-2 v2:shrink-0 v2:flex-nowrap">
         {secondaryActions}
         {showPublish && (
           <Button
@@ -107,7 +120,7 @@ export function ComposerTopBar({
             <button
               type="button"
               onClick={() => setOverflowOpen((v) => !v)}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors v2:flex v2:h-9 v2:w-9 v2:items-center v2:justify-center v2:rounded-ctl"
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors v2:flex v2:h-8 v2:w-8 v2:items-center v2:justify-center v2:rounded-ctl"
               title="More actions"
               aria-label="More actions"
             >

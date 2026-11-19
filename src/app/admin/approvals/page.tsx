@@ -18,7 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { FilterBar } from "@/components/ui/filter-bar";
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { matchesQuery } from "@/lib/data-table";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -479,7 +479,7 @@ export default function ApprovalsPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <PageSkeleton />
       </AppShell>
     );
@@ -487,7 +487,7 @@ export default function ApprovalsPage() {
 
   if (error) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <div className="flex flex-col items-center justify-center py-20">
           <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
           <p className="text-sm text-destructive">{error}</p>
@@ -810,29 +810,23 @@ export default function ApprovalsPage() {
           onClearAll={() => setPageQuery("")}
           showClear={pageQuery.trim() !== ""}
           leading={
-            <div className="relative w-56 min-w-[140px] flex-none max-md:w-44">
-              <label htmlFor="approvals-filter" className="sr-only">
-                Filter signups and accounts
-              </label>
-              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
-                id="approvals-filter"
-                value={pageQuery}
-                onChange={(e) => setPageQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setPageQuery("");
-                }}
-                placeholder="Filter by name or email"
-                autoComplete="off"
-                className="h-9 w-full rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-9 pr-3 text-row text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base"
-              />
-            </div>
+            <FilterSearch
+              id="approvals-filter"
+              label="Filter signups and accounts"
+              value={pageQuery}
+              onChange={setPageQuery}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setPageQuery("");
+              }}
+              placeholder="Filter by name or email"
+              hint={false}
+            />
           }
         />
       )}
 
       {approvals.length === 0 ? (
-        <div className="v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)] v2:py-3">
+        <div className="v2:py-3">
           <EmptyState eyebrow="Approvals"
             icon={<Inbox className="h-10 w-10" />}
             title="No pending approvals"

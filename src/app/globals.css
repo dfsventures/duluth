@@ -214,12 +214,12 @@ html[data-look="v2"] body[data-surface="admin"] {
 
   /* Density: comfortable. The numbers every new-look layout reads. */
   --bar-h: 52px;        /* header bar, logo row, pane crumb */
-  --filter-h: 44px;
+  --filter-h: 52px;     /* page types v1: 36px controls with 8 above and below */
   --group-h: 36px;
   --list-row-h: 44px;   /* not --row-h: use-row-collapse.ts sets that inline for the exit animation */
   --gutter: 24px;       /* 20px under md, 48px from 1024, 64px from 1600: set below */
   --column: 1104px;       /* text and form pages */
-  --column-wide: 100000px;  /* list and table pages: no cap, they fill the screen (Joseph, 2026-11-18) */
+  --column-wide: 1296px;    /* list and table pages: capped at 1296, centred (page types v1, Joseph 2026-11-19) */
   --column-narrow: 720px;        /* editors, forms, Settings (matches EDITOR_COLUMN) */
   --column-detail: 1056px;       /* Dossier pages: 720 main + 40 gap + 296 panel */
   --column-detail-wide: 1296px;  /* fund page: 960 main + 40 gap + 296 panel */
@@ -313,12 +313,156 @@ html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] {
 /* App shell (PLAN-1, WS158). Geometry that utilities cannot express. Same scope rule:
    every selector starts html[data-look="v2"] and sits inside [data-surface="admin"]. */
 
-/* The page header is a bar: 52px, hairline under it, 32px before the page. */
+/* The editor bar (page types v1, §4.3; List and Detail pages have an in-page header instead, see
+   .page-head): 52px including its hairline, no vertical padding, every item centred on one line,
+   40px to the title under it. */
 html[data-look="v2"] [data-surface="admin"] .shell-header {
+  height: var(--bar-h);
   min-height: var(--bar-h);
-  margin-bottom: 24px; /* one top edge: every page's content starts 24px under the bar (audit #7) */
-  padding-block: 2px;
+  margin-bottom: 40px;
+  padding-block: 0;
+  align-items: center;
+  flex-wrap: nowrap;
   border-bottom: 1px solid var(--color-border);
+}
+@media (max-width: 767px) {
+  html[data-look="v2"] [data-surface="admin"] .shell-header {
+    margin-bottom: 24px;
+  }
+}
+
+/* Segmented control (D9): the selected segment is lifted, lighter than the well in both themes. */
+html[data-look="v2"] [data-surface="admin"] .seg .seg-on {
+  background: var(--color-bg);
+  box-shadow: 0 0 0 1px var(--color-border-hover), 0 1px 2px rgb(18 24 38 / 0.06);
+}
+html[data-look="v2"][data-theme="dark"] [data-surface="admin"] .seg .seg-on {
+  background: var(--color-well);
+}
+/* The filter row sticks under the slim bar on list pages with a pane (the list scrolls under it). */
+html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] > .filter-row {
+  position: sticky;
+  top: var(--bar-h);
+  z-index: 5;
+  background: var(--color-bg);
+}
+
+/* Hand-built tab rows (Updates, Funds, Portfolio Contacts) drawn like TabBar (D12): 40px tabs 24
+   apart on a hairline, the active one primary text with a 2px Sky bar on the hairline, 16 to the
+   filter row. */
+html[data-look="v2"] [data-surface="admin"] .page-tabs {
+  gap: 24px;
+  margin: 0 0 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+html[data-look="v2"] [data-surface="admin"] .page-tabs > button {
+  /* 10 + 20 + 8 + the 2px bar = 40, overlapping the hairline by 1: the row is 40 high like TabBar. */
+  margin-bottom: -1px;
+  padding: 10px 0 8px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+html[data-look="v2"] [data-surface="admin"] .page-tabs > button.border-primary {
+  color: var(--color-text-primary);
+  border-color: var(--color-accent);
+}
+
+/* The in-page header (List and Detail). The back link sits on its own 20px line, 12px above the
+   header row, its chevron's ink on the content edge. */
+html[data-look="v2"] [data-surface="admin"] .page-back {
+  flex-basis: 100%;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  margin: 0 0 12px -4px;
+  width: max-content;
+  max-width: max-content;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-secondary);
+}
+html[data-look="v2"] [data-surface="admin"] .page-back svg {
+  color: var(--color-text-muted);
+}
+html[data-look="v2"] [data-surface="admin"] .page-back:hover {
+  color: var(--color-text-primary);
+}
+
+/* The slim scroll bar (D3): its slot is a sticky zero-height box at the top of the frame; the bar
+   bleeds to both edges of the main area like the editor bar, and fades in with a 4px drop. */
+html[data-look="v2"] [data-surface="admin"] [data-condensed-slot] {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 0;
+  margin-top: calc(var(--shell-pt, 0px) * -1);
+  margin-bottom: var(--shell-pt, 0px);
+}
+html[data-look="v2"] [data-surface="admin"] .condensed-bar {
+  position: absolute;
+  top: 0;
+  left: calc((var(--frame-off) + var(--page-pad)) * -1);
+  right: calc((var(--frame-off) + var(--page-pad)) * -1);
+  height: var(--bar-h);
+  padding-inline: calc(var(--frame-off) + var(--gutter));
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out), visibility 0s linear 0s;
+}
+html[data-look="v2"] [data-surface="admin"] .condensed-bar[data-shown="false"] {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out), visibility 0s linear 140ms;
+}
+html[data-look="v2"] [data-surface="admin"] .condensed-bar-inner {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 12px;
+}
+html[data-look="v2"] [data-surface="admin"] .condensed-back {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  margin-left: -8px;
+  margin-right: -4px;
+  place-items: center;
+  border-radius: var(--r-ctl);
+  color: var(--color-text-muted);
+}
+html[data-look="v2"] [data-surface="admin"] .condensed-back:hover {
+  color: var(--color-text-primary);
+  background: var(--color-row-hover);
+}
+/* Everything in the slim bar is 32 high (D6). */
+html[data-look="v2"] [data-surface="admin"] .condensed-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+html[data-look="v2"] [data-surface="admin"] .condensed-actions button,
+html[data-look="v2"] [data-surface="admin"] .condensed-actions a {
+  height: 32px;
+  min-height: 32px;
+  padding-inline: 12px;
+}
+html[data-look="v2"] [data-surface="admin"] .condensed-actions input[type="file"] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-look="v2"] [data-surface="admin"] .condensed-bar,
+  html[data-look="v2"] [data-surface="admin"] .condensed-bar[data-shown="false"] {
+    transform: none;
+  }
+}
+@media (max-width: 767px) {
+  html[data-look="v2"] [data-surface="admin"] .condensed-bar {
+    display: none;
+  }
 }
 /* The main area is a size container, so the header can reach its full width (100cqw) even
    when the page sits in the centred column. Nothing inside <main> is position: fixed
@@ -335,9 +479,9 @@ html[data-look="v2"] [data-surface="admin"] .shell-page {
   --page-pad: var(--gutter);
   --frame: var(--column);
   --frame-off: max(0px, calc((100cqw - var(--frame) - 2 * var(--gutter)) / 2));
-}
-html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
-  --page-pad: 0px;
+  /* Page types v1: nothing inside the frame is inset; title, tabs, filters, table head and rows all
+     start on the content edge (D14). */
+  --row-pad: 0px;
 }
 html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="wide"],
 html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
@@ -366,12 +510,12 @@ html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="detail-wide"
    page's own padding on both sides; the same amount comes back as padding, so the title starts on
    the content's left edge and the actions end on its right edge, whatever the frame. The top
    bleed comes from the shell as --shell-pt. */
-html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-child {
+html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-child,
+html[data-look="v2"] [data-surface="admin"] .shell-page > [data-condensed-slot] + .shell-header {
   position: sticky;
   top: 0;
   z-index: 10;
   margin-top: calc(var(--shell-pt, 0px) * -1);
-  margin-bottom: 24px;
   margin-left: calc((var(--frame-off) + var(--page-pad)) * -1);
   margin-right: calc((var(--frame-off) + var(--page-pad)) * -1);
   padding-left: calc(var(--frame-off) + var(--gutter));
@@ -556,28 +700,32 @@ html[data-look="v2"] [data-surface="admin"] select.input-field {
 html[data-look="v2"] [data-surface="admin"] .list-pane {
   container-type: inline-size;
 }
-/* Left-aligned, never centred. On a full-width page the blocks above the list (tabs, notes) sit
-   one gutter in (--row-pad) and at most --column wide. */
-html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
-  --row-pad: var(--gutter);
-}
-/* A list is its own content box: one gutter from each side, at most --column wide. Inside it
-   there is no side padding (--row-pad is 0), so the filter bar, headings, rows, hairlines and
-   tints all share the box's edges and none of them runs past the content. A table in a page's
-   own column (not beside a pane) has no margin: it lines up with the heading above it. */
+/* Page types v1: every list page, with a pane or without, sits in the same frame (AppShell), so a
+   list is never inset and never wider than the frame. Inside a table there is no side padding
+   (--row-pad is 0), so the filter row, headings, rows and hairlines share the content edges. */
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] {
   --row-pad: 0px;
 }
-html[data-look="v2"] [data-surface="admin"] [data-datatable][data-list-mode] {
-  margin-inline: var(--gutter);
-  max-width: var(--column-wide);
+/* The side pane still meets the window's right edge: it reaches past the frame by the centring
+   space and the gutter, and the list keeps 24px clear of it. */
+html[data-look="v2"] [data-surface="admin"] .shell-page {
+  --pane-w: min(58cqw, 620px);
+  --pane-bleed: calc(var(--frame-off) + var(--gutter));
 }
-/* List pages: 16px of air between the header bar and what follows (tabs, or the filter bar), the
-   same on every list page. The filter bar sticks directly under the header, so the air only shows
-   at the top of the page; the sticky stack (header, filter bar, group heading) is what j and k
-   must scroll clear of. */
-html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] > .shell-header:first-child {
-  margin-bottom: 16px;
+html[data-look="v2"] [data-surface="admin"] [data-split-pane] {
+  right: calc(var(--pane-bleed) * -1) !important;
+  width: var(--pane-w) !important;
+}
+@media (min-width: 768px) {
+  html[data-look="v2"] [data-surface="admin"] .list-pane[data-pane-shown] {
+    margin-right: max(0px, calc(var(--pane-w) - var(--pane-bleed) + 24px));
+  }
+}
+@media (max-width: 767px) {
+  html[data-look="v2"] [data-surface="admin"] [data-split-pane] {
+    right: calc(var(--gutter) * -1) !important;
+    width: calc(100% + 2 * var(--gutter)) !important;
+  }
 }
 html[data-look="v2"] [data-surface="admin"] .shell-main:has([data-list-mode]) {
   scroll-padding-top: calc(var(--bar-h) + var(--filter-h) + var(--group-h));
@@ -610,11 +758,12 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] tbody
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density="compact"] tbody tr[data-row] {
   height: 36px;
 }
+/* Page types v1, D13: every cell is 14/20; the first column 500 primary, the others 400 secondary. */
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td {
   padding: 0 0 0 24px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--color-text-muted);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--color-text-secondary);
   vertical-align: middle;
 }
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] td.num {
@@ -769,9 +918,10 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead
   border-bottom-width: 0;
 }
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th {
-  /* 8px of air under the filter bar, then the 32px heading row. */
+  /* Page types v1: a 40px heading row, 16px under the filter controls (the filter row's own 8 plus
+     its 8 margin), 12/18 500 secondary. */
   height: 40px;
-  padding: 8px 0 0 24px;
+  padding: 0 0 0 24px;
   border-bottom: 1px solid var(--color-row-divider);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;
@@ -779,7 +929,7 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
-  color: var(--color-text-muted);
+  color: var(--color-text-secondary);
 }
 html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] thead th:first-child {
   padding-left: var(--row-pad, 12px);

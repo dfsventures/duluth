@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { TabBar } from "@/components/ui/tab-bar";
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { toast } from "@/lib/toast";
 import { useNewLook } from "@/lib/use-new-look";
 import { cn } from "@/lib/utils";
@@ -340,8 +341,9 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
       />
 
       {/* New look (audit #34): the view switch shares the tabs' row, right-aligned, 28 high. */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border v2:items-center v2:border-b-0">
-        <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" className="mb-0 border-b-0" />
+      {/* Page types v1 (D12): the hairline runs under the whole row; 16 to the filter row. */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border v2:mb-4 v2:items-center">
+        <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" className="mb-0 border-b-0 v2:mb-0" />
         <div role="group" aria-label="Memo view" className="flex gap-1.5 pb-1.5 v2:pb-0">
           {(
             [
@@ -379,6 +381,45 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
 
       {view === "board" ? (
         <>
+          {newLook ? (
+            // Page types v1: the shared filter row (search 320, filters left, counts at the right end).
+            <FilterBar
+              label="Filter memos"
+              chips={[]}
+              onOpen={() => {}}
+              onRemove={() => {}}
+              onClearAll={() => {
+                clearFilters();
+                setQInput("");
+              }}
+              showClear={false}
+              leading={
+                <FilterSearch
+                  id="memo-board-search"
+                  label="Search memos"
+                  value={qInput}
+                  onChange={setQInput}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape" && qInput) setQInput("");
+                  }}
+                  placeholder="Search memos"
+                  hint={false}
+                />
+              }
+              filters={
+                <MemoFilters
+                  targets={targets}
+                  companyId={companyId}
+                  status={status}
+                  decision={decision}
+                  unlinked={unlinked}
+                  showDecision={false}
+                  onChange={applyFilters}
+                />
+              }
+              trailing={countsLine}
+            />
+          ) : (
           <div className="mb-3 flex flex-wrap items-center gap-2 lg:flex-nowrap v2:mb-4 v2:min-h-11">
             <div className="relative min-w-[200px] flex-1 basis-56 v2:w-56 v2:flex-none v2:basis-auto">
               <label htmlFor="memo-board-search" className="sr-only">
@@ -406,9 +447,8 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
               showDecision={false}
               onChange={applyFilters}
             />
-            {/* New look (audit #34): the count line is the bar's right-hand meta. */}
-            {newLook && countsLine}
           </div>
+          )}
           {!newLook && countsLine}
           {loading && rows.length === 0 ? (
             <p role="status" className="py-10 text-center text-sm text-muted-foreground">

@@ -301,6 +301,8 @@ function AdminPortfolioContactsPageInner() {
       <PageHeader
         title="Portfolio Contacts"
         description="Who we email at each portfolio company, and which cap-table entries are linked to a Molly account."
+        // The action holds the hidden file input (a ref): the slim scroll bar carries the title only.
+        condensedAction={null}
         action={
           activeTab === "contacts" ? (
             <div className="flex flex-wrap gap-2">
@@ -332,7 +334,7 @@ function AdminPortfolioContactsPageInner() {
         }
       />
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:border-b-0 v2:mx-[var(--row-pad)] v2:mb-0 v2:max-w-[var(--column-wide)] v2:gap-5">
+      <div data-align="tabs" className="page-tabs mb-6 flex gap-1 overflow-x-auto border-b">
         <button
           onClick={() => selectTab("contacts")}
           className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 v2:px-0 text-sm font-medium transition-colors ${

@@ -23,7 +23,7 @@ interface Template {
 // its own sidebar item/page onto a "Templates" tab on /admin/updates,
 // since it's a sub-feature of Updates (the skeletons founders start an
 // update from), not a peer-level destination.
-export function TemplatesPanel() {
+export function TemplatesPanel({ newRequest = 0 }: { newRequest?: number } = {}) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -55,6 +55,16 @@ export function TemplatesPanel() {
     setFormBody("");
     setSaveError("");
   }
+
+  // New look (page types v1): the host page's header holds "New template" and bumps this counter.
+  useEffect(() => {
+    if (newRequest === 0) return;
+    setEditTarget("new");
+    setFormName("");
+    setFormDescription("");
+    setFormBody("");
+    setSaveError("");
+  }, [newRequest]);
 
   function openEdit(t: Template) {
     setEditTarget(t);
@@ -103,7 +113,8 @@ export function TemplatesPanel() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
+      {/* New look: the page header carries the description and the New template action. */}
+      <div className="mb-4 flex items-center justify-between v2:hidden">
         <p className="text-sm text-muted-foreground">Pre-filled skeletons founders can start their update from.</p>
         <Button onClick={openNew}>
           <Plus className="h-4 w-4" />

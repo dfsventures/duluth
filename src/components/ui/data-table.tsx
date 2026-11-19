@@ -16,7 +16,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Columns3, Download, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { FilterBar } from "@/components/ui/filter-bar";
+import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { isTypingTarget } from "@/lib/shortcuts";
 import { useNewLook } from "@/lib/use-new-look";
 import { stepCursor } from "@/lib/split-view";
@@ -795,57 +795,50 @@ function DataTableInner<T>({
   const v2Toolbar = (
     <FilterBar
       label={`Filter ${label.toLowerCase()}`}
-      className={cn(listMode && "sticky top-[var(--bar-h)] z-[5] bg-background")}
-      chips={(showChips ? (chips ?? []) : []).map((c) => ({
-        key: c.key,
-        label: c.label,
-        set: state.filter === c.key,
-        count: counts[c.key] ?? 0,
-        plain: c.key === "all",
-      }))}
+      segmented
+      chips={
+        showChips && chips && chips.length > 0
+          ? [{ key: "all", label: "All" }, ...chips].map((c) => ({
+              key: c.key,
+              label: c.label,
+              set: state.filter === c.key,
+              count: counts[c.key] ?? 0,
+              plain: c.key === "all",
+            }))
+          : []
+      }
       onOpen={(key) => writeState({ ...state, filter: key })}
       onRemove={() => writeState({ ...state, filter: "all" })}
       onClearAll={clearFilters}
       showClear={filtersActive}
       leading={
         searchText && showSearch ? (
-          <div className="relative w-56 min-w-[140px] flex-none max-md:w-44">
-            <label htmlFor={`dt-search-${label}`} className="sr-only">
-              {searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
-            </label>
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <input
-              id={`dt-search-${label}`}
-              ref={searchRef}
-              value={qInput}
-              onChange={(e) => setQInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  if (qInput) setQInput("");
-                  else (e.target as HTMLInputElement).blur();
-                }
-              }}
-              placeholder={searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
-              autoComplete="off"
-              className="h-9 w-full rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-9 pr-8 text-row text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base"
-            />
-            <kbd
-              aria-hidden="true"
-              className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-sm border border-border px-1.5 font-mono text-[10px] text-muted-foreground sm:block"
-            >
-              /
-            </kbd>
-          </div>
+          <FilterSearch
+            id={`dt-search-${label}`}
+            label={searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
+            inputRef={searchRef}
+            value={qInput}
+            onChange={setQInput}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                if (qInput) setQInput("");
+                else (e.target as HTMLInputElement).blur();
+              }
+            }}
+            placeholder={searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
+          />
         ) : undefined
       }
+      // Page filters (selects) stay in the left group, right after the search and chips (D7).
+      filters={toolbarExtra}
       trailing={
-        toolbarExtra || groupPicker || columnsMenu || exportButton ? (
-          <>
-            {/* A filter select is sized to its content, capped at 15rem, so a long company name can't stretch it. */}
-            {toolbarExtra && <div className="flex items-center gap-2 [&_select]:max-w-[15rem]">{toolbarExtra}</div>}
+        <>
+          {/* The right end: the count, then view controls (D7). */}
+          <span data-align="count" className="num whitespace-nowrap text-muted-foreground">
+            {filtersActive ? `${visible.length} of ${rows.length} ${pluralNoun ?? `${noun}s`}` : `${rows.length} ${rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}`}
+          </span>
+          {(groupPicker || columnsMenu || exportButton) && (
+          <div className="flex items-center gap-2">
             {groupBy && groupPicker && (
               <>
                 <label htmlFor={`dt-group-${label}`} className="sr-only">
@@ -868,8 +861,9 @@ function DataTableInner<T>({
             )}
             {columnsMenu}
             {exportButton}
-          </>
-        ) : undefined
+          </div>
+          )}
+        </>
       }
     />
   );
@@ -1026,7 +1020,7 @@ function DataTableInner<T>({
                   ))}
                 </colgroup>
               )}
-              <thead className={v2 && hideHeader ? "sr-only" : undefined}>
+              <thead className={v2 && hideHeader ? "sr-only" : undefined} {...(v2 ? { "data-align": "thead" } : {})}>
                 <tr className="border-b border-border text-left">
                   {cols.map((c, i) => {
                     const sortable = Boolean(c.sortValue);
@@ -1182,7 +1176,9 @@ function DataTableInner<T>({
         aria-live="polite"
         className={cn(
           "mt-2 font-mono text-[11px] text-muted-foreground",
-          v2 && "mt-0 px-[var(--row-pad)] py-4 font-sans text-meta"
+          // Page types v1: the count is drawn at the right end of the filter row (or in a section's heading);
+          // this stays as the live region that announces it.
+          v2 && "sr-only"
         )}
       >
         {resultSummary(visible.length, rows.length, noun, pluralNoun)}

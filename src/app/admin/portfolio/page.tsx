@@ -238,6 +238,7 @@ function LedgerPage() {
 
       <dl
         aria-label="Totals for the deals shown"
+        data-align="stats"
         className="mb-5 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 sm:grid-cols-3 lg:grid-cols-5 v2:mb-0 v2:gap-x-8 v2:border-y-0 v2:px-[var(--row-pad)] v2:pt-0 v2:pb-6"
       >
         <LedgerStat label="Total invested" value={`$${summary.totalInvested.toLocaleString()}`} />

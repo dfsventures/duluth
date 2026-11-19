@@ -162,7 +162,7 @@ export default function AdminDashboardPage() {
 
   if (sessionStatus === "loading" || loading) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <div className="space-y-6"><Skeleton className="h-7 w-56" /><KpiSkeleton /><TableSkeleton rows={4} cols={4} /></div>
       </AppShell>
     );
@@ -170,7 +170,7 @@ export default function AdminDashboardPage() {
 
   if (error) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <div className="flex flex-col items-center justify-center py-20">
           <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
           <p className="text-sm text-destructive">{error}</p>
@@ -345,7 +345,7 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="full">
       <PageHeader
         title="Dashboard"
         description={welcome}

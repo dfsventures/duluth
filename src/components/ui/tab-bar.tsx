@@ -51,7 +51,9 @@ export function TabBar<T extends string>({
   }, [active, tabs.length]);
 
   return (
-    <nav aria-label={label} className={cn("tab-bar mb-6 overflow-x-auto border-b border-border v2:mb-6 v2:border-b-0", className)}>
+    // New look (page types v1, D12): the hairline under the row is back, with a 2px Sky bar on it under
+    // the active tab; 16px to the filter row.
+    <nav aria-label={label} data-align="tabs" className={cn("tab-bar mb-6 overflow-x-auto border-b border-border v2:mb-4", className)}>
       <div ref={listRef} className="relative flex gap-6 v2:gap-6">
         {tabs.map((t) => {
           const isActive = t.key === active;
@@ -64,7 +66,7 @@ export function TabBar<T extends string>({
               aria-current={isActive ? "page" : undefined}
               title={t.hint}
               className={cn(
-                "tab-link flex shrink-0 items-center gap-2 whitespace-nowrap py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:py-2.5 v2:text-row max-md:v2:min-h-11",
+                "tab-link flex shrink-0 items-center gap-2 whitespace-nowrap py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:pb-[9px] v2:pt-2.5 v2:text-row max-md:v2:min-h-11",
                 isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -79,7 +81,7 @@ export function TabBar<T extends string>({
         {bar && (
           <span
             aria-hidden="true"
-            className="tab-indicator pointer-events-none absolute -bottom-px v2:bottom-0 left-0 h-0.5 w-px origin-left bg-foreground transition-transform duration-slow ease-out"
+            className="tab-indicator pointer-events-none absolute -bottom-px left-0 h-0.5 w-px origin-left bg-foreground transition-transform duration-slow ease-out v2:bg-[var(--color-accent)]"
             style={{ transform: `translateX(${bar.x}px) scaleX(${bar.w})` }}
           />
         )}

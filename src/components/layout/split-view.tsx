@@ -99,7 +99,10 @@ export function SplitView({ list, pane, open, onClose, paneLabel }: SplitViewPro
 
   return (
     <div className={cn("relative", showPane && "min-h-[calc(100dvh-var(--bar-h))]")}>
-      <div className={cn("list-pane", showPane && "md:mr-[min(58%,620px)]")}>{list}</div>
+      {/* The list's right margin and the pane's width and bleed come from globals.css (.list-pane, [data-split-pane]). */}
+      <div className="list-pane" data-pane-shown={showPane ? "" : undefined}>
+        {list}
+      </div>
       {showPane && (
         <aside
           ref={asideRef}

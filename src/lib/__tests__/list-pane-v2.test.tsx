@@ -82,11 +82,14 @@ describe("DataTable under the new look", () => {
     expect(html).toContain('data-drop="600"');
     expect(html).not.toMatch(/<(td|th)[^>]*data-drop[^>]*>Acme/);
   });
-  it("uses the filter bar: single-choice chips, the picked one set, Clear filters while filtered", () => {
-    expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain('aria-label="Remove Behind filter"');
+  it("uses the filter row: the one-choice chips are one segmented control, the picked one checked, Clear filters while filtered", () => {
+    // Page types v1, question 4: All / Behind / … is one segmented control (no "All ×").
+    expect(html).toContain('role="radiogroup"');
+    expect(html).toMatch(/aria-checked="true"[^>]*>Behind/);
+    expect(html).not.toContain('aria-label="Remove Behind filter"');
     expect(html).toContain("Clear filters");
-    expect(html).toContain("sticky top-[var(--bar-h)]");
+    // The count sits at the right end of the row; the row sticks via globals.css (> .filter-row).
+    expect(html).toContain('data-align="count"');
   });
   it("filters out the row that does not match the chip", () => {
     expect(html).not.toContain("Sample Labs");
@@ -218,8 +221,8 @@ describe("DataTable with a fixed grouping and no filter bar (WS161, Needs you)",
   });
   it("hideHeader keeps the headings for screen readers only, under the new look", () => {
     look.v2 = true;
-    expect(renderToStaticMarkup(<DataTable<Row> {...props} hideHeader />)).toContain('<thead class="sr-only">');
-    expect(renderToStaticMarkup(<DataTable<Row> {...props} />)).toContain("<thead>");
+    expect(renderToStaticMarkup(<DataTable<Row> {...props} hideHeader />)).toContain('<thead class="sr-only" data-align="thead">');
+    expect(renderToStaticMarkup(<DataTable<Row> {...props} />)).toContain('<thead data-align="thead">');
   });
   it("an ordinary table with a group select is unchanged", () => {
     look.v2 = true;
@@ -287,7 +290,6 @@ describe("list and pane css", () => {
     expect(section).toContain("var(--group-h)");
     expect(section).toContain("var(--bar-h)");
     expect(section).toContain("var(--filter-h)");
-    expect(section).toContain("var(--column-wide)");
     expect(section).toContain("var(--gutter)");
     expect(section).not.toMatch(/(^|[^-\w])(44px|1104px)/);
   });
@@ -302,19 +304,23 @@ describe("list and pane css", () => {
     expect(section).toContain("@container (max-width: 600px)");
     expect(section).toContain("@container (max-width: 480px)");
   });
-  it("nothing is centred: blocks above a list sit one gutter in, and a list is its own content box", () => {
-    expect(section).toMatch(/\.shell-page\[data-width="full"\] \{\s*--row-pad: var\(--gutter\);/);
+  it("page types v1: every list sits in the shared frame (no inset of its own); the pane still meets the window edge", () => {
+    expect(section).not.toMatch(/\.shell-page\[data-width="full"\] \{\s*--row-pad: var\(--gutter\);/);
+    expect(section).not.toMatch(/\[data-list-mode\] \{\s*margin-inline/);
     expect(section).not.toContain("100cqw");
-    expect(section).not.toMatch(/:has\(\[data-split-pane\]\)[^{]*\{\s*--row-pad/);
     // inside the list there is no side padding, so rows, hairlines and tints end with the content
     expect(section).toMatch(/\[data-datatable\]\[data-density\] \{\s*--row-pad: 0px;/);
-    expect(section).toMatch(/\[data-datatable\]\[data-list-mode\] \{\s*margin-inline: var\(--gutter\);\s*max-width: var\(--column-wide\);/);
+    expect(section).toMatch(/\[data-split-pane\] \{\s*right: calc\(var\(--pane-bleed\) \* -1\) !important;/);
+    expect(section).toMatch(/\.list-pane\[data-pane-shown\] \{\s*margin-right: max\(0px, calc\(var\(--pane-w\) - var\(--pane-bleed\) \+ 24px\)\);/);
   });
   it("the row-actions cell has its own space, so it cannot overlap the last column", () => {
     expect(section).toMatch(/td\[data-actions\] \{\s*width: 1%;\s*max-width: none;\s*overflow: visible;\s*white-space: nowrap;/);
   });
-  it("column headings get 8px of air under the filter bar", () => {
-    expect(section).toMatch(/thead th \{\s*height: 40px;\s*padding: 8px 0 0 24px;/);
+  it("column headings are a 40px row (the 16px above comes from the filter row), 12/18 secondary", () => {
+    expect(section).toMatch(/thead th \{\s*height: 40px;\s*padding: 0 0 0 24px;/);
+  });
+  it("page types v1, D13: every cell is 14/20, secondary", () => {
+    expect(section).toMatch(/\[data-density\] td \{\s*padding: 0 0 0 24px;\s*font-size: 14px;\s*line-height: 20px;\s*color: var\(--color-text-secondary\);/);
   });
   it("cells are one line with an ellipsis; numbers are not cut", () => {
     expect(section).toMatch(/\[data-density\] td \{[^}]*max-width: var\(--cell-max, 240px\);[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap/);

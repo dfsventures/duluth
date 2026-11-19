@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { FileText, LayoutTemplate } from "lucide-react";
+import { FileText, LayoutTemplate, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { SplitView, useOpenParam } from "@/components/layout/split-view";
@@ -154,6 +155,7 @@ function AdminUpdatesPageInner() {
 
   const [updates, setUpdates] = useState<Update[]>([]);
   const [loading, setLoading] = useState(true);
+  const [newTemplate, setNewTemplate] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const companyFilter = searchParams.get("company") ?? "";
 
@@ -219,9 +221,19 @@ function AdminUpdatesPageInner() {
             ? "Pre-filled skeletons founders can start their update from."
             : "Every published update across the portfolio, in one feed."
         }
+        // New look (page types v1): the Templates tab's "New template" sits in the header, where every
+        // list page keeps its primary action. The old look keeps it in the panel.
+        action={
+          activeTab === "templates" ? (
+            <Button className="hidden v2:inline-flex" onClick={() => setNewTemplate((n) => n + 1)}>
+              <Plus className="h-4 w-4" />
+              New template
+            </Button>
+          ) : undefined
+        }
       />
 
-      <div className="mb-6 flex gap-1 overflow-x-auto border-b v2:border-b-0 v2:mx-[var(--row-pad)] v2:mb-0 v2:max-w-[var(--column-wide)] v2:gap-5">
+      <div data-align="tabs" className="page-tabs mb-6 flex gap-1 overflow-x-auto border-b">
         <button
           onClick={() => selectTab("updates")}
           className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 v2:px-0 text-sm font-medium transition-colors ${
@@ -247,8 +259,8 @@ function AdminUpdatesPageInner() {
       </div>
 
       {activeTab === "templates" ? (
-        <div className="v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)] v2:py-6">
-          <TemplatesPanel />
+        <div>
+          <TemplatesPanel newRequest={newTemplate} />
         </div>
       ) : (
         <SplitView

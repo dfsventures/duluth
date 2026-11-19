@@ -212,16 +212,21 @@ export function AuditLook({
   if (!newLook) return <>{oldLook}</>;
 
   const go = (key: string) => router.push(key === "all" ? "/admin/audit" : `/admin/audit?filter=${key}`);
-  const chips = filters
-    .filter((f) => f.key !== "all")
-    .map((f) => ({ key: f.key, label: f.label, set: filter === f.key, count: counts[f.key] ?? 0 }));
+  // Page types v1 (D9): one choice out of several, so one segmented control with "All" first.
+  const chips = filters.map((f) => ({
+    key: f.key,
+    label: f.key === "all" ? "All" : f.label,
+    set: filter === f.key,
+    count: f.key === "all" ? undefined : (counts[f.key] ?? 0),
+    plain: f.key === "all",
+  }));
 
   return (
     <>
-      {/* Outside the table's box, so the bar sets the same zero side padding the table has. */}
-      <div className="[--row-pad:0px]">
+      <div>
         <FilterBar
           label="Filter audit log"
+          segmented
           chips={chips}
           onOpen={go}
           onRemove={() => go("all")}

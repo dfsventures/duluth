@@ -81,15 +81,13 @@ describe("the three pages", () => {
     // the new-look words are muted meta text that truncates before the name does
     expect(companies).toContain("shrink-[1000] truncate text-meta font-normal text-muted-foreground");
   });
-  it("blocks beside a full-width list sit at --row-pad and at most --column-wide, left-aligned", () => {
+  it("page types v1: blocks beside a list add no inset or width of their own (the shared frame sets both)", () => {
     for (const src of [approvals, companies, updates]) {
       expect(src).not.toContain("v2:px-[var(--gutter)]");
       expect(src).not.toContain("v2:px-[var(--row-pad)]");
     }
-    for (const src of [approvals, updates]) {
-      expect(src).toContain("v2:mx-[var(--row-pad)] ");
-      expect(src).toContain("v2:max-w-[var(--column-wide)]");
-    }
+    expect(updates).not.toContain("v2:max-w-[var(--column-wide)]");
+    expect(updates).toContain('data-align="tabs" className="page-tabs');
   });
   it("Companies: the CSV format note leaves the list under the new look (header button and dialog); the old look keeps the disclosure", () => {
     expect(companies).toContain("{!v2 && (");

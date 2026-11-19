@@ -115,6 +115,11 @@ const config: Config = {
         row: ["14px", { lineHeight: "20px" }],
         meta: ["12px", { lineHeight: "18px" }],
         "pane-title": ["20px", { lineHeight: "28px", letterSpacing: "-0.012em", fontWeight: "600" }],
+        // Page types v1 (docs/design/page-types-v1.md §4.4). New tokens rather than changing `title` and
+        // `heading`, which the old look also uses.
+        "page-title": ["24px", { lineHeight: "32px", letterSpacing: "-0.012em", fontWeight: "600" }],
+        "doc-title": ["28px", { lineHeight: "36px", letterSpacing: "-0.015em", fontWeight: "600" }],
+        section: ["16px", { lineHeight: "24px", fontWeight: "600" }],
       },
 
       letterSpacing: {

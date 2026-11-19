@@ -406,6 +406,13 @@ export default function AdminCompaniesPage() {
         indicator={<RefreshIndicator active={isValidating && !!companiesData} />}
         title="Companies"
         description="Manage all portfolio companies."
+        // The action holds the hidden CSV input (a ref), so the slim scroll bar gets its own Add company.
+        condensedAction={
+          <Button onClick={() => router.push("/admin/companies/new")}>
+            <Plus className="h-4 w-4" />
+            Add company
+          </Button>
+        }
         // New look: CSV format and Import CSV are secondary actions (a "⋯" menu on phones, so the
         // title and Add Company keep one row). Old look keeps Import CSV as a header button.
         secondaryActions={

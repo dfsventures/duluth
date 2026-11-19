@@ -89,7 +89,7 @@ export default function DigestListPage() {
 
   if (sessionStatus === "loading" || loading) {
     return (
-      <AppShell>
+      <AppShell width="wide">
         <PageSkeleton />
       </AppShell>
     );
@@ -97,7 +97,7 @@ export default function DigestListPage() {
 
   if (error) {
     return (
-      <AppShell>
+      <AppShell width="wide">
         <div className="flex flex-col items-center justify-center py-20">
           <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
           <p className="text-sm text-destructive">{error}</p>

@@ -160,7 +160,7 @@ export default function AdminDiligencePage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <PageSkeleton />
       </AppShell>
     );
@@ -168,7 +168,7 @@ export default function AdminDiligencePage() {
 
   if (error) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <div className="flex flex-col items-center justify-center py-20">
           <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
           <p className="text-sm text-destructive">{error}</p>

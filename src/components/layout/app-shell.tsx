@@ -119,15 +119,15 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
             "shell-page mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8",
             // The page header reads this to bleed to the top (see globals.css, .shell-header).
             "[--shell-pt:1.5rem] md:[--shell-pt:2rem]",
-            // "full": no column and no padding under the new look; the page lays itself out.
-            width === "full"
-              ? "v2:max-w-none v2:p-0 v2:[--shell-pt:0px]"
-              : // New look, the page frame: one gutter on each side, content at most --frame wide
-                // (set per width in globals.css) and centred in the main area. The header bar reads
-                // the same --frame, so its actions end where the content ends.
-                "v2:mx-auto v2:max-w-[calc(var(--frame)+2*var(--gutter))] v2:px-[var(--gutter)]"
+            // New look, the page frame (page types v1): every width, "full" included, is one gutter on
+            // each side, content at most --frame wide (set per width in globals.css), centred in the
+            // main area. 40px from the top of the main area to the page's first line (24 on phones),
+            // 96 after the last.
+            "v2:mx-auto v2:max-w-[calc(var(--frame)+2*var(--gutter))] v2:px-[var(--gutter)] v2:pb-24 v2:pt-10 v2:[--shell-pt:40px] max-md:v2:pt-6 max-md:v2:[--shell-pt:24px]"
           )}
         >
+          {/* The slim scroll bar's slot (CondensedBar): sticky, zero height, new look only. */}
+          <div data-condensed-slot="" className="hidden v2:block" />
           {children}
         </div>
       </main>

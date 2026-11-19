@@ -278,7 +278,7 @@ export default function AdminLinksPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell width="full">
         <PageSkeleton />
       </AppShell>
     );

@@ -57,7 +57,124 @@ const PAGES: Record<string, string> = {
   "memo-new": "/admin/memos/new",
   "memo-template": "/admin/memos/template",
   "update-new": "/admin/companies", // the first company's new-update composer
+  // Page types v1: the second tabs of Updates and Funds (the old /admin/templates and /admin/sync).
+  templates: "/admin/updates?tab=templates",
+  sync: "/admin/funds?tab=sync",
 };
+
+// Page types v1 (docs/design/page-types-v1.md §10): every page's type, for the alignment check.
+const PAGE_TYPE: Record<string, "list" | "detail" | "editor"> = {
+  dashboard: "list", companies: "list", updates: "list", templates: "list", approvals: "list", deals: "list",
+  memos: "list", board: "list", funds: "list", sync: "list", reports: "list", broadcasts: "list", digest: "list",
+  lps: "list", audit: "list", contacts: "list", "contacts-links": "list", providers: "list", links: "list",
+  diligence: "list",
+  fund: "detail", company: "detail", deal: "detail", memo: "detail", update: "detail", settings: "detail",
+  "settings-storage": "detail", "settings-integrations": "detail", "digest-detail": "detail", "broadcast-sent": "detail",
+  "broadcast-detail": "editor", "report-detail": "editor", "report-preview": "editor", "digest-new": "editor",
+  "company-new": "editor", "memo-new": "editor", "memo-template": "editor", "update-new": "editor",
+};
+
+// The alignment check. After a page loads in the new look, measure the marked elements (data-align,
+// set by the shared components) and compare each page with the others of its type.
+type Marks = Partial<Record<"titleX" | "titleY" | "backX" | "backY" | "descY" | "tabsX" | "tabsY" | "filtersX" | "filtersY" | "theadX" | "theadY" | "actionsR" | "actionsY" | "frameR", number>>;
+const alignRows: { vp: string; key: string; type: string; shape: string; m: Marks }[] = [];
+
+// Plain browser JavaScript as a string: tsx would otherwise wrap named functions in a helper the page
+// does not have.
+const MEASURE_JS = `(() => {
+  const main = document.getElementById("main-content");
+  if (main) main.scrollTo(0, 0);
+  function first(sel) {
+    for (const el of Array.from(document.querySelectorAll(sel))) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return r;
+    }
+    return null;
+  }
+  const m = {};
+  function put(k, v) { if (v !== undefined && v !== null) m[k] = Math.round(v * 10) / 10; }
+  const title = first('main [data-page-head] [data-align="title"]') || first('main [data-align="title"]') || first("main h1");
+  put("titleX", title && title.left); put("titleY", title && title.top);
+  const back = first('main [data-align="back"]');
+  put("backX", back && back.left); put("backY", back && back.top);
+  const desc = first('main [data-align="desc"]');
+  put("descY", desc && desc.top);
+  const tabs = first('main [data-align="tabs"]');
+  put("tabsX", tabs && tabs.left); put("tabsY", tabs && tabs.top);
+  const filters = first('main [data-align="filters"]');
+  put("filtersX", filters && filters.left); put("filtersY", filters && filters.top);
+  const thead = first('main [data-align="thead"]:not(.sr-only)');
+  const stats = first('main [data-align="stats"]');
+  put("theadX", thead && thead.left); put("theadY", thead && thead.top);
+  const actions = first('main [data-align="actions"]');
+  put("actionsR", actions && actions.right); put("actionsY", actions && actions.top);
+  const frame = document.querySelector(".shell-page");
+  if (frame) {
+    const r = frame.getBoundingClientRect();
+    const pad = parseFloat(getComputedStyle(frame).paddingRight) || 0;
+    put("frameR", r.right - pad);
+  }
+  // A section heading (h2) between the header and the table moves the table down on purpose.
+  let section = false;
+  if (thead && title) {
+    for (const h of Array.from(document.querySelectorAll("main h2"))) {
+      const r = h.getBoundingClientRect();
+      if (r.height > 0 && r.top > title.bottom && r.bottom <= thead.top) section = true;
+    }
+  }
+  const shape = [back ? "back" : "", desc ? "desc" : "", tabs ? "tabs" : "", stats ? "stats" : "", filters ? "filt" : "", section ? "h2" : ""].filter(Boolean).join("+") || "plain";
+  return { m, shape };
+})()`;
+
+async function measure(page: any): Promise<{ m: Marks; shape: string }> {
+  return page.evaluate(MEASURE_JS);
+}
+
+function mode(values: number[]): number | undefined {
+  if (!values.length) return undefined;
+  const counts = new Map<number, number>();
+  for (const v of values) counts.set(Math.round(v), (counts.get(Math.round(v)) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
+}
+
+// Which marks must agree across a type. Y positions below the header depend on what the header holds
+// (a back line, a description, tabs), so those are compared within pages of the same shape.
+const SAME_TYPE: (keyof Marks)[] = ["titleX", "backX", "tabsX", "filtersX", "theadX"];
+const SAME_SHAPE: (keyof Marks)[] = ["titleY", "backY", "descY", "tabsY", "filtersY", "theadY", "actionsY"];
+
+function alignReport(): number {
+  let flags = 0;
+  const vps = [...new Set(alignRows.map((r) => r.vp))];
+  for (const vp of vps) {
+    console.log(`\nAlignment, ${vp} (px from the window's top-left; * = off its type by more than 1px)`);
+    for (const type of ["list", "detail", "editor"]) {
+      const rows = alignRows.filter((r) => r.vp === vp && r.type === type);
+      if (!rows.length) continue;
+      const ref = (k: keyof Marks, shape?: string) =>
+        mode(rows.filter((r) => shape === undefined || r.shape === shape).map((r) => r.m[k]).filter((v): v is number => v !== undefined));
+      const cols: (keyof Marks)[] = ["titleX", "titleY", "backX", "backY", "descY", "tabsX", "tabsY", "filtersX", "filtersY", "theadX", "theadY", "actionsR", "frameR"];
+      console.log(`  ${type.toUpperCase()}`);
+      console.log("  " + ["page".padEnd(22), "shape".padEnd(15), ...cols.map((c) => c.padStart(9))].join(""));
+      for (const r of rows) {
+        if (r.shape === "error") flags++; // a page that could not be measured counts as a flag
+        const cells = cols.map((c) => {
+          const v = r.m[c];
+          if (v === undefined) return "-".padStart(9);
+          let target: number | undefined;
+          if (SAME_TYPE.includes(c)) target = ref(c);
+          else if (SAME_SHAPE.includes(c)) target = ref(c, r.shape);
+          else if (c === "actionsR") target = r.m.frameR; // the actions end on the frame's right edge
+          const off = target !== undefined && Math.abs(v - target) > 1;
+          if (off) flags++;
+          return `${off ? "*" : ""}${Math.round(v)}`.padStart(9);
+        });
+        console.log("  " + [r.key.padEnd(22), r.shape.padEnd(15), ...cells].join(""));
+      }
+    }
+  }
+  console.log(flags ? `\nAlignment: ${flags} flag(s).` : "\nAlignment: no flags.");
+  return flags;
+}
 // WS172: pages that open a list and follow its first row. `list` is the href prefix of the rows,
 // `suffix` is appended to the row's href.
 const FOLLOW: Record<string, { list: string; suffix?: string; last?: boolean }> = {
@@ -236,6 +353,8 @@ async function main() {
     const res = await page.goto(`${BASE_URL}${url}`, { waitUntil: "domcontentloaded", timeout: 180_000 });
     await page.waitForLoadState("networkidle", { timeout: 30_000 }).catch(() => {});
     await page.evaluate(() => (document as any).fonts?.ready).catch(() => {});
+    // Client pages fetch after load: wait (up to 20s) until no loading skeleton is left.
+    await page.waitForFunction("!document.querySelector('.animate-skeleton-pulse')", undefined, { timeout: 20_000 }).catch(() => {});
     await page.waitForTimeout(700);
 
     if (new URL(page.url()).pathname.startsWith("/login")) {
@@ -344,6 +463,10 @@ async function main() {
           if (!href) console.log(`  [skip] ${key} ${tag}: no row link found under ${prefix}`);
         }
         if (ok) await snap(page, `${key}__${tag}.png`);
+        if (ok && v.look === "new" && v.theme === "light" && vpKey !== "phone" && PAGE_TYPE[key]) {
+          const { m, shape } = await measure(page).catch(() => ({ m: {} as Marks, shape: "error" }));
+          alignRows.push({ vp: vpKey, key, type: PAGE_TYPE[key], shape, m });
+        }
         await page.close();
       }
 
@@ -431,6 +554,10 @@ async function run() {
   console.log(`\nScreenshots: ${outDir}`);
   for (const f of written) console.log(`  ${f}`);
   console.log(`${written.length} file(s) written.`);
+  if (alignRows.length) {
+    fs.writeFileSync(path.join(outDir, "alignment.json"), JSON.stringify(alignRows, null, 1));
+    alignReport();
+  }
   if (failures.length) {
     console.error(`\nFAILED (${failures.length}):`);
     for (const f of failures) console.error(`  - ${f}`);

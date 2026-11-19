@@ -66,10 +66,11 @@ export function MemoFilters({
         aria-pressed={unlinked}
         onClick={() => onChange({ unlinked: !unlinked })}
         className={cn(
-          "inline-flex h-8 items-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "inline-flex h-8 items-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:h-9 v2:px-3 v2:text-row",
+          // New look (page types v1, D10): 36 high like every filter control; set = Sky soft fill.
           unlinked
-            ? "border-foreground bg-foreground text-background"
-            : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground"
+            ? "border-foreground bg-foreground text-background v2:border-transparent v2:bg-[var(--color-accent-soft)] v2:font-medium v2:text-primary"
+            : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground v2:border-dashed v2:border-[var(--color-ctl)] v2:bg-transparent"
         )}
       >
         <Link2Off aria-hidden className="h-3.5 w-3.5" />

@@ -27,7 +27,21 @@ describe("PageHeader", () => {
     expect(html).toContain("Companies");
     expect(html).toContain("Everyone we back");
     expect(html).toContain("<button>Add</button>");
-    expect(html).toContain("shell-header");
+    // Page types v1: an in-page header (not the sticky bar), with the marks the alignment check reads.
+    expect(html).not.toContain("shell-header");
+    expect(html).toContain('data-page-head=""');
+    expect(html).toContain('data-align="title"');
+    expect(html).toContain('data-align="desc"');
+    expect(html).toContain('data-align="actions"');
+    expect(html).toContain("v2:text-page-title");
+  });
+  it("back goes on its own line above the title, new look only; status only under the new look", () => {
+    const html = renderToStaticMarkup(
+      <PageHeader title="Acme" back={{ href: "/admin/companies", label: "Companies" }} status={<span>Active</span>} />
+    );
+    expect(html).toMatch(/<a [^>]*data-align="back"[^>]*class="page-back hidden[^"]*v2:inline-flex/);
+    expect(html.indexOf('data-align="back"')).toBeLessThan(html.indexOf("<h1"));
+    expect(html).toMatch(/data-align="desc" class="hidden v2:mt-1 v2:flex/);
   });
   it("secondaryActions: desktop buttons plus a 'More actions' menu button that only shows on phones; the primary action stays", () => {
     const html = renderToStaticMarkup(
@@ -62,7 +76,10 @@ describe("shell source", () => {
   it("AppShell takes a width prop that defaults to the old column", () => {
     expect(shell).toContain('width = "page"');
     expect(shell).toContain("max-w-6xl px-4 py-6 md:px-6 md:py-8");
-    expect(shell).toContain('v2:max-w-none');
+    // Page types v1: "full" no longer drops the frame; every width is the same centred frame.
+    expect(shell).not.toContain("v2:max-w-none");
+    expect(shell).toContain("v2:pb-24 v2:pt-10");
+    expect(shell).toContain('data-condensed-slot=""');
   });
   it("one page frame: centred, a gutter each side, --frame per width, header bar on the same column", () => {
     expect(shell).toContain('"page" | "narrow" | "wide" | "full" | "detail" | "detail-wide"');
@@ -75,7 +92,7 @@ describe("shell source", () => {
     }
     expect(shell).toContain("v2:mx-auto v2:max-w-[calc(var(--frame)+2*var(--gutter))] v2:px-[var(--gutter)]");
     const css = read("app/globals.css");
-    expect(css).toContain("--column-wide: 100000px;");
+    expect(css).toContain("--column-wide: 1296px;"); // page types v1, question 1: lists capped at 1296, centred
     expect(css).toContain("--column-detail: 1056px;");
     expect(css).toContain("--column-detail-wide: 1296px;");
     // Gutter: 20 phone, 24 tablet, 48 from 1024, 64 from 1600.
@@ -144,14 +161,39 @@ describe("FilterBar", () => {
     expect(html).toContain("border-dashed");
     expect(html).not.toContain("Clear filters");
   });
-  it("is a 44px bar with 28px chips (52 and 32 on phones)", () => {
+  it("every control is 36 (44 on phones); the row wraps and has 8px of background above and below", () => {
     const html = renderToStaticMarkup(
       <FilterBar chips={[{ key: "owner", label: "Owner" }]} onOpen={noop} onRemove={noop} onClearAll={noop} />
     );
-    expect(html).toContain("h-11");
-    expect(html).toContain("max-md:h-[52px]");
-    expect(html).toContain("h-7");
-    expect(html).toContain("max-md:h-8");
+    expect(html).toContain("h-9 max-md:h-11");
+    expect(html).toContain("flex-wrap");
+    expect(html).toContain("py-2");
+    expect(html).toContain('data-align="filters"');
+  });
+  it("segmented: one choice drawn as one radiogroup, the picked segment checked", () => {
+    const html = renderToStaticMarkup(
+      <FilterBar
+        segmented
+        chips={[
+          { key: "all", label: "All", plain: true },
+          { key: "behind", label: "Behind", set: true, count: 2 },
+        ]}
+        onOpen={noop}
+        onRemove={noop}
+        onClearAll={noop}
+      />
+    );
+    expect(html).toContain('role="radiogroup"');
+    expect(html).toContain('aria-checked="true"');
+    expect(html).toContain('aria-checked="false"');
+    expect(html).not.toContain("Remove Behind filter");
+  });
+  it("filters sit in the left group; the right end holds only what is passed as trailing", () => {
+    const html = renderToStaticMarkup(
+      <FilterBar chips={[]} onOpen={noop} onRemove={noop} onClearAll={noop} filters={<select aria-label="Fund" />} trailing={<span>4 funds</span>} />
+    );
+    expect(html.indexOf('aria-label="Fund"')).toBeLessThan(html.indexOf("ml-auto"));
+    expect(html).toContain('data-align="filters-end"');
   });
   it("is positioned, so hidden labels inside it cannot widen the page past a phone screen", () => {
     const html = renderToStaticMarkup(
@@ -163,7 +205,7 @@ describe("FilterBar", () => {
         trailing={<label className="sr-only">Fund</label>}
       />
     );
-    expect(html).toMatch(/class="relative flex h-11/);
+    expect(html).toMatch(/class="filter-row relative /);
   });
   it("shows a set chip with its value, a remove button and Clear filters (copy doc: not Clear all)", () => {
     const html = renderToStaticMarkup(
