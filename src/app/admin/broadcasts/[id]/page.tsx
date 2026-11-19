@@ -338,7 +338,7 @@ export default function AdminBroadcastEditorPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell width="narrow">
         <PageSkeleton />
       </AppShell>
     );
@@ -346,7 +346,7 @@ export default function AdminBroadcastEditorPage() {
 
   if (!data) {
     return (
-      <AppShell>
+      <AppShell width="narrow">
         <p className="text-sm text-muted-foreground">Broadcast not found.</p>
         <Button variant="secondary" className="mt-4" onClick={() => router.push("/admin/broadcasts")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -360,7 +360,7 @@ export default function AdminBroadcastEditorPage() {
   const hasUnsent = data.recipients.some((r) => r.status === "PENDING" || r.status === "FAILED");
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <Breadcrumb items={[{ label: "Broadcasts", href: "/admin/broadcasts" }, { label: subject.trim() || "Untitled broadcast" }]} />
 
       <ComposerTopBar

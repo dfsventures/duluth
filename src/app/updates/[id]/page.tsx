@@ -537,7 +537,7 @@ export default function UpdateDetailPage() {
       </section>
     );
     return (
-      <AppShell width="full" surface="admin">
+      <AppShell width="detail" surface="admin">
         <UpdateRecord
           update={update}
           isAdmin={isAdminUser}

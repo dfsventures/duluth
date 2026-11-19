@@ -113,7 +113,7 @@ export default function NewCompanyPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <PageHeader
         title="Add Company"
         description="Manually create a new portfolio company."

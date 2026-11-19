@@ -122,8 +122,8 @@ export function UpdateRecord({
   rows.push({ label: "Source", value: filed ? "Email, via Marge" : "Founder" });
 
   return (
-    // The page is AppShell width="full" (no padding): the vertical padding the page box gave is here.
-    <div className="up-dossier v2:py-6 md:v2:py-8">
+    // The page is AppShell width="detail": the shared page frame gives the padding and the width.
+    <div className="up-dossier">
       <div className="mb-6 flex h-9 items-center gap-2">
         <Link
           href="/updates"

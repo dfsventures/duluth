@@ -131,7 +131,7 @@ export default function AdminCreateUpdatePage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell width="narrow">
         <PageSkeleton />
       </AppShell>
     );
@@ -140,7 +140,7 @@ export default function AdminCreateUpdatePage() {
   const canPublish = period.trim() !== "" && title.trim() !== "";
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <button
         onClick={() => router.push(`/admin/companies/${companyId}`)}
         className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"

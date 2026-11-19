@@ -20,11 +20,16 @@ interface AppShellProps {
    * "page" (default) is today's centred column. "full" is for pages that lay out their own
    * list and pane (PLAN-1, WS160): under the new look it drops the column and the padding.
    * Under the old look both are the same box, so a page can pass "full" before it is ready.
-   * "wide" is for pages whose main content is a wide table: under the new look it is left-aligned
-   * with the same gutter on both sides as "page" but capped at --column-wide (1440), so the header,
-   * stat strip and table all span the content area up to that cap. Under the old look it is the same box as "page".
+   * "wide" is for pages whose main content is a wide table: under the new look the content fills the
+   * space between the two gutters (--column-wide has no cap). "narrow" (720) is for editors, forms and
+   * Settings: the header bar, the Save / Send buttons and the content share one narrow column.
+   * "detail" and "detail-wide" are for the
+   * Dossier pages (main column plus panel; 1056 and 1296 wide, the fund page being the wide one).
+   * Under the new look every width except "full" is the same frame: a gutter each side, a content width
+   * (--frame), centred in the main area, with the header bar on the same column. Under the old look all
+   * of them, "full" included, are the same box as "page".
    */
-  width?: "page" | "wide" | "full";
+  width?: "page" | "narrow" | "wide" | "full" | "detail" | "detail-wide";
   /**
    * Overrides the surface the path would give. For a page shared with founders and LPs (outside
    * /admin) that shows an admin the new look: it passes "admin" only for an admin with the new look
@@ -117,11 +122,10 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
             // "full": no column and no padding under the new look; the page lays itself out.
             width === "full"
               ? "v2:max-w-none v2:p-0 v2:[--shell-pt:0px]"
-              : width === "wide"
-                ? // New look, wide: left-aligned, one gutter on both sides, at most --column-wide.
-                  "v2:mx-0 v2:max-w-[calc(var(--column-wide)+2*var(--gutter))] v2:px-[var(--gutter)]"
-                : // New look: left-aligned, one gutter from the sidebar, content at most --column wide.
-                  "v2:mx-0 v2:max-w-[calc(var(--column)+2*var(--gutter))] v2:px-[var(--gutter)]"
+              : // New look, the page frame: one gutter on each side, content at most --frame wide
+                // (set per width in globals.css) and centred in the main area. The header bar reads
+                // the same --frame, so its actions end where the content ends.
+                "v2:mx-auto v2:max-w-[calc(var(--frame)+2*var(--gutter))] v2:px-[var(--gutter)]"
           )}
         >
           {children}

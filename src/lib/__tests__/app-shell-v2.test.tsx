@@ -64,17 +64,35 @@ describe("shell source", () => {
     expect(shell).toContain("max-w-6xl px-4 py-6 md:px-6 md:py-8");
     expect(shell).toContain('v2:max-w-none');
   });
-  it('"wide" uses --column-wide (no cap, fills the screen) under the new look only, and its header ends where the content ends', () => {
-    expect(shell).toContain('"page" | "wide" | "full"');
-    expect(shell).toContain('v2:mx-0 v2:max-w-[calc(var(--column-wide)+2*var(--gutter))] v2:px-[var(--gutter)]');
+  it("one page frame: centred, a gutter each side, --frame per width, header bar on the same column", () => {
+    expect(shell).toContain('"page" | "narrow" | "wide" | "full" | "detail" | "detail-wide"');
+    expect(read("app/globals.css")).toMatch(/\.shell-page\[data-width="narrow"\] \{\s*--frame: var\(--column-narrow\);/);
+    // Editors, forms and Settings share one narrow column with their header bar.
+    for (const f of ["app/admin/settings/page.tsx", "app/admin/broadcasts/[id]/page.tsx", "app/admin/reports/[id]/page.tsx", "app/admin/digest/[id]/page.tsx", "app/admin/companies/new/page.tsx"]) {
+      expect(read(f)).toContain('<AppShell width="narrow">');
+    }
+    expect(shell).toContain("v2:mx-auto v2:max-w-[calc(var(--frame)+2*var(--gutter))] v2:px-[var(--gutter)]");
     const css = read("app/globals.css");
     expect(css).toContain("--column-wide: 100000px;");
+    expect(css).toContain("--column-detail: 1056px;");
+    expect(css).toContain("--column-detail-wide: 1296px;");
+    // Gutter: 20 phone, 24 tablet, 48 from 1024, 64 from 1600.
+    expect(css).toMatch(/@media \(min-width: 1024px\) \{[^@]*--gutter: 48px;/);
+    expect(css).toMatch(/@media \(min-width: 1600px\) \{[^@]*--gutter: 64px;/);
+    expect(css).toContain("--frame-off: max(0px, calc((100cqw - var(--frame) - 2 * var(--gutter)) / 2));");
+    expect(css).toMatch(/\.shell-page\[data-width="detail-wide"\] \{\s*--frame: var\(--column-detail-wide\);/);
+    // The header's margins and padding come from the same two numbers, so its right edge is the content's.
     expect(css).toMatch(
-      /\.shell-page\[data-width="wide"\] > \.shell-header:first-child,\s*html\[data-look="v2"\] \[data-surface="admin"\] \.shell-page\[data-width="full"\] > \.shell-header:first-child \{\s*padding-right: max\(var\(--gutter\), calc\(100cqw - var\(--gutter\) - var\(--column-wide\)\)\);/
+      /margin-left: calc\(\(var\(--frame-off\) \+ var\(--page-pad\)\) \* -1\);\s*margin-right: calc\(\(var\(--frame-off\) \+ var\(--page-pad\)\) \* -1\);\s*padding-left: calc\(var\(--frame-off\) \+ var\(--gutter\)\);\s*padding-right: calc\(var\(--frame-off\) \+ var\(--gutter\)\);/
     );
-    // The Deal Ledger passes it. Fund detail stays on the column: its deals table fits, and its cards look loose when stretched.
+    // No page keeps a second centring mechanism.
+    expect(css).not.toMatch(/margin-inline: max\(var\(--gutter\), calc\(\(100cqw/);
+    // The Deal Ledger passes "wide"; the Dossier pages pass "detail" (fund: "detail-wide").
     expect(read("app/admin/portfolio/page.tsx")).toContain('<AppShell width="wide">');
-    expect(read("app/admin/funds/[id]/page.tsx")).not.toContain('width="wide"');
+    expect(read("app/admin/funds/[id]/page.tsx")).toContain('<AppShell width="detail-wide">');
+    expect(read("app/admin/companies/[id]/page.tsx")).toContain('<AppShell width="detail">');
+    expect(read("app/admin/portfolio/[id]/page.tsx")).toContain('<AppShell width="detail">');
+    expect(read("app/admin/memos/[id]/memo-client.tsx")).toContain('<AppShell width="detail">');
     expect(read("app/admin/settings/page.tsx")).not.toContain('width="wide"');
   });
   it("has landmarks: labelled sidebar and nav, one main, a skip link to it", () => {

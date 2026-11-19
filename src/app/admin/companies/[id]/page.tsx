@@ -287,7 +287,7 @@ function AdminCompanyDetailPageInner() {
   // New look (B-133): the memo page's Dossier layout. The server and first client render are the old look.
   if (newLook) {
     return (
-      <AppShell width="full">
+      <AppShell width="detail">
         <CompanyRecord
           companyId={companyId}
           company={company}

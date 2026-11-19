@@ -421,7 +421,7 @@ export default function AdminPortfolioCompanyPage() {
   // client render are the old look.
   if (newLook) {
     return (
-      <AppShell width="full">
+      <AppShell width="detail">
         <DealRecord
           name={data.name}
           country={data.country}

@@ -240,7 +240,7 @@ export default function AdminReportEditorPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell width="narrow">
         <PageSkeleton />
       </AppShell>
     );
@@ -248,7 +248,7 @@ export default function AdminReportEditorPage() {
 
   if (!report) {
     return (
-      <AppShell>
+      <AppShell width="narrow">
         <p className="text-sm text-muted-foreground">Report not found.</p>
         <Button variant="secondary" className="mt-4" onClick={() => router.push("/admin/reports")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -262,7 +262,7 @@ export default function AdminReportEditorPage() {
   const canPublish = title.trim() !== "";
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <Breadcrumb items={[{ label: "Fund Reports", href: "/admin/reports" }, { label: title.trim() || "Untitled report" }]} />
 
       <ComposerTopBar

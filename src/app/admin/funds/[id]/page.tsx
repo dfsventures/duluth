@@ -673,7 +673,7 @@ function AdminFundDetailPageInner() {
       </div>
     );
     return (
-      <AppShell width="full">
+      <AppShell width="detail-wide">
         <FundRecord
           fund={fund}
           editingDetails={editingHeader}

@@ -48,7 +48,7 @@ export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
   }
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "New memo" }]} />
       <PageHeader title="New memo" description="Starts as a private draft with the house sections. Nobody else can see it until you share it." />
       <Card className={cn("max-w-xl", EDITOR_COLUMN, EDITOR_SECTION_CARD)}>

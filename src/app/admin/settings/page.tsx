@@ -72,7 +72,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
   });
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <PageHeader
         title="Settings"
         description="Platform configuration and diagnostics."

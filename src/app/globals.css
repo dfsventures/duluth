@@ -217,15 +217,32 @@ html[data-look="v2"] body[data-surface="admin"] {
   --filter-h: 44px;
   --group-h: 36px;
   --list-row-h: 44px;   /* not --row-h: use-row-collapse.ts sets that inline for the exit animation */
-  --gutter: 24px;       /* 20px under md, set below */
+  --gutter: 24px;       /* 20px under md, 48px from 1024, 64px from 1600: set below */
   --column: 1104px;       /* text and form pages */
   --column-wide: 100000px;  /* list and table pages: no cap, they fill the screen (Joseph, 2026-11-18) */
+  --column-narrow: 720px;        /* editors, forms, Settings (matches EDITOR_COLUMN) */
+  --column-detail: 1056px;       /* Dossier pages: 720 main + 40 gap + 296 panel */
+  --column-detail-wide: 1296px;  /* fund page: 960 main + 40 gap + 296 panel */
   --pane-gutter: 32px;
 }
 @media (max-width: 767px) {
   html[data-look="v2"] [data-surface="admin"],
   html[data-look="v2"] body[data-surface="admin"] {
     --gutter: 20px;
+  }
+}
+/* Page gutter from the sidebar (and from the right edge): wider on laptops and wider again on big
+   screens. Viewport widths, so the sidebar is included. Phones and tablets keep 20px / 24px. */
+@media (min-width: 1024px) {
+  html[data-look="v2"] [data-surface="admin"],
+  html[data-look="v2"] body[data-surface="admin"] {
+    --gutter: 48px;
+  }
+}
+@media (min-width: 1600px) {
+  html[data-look="v2"] [data-surface="admin"],
+  html[data-look="v2"] body[data-surface="admin"] {
+    --gutter: 64px;
   }
 }
 
@@ -309,39 +326,57 @@ html[data-look="v2"] [data-surface="admin"] .shell-header {
 html[data-look="v2"] [data-surface="admin"] .shell-main {
   container-type: inline-size;
 }
-/* Nothing is centred: a page's content starts one gutter from the sidebar and is at most
-   --column wide. --page-pad is the page's own side padding (the gutter; 0 on a full-width page,
-   which lays itself out). */
+/* THE PAGE FRAME. One rule for every admin page: a gutter on each side, content at most --frame
+   wide, the column centred in the main area. --frame comes from the page's AppShell width. --frame-off
+   is the space the centring leaves on each side beyond the gutter (0 when the window is narrower than
+   the frame, and always 0 on list pages, whose frame has no cap). --page-pad is the page's own side
+   padding (the gutter; 0 on a "full" page, which lays itself out). */
 html[data-look="v2"] [data-surface="admin"] .shell-page {
   --page-pad: var(--gutter);
+  --frame: var(--column);
+  --frame-off: max(0px, calc((100cqw - var(--frame) - 2 * var(--gutter)) / 2));
 }
 html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
   --page-pad: 0px;
 }
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="wide"],
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] {
+  --frame: var(--column-wide);
+}
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="narrow"] {
+  --frame: var(--column-narrow);
+}
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="detail"] {
+  --frame: var(--column-detail);
+}
+html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="detail-wide"] {
+  --frame: var(--column-detail-wide);
+}
+/* Printing a Dossier page: no screen gutter (the page's own print rules add theirs). */
+@media print {
+  html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="detail"],
+  html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="detail-wide"] {
+    padding-inline: 0;
+    max-width: none;
+  }
+}
 /* When it is the first thing on the page the header also sticks to the top of the scroll area
    and bleeds to both edges of the main area, however wide the window (its hairline is a bar and
-   runs the full width). In the margins, 100% is the page's content width and 100cqw the main
-   area's, so the margins cancel the page's own padding and reach the right edge. The title
-   starts on the gutter, and the actions end where the content ends: gutter + --column from the
-   left, or the window's edge less a gutter when the window is narrower. The top bleed comes from
-   the shell as --shell-pt. */
+   runs the full width). Negative margins of (--frame-off + --page-pad) cancel the centring and the
+   page's own padding on both sides; the same amount comes back as padding, so the title starts on
+   the content's left edge and the actions end on its right edge, whatever the frame. The top
+   bleed comes from the shell as --shell-pt. */
 html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-child {
   position: sticky;
   top: 0;
   z-index: 10;
   margin-top: calc(var(--shell-pt, 0px) * -1);
   margin-bottom: 32px;
-  margin-left: calc(var(--page-pad) * -1);
-  margin-right: calc(100% + var(--page-pad) - 100cqw);
-  padding-left: var(--gutter);
-  padding-right: max(var(--gutter), calc(100cqw - var(--gutter) - var(--column)));
+  margin-left: calc((var(--frame-off) + var(--page-pad)) * -1);
+  margin-right: calc((var(--frame-off) + var(--page-pad)) * -1);
+  padding-left: calc(var(--frame-off) + var(--gutter));
+  padding-right: calc(var(--frame-off) + var(--gutter));
   background: var(--color-bg);
-}
-/* List and table pages ("wide" and "full") are capped at --column-wide, not --column, so the
-   header's actions end on the same line as the list or table below it. */
-html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="wide"] > .shell-header:first-child,
-html[data-look="v2"] [data-surface="admin"] .shell-page[data-width="full"] > .shell-header:first-child {
-  padding-right: max(var(--gutter), calc(100cqw - var(--gutter) - var(--column-wide)));
 }
 
 /* Focus rings inside the sidebar sit inside the item: 28px rows leave no room for the
@@ -859,13 +894,8 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     display: none;
   }
   /* The whole group (header bar, title, reading column, panel) is at most 720 + 40 + 296 wide, so
-     the bar ends where the panel ends. The page is AppShell width="full" (no box, no padding), so
-     the group centres in the whole main area; a gutter is the least it keeps on each side. Text
-     and panel keep their widths. */
-  html[data-look="v2"] [data-surface="admin"] .memo-dossier {
-    max-width: 1056px;
-    margin-inline: max(var(--gutter), calc((100cqw - 1056px) / 2));
-  }
+     the bar ends where the panel ends. The page is AppShell width="detail": the shared page frame
+     (see .shell-page) sets that width, centres it and keeps the gutters. */
   html[data-look="v2"] [data-surface="admin"] .memo-dossier .memo-reading {
     max-width: 720px;
   }
@@ -942,10 +972,6 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
-  html[data-look="v2"] [data-surface="admin"] .co-dossier {
-    max-width: 1056px;
-    margin-inline: max(var(--gutter), calc((100cqw - 1056px) / 2));
-  }
   html[data-look="v2"] [data-surface="admin"] .co-dossier .co-main {
     max-width: 720px;
   }
@@ -992,10 +1018,6 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
-  }
-  html[data-look="v2"] [data-surface="admin"] .up-dossier {
-    max-width: 1056px;
-    margin-inline: max(var(--gutter), calc((100cqw - 1056px) / 2));
   }
   html[data-look="v2"] [data-surface="admin"] .up-dossier .up-main {
     max-width: 720px;
@@ -1044,10 +1066,6 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
-  html[data-look="v2"] [data-surface="admin"] .dl-dossier {
-    max-width: 1056px;
-    margin-inline: max(var(--gutter), calc((100cqw - 1056px) / 2));
-  }
   html[data-look="v2"] [data-surface="admin"] .dl-dossier .dl-main {
     max-width: 720px;
   }
@@ -1089,16 +1107,12 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
 }
 /* Fund page (PLAN-1, WS163; B-133): the same group, but the main column is 960 instead of 720 because the
    Deals table has eleven columns and needs about 900px. 960 + 40 gap + 296 panel = 1296, centred. The
-   panel sits under the title below 1344px of main width (the group plus gutters). */
+   panel sits under the title below 1424px of main width (the group plus the widest gutters). */
 @media screen {
   html[data-look="v2"] [data-surface="admin"] .fund-dossier-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
-  }
-  html[data-look="v2"] [data-surface="admin"] .fund-dossier {
-    max-width: 1296px;
-    margin-inline: max(var(--gutter), calc((100cqw - 1296px) / 2));
   }
   /* Per-LP Remove shows on hover or keyboard focus, and always on touch. */
   html[data-look="v2"] [data-surface="admin"] .fund-item .fund-act {
@@ -1115,10 +1129,10 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     opacity: 1;
   }
 }
-/* Side by side only when the whole 960 + 40 + 296 group fits with a 24px gutter each side (1344).
-   Narrower, the panel sits under the title and the main column fills the width, so the Deals table
-   fits. */
-@container (min-width: 1344px) {
+/* Side by side only when the whole 960 + 40 + 296 group fits with the widest gutter (64px) each
+   side (1424). Narrower, the panel sits under the title and the main column fills the width, so the
+   Deals table fits. */
+@container (min-width: 1424px) {
   @media screen {
     html[data-look="v2"] [data-surface="admin"] .fund-dossier-grid {
       grid-template-columns: minmax(0, 960px) 296px;
@@ -1140,7 +1154,7 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     }
   }
 }
-/* The full-width page has no padding of its own, so print keeps the 24px the page box gave it. */
+/* The memo page's frame has no print padding (see .shell-page), so print keeps the 24px it had. */
 @media print {
   html[data-look="v2"] [data-surface="admin"] .memo-dossier {
     padding-inline: 24px;

@@ -64,8 +64,8 @@ export function FundRecord({
   if (fund.firstDealDate) rows.push({ label: "First deal", value: formatDate(fund.firstDealDate) });
 
   return (
-    // The page is AppShell width="full" (no padding): the vertical padding the page box gave is here.
-    <div className="fund-dossier v2:py-6 md:v2:py-8">
+    // The page is AppShell width="detail-wide": the shared page frame gives the padding and the width.
+    <div className="fund-dossier">
       <div className="mb-6 flex h-9 items-center gap-2">
         <Link
           href="/admin/funds"

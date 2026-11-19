@@ -196,7 +196,7 @@ export default function DigestDetailPage() {
 
   if (loading) {
     return (
-      <AppShell>
+      <AppShell width="narrow">
         <PageSkeleton />
       </AppShell>
     );
@@ -204,7 +204,7 @@ export default function DigestDetailPage() {
 
   if (!digest) {
     return (
-      <AppShell>
+      <AppShell width="narrow">
         <div className="flex flex-col items-center justify-center py-20">
           <AlertCircle className="mb-2 h-8 w-8 text-destructive" />
           <p className="text-sm text-destructive">Digest not found</p>
@@ -224,7 +224,7 @@ export default function DigestDetailPage() {
   const reviewCount = digest.todos.filter((t) => t.cardId && reviewCardIds.has(t.cardId)).length;
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       {/* Header */}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

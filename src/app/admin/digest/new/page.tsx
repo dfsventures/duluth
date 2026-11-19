@@ -191,7 +191,7 @@ export default function NewDigestPage() {
   }
 
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <Link

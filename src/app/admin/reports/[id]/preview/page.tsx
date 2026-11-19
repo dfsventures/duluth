@@ -37,7 +37,7 @@ export default async function AdminReportPreviewPage({ params }: { params: Promi
         src={`/admin/reports/${id}/preview/frame`}
         title="Report as LPs see it"
         loading="lazy"
-        className="hidden w-full border-0 v2:block v2:h-[calc(100dvh-var(--bar-h)-48px)]"
+        className="hidden w-full border-0 v2:block v2:h-[calc(100dvh-var(--bar-h)-48px)] v2:rounded-lg v2:border v2:border-solid v2:border-border"
       />
     </AppShell>
   );
