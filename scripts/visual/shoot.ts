@@ -40,6 +40,12 @@ const PAGES: Record<string, string> = {
   audit: "/admin/audit", // WS170: the last 100 events, compact rows
   contacts: "/admin/portfolio-contacts", // WS170: the Contacts tab
   "contacts-links": "/admin/portfolio-contacts?tab=links", // WS170: the Links tab (two tables)
+  providers: "/admin/providers", // WS171
+  links: "/admin/links", // WS171: investor links (the states pass also opens the first row in the pane)
+  diligence: "/admin/diligence", // WS171 (also opened in the pane in the states pass)
+  settings: "/admin/settings", // WS171: the Email tab
+  "settings-storage": "/admin/settings?tab=storage",
+  "settings-integrations": "/admin/settings?tab=integrations",
 };
 const VIEWPORTS: Record<string, { width: number; height: number }> = {
   desktop: { width: 1440, height: 900 },
@@ -321,6 +327,23 @@ async function main() {
               await snap(page, `companies-hover__${tag}.png`, false);
             } else {
               console.warn("  no table row found to hover on /admin/companies");
+            }
+          }
+          await page.close();
+        }
+        // WS171: Investor Links and Diligence with the first row open in the pane.
+        for (const [key, path] of [["links", "/admin/links"], ["diligence", "/admin/diligence"]] as const) {
+          if (!pageKeys.includes(key)) continue;
+          const page = await context.newPage();
+          watch(page, `${key}-pane ${tag}`);
+          if (await open(page, `${key}-pane ${tag}`, path)) {
+            const row = page.locator("tbody tr[data-row]").first();
+            if ((await row.count()) > 0) {
+              await row.click();
+              await page.waitForTimeout(500);
+              await snap(page, `${key}-pane__${tag}.png`);
+            } else {
+              console.warn(`  no table row found to open on ${path}`);
             }
           }
           await page.close();

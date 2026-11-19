@@ -26,6 +26,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
 import { ModalSheet } from "@/components/ui/sheet";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { useNewLook } from "@/lib/use-new-look";
+import type { FilterChipDef } from "@/lib/data-table";
 
 interface Category {
   id: string;
@@ -50,6 +53,7 @@ interface Provider {
 }
 
 export default function AdminProvidersPage() {
+  const newLook = useNewLook();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,8 +183,109 @@ export default function AdminProvidersPage() {
   const pending = providers.filter((p) => p.status === "PENDING");
   const rest = providers.filter((p) => p.status !== "PENDING");
 
+  // New look: the directory is small, so the status chips and the search run in the browser over
+  // everything the page loads (status=ALL). The two tables are the Pending queue and the rest.
+  const providerColumns = (): DataTableColumn<Provider>[] => [
+    {
+      key: "name",
+      header: "Provider",
+      sortValue: (p) => p.name,
+      title: (p) => p.description,
+      cell: (p) => (
+        <>
+          <span className="mr-3 flex h-5 w-5 flex-none items-center justify-center rounded bg-primary-50 text-primary">
+            {p.type === "FIRM" ? <Building2 className="h-3 w-3" /> : <User className="h-3 w-3" />}
+          </span>
+          <span className="min-w-0 truncate">{p.name}</span>
+        </>
+      ),
+    },
+    { key: "category", header: "Category", mobile: "meta", sortValue: (p) => p.category.name, cell: (p) => p.category.name },
+    {
+      key: "status",
+      header: "Status",
+      mobile: "badge",
+      sortValue: (p) => p.status,
+      cell: (p) => <StatusBadge status={p.status} />,
+    },
+    {
+      key: "where",
+      header: "Location",
+      dropBelow: 600,
+      sortValue: (p) => [p.city, p.country].filter(Boolean).join(", "),
+      cell: (p) => [p.city, p.country].filter(Boolean).join(", ") || <span className="text-muted-foreground">—</span>,
+    },
+    {
+      key: "links",
+      header: "Links",
+      dropBelow: 600,
+      cell: (p) =>
+        p.website || p.linkedin ? (
+          <span className="flex items-center gap-3">
+            {p.website && (
+              <a href={p.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                <ExternalLink className="h-3 w-3" /> Website
+              </a>
+            )}
+            {p.linkedin && (
+              <a href={p.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                <Linkedin className="h-3 w-3" /> LinkedIn
+              </a>
+            )}
+          </span>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        ),
+    },
+    {
+      key: "by",
+      header: "Submitted by",
+      dropBelow: 480,
+      sortValue: (p) => p.submittedBy?.name,
+      cell: (p) => (p.submittedBy ? (p.submittedBy.name ?? "a founder") : <span className="text-muted-foreground">—</span>),
+    },
+    {
+      key: "endorsements",
+      header: "Endorsements",
+      align: "num",
+      dropBelow: 480,
+      sortValue: (p) => p.endorsementCount ?? p.endorsements?.length ?? 0,
+      cell: (p) => p.endorsementCount ?? p.endorsements?.length ?? 0,
+    },
+  ];
+  const providerActions = (p: Provider, approve?: () => void, reject?: () => void) => (
+    <>
+      {approve && (
+        <Button size="sm" onClick={approve} disabled={!!actionStates[p.id]?.loading}>
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          {p.status === "REJECTED" ? "Restore" : "Approve"}
+          <span className="sr-only"> {p.name}</span>
+        </Button>
+      )}
+      {reject && (
+        <Button size="sm" variant="secondary" onClick={reject} disabled={!!actionStates[p.id]?.loading} className="text-tone-clay-ink">
+          <XCircle className="h-3.5 w-3.5" />
+          Reject
+          <span className="sr-only"> {p.name}</span>
+        </Button>
+      )}
+      <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
+        <Pencil className="h-3.5 w-3.5" />
+        <span className="sr-only">Edit {p.name}</span>
+      </Button>
+      <Button size="sm" variant="ghost" className="hover:text-tone-clay-ink" onClick={() => handleDelete(p.id)}>
+        <Trash2 className="h-3.5 w-3.5" />
+        <span className="sr-only">Delete {p.name}</span>
+      </Button>
+    </>
+  );
+  const REST_CHIPS: FilterChipDef<Provider>[] = [
+    { key: "vetted", label: "Vetted", test: (p) => p.status === "VETTED" },
+    { key: "rejected", label: "Rejected", test: (p) => p.status === "REJECTED" },
+  ];
+
   return (
-    <AppShell>
+    <AppShell width={newLook ? "wide" : undefined}>
       <PageHeader
         title="Service Providers"
         description="Review submissions and manage the provider directory."
@@ -198,8 +303,73 @@ export default function AdminProvidersPage() {
         }
       />
 
+      {newLook && (
+        <div className="space-y-12">
+          {pending.length > 0 && (
+            <section aria-labelledby="providers-pending">
+              <h2 id="providers-pending" className="mx-[var(--row-pad)] mb-3 text-meta font-medium text-foreground">
+                Pending review <span className="ml-1 tabular-nums text-muted-foreground">{pending.length}</span>
+              </h2>
+              <DataTable<Provider>
+                label="Providers pending review"
+                noun="provider"
+                rows={pending}
+                rowKey={(p) => p.id}
+                columns={providerColumns()}
+                defaultSort={{ key: "name", dir: "asc" }}
+                urlState={false}
+                minWidth={760}
+                actionsLabel="Row actions"
+                actionsAlwaysVisible
+                rowActions={(p) => providerActions(p, () => setStatus(p.id, "VETTED"), () => setStatus(p.id, "REJECTED"))}
+                loading={loading}
+                empty={null}
+              />
+            </section>
+          )}
+          {(rest.length > 0 || pending.length === 0) && <section aria-labelledby="providers-all">
+            {rest.length > 0 && (
+              <h2 id="providers-all" className="mx-[var(--row-pad)] mb-3 text-meta font-medium text-foreground">
+                All providers <span className="ml-1 tabular-nums text-muted-foreground">{rest.length}</span>
+              </h2>
+            )}
+            <DataTable<Provider>
+              label="Service providers"
+              noun="provider"
+              rows={rest}
+              rowKey={(p) => p.id}
+              columns={providerColumns()}
+              defaultSort={{ key: "name", dir: "asc" }}
+              urlState={false}
+              minWidth={760}
+              searchText={(p) => [p.name, p.category.name, p.city, p.country]}
+              searchPlaceholder="Filter providers"
+              chips={REST_CHIPS}
+              rowActions={(p) =>
+                providerActions(
+                  p,
+                  p.status === "REJECTED" ? () => setStatus(p.id, "VETTED") : undefined,
+                  p.status === "VETTED" ? () => setStatus(p.id, "REJECTED") : undefined
+                )
+              }
+              actionsLabel="Row actions"
+              loading={loading}
+              empty={
+                <EmptyState
+                  className="mx-[var(--row-pad)] py-3"
+                  eyebrow="Service Providers"
+                  icon={<Building2 className="h-8 w-8" />}
+                  title="No providers found"
+                  description="Adjust filters or wait for submissions."
+                />
+              }
+            />
+          </section>}
+        </div>
+      )}
+
       {/* Filters */}
-      <div className="mb-6 flex flex-wrap gap-3">
+      {!newLook && <div className="mb-6 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
           <Input
@@ -228,9 +398,9 @@ export default function AdminProvidersPage() {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
-      {loading ? (
+      {newLook ? null : loading ? (
         <div className="space-y-4">
           {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-md bg-muted animate-pulse" />)}
         </div>

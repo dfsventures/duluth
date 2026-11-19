@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link2, Plus, Trash2, Eye, Copy, CheckCircle2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { OpenParam, SplitView } from "@/components/layout/split-view";
+import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
+import { useNewLook } from "@/lib/use-new-look";
+import { crumbLabel, stepCursor } from "@/lib/split-view";
+import { TONE_CLASSES } from "@/lib/status-tone";
+import { TableSkeleton } from "@/components/ui/skeleton";
+import type { FilterChipDef } from "@/lib/data-table";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -52,6 +60,45 @@ function shareUrl(token: string): string {
   return `${window.location.origin}/share/${token}`;
 }
 
+// New look: the pane's view log, read from the same GET /api/links/:id the old inline log uses.
+function LinkViews({ id, onError }: { id: string; onError: () => void }) {
+  const [views, setViews] = useState<ViewLog[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    setViews(null);
+    fetch(`/api/links/${id}`)
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((data) => {
+        if (live) setViews(data.views ?? []);
+      })
+      .catch(() => {
+        if (live) {
+          setViews([]);
+          onError();
+        }
+      });
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+  if (views === null) return <p>Loading…</p>;
+  if (views.length === 0) return <p>No views yet.</p>;
+  return (
+    <ul className="divide-y divide-border">
+      {views.map((v) => (
+        <li key={v.id} className="flex items-center justify-between gap-3 py-2">
+          <span className="min-w-0 truncate text-foreground">{v.email}</span>
+          <span className="flex-none text-muted-foreground">{new Date(v.viewedAt).toLocaleString()}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function AdminLinksPage() {
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [publishedUpdates, setPublishedUpdates] = useState<PublishedUpdate[]>([]);
@@ -76,6 +123,9 @@ export default function AdminLinksPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState("");
+  const newLook = useNewLook();
+  const [visibleRows, setVisibleRows] = useState<LinkItem[]>([]);
+  const visibleKeys = useMemo(() => visibleRows.map((l) => l.id), [visibleRows]);
 
   const loadData = useCallback(async () => {
     try {
@@ -232,8 +282,122 @@ export default function AdminLinksPage() {
     );
   }
 
+  function renderLinkPane(
+    link: LinkItem,
+    nav: { crumb: string; onPrev?: () => void; onNext?: () => void; onClose: () => void }
+  ) {
+    const expired = link.expiresAt ? new Date(link.expiresAt) < new Date() : false;
+    return (
+      <DetailPane
+        crumb={nav.crumb}
+        title={link.label || "Untitled link"}
+        mark={<Link2 className="h-5 w-5 flex-none text-muted-foreground" aria-hidden="true" />}
+        onPrev={nav.onPrev}
+        onNext={nav.onNext}
+        onClose={nav.onClose}
+        chips={
+          <>
+            {link.companies.map((c) => (
+              <PaneChip key={c.company.id} className={TONE_CLASSES.sky.chip}>
+                {c.company.name}
+              </PaneChip>
+            ))}
+            <PaneChip className={expired ? TONE_CLASSES.stone.chip : undefined}>{expiryLabel(link.expiresAt)}</PaneChip>
+          </>
+        }
+        card={
+          <PaneCard
+            heading={copiedId === link.id ? "Link copied" : "Share this link"}
+            actions={
+              confirmDeleteId === link.id ? (
+                <>
+                  <span className="text-body text-secondary">Revoke this link?</span>
+                  <Button variant="destructive" disabled={deleting} onClick={() => handleDelete(link.id)}>
+                    {deleting ? "..." : "Confirm"}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
+                </>
+              ) : (
+                <>
+                  <Button onClick={() => copyLink(link.token, link.id)}>
+                    {copiedId === link.id ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiedId === link.id ? "Copied" : "Copy link"}
+                  </Button>
+                  <Button variant="secondary" onClick={() => setConfirmDeleteId(link.id)}>
+                    Revoke
+                  </Button>
+                </>
+              )
+            }
+          >
+            Anyone with this link can read the included updates. Revoking it stops access for good.
+          </PaneCard>
+        }
+      >
+        <PaneSection title="Views">
+          <LinkViews id={link.id} onError={() => setMessage({ type: "error", text: "Failed to load view log." })} />
+        </PaneSection>
+        <PaneSection title="Details">
+          <PaneDetails
+            rows={[
+              { label: "Created", value: formatDate(link.createdAt) },
+              { label: "Expires", value: link.expiresAt ? formatDate(link.expiresAt) : "Never" },
+              { label: "Views", value: link._count.views },
+            ]}
+          />
+        </PaneSection>
+      </DetailPane>
+    );
+  }
+
+  const linkColumns: DataTableColumn<LinkItem>[] = [
+    {
+      key: "label",
+      header: "Label",
+      sortValue: (l) => l.label ?? "Untitled link",
+      cell: (l) => <span className="min-w-0 truncate">{l.label || "Untitled link"}</span>,
+    },
+    {
+      key: "companies",
+      header: "Companies",
+      mobile: "meta",
+      sortValue: (l) => l.companies.map((c) => c.company.name).join(", "),
+      title: (l) => l.companies.map((c) => c.company.name).join(", "),
+      cell: (l) => <span className="min-w-0 truncate text-muted-foreground">{l.companies.map((c) => c.company.name).join(", ") || "—"}</span>,
+    },
+    {
+      key: "expires",
+      header: "Expires",
+      dropBelow: 600,
+      mobile: "meta",
+      sortValue: (l) => (l.expiresAt ? new Date(l.expiresAt).getTime() : Number.MAX_SAFE_INTEGER),
+      cell: (l) => (l.expiresAt ? (new Date(l.expiresAt) < new Date() ? "Expired" : formatDate(l.expiresAt)) : "Never"),
+    },
+    {
+      key: "views",
+      header: "Views",
+      align: "num",
+      dropBelow: 480,
+      sortValue: (l) => l._count.views,
+      cell: (l) => l._count.views,
+    },
+    {
+      key: "created",
+      header: "Created",
+      align: "num",
+      firstDir: "desc",
+      mobile: "meta",
+      sortValue: (l) => new Date(l.createdAt).getTime(),
+      cell: (l) => formatDate(l.createdAt),
+    },
+  ];
+  const linkChips: FilterChipDef<LinkItem>[] = [
+    { key: "active", label: "Active", test: (l) => !l.expiresAt || new Date(l.expiresAt) >= new Date() },
+    { key: "expired", label: "Expired", test: (l) => !!l.expiresAt && new Date(l.expiresAt) < new Date() },
+  ];
+
   return (
-    <AppShell>
+    <AppShell width={newLook ? "full" : undefined}>
       <PageHeader
         title="Investor Links"
         description="Generate read-only shareable links for LPs across portfolio companies."
@@ -247,15 +411,15 @@ export default function AdminLinksPage() {
 
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
+        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink v2:mx-[var(--row-pad)] v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-clay">
           <AlertCircle className="h-4 w-4" />{error}
         </div>
       )}
 
       {/* Create form */}
       {showForm && (
-        <Card className="mb-6">
-          <CardHeader><CardTitle className="text-base">New Investor Link</CardTitle></CardHeader>
+        <Card className="mb-6 v2:mx-[var(--row-pad)] v2:max-w-[720px] v2:border-0 v2:bg-transparent v2:p-0 v2:pb-6 v2:shadow-none">
+          <CardHeader><CardTitle className="text-base v2:font-sans v2:text-row v2:font-medium">New Investor Link</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4">
               <Input
@@ -406,12 +570,59 @@ export default function AdminLinksPage() {
       )}
 
       {links.length === 0 ? (
-        <EmptyState eyebrow="Investor Links"
+        <EmptyState className="v2:mx-[var(--row-pad)] v2:py-3" eyebrow="Investor Links"
           icon={<Link2 className="h-10 w-10" />}
           title="No investor links yet"
           description="Create a shareable link to give LPs read-only access to portfolio updates and metrics."
           action={<Button size="sm" onClick={() => setShowForm(true)}><Plus className="mr-2 h-4 w-4" />New Link</Button>}
         />
+      ) : newLook ? (
+        <OpenParam fallback={<TableSkeleton rows={4} cols={4} />}>
+          {(openId, setOpenId) => {
+            const closePane = () => setOpenId(null);
+            const step = (delta: 1 | -1) => {
+              const to = stepCursor(visibleKeys, openId, delta);
+              if (to) setOpenId(to);
+            };
+            const openLink = openId ? (links.find((l) => l.id === openId) ?? null) : null;
+            const at = openLink ? visibleKeys.indexOf(openLink.id) : -1;
+            return (
+              <SplitView
+                open={openId}
+                onClose={closePane}
+                paneLabel={openLink?.label || "Untitled link"}
+                pane={
+                  openLink
+                    ? renderLinkPane(openLink, {
+                        crumb: crumbLabel("Investor Links", visibleKeys, openLink.id),
+                        onPrev: at > 0 ? () => step(-1) : undefined,
+                        onNext: at !== -1 && at < visibleKeys.length - 1 ? () => step(1) : undefined,
+                        onClose: closePane,
+                      })
+                    : null
+                }
+                list={
+                  <DataTable<LinkItem>
+                    label="Investor links"
+                    noun="link"
+                    rows={links}
+                    rowKey={(l) => l.id}
+                    columns={linkColumns}
+                    onOpenRow={(l) => setOpenId(l.id)}
+                    openKey={openId}
+                    onVisibleRowsChange={setVisibleRows}
+                    rowClassName={(l) => (l.expiresAt && new Date(l.expiresAt) < new Date() ? "text-muted-foreground" : undefined)}
+                    defaultSort={{ key: "created", dir: "desc" }}
+                    searchText={(l) => [l.label, ...l.companies.map((c) => c.company.name)]}
+                    searchPlaceholder="Filter links"
+                    chips={linkChips}
+                    empty={null}
+                  />
+                }
+              />
+            );
+          }}
+        </OpenParam>
       ) : (
         <>
           <div className="mb-6">

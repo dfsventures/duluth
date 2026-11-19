@@ -93,7 +93,7 @@ export function DigestRecipientsPanel() {
       {/* Admin users */}
       {admins.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Team admins</p>
+          <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide v2:text-meta v2:normal-case v2:tracking-normal">Team admins</p>
           <ul className="space-y-2">
             {admins.map((u) => (
               <li
@@ -122,7 +122,7 @@ export function DigestRecipientsPanel() {
 
       {/* Extra recipients */}
       <div>
-        <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Additional recipients</p>
+        <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide v2:text-meta v2:normal-case v2:tracking-normal">Additional recipients</p>
 
         {extras.length > 0 && (
           <ul className="mb-3 space-y-2">

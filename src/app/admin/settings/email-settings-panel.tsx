@@ -40,7 +40,7 @@ export function EmailSettingsPanel({
   return (
     <>
       {!hasApiKey && (
-        <div className="mb-4 flex gap-2.5 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-xs text-foreground">
+        <div className="mb-4 flex gap-2.5 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-xs text-foreground v2:border-transparent v2:bg-tone-amber">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tone-amber-ink" />
           <span>
             <strong>RESEND_API_KEY</strong> is not set. Add it to your environment variables to enable email delivery.{" "}

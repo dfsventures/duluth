@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DataTable, type DataTableColumn, type DataTableGroupBy } from "@/components/ui/data-table";
+import { OpenParam, SplitView } from "@/components/layout/split-view";
+import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
+import { NameTile } from "@/components/ui/name-tile";
+import { useNewLook } from "@/lib/use-new-look";
+import { crumbLabel, stepCursor } from "@/lib/split-view";
+import { TONE_CLASSES } from "@/lib/status-tone";
+import { TableSkeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -46,7 +54,25 @@ interface DiligenceItem {
   progress: { done: number; total: number };
 }
 
+// New look: two groups under sticky headings, "Ready for review" first (same split as the old page).
+const DD_GROUP_BY: DataTableGroupBy<DiligenceItem> = {
+  fixed: "stage",
+  options: [
+    {
+      key: "stage",
+      label: "Stage",
+      getGroup: (i) =>
+        i.diligence?.completedAt
+          ? { id: "ready", label: "Ready for review" }
+          : { id: "awaiting", label: "Awaiting founder" },
+    },
+  ],
+};
+
 export default function AdminDiligencePage() {
+  const newLook = useNewLook();
+  const [visibleRows, setVisibleRows] = useState<DiligenceItem[]>([]);
+  const visibleKeys = useMemo(() => visibleRows.map((i) => i.id), [visibleRows]);
   const [items, setItems] = useState<DiligenceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -248,15 +274,154 @@ export default function AdminDiligencePage() {
     );
   }
 
+  // New look: the pane for one item. Same handlers and confirm as the old card.
+  function renderPane(
+    item: DiligenceItem,
+    ready: boolean,
+    nav: { crumb: string; onPrev?: () => void; onNext?: () => void; onClose: () => void }
+  ) {
+    const state = actionStates[item.id];
+    const d = item.diligence;
+    return (
+      <DetailPane
+        crumb={nav.crumb}
+        title={item.name}
+        mark={<NameTile name={item.name} kind="company" className="mr-0 v2:h-8 v2:w-8 v2:text-[13px]" />}
+        onPrev={nav.onPrev}
+        onNext={nav.onNext}
+        onClose={nav.onClose}
+        chips={
+          <>
+            <PaneChip>
+              {item.founder ? (item.founder.name ? `${item.founder.name} · ${item.founder.email}` : item.founder.email) : "No founder assigned"}
+            </PaneChip>
+            <PaneChip className={d?.isUsIncorporated == null ? undefined : TONE_CLASSES.sky.chip}>
+              {d?.isUsIncorporated == null
+                ? "Incorporation: unanswered"
+                : d.isUsIncorporated
+                  ? "US-incorporated"
+                  : "Not US-incorporated"}
+            </PaneChip>
+            {d?.isStellarEcosystem && (
+              <PaneChip className={d.stellarWhyText && d.stellarTimelineText ? TONE_CLASSES.sky.chip : TONE_CLASSES.amber.chip}>
+                Stellar essays {d.stellarWhyText && d.stellarTimelineText ? "present" : "missing"}
+              </PaneChip>
+            )}
+            {DD_DOC_TYPES.map((docType) => (
+              <PaneChip key={docType.value}>
+                {docType.label}: {item.documentCounts[docType.value] ?? 0}
+              </PaneChip>
+            ))}
+          </>
+        }
+        card={
+          <PaneCard
+            heading={ready ? `Promote ${item.name}` : `Waiting on ${item.founder?.name ?? "the founder"}`}
+            actions={
+              <>
+                {ready && (
+                  <Button disabled={state?.loading} onClick={() => handlePromote(item.id)}>
+                    {state?.loading ? "..." : "Promote"}
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  className="text-tone-clay-ink"
+                  disabled={state?.loading}
+                  onClick={() => askDecline(item)}
+                >
+                  Decline
+                </Button>
+              </>
+            }
+          >
+            {state?.error && (
+              <span role="alert" className="mb-2 block text-meta text-destructive">
+                {state.error}
+              </span>
+            )}
+            {item.progress.done} of {item.progress.total} required items done.{" "}
+            {ready ? "Promote moves it into the portfolio." : "It moves to Ready for review once the founder finishes."}
+          </PaneCard>
+        }
+      >
+        <PaneSection title="Company">
+          <Link href={`/admin/companies/${item.id}?tab=diligence`} className="text-primary hover:underline">
+            Open company →
+          </Link>
+        </PaneSection>
+        {d?.isStellarEcosystem && (
+          <PaneSection title="Questionnaire answers">
+            <div className="space-y-3">
+              <DiligenceAnswers diligence={d} variant="compact" />
+            </div>
+          </PaneSection>
+        )}
+        <PaneSection title="Details">
+          <PaneDetails
+            rows={[
+              { label: "Created", value: formatDate(item.createdAt) },
+              { label: "Progress", value: `${item.progress.done} of ${item.progress.total}` },
+            ]}
+          />
+        </PaneSection>
+      </DetailPane>
+    );
+  }
+
+  const diligenceRows = [...readyForReview, ...awaitingFounder];
+  const isReady = (i: DiligenceItem) => Boolean(i.diligence?.completedAt);
+  const diligenceColumns: DataTableColumn<DiligenceItem>[] = [
+    {
+      key: "company",
+      header: "Company",
+      sortValue: (i) => i.name,
+      cell: (i) => (
+        <>
+          <NameTile name={i.name} kind="company" className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
+          <span className="min-w-0 truncate" title={i.name}>
+            {i.name}
+          </span>
+        </>
+      ),
+    },
+    {
+      key: "founder",
+      header: "Founder",
+      dropBelow: 480,
+      mobile: "meta",
+      sortValue: (i) => i.founder?.name ?? i.founder?.email,
+      cell: (i) => i.founder?.name ?? i.founder?.email ?? <span className="text-muted-foreground">No founder assigned</span>,
+    },
+    {
+      key: "progress",
+      header: "Progress",
+      align: "num",
+      mobile: "meta",
+      // Ready rows first (so the "Ready for review" group leads), then the ones nearest done.
+      sortValue: (i) => (isReady(i) ? 0 : 1000) + (i.progress.total - i.progress.done),
+      cell: (i) => `${i.progress.done} of ${i.progress.total}`,
+    },
+    {
+      key: "created",
+      header: "Created",
+      align: "num",
+      dropBelow: 600,
+      firstDir: "desc",
+      sortValue: (i) => new Date(i.createdAt).getTime(),
+      cell: (i) => formatDate(i.createdAt),
+    },
+  ];
+
   return (
-    <AppShell>
+    <AppShell width={newLook ? "full" : undefined}>
       <PageHeader
         title="Due Diligence"
         description="Companies invited for due diligence, awaiting paperwork before they join the portfolio."
       />
 
       {notice && (
-        <div className="mb-6 flex items-start gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground">
+        <div className="mb-6 flex items-start gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground v2:mx-[var(--row-pad)] v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-amber">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-tone-amber-ink" />
           <span>{notice}</span>
         </div>
@@ -268,6 +433,53 @@ export default function AdminDiligencePage() {
           title="No companies in due diligence"
           description="Nothing is waiting on you right now. Turn on due diligence when you add a company to route it into this queue."
         />
+      ) : newLook ? (
+        <OpenParam fallback={<TableSkeleton rows={4} cols={4} />}>
+          {(openId, setOpenId) => {
+            const closePane = () => setOpenId(null);
+            const step = (delta: 1 | -1) => {
+              const to = stepCursor(visibleKeys, openId, delta);
+              if (to) setOpenId(to);
+            };
+            const openItem = openId ? (items.find((i) => i.id === openId) ?? null) : null;
+            const at = openItem ? visibleKeys.indexOf(openItem.id) : -1;
+            return (
+              <SplitView
+                open={openId}
+                onClose={closePane}
+                paneLabel={openItem?.name}
+                pane={
+                  openItem
+                    ? renderPane(openItem, isReady(openItem), {
+                        crumb: crumbLabel("Due Diligence", visibleKeys, openItem.id),
+                        onPrev: at > 0 ? () => step(-1) : undefined,
+                        onNext: at !== -1 && at < visibleKeys.length - 1 ? () => step(1) : undefined,
+                        onClose: closePane,
+                      })
+                    : null
+                }
+                list={
+                  <DataTable<DiligenceItem>
+                    label="Companies in due diligence"
+                    noun="company"
+                    pluralNoun="companies"
+                    rows={diligenceRows}
+                    rowKey={(i) => i.id}
+                    columns={diligenceColumns}
+                    onOpenRow={(i) => setOpenId(i.id)}
+                    openKey={openId}
+                    onVisibleRowsChange={setVisibleRows}
+                    defaultSort={{ key: "progress", dir: "asc" }}
+                    groupBy={DD_GROUP_BY}
+                    searchText={(i) => [i.name, i.founder?.name, i.founder?.email]}
+                    searchPlaceholder="Filter companies"
+                    empty={null}
+                  />
+                }
+              />
+            );
+          }}
+        </OpenParam>
       ) : (
         <div className="space-y-6">
           {readyForReview.length > 0 && (

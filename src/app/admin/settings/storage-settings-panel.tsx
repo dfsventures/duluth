@@ -60,7 +60,7 @@ export function StorageSettingsPanel({ uploadFailureCount = 0 }: StorageSettings
       {uploadFailureCount > 0 && (
         <a
           href="/admin/audit"
-          className="mb-3 flex items-center gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground hover:bg-ochre/20"
+          className="mb-3 flex items-center gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground hover:bg-ochre/20 v2:border-transparent v2:bg-tone-amber v2:hover:bg-tone-amber"
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-tone-amber-ink" />
           {uploadFailureCount} upload failure{uploadFailureCount === 1 ? "" : "s"} reported in the last 7 days —

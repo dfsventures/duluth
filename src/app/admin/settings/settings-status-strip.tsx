@@ -5,9 +5,9 @@ import { settingsTabHref, type SettingsTab } from "./settings-tabs-util";
 type Tone = "ok" | "warn" | "neutral";
 
 const MARKER: Record<Tone, string> = {
-  ok: "bg-acacia",
-  warn: "bg-ochre",
-  neutral: "bg-border",
+  ok: "bg-acacia v2:bg-[color:var(--color-done)]",
+  warn: "bg-ochre v2:bg-[color:var(--color-warn)]",
+  neutral: "bg-border v2:bg-[color:var(--color-ctl)]",
 };
 
 interface Props {
@@ -48,14 +48,14 @@ export function SettingsStatusStrip({ resendOn, cronOn, uploadFailureCount, gran
   ];
 
   return (
-    <div className="mb-6 grid grid-cols-1 border border-border sm:grid-cols-2" aria-label="System status">
+    <div className="mb-6 grid grid-cols-1 border border-border sm:grid-cols-2 v2:max-w-[720px] v2:border-0 v2:sm:grid-cols-1" aria-label="System status">
       {rows.map((r) => (
         <Link
           key={r.label}
           href={settingsTabHref(r.tab)}
-          className="flex min-h-[44px] min-w-0 items-center gap-3 border-b border-border px-4 py-3 text-xs last:border-b-0 hover:bg-muted/40 sm:[&:nth-last-child(2):nth-child(odd)]:border-b-0"
+          className="flex min-h-[44px] min-w-0 items-center gap-3 border-b border-border px-4 py-3 text-xs last:border-b-0 hover:bg-muted/40 sm:[&:nth-last-child(2):nth-child(odd)]:border-b-0 v2:min-h-[44px] v2:border-row-divider v2:px-0 v2:py-0 v2:text-body v2:hover:bg-row-hover v2:sm:[&:nth-last-child(2):nth-child(odd)]:border-b"
         >
-          <span className={cn("h-2 w-2 shrink-0", MARKER[r.tone])} aria-hidden />
+          <span className={cn("h-2 w-2 shrink-0 v2:h-1.5 v2:w-1.5 v2:rounded-full", MARKER[r.tone])} aria-hidden />
           <span className="font-medium text-foreground">{r.label}</span>
           <span className="min-w-0 truncate text-muted-foreground">{r.text}</span>
         </Link>

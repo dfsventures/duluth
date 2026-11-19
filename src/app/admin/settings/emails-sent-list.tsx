@@ -28,7 +28,7 @@ export const EMAILS_SENT_COUNT = EMAILS.length;
 export function EmailsSentList() {
   return (
     <details className="group mt-4">
-      <summary className="flex cursor-pointer list-none items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+      <summary className="flex cursor-pointer list-none items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
         <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>&rsaquo;</span>
         Which emails does Molly send? ({EMAILS.length})
       </summary>

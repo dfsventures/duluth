@@ -424,6 +424,33 @@ async function main() {
       data: { portfolioCompanyId: portco["Acme Robotics"], name: "Jane Founder", email: "jane@acme-robotics.example.com", role: "CEO" },
     });
 
+    // ── Service providers and investor links (WS171) ─────
+    const legal = await db.serviceCategory.create({ data: { name: "Legal" } });
+    const accounting = await db.serviceCategory.create({ data: { name: "Accounting & Tax" } });
+    const provider = (name: string, categoryId: string, status: "PENDING" | "VETTED" | "REJECTED", extra: Record<string, unknown> = {}) =>
+      db.serviceProvider.create({
+        data: { name, categoryId, status, type: "FIRM", description: "Placeholder description of the service.", city: "Lagos", country: "Nigeria", ...extra },
+      });
+    await provider("Example Law LLP", legal.id, "PENDING", { website: "https://law.example.com", submittedById: sam.id });
+    await provider("Sample Counsel", legal.id, "PENDING", { type: "INDIVIDUAL", linkedin: "https://linkedin.com/in/sample" });
+    await provider("Placeholder Books Ltd", accounting.id, "VETTED", { website: "https://books.example.com" });
+    await provider("Demo Tax Partners", accounting.id, "VETTED");
+    await provider("Rejected Advisory", legal.id, "REJECTED");
+
+    await db.shareableLink.create({
+      data: {
+        token: "visual-token-active", label: "Q3 LP update", createdById: sam.id, expiresAt: new Date(NOW + 20 * DAY),
+        companies: { create: [{ companyId: companyIds["Acme Robotics"] }, { companyId: companyIds["Wonka Payments"] }] },
+        views: { create: [{ email: "lp-one@example.com" }, { email: "lp-two@example.com" }] },
+      },
+    });
+    await db.shareableLink.create({
+      data: {
+        token: "visual-token-expired", label: null, createdById: sam.id, expiresAt: ago(10),
+        companies: { create: [{ companyId: companyIds["Acme Robotics"] }] },
+      },
+    });
+
     // ── Memos ────────────────────────────────────────────
     const memo = (
       title: string,

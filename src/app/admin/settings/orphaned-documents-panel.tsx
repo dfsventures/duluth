@@ -5,6 +5,8 @@ import { AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { DataTable } from "@/components/ui/data-table";
+import { useNewLook } from "@/lib/use-new-look";
 
 interface OrphanedDoc {
   id: string;
@@ -15,6 +17,7 @@ interface OrphanedDoc {
 }
 
 export function OrphanedDocumentsPanel() {
+  const newLook = useNewLook();
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState<number | null>(null);
   const [orphaned, setOrphaned] = useState<OrphanedDoc[]>([]);
@@ -72,7 +75,44 @@ export function OrphanedDocumentsPanel() {
           {error}
         </p>
       )}
-      {orphaned.length > 0 && (
+      {orphaned.length > 0 && newLook && (
+        <div className="mt-4">
+          <DataTable<OrphanedDoc>
+            label="Orphaned documents"
+            noun="document"
+            rows={orphaned}
+            rowKey={(d) => d.id}
+            defaultSort={{ key: "created", dir: "desc" }}
+            urlState={false}
+            minWidth={640}
+            actionsLabel="Row actions"
+            actionsAlwaysVisible
+            empty={null}
+            columns={[
+              { key: "name", header: "Name", sortValue: (d) => d.name, cell: (d) => <span className="min-w-0 truncate">{d.name}</span> },
+              { key: "company", header: "Company", mobile: "meta", sortValue: (d) => d.company.name, cell: (d) => d.company.name },
+              { key: "by", header: "Uploaded by", dropBelow: 480, sortValue: (d) => d.uploadedBy.email, cell: (d) => d.uploadedBy.email },
+              {
+                key: "created",
+                header: "Created",
+                align: "num",
+                firstDir: "desc",
+                mobile: "meta",
+                sortValue: (d) => new Date(d.createdAt).getTime(),
+                cell: (d) => formatDate(d.createdAt),
+              },
+            ]}
+            rowActions={(doc) => (
+              <Button variant="ghost" size="sm" onClick={() => handleDelete(doc.id)} disabled={deletingId === doc.id}>
+                <Trash2 className="h-3.5 w-3.5" />
+                {deletingId === doc.id ? "Deleting..." : "Delete"}
+                <span className="sr-only"> {doc.name}</span>
+              </Button>
+            )}
+          />
+        </div>
+      )}
+      {orphaned.length > 0 && !newLook && (
         <div className="mt-4 overflow-x-auto rounded-md border border-border">
           <table className="w-full min-w-[640px] text-sm">
             <thead>

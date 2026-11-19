@@ -29,13 +29,13 @@ function Status({ on }: { on: boolean }) {
 function SectionHeading({ title, description }: { title: string; description?: string }) {
   return (
     <div className="mb-4">
-      <h2 className="font-display text-sm font-semibold text-foreground">{title}</h2>
+      <h2 className="font-display text-sm font-semibold text-foreground v2:font-sans v2:text-row v2:font-medium">{title}</h2>
       {description && <p className="text-xs text-muted-foreground">{description}</p>}
     </div>
   );
 }
 
-const SECTION = "border-t border-border pt-6 mt-8 first:mt-0 first:border-t-0 first:pt-0";
+const SECTION = "border-t border-border pt-6 mt-8 first:mt-0 first:border-t-0 first:pt-0 v2:mt-0 v2:border-t-0 v2:pt-0 v2:[&:not(:first-of-type)]:mt-12";
 
 export default async function SettingsPage({ searchParams }: { searchParams: { tab?: string } }) {
   const session = await auth();
@@ -73,12 +73,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
 
   return (
     <AppShell>
-    <div className="max-w-3xl">
       <PageHeader
         title="Settings"
         description="Platform configuration and diagnostics."
       />
-
+    <div className="max-w-3xl">
       <SettingsStatusStrip
         resendOn={hasApiKey}
         cronOn={!!process.env.CRON_SECRET}
@@ -170,7 +169,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
               )}
             </p>
             <details className="group mt-3">
-              <summary className="flex cursor-pointer list-none items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground">
+              <summary className="flex cursor-pointer list-none items-center gap-2 font-mono text-xs uppercase tracking-widest text-muted-foreground hover:text-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
                 <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>&rsaquo;</span>
                 Which API key should I use?
               </summary>
