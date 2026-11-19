@@ -441,7 +441,7 @@ export default function AdminCompaniesPage() {
             />
             <Button onClick={() => router.push("/admin/companies/new")}>
               <Plus className="h-4 w-4" />
-              Add Company
+              Add company
             </Button>
           </div>
         }
@@ -533,7 +533,7 @@ export default function AdminCompaniesPage() {
             action={
               <Button onClick={() => router.push("/admin/companies/new")}>
                 <Plus className="h-4 w-4" />
-                Add Company
+                Add company
               </Button>
             }
             secondaryAction={

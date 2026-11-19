@@ -201,7 +201,7 @@ export function ProfileCard({
         </Button>
         <Button size="sm" disabled={saving} onClick={handleSaveEdit}>
           <Save className="mr-2 h-3.5 w-3.5" />
-          {saving ? "Saving..." : "Save Changes"}
+          {saving ? "Saving..." : "Save changes"}
         </Button>
       </div>
     </div>

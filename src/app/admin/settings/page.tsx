@@ -22,7 +22,7 @@ function Status({ on }: { on: boolean }) {
   return on ? (
     <span className="text-tone-sage-ink font-medium">Configured</span>
   ) : (
-    <span className="text-tone-amber-ink font-medium">Not set</span>
+    <span className="text-tone-amber-ink font-medium">Not set up</span>
   );
 }
 

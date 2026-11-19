@@ -38,7 +38,7 @@ describe("Settings", () => {
     expect(html).toContain("v2:bg-[color:var(--color-ctl)]");
     // The old list stays (hidden under the new look); the new look gets the one-line summary.
     expect(html).toContain("v2:hidden");
-    expect(html).toContain("other services are working");
+    expect(html).toContain("other services have no problems");
   });
 
   it("the header is the first child of the shell, outside the 3xl wrapper", () => {

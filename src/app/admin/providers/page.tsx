@@ -308,7 +308,7 @@ export default function AdminProvidersPage() {
         description="Review submissions and manage the provider directory."
         secondaryActions={
           newLook
-            ? [{ label: "Add Category", icon: <Plus className="h-4 w-4" />, onSelect: () => setShowAddCategory(true) }]
+            ? [{ label: "Add category", icon: <Plus className="h-4 w-4" />, onSelect: () => setShowAddCategory(true) }]
             : undefined
         }
         action={
@@ -316,12 +316,12 @@ export default function AdminProvidersPage() {
             {!newLook && (
               <Button variant="secondary" onClick={() => setShowAddCategory(true)}>
                 <Plus className="h-4 w-4" />
-                Add Category
+                Add category
               </Button>
             )}
             <Button onClick={openNew}>
               <Plus className="h-4 w-4" />
-              Add Provider
+              Add provider
             </Button>
           </div>
         }
@@ -455,7 +455,7 @@ export default function AdminProvidersPage() {
 
       {/* Add category modal */}
       {showAddCategory && (
-        <Modal title="Add Category" onClose={() => setShowAddCategory(false)}>
+        <Modal title="Add category" onClose={() => setShowAddCategory(false)}>
           <form onSubmit={handleAddCategory} className="space-y-4">
             <div>
               <label className="label mb-1.5 block">Category name *</label>
@@ -470,7 +470,7 @@ export default function AdminProvidersPage() {
             {addCategoryError && <p className="text-sm text-tone-clay-ink">{addCategoryError}</p>}
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setShowAddCategory(false)}>Cancel</Button>
-              <Button type="submit" disabled={addingCategory}>{addingCategory ? "Adding..." : "Add Category"}</Button>
+              <Button type="submit" disabled={addingCategory}>{addingCategory ? "Adding..." : "Add category"}</Button>
             </div>
           </form>
         </Modal>
@@ -478,7 +478,7 @@ export default function AdminProvidersPage() {
 
       {/* Add / edit modal */}
       {editTarget && (
-        <ModalSheet className="sm:max-w-[520px]" title={editTarget === "new" ? "Add Provider" : `Edit — ${(editTarget as Provider).name}`} onClose={() => setEditTarget(null)}>
+        <ModalSheet className="sm:max-w-[520px]" title={editTarget === "new" ? "Add provider" : `Edit ${(editTarget as Provider).name}`} onClose={() => setEditTarget(null)}>
           <form onSubmit={handleSaveEdit} className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Name *">
@@ -548,7 +548,7 @@ export default function AdminProvidersPage() {
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="secondary" onClick={() => setEditTarget(null)}>Cancel</Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : editTarget === "new" ? "Add Provider" : "Save Changes"}
+                {saving ? "Saving..." : editTarget === "new" ? "Add provider" : "Save changes"}
               </Button>
             </div>
           </form>

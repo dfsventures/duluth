@@ -85,7 +85,7 @@ describe("fund page, new look", () => {
         performance={{ invested: 1000000, impliedValue: 1500000, dilutionAware: true, paidIn: 1000000, approximate: false, tvpi: 1.5, dpi: 0.2, grossIrr: 0.12, asOf: "2026-11-01T00:00:00.000Z" }}
       />
     );
-    const labels = ["Invested", "Implied Value", "TVPI", "DPI", "Gross IRR"];
+    const labels = ["Invested", "Implied value", "TVPI", "DPI", "Gross IRR"];
     const at = labels.map((l) => html.indexOf(l));
     expect(at.every((i) => i >= 0)).toBe(true);
     expect([...at].sort((a, b) => a - b)).toEqual(at);

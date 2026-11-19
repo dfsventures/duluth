@@ -595,8 +595,8 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                   <AlertCircle className="h-4 w-4 shrink-0 text-tone-amber-ink" aria-hidden />
                   <p className="min-w-0 flex-1 basis-48 text-sm text-foreground">
                     {reviewOnly
-                      ? `Showing ${needsReviewCount} item${needsReviewCount === 1 ? "" : "s"} that need review`
-                      : `${needsReviewCount} item${needsReviewCount === 1 ? " needs" : "s need"} review: names or projects Molly couldn't match`}
+                      ? `Showing the ${needsReviewCount} item${needsReviewCount === 1 ? "" : "s"} Molly couldn't match`
+                      : `Molly couldn't match a name or project on ${needsReviewCount} item${needsReviewCount === 1 ? "" : "s"}`}
                   </p>
                   <Button
                     size="sm"
@@ -604,7 +604,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                     className="shrink-0"
                     onClick={() => setFilter("review", reviewOnly ? "" : "1")}
                   >
-                    {reviewOnly ? "Show all" : "Show them"}
+                    {reviewOnly ? "Show all items" : "Show them"}
                   </Button>
                 </div>
               )}

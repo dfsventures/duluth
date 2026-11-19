@@ -100,7 +100,7 @@ describe("company page, new look", () => {
     const html = renderToStaticMarkup(
       <ProfileCard variant="panel" companyId="c1" company={company} portfolioCompany={null} onSaved={noop} setMessage={noop} editing onEditingChange={noop} />
     );
-    expect(html).toContain("Save Changes");
+    expect(html).toContain("Save changes");
     expect(html).toContain('id="edit-name"');
   });
 

@@ -159,10 +159,10 @@ export default function AdminCreateUpdatePage() {
         draftLabel={company ? `Draft in ${company.name}` : "Draft"}
         secondaryActions={
           <Button variant="secondary" size="sm" disabled={submitting} onClick={() => handleSubmit("DRAFT")}>
-            {submitting ? "Saving..." : "Save as Draft"}
+            {submitting ? "Saving..." : "Save as draft"}
           </Button>
         }
-        publishLabel="Send Update"
+        publishLabel="Send update"
         onPublishClick={() => handleSubmit("SENT")}
         publishDisabled={!canPublish}
         publishing={submitting}

@@ -115,7 +115,7 @@ export default function NewCompanyPage() {
   return (
     <AppShell width="narrow">
       <PageHeader
-        title="Add Company"
+        title="Add company"
         description="Manually create a new portfolio company."
         // New look (audit #8): the Form header. A quiet back link before the title and the one primary on the right.
         back={{ href: "/admin/companies", label: "Companies" }}
@@ -145,7 +145,7 @@ export default function NewCompanyPage() {
           <CardContent className={cn("space-y-4", EDITOR_SECTION_BODY)}>
             <Input
               id="name"
-              label="Company Name"
+              label="Company name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter company name"
@@ -186,7 +186,7 @@ export default function NewCompanyPage() {
               placeholder="e.g. Kenya, West Africa, Pan-African"
             />
 
-            <Select id="fundingStage" label="Funding Stage" value={fundingStage} onChange={(e) => setFundingStage(e.target.value)}>
+            <Select id="fundingStage" label="Funding stage" value={fundingStage} onChange={(e) => setFundingStage(e.target.value)}>
               <option value="">Select a stage</option>
               {FUNDING_STAGES.map((s) => (
                 <option key={s} value={s}>
@@ -202,14 +202,13 @@ export default function NewCompanyPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 v2:font-sans">
               <UserPlus className="h-5 w-5 v2:hidden" />
-              Assign User (Optional)
+              Assign a user (optional)
             </CardTitle>
           </CardHeader>
           <CardContent className={cn("space-y-4", EDITOR_SECTION_BODY)}>
             <div className="space-y-1">
-              <label className="label">User Assignment</label>
               {/* New look: the chosen option is marked, not made a second primary button. */}
-              <div className="flex flex-wrap gap-3">
+              <div role="group" aria-label="Assign a user" className="flex flex-wrap gap-3">
                 <Button
                   type="button"
                   variant={assignUser === "none" && !newLook ? "primary" : "secondary"}
@@ -228,7 +227,7 @@ export default function NewCompanyPage() {
                   className={newLook ? segmentClass(assignUser === "existing") : undefined}
                   onClick={() => setAssignUser("existing")}
                 >
-                  Existing User
+                  Existing user
                 </Button>
                 <Button
                   type="button"
@@ -238,7 +237,7 @@ export default function NewCompanyPage() {
                   className={newLook ? segmentClass(assignUser === "new") : undefined}
                   onClick={() => setAssignUser("new")}
                 >
-                  Create New User
+                  New user
                 </Button>
               </div>
             </div>
@@ -246,7 +245,7 @@ export default function NewCompanyPage() {
             {assignUser === "existing" && (
               <Input
                 id="existingUserEmail"
-                label="User Email"
+                label="User email"
                 type="email"
                 value={existingUserEmail}
                 onChange={(e) => setExistingUserEmail(e.target.value)}

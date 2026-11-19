@@ -28,7 +28,7 @@ export default async function AdminReportPreviewPage({ params }: { params: Promi
         description="How LPs will see this. Numbers are not frozen until you publish."
         action={
           <div className="flex items-center gap-3">
-            <span className="hidden text-meta text-muted-foreground v2dark:inline">Shown in the LP&apos;s light look</span>
+            <span className="hidden text-meta text-muted-foreground v2dark:inline">Shown in light mode, as LPs see it</span>
             <Link href={`/admin/reports/${id}`} className="btn-secondary">
               Edit report
             </Link>

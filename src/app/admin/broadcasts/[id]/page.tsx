@@ -121,7 +121,7 @@ function GrowTitle({ value, onChange }: { value: string; onChange: (v: string) =
   );
 }
 
-const SEND_DISABLED_REASON = "Add a message and pick at least one company to send.";
+const SEND_DISABLED_REASON = "Add a subject, a message and at least one company to send.";
 
 export default function AdminBroadcastEditorPage() {
   const newLook = useNewLook();
@@ -357,7 +357,7 @@ export default function AdminBroadcastEditorPage() {
         throw new Error(d?.error ?? "Failed to retry");
       }
       const d: { attempted: number; sent: number; failed: number } = await res.json();
-      setMessage({ type: "success", text: `Retried ${d.attempted} — ${d.sent} sent${d.failed > 0 ? `, ${d.failed} still failed` : ""}.` });
+      setMessage({ type: "success", text: `Retried ${d.attempted}: ${d.sent} sent${d.failed > 0 ? `, ${d.failed} still failed` : ""}.` });
       await loadBroadcast();
     } catch (err) {
       setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to retry." });
@@ -487,26 +487,33 @@ export default function AdminBroadcastEditorPage() {
         {newLook && !isDraft && (
           <>
             {/* Audit #24: who it reached, in one line under the title. */}
-            <p className="mb-4 flex flex-wrap items-center gap-x-1 text-meta text-muted-foreground">
-              <span>
+            <div className="mb-4 space-y-1 text-meta text-muted-foreground">
+              <p>
                 Sent {data.publishedAt ? formatDate(data.publishedAt) : ""}
-                {data.senderLabel ? ` by ${data.senderLabel}` : ""} to {plural(data.recipients.length, "contact", "contacts")} at{" "}
-                {plural(data.targets.length, "company", "companies")} · {deliveredCount} delivered
-              </span>
-              {failedCount > 0 && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <button type="button" onClick={() => setSentTab("delivery")} className="text-tone-clay-ink underline-offset-2 hover:underline">
-                    {failedCount} failed
-                  </button>
-                </>
-              )}
+                {data.senderLabel ? ` by ${data.senderLabel}` : ""}
+              </p>
+              <p>
+                <span className="whitespace-nowrap">
+                  {plural(data.recipients.length, "contact", "contacts")} at {plural(data.targets.length, "company", "companies")}:
+                </span>{" "}
+                <span className="whitespace-nowrap">{deliveredCount} delivered</span>
+                {failedCount > 0 && (
+                  <>
+                    ,{" "}
+                    <button type="button" onClick={() => setSentTab("delivery")} className="whitespace-nowrap text-tone-clay-ink underline-offset-2 hover:underline">
+                      {failedCount} failed
+                    </button>
+                  </>
+                )}
+              </p>
               {hasUnsent && (
-                <Button size="sm" variant="ghost" className="ml-2 v2:h-7" disabled={retrying} onClick={handleRetry}>
-                  {retrying ? "Retrying..." : "Retry unsent"}
-                </Button>
+                <div>
+                  <Button size="sm" variant="ghost" className="-ml-3 v2:h-7" disabled={retrying} onClick={handleRetry}>
+                    {retrying ? "Retrying..." : "Retry unsent"}
+                  </Button>
+                </div>
               )}
-            </p>
+            </div>
             {/* Audit #25: Message / Delivery. */}
             <div role="tablist" aria-label="Broadcast sections" className="mb-6 flex gap-5">
               {(

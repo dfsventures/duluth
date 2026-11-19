@@ -21,21 +21,21 @@ interface Props {
 // Presence booleans only; no env value is ever passed in or rendered.
 export function SettingsStatusStrip({ resendOn, cronOn, uploadFailureCount, granola, slackOn }: Props) {
   const rows: { label: string; text: string; tone: Tone; tab: SettingsTab }[] = [
-    { label: "Email (Resend)", text: resendOn ? "Configured" : "Not set", tone: resendOn ? "ok" : "warn", tab: "email" },
-    { label: "Cron secret", text: cronOn ? "Configured" : "Not set", tone: cronOn ? "ok" : "warn", tab: "email" },
+    { label: "Email (Resend)", text: resendOn ? "Configured" : "Not set up", tone: resendOn ? "ok" : "warn", tab: "email" },
+    { label: "Cron secret", text: cronOn ? "Configured" : "Not set up", tone: cronOn ? "ok" : "warn", tab: "email" },
     {
       label: "Storage uploads",
       text:
         uploadFailureCount > 0
-          ? `${uploadFailureCount} failure${uploadFailureCount === 1 ? "" : "s"} in 7 days`
-          : "No failures in 7 days",
+          ? `${uploadFailureCount} failure${uploadFailureCount === 1 ? "" : "s"} in the last 7 days`
+          : "No failures in the last 7 days",
       tone: uploadFailureCount > 0 ? "warn" : "ok",
       tab: "storage",
     },
     {
       label: "Granola intake",
       text: !granola.on
-        ? "Not configured"
+        ? "Not set up"
         : granola.last
           ? `Last intake: ${granola.last.status}, ${granola.last.createdAt.toISOString().slice(0, 10)}`
           : granola.webhookOn
@@ -44,7 +44,7 @@ export function SettingsStatusStrip({ resendOn, cronOn, uploadFailureCount, gran
       tone: granola.on ? "ok" : "neutral",
       tab: "integrations",
     },
-    { label: "Slack digest post", text: slackOn ? "Configured" : "Not configured", tone: slackOn ? "ok" : "neutral", tab: "integrations" },
+    { label: "Slack digest post", text: slackOn ? "Configured" : "Not set up", tone: slackOn ? "ok" : "neutral", tab: "integrations" },
   ];
 
   const renderRow = (r: (typeof rows)[number]) => (
@@ -81,8 +81,10 @@ export function SettingsStatusStrip({ resendOn, cronOn, uploadFailureCount, gran
             <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", problems.length === 0 ? MARKER.ok : MARKER.neutral)} aria-hidden />
             <span>
               {problems.length === 0
-                ? `All ${rows.length} services are working`
-                : `${working.length} other service${working.length === 1 ? " is" : "s are"} working`}
+                ? "Nothing needs attention"
+                : working.length === 1
+                  ? "1 other service has no problems"
+                  : `${working.length} other services have no problems`}
             </span>
             <span className="text-muted-foreground transition-transform group-open:rotate-90" aria-hidden>
               &rsaquo;

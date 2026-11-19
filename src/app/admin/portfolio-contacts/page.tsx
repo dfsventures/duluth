@@ -315,7 +315,7 @@ function AdminPortfolioContactsPageInner() {
               </Button>
               <Button variant="secondary" disabled={importing} onClick={() => fileInputRef.current?.click()}>
                 <Upload className="mr-2 h-4 w-4" />
-                {importing ? "Importing..." : "Import contacts (CSV)"}
+                {importing ? "Importing..." : "Import CSV"}
               </Button>
               <input
                 ref={fileInputRef}
@@ -414,7 +414,7 @@ function AdminPortfolioContactsPageInner() {
                   toolbarExtra={
                     companiesLoaded ? (
                       <span className="whitespace-nowrap text-meta text-muted-foreground">
-                        {companiesWithContacts} of {companies.length} have contacts
+                        {companiesWithContacts} of {companies.length} companies have contacts
                       </span>
                     ) : undefined
                   }

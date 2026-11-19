@@ -448,7 +448,7 @@ export default function AdminLpsPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={saving}>
-                {saving ? "Saving..." : editTarget === "new" ? "Add LP" : "Save Changes"}
+                {saving ? "Saving..." : editTarget === "new" ? "Add LP" : "Save changes"}
               </Button>
             </div>
           </form>

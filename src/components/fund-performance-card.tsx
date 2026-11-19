@@ -82,17 +82,20 @@ export function FundPerformanceCard({ performance, deals, fundName, showCaveat =
   // hasOverrideValue(), which uses a nullish check (F93). Do not write
   // `overrides.netIrr !== null` here or anywhere else in this file.
   const overrideActive = hasOverrideValue(overrides);
+  // showCaveat is true only on the admin fund page (the snapshot block, shared with the LP report,
+  // passes false), so it also selects the admin wording; the LP report keeps its existing labels.
+  const adminWording = showCaveat;
   return (
     // New look (audit #31): no box. The same figures as a Stat strip.
     <div className="mb-6 rounded-md border border-edge bg-card p-4 shadow-soft v2:mb-4 v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0 v2:shadow-none">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold v2:text-row v2:font-medium">{fundName ? `${fundName} — Performance` : "Performance"}</h3>
+        <h3 className="font-semibold v2:text-row v2:font-medium">{fundName ? `${fundName}${adminWording ? " performance" : " — Performance"}` : "Performance"}</h3>
         <span className="text-xs text-muted-foreground v2:text-meta">As of {formatDate(performance.asOf)}</span>
       </div>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 v2:gap-x-8">
         <Stat label="Invested" value={`$${performance.invested.toLocaleString()}`} {...LEGACY} />
         <Stat
-          label={`Implied Value${showCaveat && !performance.dilutionAware ? " *" : ""}`}
+          label={`${adminWording ? "Implied value" : "Implied Value"}${showCaveat && !performance.dilutionAware ? " *" : ""}`}
           value={`$${Math.round(performance.impliedValue).toLocaleString()}`}
           {...LEGACY}
         />

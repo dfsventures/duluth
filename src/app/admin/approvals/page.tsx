@@ -843,7 +843,7 @@ export default function ApprovalsPage() {
         <>
           {pendingApprovals.length > 0 && (
             <h2 className="mx-[var(--row-pad)] mb-3 flex items-baseline gap-1.5 text-row font-medium text-foreground">
-              Pending approval
+              Awaiting approval
               <span className="text-meta font-normal text-muted-foreground">{shownPending.length}</span>
             </h2>
           )}
@@ -888,7 +888,7 @@ export default function ApprovalsPage() {
                       }
                       list={
                         <DataTable<Approval>
-                          label="Pending approvals"
+                          label="Awaiting approval"
                           noun="signup"
                           rows={shownPending}
                           rowKey={(a) => a.id}
@@ -1274,7 +1274,7 @@ export default function ApprovalsPage() {
             key: "state",
             header: "State",
             mobile: "meta",
-            cell: (u) => (u.setupQueueDismissedAt ? "Dismissed" : "Link stale"),
+            cell: (u) => (u.setupQueueDismissedAt ? "Dismissed" : "Link expired"),
           },
         ];
 
@@ -1372,11 +1372,11 @@ export default function ApprovalsPage() {
             {dismissedOrStale.length > 0 && (
               <section aria-labelledby="dismissed-heading" className="space-y-2">
                 <h3 id="dismissed-heading" className="text-sm font-medium text-muted-foreground v2:flex v2:items-baseline v2:gap-1.5 v2:text-row v2:text-foreground">
-                  Dismissed / stale <span className="hidden text-meta font-normal text-muted-foreground v2:inline">{dismissedOrStale.length}</span>
+                  Dismissed or expired <span className="hidden text-meta font-normal text-muted-foreground v2:inline">{dismissedOrStale.length}</span>
                   <span className="v2:hidden">({dismissedOrStale.length})</span>
                 </h3>
                 <DataTable<AwaitingUser>
-                  label="Dismissed or stale accounts"
+                  label="Dismissed or expired accounts"
                   noun="account"
                   rows={dismissedOrStale}
                   rowKey={(u) => u.id}

@@ -593,7 +593,7 @@ export default function AdminPortfolioCompanyPage() {
             />
             <input
               type="email"
-              placeholder="Email *"
+              placeholder="Email"
               required
               value={contactForm.email}
               onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))}

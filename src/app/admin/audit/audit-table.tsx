@@ -40,6 +40,41 @@ const ACTION_LABELS: Record<string, string> = {
   SIGN_IN_FAILED: "Sign-in failed",
 };
 
+// New look only (the old markup keeps raw codes). Words match what the screens call things
+// (docs/design/admin-audit-v1-copy.md, Audit Log overrides).
+const ACTION_OVERRIDES: Record<string, string> = {
+  MEMO_DECISION_CHANGED: "Memo stage changed",
+  BROADCAST_PUBLISHED: "Broadcast sent",
+  BROADCAST_RETRIED: "Broadcast retried for unsent contacts",
+  BOARD_CARD_CREATED: "Board item created",
+  BOARD_CARD_MOVED: "Board item moved",
+  BOARD_CARD_UPDATED: "Board item updated",
+  BOARD_CARD_LINK_ADDED: "Board item proof link added",
+  BOARD_CARD_LINK_REMOVED: "Board item proof link removed",
+  SETUP_QUEUE_DISMISSED: "Account dismissed from awaiting setup",
+  SETUP_QUEUE_UNDISMISSED: "Account restored to awaiting setup",
+  SETUP_QUEUE_USER_DELETED: "Account deleted (awaiting setup)",
+  MARK_CREATED: "Valuation added",
+  MARK_DELETED: "Valuation deleted",
+  ROUND_CREATED: "Financing round created",
+  ROUND_UPDATED: "Financing round updated",
+  ROUND_DELETED: "Financing round deleted",
+  MARGE_READ: "Marge read data",
+  MARGE_DENIED: "Marge request denied",
+  DOCUMENT_ORPHAN_DELETED: "Orphaned document deleted",
+  PORTCO_CONTACT_ADDED: "Contact added",
+  PORTCO_CONTACT_UPDATED: "Contact updated",
+  PORTCO_CONTACT_REMOVED: "Contact removed",
+  PORTCO_CONTACTS_IMPORTED: "Contacts imported",
+  MEMBER_ADDED: "Company member added",
+  COMPANY_DILIGENCE_PROMOTED: "Company moved out of diligence",
+  PORTCO_LINKED: "Company linked to ledger",
+  PORTCO_UNLINKED: "Company unlinked from ledger",
+  DEALS_LINKED_TO_SHEET: "Deals linked to Google Sheet",
+};
+
+const ACRONYMS = new Set(["lp", "csv", "id", "url"]);
+
 function formatTimestamp(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
     year: "numeric",
@@ -61,9 +96,17 @@ function metadataEntries(metadata: unknown): [string, unknown][] {
 
 // New look (audit #41): actions read as sentences. Any code gets sentence-cased (FUND_UPDATED → "Fund
 // updated"), so a code added later reads fine without touching this file; the raw code is the cell's tooltip.
-function actionLabel(action: string): string {
+export function actionLabel(action: string): string {
   if (ACTION_LABELS[action]) return ACTION_LABELS[action];
-  const words = action.toLowerCase().replace(/\bportco\b/g, "portfolio company").replace(/_/g, " ").trim();
+  if (ACTION_OVERRIDES[action]) return ACTION_OVERRIDES[action];
+  const words = action
+    .toLowerCase()
+    .replace(/\bportco\b/g, "portfolio company")
+    .replace(/_/g, " ")
+    .trim()
+    .split(" ")
+    .map((w) => (ACRONYMS.has(w) ? w.toUpperCase() : w))
+    .join(" ");
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : action;
 }
 

@@ -406,7 +406,7 @@ export default function AdminLinksPage() {
         action={
           <Button onClick={() => setShowForm((v) => !v)}>
             <Plus className="mr-2 h-4 w-4" />
-            New Link
+            New link
           </Button>
         }
       />
@@ -434,7 +434,7 @@ export default function AdminLinksPage() {
 
               {publishedUpdates.length > 0 && (
                 <div className="space-y-2 rounded-md border border-dashed p-3 v2:rounded-none v2:border-0 v2:p-0">
-                  <label className="label">Bulk select by period (LP report link)</label>
+                  <label className="label">Select by period (LP report link)</label>
                   <div className="flex flex-wrap items-end gap-3">
                     <Input
                       id="bulk-from"
@@ -468,7 +468,7 @@ export default function AdminLinksPage() {
                   {selectedUpdateIds.length > 0 && (
                     <p className="text-xs text-muted-foreground">
                       {selectedUpdateIds.length} update{selectedUpdateIds.length !== 1 ? "s" : ""} across{" "}
-                      {selectedCompanyCount} compan{selectedCompanyCount !== 1 ? "ies" : "y"}.
+                      {selectedCompanyCount} compan{selectedCompanyCount !== 1 ? "ies" : "y"}
                     </p>
                   )}
                   <label className="flex items-center gap-2 pt-1 text-sm">
@@ -546,7 +546,7 @@ export default function AdminLinksPage() {
               </div>
 
               <div className="space-y-1">
-                <label className="label">Link Expiry</label>
+                <label className="label">Link expiry</label>
                 <div className="flex flex-wrap gap-2">
                   {EXPIRY_OPTIONS.map((opt) => (
                     <button
@@ -594,7 +594,7 @@ export default function AdminLinksPage() {
           icon={<Link2 className="h-10 w-10" />}
           title="No investor links yet"
           description="Create a shareable link to give LPs read-only access to portfolio updates and metrics."
-          action={<Button size="sm" onClick={() => setShowForm(true)}><Plus className="mr-2 h-4 w-4" />New Link</Button>}
+          action={<Button size="sm" onClick={() => setShowForm(true)}><Plus className="mr-2 h-4 w-4" />New link</Button>}
         />
       ) : newLook ? (
         <OpenParam fallback={<TableSkeleton rows={4} cols={4} />}>
