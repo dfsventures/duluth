@@ -193,7 +193,7 @@ export default function AdminProvidersPage() {
       title: (p) => p.description,
       cell: (p) => (
         <>
-          <span className="mr-3 flex h-5 w-5 flex-none items-center justify-center rounded bg-primary-50 text-primary">
+          <span className="mr-3 inline-flex h-5 w-5 flex-none items-center justify-center rounded bg-primary-50 text-primary">
             {p.type === "FIRM" ? <Building2 className="h-3 w-3" /> : <User className="h-3 w-3" />}
           </span>
           <span className="min-w-0 truncate">{p.name}</span>
@@ -289,12 +289,19 @@ export default function AdminProvidersPage() {
       <PageHeader
         title="Service Providers"
         description="Review submissions and manage the provider directory."
+        secondaryActions={
+          newLook
+            ? [{ label: "Add Category", icon: <Plus className="h-4 w-4" />, onSelect: () => setShowAddCategory(true) }]
+            : undefined
+        }
         action={
           <div className="flex flex-wrap gap-3">
-            <Button variant="secondary" onClick={() => setShowAddCategory(true)}>
-              <Plus className="h-4 w-4" />
-              Add Category
-            </Button>
+            {!newLook && (
+              <Button variant="secondary" onClick={() => setShowAddCategory(true)}>
+                <Plus className="h-4 w-4" />
+                Add Category
+              </Button>
+            )}
             <Button onClick={openNew}>
               <Plus className="h-4 w-4" />
               Add Provider
