@@ -11,7 +11,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD, EDITOR_TITLE } from "@/lib/editor-styles";
 import { plainToDigestHtml, digestHtmlToPlain, sanitizeDigestHtml } from "@/lib/digest-html";
 import { PageSkeleton } from "@/components/ui/skeleton";
 
@@ -241,7 +242,7 @@ export default function DigestDetailPage() {
               onChange={(e) => setEditTitle(e.target.value)}
             />
           ) : (
-            <h1 className="text-xl font-bold text-foreground">{digest.title}</h1>
+            <h1 className={cn("text-xl font-bold text-foreground", EDITOR_TITLE)}>{digest.title}</h1>
           )}
           {editing ? (
             <input
@@ -314,7 +315,7 @@ export default function DigestDetailPage() {
       </div>
 
       {isDraft && reviewCount > 0 && !editing && (
-        <p className="mb-4 text-sm text-foreground">
+        <p className={cn("mb-4 text-sm text-foreground", EDITOR_COLUMN)}>
           {reviewCount} item{reviewCount === 1 ? " still needs" : "s still need"} review.{" "}
           <Link href="/admin/board?review=1" className="underline underline-offset-2">
             Open the board
@@ -323,21 +324,21 @@ export default function DigestDetailPage() {
       )}
 
       {slackStatus && (
-        <p className="mb-4 text-xs text-muted-foreground">{slackStatus}</p>
+        <p className={cn("mb-4 text-xs text-muted-foreground", EDITOR_COLUMN)}>{slackStatus}</p>
       )}
 
       {(sendError || saveError) && (
-        <div className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className={cn("mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive", EDITOR_COLUMN)}>
           {sendError ?? saveError}
         </div>
       )}
 
       {/* Sections */}
-      <div className="space-y-6">
+      <div className={cn("space-y-6 v2:space-y-8", EDITOR_COLUMN)}>
         {sections.filter((s) => editing || s.content?.trim()).map((section) => (
-          <Card key={section.id}>
-            <CardContent className="pt-5">
-              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2">
+          <Card key={section.id} className={EDITOR_SECTION_CARD}>
+            <CardContent className={cn("pt-5", EDITOR_SECTION_BODY)}>
+              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2 v2:border-b-0 v2:pb-0 v2:text-meta">
                 {section.heading}
               </h2>
               {editing ? (
@@ -359,9 +360,9 @@ export default function DigestDetailPage() {
 
         {/* Todos */}
         {(editing || digest.todos.length > 0) && (
-          <Card>
-            <CardContent className="pt-5">
-              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2">
+          <Card className={EDITOR_SECTION_CARD}>
+            <CardContent className={cn("pt-5", EDITOR_SECTION_BODY)}>
+              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2 v2:border-b-0 v2:pb-0 v2:text-meta">
                 This Week&apos;s Todos
               </h2>
 

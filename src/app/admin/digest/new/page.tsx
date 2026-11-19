@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { plainToDigestHtml } from "@/lib/digest-html";
 import { OwnerPicker } from "@/components/admin/board/owner-picker";
+import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD, EDITOR_TITLE } from "@/lib/editor-styles";
 
 interface DigestSection {
   id: string;
@@ -200,13 +201,13 @@ export default function NewDigestPage() {
             <ArrowLeft className="h-3.5 w-3.5" />
             All digests
           </Link>
-          <h1 className="text-xl font-bold text-foreground">New Weekly Digest</h1>
+          <h1 className={cn("text-xl font-bold text-foreground", EDITOR_TITLE)}>New Weekly Digest</h1>
         </div>
       </div>
 
       {step === "paste" && (
-        <Card>
-          <CardContent className="pt-6 space-y-4">
+        <Card className={cn(EDITOR_COLUMN, EDITOR_SECTION_CARD)}>
+          <CardContent className={cn("pt-6 space-y-4", EDITOR_SECTION_BODY)}>
             <div>
               <label className="label mb-1.5 block">Meeting notes or Granola links</label>
               <p className="mb-3 text-xs text-muted-foreground">
@@ -243,17 +244,17 @@ export default function NewDigestPage() {
       )}
 
       {step === "edit" && (
-        <div className="space-y-5">
+        <div className={cn("space-y-5 v2:space-y-8", EDITOR_COLUMN)}>
           {warnings.length > 0 && (
-            <div className="rounded-md border border-ochre/40 bg-ochre/10 px-4 py-3 text-sm text-foreground">
+            <div className="rounded-md border border-ochre/40 bg-ochre/10 px-4 py-3 text-sm text-foreground v2:border-transparent v2:bg-tone-amber">
               {warnings.map((w) => (
                 <p key={w}>{w}</p>
               ))}
             </div>
           )}
           {/* Title + week */}
-          <Card>
-            <CardContent className="pt-5 space-y-4">
+          <Card className={EDITOR_SECTION_CARD}>
+            <CardContent className={cn("pt-5 space-y-4", EDITOR_SECTION_BODY)}>
               <div className="space-y-1">
                 <label className="label">Title</label>
                 <input
@@ -276,8 +277,8 @@ export default function NewDigestPage() {
 
           {/* Sections */}
           {sections.map((section) => (
-            <Card key={section.id}>
-              <CardContent className="pt-5">
+            <Card key={section.id} className={EDITOR_SECTION_CARD}>
+              <CardContent className={cn("pt-5", EDITOR_SECTION_BODY)}>
                 <label className="label mb-2 block">{section.heading}</label>
                 <textarea
                   className="input-field min-h-[120px] w-full resize-y text-sm"
@@ -290,8 +291,8 @@ export default function NewDigestPage() {
           ))}
 
           {/* Todos */}
-          <Card>
-            <CardContent className="pt-5 space-y-3">
+          <Card className={EDITOR_SECTION_CARD}>
+            <CardContent className={cn("pt-5 space-y-3", EDITOR_SECTION_BODY)}>
               <label className="label block">This Week&apos;s Todos</label>
 
               {todos.length > 0 && (
@@ -300,7 +301,7 @@ export default function NewDigestPage() {
                     <li key={i} className="space-y-1.5 border-b border-border pb-3 last:border-0">
                       <div className="flex items-center gap-2">
                         <span
-                          className={cn("h-2 w-2 shrink-0 rounded-full", unresolved(todo) ? "bg-ochre" : "bg-transparent")}
+                          className={cn("h-2 w-2 shrink-0 rounded-full", unresolved(todo) ? "bg-ochre v2:bg-[color:var(--color-warn)]" : "bg-transparent")}
                           title={unresolved(todo) ? "Needs review" : undefined}
                           aria-label={unresolved(todo) ? "Needs review" : undefined}
                           aria-hidden={!unresolved(todo)}
@@ -331,7 +332,7 @@ export default function NewDigestPage() {
                         {todo.unmatchedOwnerNames.map((name) => (
                           <span
                             key={name}
-                            className="inline-flex items-center gap-1 border border-ochre/40 bg-ochre/10 px-2 py-0.5 text-xs text-foreground"
+                            className="inline-flex items-center gap-1 border border-ochre/40 bg-ochre/10 px-2 py-0.5 text-xs text-foreground v2:border-transparent v2:bg-tone-amber"
                           >
                             &lsquo;{name}&rsquo; not matched
                             <button

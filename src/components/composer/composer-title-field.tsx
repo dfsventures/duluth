@@ -30,7 +30,7 @@ export function ComposerTitleField({
         placeholder="Title"
         aria-label="Title"
         required
-        className="w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 sm:text-4xl"
+        className="w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 sm:text-4xl v2:font-sans v2:text-title v2:font-semibold v2:tracking-normal sm:v2:text-title"
       />
       <input
         value={period}
@@ -38,7 +38,7 @@ export function ComposerTitleField({
         placeholder={periodPlaceholder}
         aria-label="Period"
         required
-        className="mt-2 w-40 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0"
+        className="mt-2 w-40 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 v2:font-sans v2:text-row"
       />
     </div>
   );

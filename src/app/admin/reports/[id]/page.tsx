@@ -11,6 +11,8 @@ import { RichEditor } from "@/components/ui/rich-editor";
 import { portcoMention } from "@/components/ui/portco-mention";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { extractMentionIds } from "@/lib/report-snapshot";
+import { cn } from "@/lib/utils";
+import { EDITOR_COLUMN, EDITOR_TITLE } from "@/lib/editor-styles";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -293,7 +295,7 @@ export default function AdminReportEditorPage() {
 
 
       {confirmPublish && (
-        <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
+        <div className={cn("mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 v2:border-transparent v2:bg-tone-amber", EDITOR_COLUMN)}>
           {/* Part 10, WS27.6 (Q27) — absent entirely when sync is disabled. */}
           {syncEnabled && (
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-ochre/20 pb-2">
@@ -338,7 +340,7 @@ export default function AdminReportEditorPage() {
                 maxLength={500}
                 rows={3}
                 placeholder="A short personal note — appears above the “Read the Report” button. Leave blank to send the standard email."
-                className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50"
+                className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50 v2:border-[color:var(--color-ctl)] v2:bg-background"
               />
               <p className="mt-1 text-right text-xs text-muted-foreground">{lpNote.length}/500</p>
             </div>
@@ -346,7 +348,7 @@ export default function AdminReportEditorPage() {
         </div>
       )}
 
-      <div className="mx-auto max-w-3xl">
+      <div className={cn("mx-auto max-w-3xl", EDITOR_COLUMN)}>
         <div className="mb-6">
           <input
             value={title}
@@ -354,7 +356,7 @@ export default function AdminReportEditorPage() {
             placeholder="Title"
             aria-label="Title"
             disabled={!isDraft}
-            className="w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl"
+            className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title")}
           />
           <input
             value={periodLabel}
@@ -362,7 +364,7 @@ export default function AdminReportEditorPage() {
             placeholder="Period label (e.g. H1 2026)"
             aria-label="Period label"
             disabled={!isDraft}
-            className="mt-2 w-64 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0"
+            className="mt-2 w-64 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 v2:font-sans v2:text-row"
           />
         </div>
 
@@ -380,14 +382,14 @@ export default function AdminReportEditorPage() {
                   return match ? (
                     <span
                       key={mid}
-                      className="rounded-sm border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs text-foreground"
+                      className="rounded-sm border border-border bg-muted/40 px-2 py-0.5 font-mono text-xs text-foreground v2:border-transparent v2:bg-muted v2:font-sans v2:text-meta"
                     >
                       {match.name}
                     </span>
                   ) : (
                     <span
                       key={mid}
-                      className="rounded-sm border border-laterite/30 bg-laterite/10 px-2 py-0.5 font-mono text-xs text-tone-clay-ink"
+                      className="rounded-sm border border-laterite/30 bg-laterite/10 px-2 py-0.5 font-mono text-xs text-tone-clay-ink v2:border-transparent v2:bg-tone-clay v2:font-sans v2:text-meta"
                     >
                       unknown company — remove this mention from the text
                     </span>

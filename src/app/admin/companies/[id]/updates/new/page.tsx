@@ -12,6 +12,8 @@ import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { ComposerTitleField } from "@/components/composer/composer-title-field";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { useFlashMessage } from "@/lib/use-flash-message";
+import { cn } from "@/lib/utils";
+import { EDITOR_COLUMN } from "@/lib/editor-styles";
 import { PageSkeleton } from "@/components/ui/skeleton";
 
 interface MetricDefinition {
@@ -161,7 +163,7 @@ export default function AdminCreateUpdatePage() {
       />
 
 
-      <div className="mx-auto max-w-3xl">
+      <div className={cn("mx-auto max-w-3xl", EDITOR_COLUMN)}>
         <ComposerTitleField title={title} onTitleChange={setTitle} period={period} onPeriodChange={setPeriod} />
 
         <RichEditor

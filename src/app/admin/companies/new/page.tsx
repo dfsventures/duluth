@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Building2, Save, ArrowLeft, UserPlus } from "lucide-react";
-import { normalizeUrl } from "@/lib/utils";
+import { cn, normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
@@ -14,10 +14,13 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useFlashMessage } from "@/lib/use-flash-message";
+import { useNewLook } from "@/lib/use-new-look";
+import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD } from "@/lib/editor-styles";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
 export default function NewCompanyPage() {
+  const newLook = useNewLook();
   const router = useRouter();
   const { data: session } = useSession();
   const [saving, setSaving] = useState(false);
@@ -123,16 +126,16 @@ export default function NewCompanyPage() {
       />
 
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className={cn("space-y-6 v2:space-y-8", EDITOR_COLUMN)}>
         {/* Company details */}
-        <Card>
+        <Card className={EDITOR_SECTION_CARD}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 v2:font-sans">
+              <Building2 className="h-5 w-5 v2:hidden" />
               Company Details
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className={cn("space-y-4", EDITOR_SECTION_BODY)}>
             <Input
               id="name"
               label="Company Name"
@@ -188,37 +191,44 @@ export default function NewCompanyPage() {
         </Card>
 
         {/* User assignment */}
-        <Card>
+        <Card className={EDITOR_SECTION_CARD}>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 v2:font-sans">
+              <UserPlus className="h-5 w-5 v2:hidden" />
               Assign User (Optional)
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className={cn("space-y-4", EDITOR_SECTION_BODY)}>
             <div className="space-y-1">
               <label className="label">User Assignment</label>
+              {/* New look: the chosen option is marked, not made a second primary button. */}
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
-                  variant={assignUser === "none" ? "primary" : "secondary"}
+                  variant={assignUser === "none" && !newLook ? "primary" : "secondary"}
                   size="sm"
+                  aria-pressed={newLook ? assignUser === "none" : undefined}
+                  className={newLook && assignUser === "none" ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]" : undefined}
                   onClick={() => setAssignUser("none")}
                 >
                   None
                 </Button>
                 <Button
                   type="button"
-                  variant={assignUser === "existing" ? "primary" : "secondary"}
+                  variant={assignUser === "existing" && !newLook ? "primary" : "secondary"}
                   size="sm"
+                  aria-pressed={newLook ? assignUser === "existing" : undefined}
+                  className={newLook && assignUser === "existing" ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]" : undefined}
                   onClick={() => setAssignUser("existing")}
                 >
                   Existing User
                 </Button>
                 <Button
                   type="button"
-                  variant={assignUser === "new" ? "primary" : "secondary"}
+                  variant={assignUser === "new" && !newLook ? "primary" : "secondary"}
                   size="sm"
+                  aria-pressed={newLook ? assignUser === "new" : undefined}
+                  className={newLook && assignUser === "new" ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]" : undefined}
                   onClick={() => setAssignUser("new")}
                 >
                   Create New User

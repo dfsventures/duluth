@@ -13,6 +13,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
 import { MEMO_LIMITS, type MemoTemplateSection } from "@/lib/memos";
 import { readError } from "@/components/admin/memos/types";
+import { cn } from "@/lib/utils";
+import { EDITOR_COLUMN } from "@/lib/editor-styles";
 
 interface Row extends MemoTemplateSection {
   /** Stable React key; new rows have no `key` yet (the server derives it from the title). */
@@ -77,11 +79,14 @@ export default function TemplateEditor({ version, sections }: { version: number;
           </Button>
         }
       />
-      <div className="mb-6 border border-edge bg-muted/40 p-3 text-sm">Changes apply to new memos only. Memos already started keep the sections they have.</div>
+      <div className={cn("mb-6 border border-edge bg-muted/40 p-3 text-sm v2:border-0 v2:bg-transparent v2:p-0 v2:text-meta v2:text-muted-foreground", EDITOR_COLUMN)}>
+        Changes apply to new memos only. Memos already started keep the sections they have.
+      </div>
 
-      <div className="space-y-4">
+      <div className={cn("space-y-4 v2:space-y-0", EDITOR_COLUMN)}>
         {rows.map((r, i) => (
-          <Card key={r.rid}>
+          // New look: no box per section; a hairline between sections is the structure.
+          <Card key={r.rid} className="v2:rounded-none v2:border-0 v2:border-b v2:bg-transparent v2:p-0 v2:py-5 v2:shadow-none">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <Input
@@ -90,7 +95,7 @@ export default function TemplateEditor({ version, sections }: { version: number;
                   maxLength={MEMO_LIMITS.sectionTitle}
                   onChange={(e) => patch(r.rid, { title: e.target.value })}
                 />
-                <p className="mt-1 font-mono text-xs text-muted-foreground">{r.key ? `key: ${r.key}` : "key: set from the title when saved"}</p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground v2:font-sans v2:text-meta">{r.key ? `key: ${r.key}` : "key: set from the title when saved"}</p>
               </div>
               <div className="flex shrink-0 gap-1">
                 <Button variant="ghost" size="icon" aria-label={`Move ${r.title || "section"} up`} disabled={i === 0} onClick={() => move(i, -1)}>
@@ -126,7 +131,7 @@ export default function TemplateEditor({ version, sections }: { version: number;
         ))}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className={cn("mt-4 flex flex-wrap items-center gap-3", EDITOR_COLUMN)}>
         <Button
           variant="secondary"
           disabled={rows.length >= MEMO_LIMITS.sections}

@@ -56,8 +56,9 @@ export function ComposerTopBar({
   }, [overflowOpen]);
 
   return (
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4">
-      <div className="flex flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground">
+    // New look: no rule under the bar and a sentence-case status in sans, like the record headers.
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4 v2:mb-6 v2:min-h-9 v2:border-b-0 v2:pb-0">
+      <div className="flex flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
         <span>{draftLabel}</span>
         {saveStateLabel && <span className="normal-case tracking-normal text-muted-foreground/80">{saveStateLabel}</span>}
       </div>
@@ -73,7 +74,7 @@ export function ComposerTopBar({
             <button
               type="button"
               onClick={() => setOverflowOpen((v) => !v)}
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors v2:flex v2:h-9 v2:w-9 v2:items-center v2:justify-center v2:rounded-ctl"
               title="More actions"
               aria-label="More actions"
             >

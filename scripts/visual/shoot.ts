@@ -46,6 +46,25 @@ const PAGES: Record<string, string> = {
   settings: "/admin/settings", // WS171: the Email tab
   "settings-storage": "/admin/settings?tab=storage",
   "settings-integrations": "/admin/settings?tab=integrations",
+  // WS172: editors (each opens its list, then the first row; ids are random) and the create forms.
+  "digest-detail": "/admin/digest",
+  "broadcast-detail": "/admin/broadcasts",
+  "report-detail": "/admin/reports",
+  "report-preview": "/admin/reports", // the first report's preview page (the LP-look frame in the new look)
+  "digest-new": "/admin/digest/new",
+  "company-new": "/admin/companies/new",
+  "memo-new": "/admin/memos/new",
+  "memo-template": "/admin/memos/template",
+  "update-new": "/admin/companies", // the first company's new-update composer
+};
+// WS172: pages that open a list and follow its first row. `list` is the href prefix of the rows,
+// `suffix` is appended to the row's href.
+const FOLLOW: Record<string, { list: string; suffix?: string }> = {
+  "digest-detail": { list: "/admin/digest/" },
+  "broadcast-detail": { list: "/admin/broadcasts/" },
+  "report-detail": { list: "/admin/reports/" },
+  "report-preview": { list: "/admin/reports/", suffix: "/preview" },
+  "update-new": { list: "/admin/companies/", suffix: "/updates/new" },
 };
 const VIEWPORTS: Record<string, { width: number; height: number }> = {
   desktop: { width: 1440, height: 900 },
@@ -304,6 +323,20 @@ async function main() {
             .catch(() => null);
           ok = href ? await open(page, `${key} ${tag}`, href) : false;
           if (!href) console.log(`  [skip] ${key} ${tag}: no update link found on /admin/updates`);
+        }
+        if (ok && FOLLOW[key]) {
+          const { list: prefix, suffix = "" } = FOLLOW[key];
+          const depth = prefix.split("/").length - 1; // "/admin/digest/" -> 3 segments after the first slash
+          const href: string | null = await page
+            .$$eval(
+              "a[href]",
+              (as: any[], [p, d]: [string, number]) =>
+                as.map((a) => a.getAttribute("href") as string).find((h) => h && h.startsWith(p) && h.split("/").length === d + 1 && !h.endsWith("/new")) ?? null,
+              [prefix, depth] as [string, number]
+            )
+            .catch(() => null);
+          ok = href ? await open(page, `${key} ${tag}`, href + suffix) : false;
+          if (!href) console.log(`  [skip] ${key} ${tag}: no row link found under ${prefix}`);
         }
         if (ok) await snap(page, `${key}__${tag}.png`);
         await page.close();

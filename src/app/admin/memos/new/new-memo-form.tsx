@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { MEMO_LIMITS } from "@/lib/memos";
 import { readError, targetValue, type LinkTargets } from "@/components/admin/memos/types";
+import { cn } from "@/lib/utils";
+import { EDITOR_COLUMN, EDITOR_SECTION_CARD } from "@/lib/editor-styles";
 
 const NOT_IN_MOLLY = "__pending__";
 
@@ -49,7 +51,7 @@ export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
     <AppShell>
       <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "New memo" }]} />
       <PageHeader title="New memo" description="Starts as a private draft with the house sections. Nobody else can see it until you share it." />
-      <Card className="max-w-xl">
+      <Card className={cn("max-w-xl", EDITOR_COLUMN, EDITOR_SECTION_CARD)}>
         <form onSubmit={submit} className="space-y-4">
           <Input
             id="memo-title"

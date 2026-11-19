@@ -11,7 +11,10 @@ import { RichEditor } from "@/components/ui/rich-editor";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
-import { formatDate } from "@/lib/utils";
+import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { cn, formatDate } from "@/lib/utils";
+import { useNewLook } from "@/lib/use-new-look";
+import { EDITOR_COLUMN, EDITOR_TITLE } from "@/lib/editor-styles";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -54,7 +57,45 @@ interface RecipientPreview {
   recipients: { email: string; name: string | null; portfolioCompanyNames?: string[] }[];
 }
 
+// New look (WS172): the delivery list as the shared table. Same three columns as the old one.
+const deliveryColumns: DataTableColumn<DeliveryRow>[] = [
+  {
+    key: "contact",
+    header: "Contact",
+    sortValue: (r) => r.email,
+    title: (r) => (r.name ? `${r.name} ${r.email}` : r.email),
+    cell: (r) => (
+      <>
+        {r.name && <span className="font-medium">{r.name} </span>}
+        <span className="text-meta text-muted-foreground">{r.email}</span>
+      </>
+    ),
+  },
+  {
+    key: "status",
+    header: "Status",
+    sortValue: (r) => r.status,
+    mobile: "badge",
+    cell: (r) => (
+      <>
+        <Badge variant={r.status === "SENT" ? "success" : r.status === "FAILED" ? "danger" : "warning"}>{r.status}</Badge>
+        {r.error && <span className="ml-2 text-xs text-tone-clay-ink">{r.error}</span>}
+      </>
+    ),
+  },
+  {
+    key: "sent",
+    header: "Sent",
+    sortValue: (r) => (r.sentAt ? new Date(r.sentAt).getTime() : 0),
+    firstDir: "desc",
+    className: "whitespace-nowrap",
+    mobile: "meta",
+    cell: (r) => (r.sentAt ? formatDate(r.sentAt) : "—"),
+  },
+];
+
 export default function AdminBroadcastEditorPage() {
+  const newLook = useNewLook();
   const params = useParams();
   const router = useRouter();
   const broadcastId = params.id as string;
@@ -360,7 +401,7 @@ export default function AdminBroadcastEditorPage() {
 
 
       {confirmSend && (
-        <div className="mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3">
+        <div className={cn("mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 v2:border-transparent v2:bg-tone-amber", EDITOR_COLUMN)}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm text-foreground">
               This sends the email immediately to {preview?.recipientCount ?? 0} contact{preview?.recipientCount === 1 ? "" : "s"} across{" "}
@@ -378,7 +419,7 @@ export default function AdminBroadcastEditorPage() {
         </div>
       )}
 
-      <div className="mx-auto max-w-3xl">
+      <div className={cn("mx-auto max-w-3xl", EDITOR_COLUMN)}>
         <div className="mb-6">
           <input
             value={subject}
@@ -386,7 +427,7 @@ export default function AdminBroadcastEditorPage() {
             placeholder="Subject"
             aria-label="Subject"
             disabled={!isDraft}
-            className="w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl"
+            className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title")}
           />
         </div>
 
@@ -394,7 +435,7 @@ export default function AdminBroadcastEditorPage() {
           <>
             <RichEditor variant="chromeless" value={body} onChange={setBody} placeholder="Write to your portfolio…" />
 
-            <div className="mt-6 rounded-md border border-border bg-card p-4">
+            <div className="mt-6 rounded-md border border-border bg-card p-4 v2:mt-8 v2:rounded-none v2:border-0 v2:border-t v2:bg-transparent v2:p-0 v2:pt-6">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <label className="label">Audience</label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -425,7 +466,7 @@ export default function AdminBroadcastEditorPage() {
               {filteredCompanies.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No portfolio companies match.</p>
               ) : (
-                <div className="max-h-72 overflow-y-auto rounded-md border divide-y">
+                <div className="max-h-72 overflow-y-auto rounded-md border divide-y v2:rounded-none v2:border-x-0">
                   {filteredCompanies.map((c) => (
                     <label
                       key={c.id}
@@ -494,13 +535,26 @@ export default function AdminBroadcastEditorPage() {
 
             <div className="mt-8">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-semibold">Delivery</h3>
+                <h3 className="font-semibold v2:text-meta">Delivery</h3>
                 {hasUnsent && (
                   <Button size="sm" variant="secondary" disabled={retrying} onClick={handleRetry}>
                     {retrying ? "Retrying..." : "Retry unsent"}
                   </Button>
                 )}
               </div>
+              {newLook ? (
+                <DataTable<DeliveryRow>
+                  label="Delivery"
+                  noun="recipient"
+                  rows={data.recipients}
+                  rowKey={(r) => r.id}
+                  columns={deliveryColumns}
+                  defaultSort={{ key: "contact", dir: "asc" }}
+                  urlState={false}
+                  minWidth={480}
+                  empty={<p className="py-6 text-sm text-muted-foreground">No recipients.</p>}
+                />
+              ) : (
               <Table tableClassName="min-w-[560px]">
                 <TableHead>
                   <Th>Contact</Th>
@@ -523,6 +577,7 @@ export default function AdminBroadcastEditorPage() {
                   ))}
                 </tbody>
               </Table>
+              )}
             </div>
           </>
         )}
