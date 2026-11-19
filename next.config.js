@@ -19,6 +19,14 @@ const nextConfig = {
       { key: "Referrer-Policy", value: "no-referrer" },
     ];
     return [
+      // F177: no other site may frame Molly (clickjacking). X-Frame-Options is for older browsers.
+      // The CSP rule skips routes that send their own CSP (memo share page: frame-ancestors 'none';
+      // logo files: default-src 'none'; sandbox), so no response carries two policies.
+      { source: "/:path*", headers: [{ key: "X-Frame-Options", value: "SAMEORIGIN" }] },
+      {
+        source: "/((?!share/m/|api/logo/).*)",
+        headers: [{ key: "Content-Security-Policy", value: "frame-ancestors 'self'" }],
+      },
       { source: "/share/:path*", headers: noindex },
       { source: "/api/share/:path*", headers: noindex },
       { source: "/share/m/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },

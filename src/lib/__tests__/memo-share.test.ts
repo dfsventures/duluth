@@ -526,4 +526,17 @@ describe("headers in next.config.js", () => {
     }
     expect(by("/share/m/:path*").headers).toEqual([{ key: "Cache-Control", value: "no-store" }]);
   });
+
+  it("F177: site-wide frame protection, without a second CSP on routes that set their own", async () => {
+    const config = require("../../../next.config.js") as { headers: () => Promise<{ source: string; headers: { key: string; value: string }[] }[]> };
+    const rules = await config.headers();
+    const xfo = rules.find((r) => r.source === "/:path*")!;
+    expect(xfo.headers).toEqual([{ key: "X-Frame-Options", value: "SAMEORIGIN" }]);
+    const csp = rules.find((r) => r.headers.some((h) => h.key === "Content-Security-Policy"))!;
+    expect(csp.headers).toEqual([{ key: "Content-Security-Policy", value: "frame-ancestors 'self'" }]);
+    // The CSP rule must not match the routes that send their own CSP, but must match everything else.
+    const re = new RegExp("^" + csp.source.replace(/\(\.\*\)$/, "(.*)") + "$");
+    for (const p of ["/", "/admin/memos", "/login", "/api/links", "/share/abc", "/api/share/abc"]) expect(re.test(p)).toBe(true);
+    for (const p of ["/share/m/tok", "/api/logo/c1/f.png"]) expect(re.test(p)).toBe(false);
+  });
 });
