@@ -34,7 +34,6 @@ export default async function AdminReportPreviewFramePage({ params }: { params: 
         bodyHtml={report.body}
         mentions={mentions}
         fundSnapshot={fundSnapshot}
-        previewBanner
       />
     </div>
   );

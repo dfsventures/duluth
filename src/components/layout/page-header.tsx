@@ -22,9 +22,11 @@ interface PageHeaderProps {
    * place of the breadcrumb row. Not drawn under the old look (the page keeps its own breadcrumb).
    */
   back?: { href: string; label: string };
+  /** The bar is drawn only under the new look (a page that had no header bar in the old look). */
+  newLookOnly?: boolean;
 }
 
-export function PageHeader({ title, description, action, secondaryActions, indicator, back }: PageHeaderProps) {
+export function PageHeader({ title, description, action, secondaryActions, indicator, back, newLookOnly }: PageHeaderProps) {
   const folded = !!secondaryActions?.length;
   return (
     // Stacks on phones (buttons drop below the title instead of pushing
@@ -33,7 +35,7 @@ export function PageHeader({ title, description, action, secondaryActions, indic
     // the description as quiet text beside it, and the action on the right. The bar's
     // geometry lives in globals.css (.shell-header); the rest is `v2:` classes.
     <div
-      className={`shell-header mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between v2:flex-row v2:items-center v2:justify-between v2:gap-x-3 v2:gap-y-1 ${
+      className={`shell-header mb-8 ${newLookOnly ? "hidden v2:flex" : "flex"} flex-col gap-4 sm:flex-row sm:items-start sm:justify-between v2:flex-row v2:items-center v2:justify-between v2:gap-x-3 v2:gap-y-1 ${
         folded ? "v2:flex-nowrap md:v2:flex-wrap" : "v2:flex-wrap"
       }`}
     >

@@ -49,6 +49,7 @@ const PAGES: Record<string, string> = {
   // WS172: editors (each opens its list, then the first row; ids are random) and the create forms.
   "digest-detail": "/admin/digest",
   "broadcast-detail": "/admin/broadcasts",
+  "broadcast-sent": "/admin/broadcasts", // the last row: the sent broadcast (audit #22-#25)
   "report-detail": "/admin/reports",
   "report-preview": "/admin/reports", // the first report's preview page (the LP-look frame in the new look)
   "digest-new": "/admin/digest/new",
@@ -59,9 +60,11 @@ const PAGES: Record<string, string> = {
 };
 // WS172: pages that open a list and follow its first row. `list` is the href prefix of the rows,
 // `suffix` is appended to the row's href.
-const FOLLOW: Record<string, { list: string; suffix?: string }> = {
+const FOLLOW: Record<string, { list: string; suffix?: string; last?: boolean }> = {
   "digest-detail": { list: "/admin/digest/" },
   "broadcast-detail": { list: "/admin/broadcasts/" },
+  // The seeded list is sorted newest first, so the draft is first and the sent broadcast (with its deliveries) is last.
+  "broadcast-sent": { list: "/admin/broadcasts/", last: true },
   "report-detail": { list: "/admin/reports/" },
   "report-preview": { list: "/admin/reports/", suffix: "/preview" },
   "update-new": { list: "/admin/companies/", suffix: "/updates/new" },
@@ -325,14 +328,16 @@ async function main() {
           if (!href) console.log(`  [skip] ${key} ${tag}: no update link found on /admin/updates`);
         }
         if (ok && FOLLOW[key]) {
-          const { list: prefix, suffix = "" } = FOLLOW[key];
+          const { list: prefix, suffix = "", last = false } = FOLLOW[key];
           const depth = prefix.split("/").length - 1; // "/admin/digest/" -> 3 segments after the first slash
           const href: string | null = await page
             .$$eval(
               "a[href]",
-              (as: any[], [p, d]: [string, number]) =>
-                as.map((a) => a.getAttribute("href") as string).find((h) => h && h.startsWith(p) && h.split("/").length === d + 1 && !h.endsWith("/new")) ?? null,
-              [prefix, depth] as [string, number]
+              (as: any[], [p, d, l]: [string, number, boolean]) => {
+                const all = as.map((a) => a.getAttribute("href") as string).filter((h) => h && h.startsWith(p) && h.split("/").length === d + 1 && !h.endsWith("/new"));
+                return (l ? all[all.length - 1] : all[0]) ?? null;
+              },
+              [prefix, depth, last] as [string, number, boolean]
             )
             .catch(() => null);
           ok = href ? await open(page, `${key} ${tag}`, href + suffix) : false;

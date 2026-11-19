@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { Badge } from "@/components/ui/badge";
+import { noticeClasses } from "@/components/ui/notice";
+import { PickerList } from "@/components/ui/picker-list";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { cn, formatDate } from "@/lib/utils";
@@ -94,8 +96,34 @@ const deliveryColumns: DataTableColumn<DeliveryRow>[] = [
   },
 ];
 
+// New look (audit #23): the subject is a textarea that grows with its text, so a long one is never cut off.
+function GrowTitle({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      onChange={(e) => onChange(e.target.value.replace(/\n/g, " "))}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.preventDefault();
+      }}
+      placeholder="Subject"
+      aria-label="Subject"
+      className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-title font-semibold tracking-normal text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0"
+    />
+  );
+}
+
 export default function AdminBroadcastEditorPage() {
   const newLook = useNewLook();
+  const [sentTab, setSentTab] = useState<"message" | "delivery">("message");
   const params = useParams();
   const router = useRouter();
   const broadcastId = params.id as string;
@@ -358,16 +386,28 @@ export default function AdminBroadcastEditorPage() {
 
   const canSend = subject.trim() !== "" && body.trim() !== "" && selectedCompanyIds.length > 0;
   const hasUnsent = data.recipients.some((r) => r.status === "PENDING" || r.status === "FAILED");
+  const deliveredCount = data.recipients.filter((r) => r.status === "SENT").length;
+  const failedCount = data.recipients.filter((r) => r.status === "FAILED").length;
+  // New look (audit #21): the subject or body differs from what was loaded.
+  const dirty = isDraft && (subject !== data.subject || body !== (data.body ?? ""));
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
   return (
     <AppShell width="narrow">
-      <Breadcrumb items={[{ label: "Broadcasts", href: "/admin/broadcasts" }, { label: subject.trim() || "Untitled broadcast" }]} />
+      {!newLook && <Breadcrumb items={[{ label: "Broadcasts", href: "/admin/broadcasts" }, { label: subject.trim() || "Untitled broadcast" }]} />}
 
       <ComposerTopBar
+        back={{ href: "/admin/broadcasts", label: "Broadcasts" }}
+        statusExtra={dirty ? <span className="hidden text-tone-amber-ink v2:inline">Unsaved changes</span> : undefined}
+        // New look (audit #22): a sent broadcast has nothing left to send, so no Send, not even a disabled one.
+        showPublish={isDraft || !newLook}
+        disabledReason="Add a message and pick at least one company to send."
         draftLabel={
           isDraft
             ? "Draft"
-            : `Sent ${data.publishedAt ? formatDate(data.publishedAt) : ""}${data.senderLabel ? ` by ${data.senderLabel}` : ""}`
+            : newLook
+              ? "Sent"
+              : `Sent ${data.publishedAt ? formatDate(data.publishedAt) : ""}${data.senderLabel ? ` by ${data.senderLabel}` : ""}`
         }
         secondaryActions={
           isDraft ? (
@@ -401,7 +441,7 @@ export default function AdminBroadcastEditorPage() {
 
 
       {confirmSend && (
-        <div className={cn("mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 v2:border-transparent v2:bg-tone-amber", EDITOR_COLUMN)}>
+        <div className={noticeClasses("amber", cn("mb-6", EDITOR_COLUMN))}>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-sm text-foreground">
               This sends the email immediately to {preview?.recipientCount ?? 0} contact{preview?.recipientCount === 1 ? "" : "s"} across{" "}
@@ -420,21 +460,167 @@ export default function AdminBroadcastEditorPage() {
       )}
 
       <div className={cn("mx-auto max-w-3xl", EDITOR_COLUMN)}>
-        <div className="mb-6">
-          <input
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder="Subject"
-            aria-label="Subject"
-            disabled={!isDraft}
-            className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title")}
-          />
+        <div className="mb-6 v2:mb-4">
+          {newLook ? (
+            // New look (audit #23): the subject wraps instead of being cut off, and a sent one is plain heading text.
+            isDraft ? (
+              <GrowTitle value={subject} onChange={setSubject} />
+            ) : (
+              <h1 className="break-words text-title font-semibold tracking-normal text-foreground">{subject}</h1>
+            )
+          ) : (
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder="Subject"
+              aria-label="Subject"
+              disabled={!isDraft}
+              className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title")}
+            />
+          )}
         </div>
+
+        {newLook && !isDraft && (
+          <>
+            {/* Audit #24: who it reached, in one line under the title. */}
+            <p className="mb-4 flex flex-wrap items-center gap-x-1 text-meta text-muted-foreground">
+              <span>
+                Sent {data.publishedAt ? formatDate(data.publishedAt) : ""}
+                {data.senderLabel ? ` by ${data.senderLabel}` : ""} to {plural(data.recipients.length, "contact", "contacts")} at{" "}
+                {plural(data.targets.length, "company", "companies")} · {deliveredCount} delivered
+              </span>
+              {failedCount > 0 && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <button type="button" onClick={() => setSentTab("delivery")} className="text-tone-clay-ink underline-offset-2 hover:underline">
+                    {failedCount} failed
+                  </button>
+                </>
+              )}
+              {hasUnsent && (
+                <Button size="sm" variant="ghost" className="ml-2 v2:h-7" disabled={retrying} onClick={handleRetry}>
+                  {retrying ? "Retrying..." : "Retry unsent"}
+                </Button>
+              )}
+            </p>
+            {/* Audit #25: Message / Delivery. */}
+            <div role="tablist" aria-label="Broadcast sections" className="mb-6 flex gap-5">
+              {(
+                [
+                  { key: "message", label: "Message" },
+                  { key: "delivery", label: "Delivery", count: data.recipients.length },
+                ] as const
+              ).map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={sentTab === t.key}
+                  onClick={() => setSentTab(t.key)}
+                  className={cn(
+                    "border-b-2 border-transparent py-2.5 text-row font-medium text-muted-foreground hover:text-foreground",
+                    sentTab === t.key && "border-foreground text-foreground"
+                  )}
+                >
+                  {t.label}
+                  {"count" in t && <span className="num ml-1.5 font-normal text-muted-foreground">{t.count}</span>}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         {isDraft ? (
           <>
             <RichEditor variant="chromeless" value={body} onChange={setBody} placeholder="Write to your portfolio…" />
 
+            {newLook ? (
+              // New look (audit #1, #2): a heading row, one control row, one hairline list, two summary lines.
+              <section aria-labelledby="audience-heading" className="mt-8 border-t border-border pt-6">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 id="audience-heading" className="text-row font-medium text-foreground">
+                    Audience
+                  </h2>
+                  <span className="text-meta text-muted-foreground">{selectedCompanyIds.length} selected</span>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Input
+                    value={pickerSearch}
+                    onChange={(e) => setPickerSearch(e.target.value)}
+                    placeholder="Search companies"
+                    aria-label="Search companies"
+                    className="v2:h-9 w-60 bg-transparent"
+                  />
+                  <Button type="button" variant="secondary" className="v2:h-9" onClick={() => setSelectedCompanyIds(companies.map((c) => c.id))}>
+                    Select all
+                  </Button>
+                  <Button type="button" variant="ghost" className="v2:h-9" onClick={() => setSelectedCompanyIds([])}>
+                    Clear
+                  </Button>
+                  <label className="flex items-center gap-2 text-row text-muted-foreground md:ml-2">
+                    <input
+                      type="checkbox"
+                      checked={hideEmpty}
+                      onChange={(e) => setHideEmpty(e.target.checked)}
+                      className="h-4 w-4 rounded border-border accent-primary"
+                    />
+                    Hide companies with no contacts
+                  </label>
+                </div>
+                <div className="mt-3">
+                  {filteredCompanies.length === 0 ? (
+                    <p className="text-row text-muted-foreground">No portfolio companies match.</p>
+                  ) : (
+                    <PickerList
+                      ariaLabel="Companies to send to"
+                      items={filteredCompanies.map((c) => ({
+                        id: c.id,
+                        label: c.name,
+                        meta: `${c.contactCount} contact${c.contactCount === 1 ? "" : "s"}`,
+                        warn: c.contactCount === 0,
+                      }))}
+                      selected={selectedCompanyIds}
+                      onToggle={toggleCompany}
+                    />
+                  )}
+                </div>
+                <p className="mt-3 text-row text-muted-foreground">
+                  {plural(selectedCompanyIds.length, "company", "companies")} selected ·{" "}
+                  {previewLoading ? "…" : preview?.recipientCount ?? 0} contact{preview?.recipientCount === 1 ? "" : "s"} will receive this
+                </p>
+                {preview && preview.companiesWithNoContacts !== null && preview.companiesWithNoContacts > 0 && (
+                  <p className="mt-1 text-row text-foreground">
+                    {preview.companiesWithNoContacts} selected compan{preview.companiesWithNoContacts === 1 ? "y has" : "ies have"} no contacts and will
+                    receive nothing.
+                  </p>
+                )}
+                {preview && preview.recipients.length > 0 && (
+                  <div className="mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setShowRecipientList((v) => !v)}
+                      aria-expanded={showRecipientList}
+                      className="flex items-center gap-1 text-row font-medium text-foreground"
+                    >
+                      {showRecipientList ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                      Who will receive this
+                    </button>
+                    {showRecipientList && (
+                      <PickerList
+                        className="mt-2"
+                        ariaLabel="Who will receive this"
+                        items={preview.recipients.map((r) => ({
+                          id: r.email,
+                          label: r.name ?? r.email,
+                          sub: r.name ? r.email : undefined,
+                          meta: r.portfolioCompanyNames?.join(", "),
+                        }))}
+                      />
+                    )}
+                  </div>
+                )}
+              </section>
+            ) : (
             <div className="mt-6 rounded-md border border-border bg-card p-4 v2:mt-8 v2:rounded-none v2:border-0 v2:border-t v2:bg-transparent v2:p-0 v2:pt-6">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <label className="label">Audience</label>
@@ -528,12 +714,17 @@ export default function AdminBroadcastEditorPage() {
                 </div>
               )}
             </div>
+            )}
           </>
         ) : (
           <>
-            <div className="prose prose-sm max-w-none leading-relaxed" dangerouslySetInnerHTML={{ __html: body }} />
+            <div
+              hidden={newLook && sentTab !== "message"}
+              className="prose prose-sm max-w-none leading-relaxed"
+              dangerouslySetInnerHTML={{ __html: body }}
+            />
 
-            <div className="mt-8">
+            <div hidden={newLook && sentTab !== "delivery"} className="mt-8 v2:mt-0">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-semibold v2:text-meta">Delivery</h3>
                 {hasUnsent && (

@@ -4,13 +4,15 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Send, CheckCircle2, Clock, AlertCircle,
+  ArrowLeft, ChevronLeft, MoreHorizontal, Send, CheckCircle2, Clock, AlertCircle,
   Loader2, Pencil, Trash2, X, Plus, Save,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useNewLook } from "@/lib/use-new-look";
 import { cn, formatDate } from "@/lib/utils";
 import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD, EDITOR_TITLE } from "@/lib/editor-styles";
 import { plainToDigestHtml, digestHtmlToPlain, sanitizeDigestHtml } from "@/lib/digest-html";
@@ -47,6 +49,7 @@ const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 export default function DigestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const newLook = useNewLook();
   const [digest, setDigest] = useState<Digest | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -225,8 +228,82 @@ export default function DigestDetailPage() {
 
   return (
     <AppShell width="narrow">
+      {/* New look (audit #46): the Record header. Back link, title, a status line, and the actions at the top
+          right: the primary and a ⋯ menu that holds Edit and Delete, so the row never wraps. */}
+      {newLook && (
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <Link href="/admin/digest" className="mb-2 inline-flex items-center gap-1 text-row text-muted-foreground hover:text-foreground">
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+              All digests
+            </Link>
+            {editing ? (
+              <input className="input-field w-full" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="Title" />
+            ) : (
+              <h1 className="break-words text-title font-semibold tracking-normal text-foreground">{digest.title}</h1>
+            )}
+            {editing ? (
+              <input type="date" className="input-field mt-2 text-sm" value={editWeekOf} onChange={(e) => setEditWeekOf(e.target.value)} aria-label="Week of" />
+            ) : (
+              <p className="mt-1 flex flex-wrap items-center gap-x-2 text-meta text-muted-foreground">
+                <Badge variant={digest.sentAt ? "success" : "warning"}>{digest.sentAt ? `Sent ${formatDate(digest.sentAt)}` : "Draft"}</Badge>
+                <span aria-hidden="true">·</span>
+                <span>Week of {formatDate(digest.weekOf)}</span>
+              </p>
+            )}
+          </div>
+          <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+            {editing ? (
+              <>
+                <Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
+                <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+              </>
+            ) : confirmDelete ? (
+              <>
+                <span className="text-meta text-muted-foreground">Delete this draft?</span>
+                <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                <Button onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {deleting ? "Deleting…" : "Delete"}
+                </Button>
+              </>
+            ) : (
+              <>
+                {isEditWindow && (
+                  <Button onClick={handleSend} disabled={sending}>
+                    {sending ? "Sending…" : digest.sentAt ? "Resend" : "Send to team"}
+                  </Button>
+                )}
+                {(isEditWindow || isDraft) && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="secondary" size="icon" aria-label="More actions">
+                        <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {isEditWindow && (
+                        <DropdownMenuItem onSelect={startEditing}>
+                          <Pencil aria-hidden className="h-3.5 w-3.5" />
+                          Edit{editHoursLeft !== null ? ` (${editHoursLeft}h left)` : ""}
+                        </DropdownMenuItem>
+                      )}
+                      {isDraft && (
+                        <DropdownMenuItem onSelect={() => setConfirmDelete(true)} className="text-tone-clay-ink">
+                          <Trash2 aria-hidden className="h-3.5 w-3.5" />
+                          Delete
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className={cn("mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", newLook && "hidden")}>
         <div>
           <Link
             href="/admin/digest"
@@ -328,7 +405,7 @@ export default function DigestDetailPage() {
       )}
 
       {(sendError || saveError) && (
-        <div className={cn("mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive", EDITOR_COLUMN)}>
+        <div className={cn("mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive v2:rounded-ctl v2:border-transparent v2:bg-tone-clay v2:text-row v2:text-tone-clay-ink", EDITOR_COLUMN)}>
           {sendError ?? saveError}
         </div>
       )}
@@ -338,7 +415,7 @@ export default function DigestDetailPage() {
         {sections.filter((s) => editing || s.content?.trim()).map((section) => (
           <Card key={section.id} className={EDITOR_SECTION_CARD}>
             <CardContent className={cn("pt-5", EDITOR_SECTION_BODY)}>
-              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2 v2:border-b-0 v2:pb-0 v2:text-meta">
+              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2 v2:border-b-0 v2:pb-0 v2:text-row v2:font-medium">
                 {section.heading}
               </h2>
               {editing ? (
@@ -362,7 +439,7 @@ export default function DigestDetailPage() {
         {(editing || digest.todos.length > 0) && (
           <Card className={EDITOR_SECTION_CARD}>
             <CardContent className={cn("pt-5", EDITOR_SECTION_BODY)}>
-              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2 v2:border-b-0 v2:pb-0 v2:text-meta">
+              <h2 className="mb-3 text-sm font-semibold text-foreground border-b border-border pb-2 v2:border-b-0 v2:pb-0 v2:text-row v2:font-medium">
                 This Week&apos;s Todos
               </h2>
 

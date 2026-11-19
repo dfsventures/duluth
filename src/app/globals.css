@@ -1154,13 +1154,15 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
       grid-column: 1;
       grid-row: 1;
     }
+    /* The panel sits beside the Performance strip only (audit #30); it is not sticky past that row. */
     html[data-look="v2"] [data-surface="admin"] .fund-dossier .fund-aside {
       grid-column: 2;
       grid-row: 1;
-      position: sticky;
-      top: 24px;
-      max-height: calc(100vh - 48px);
-      overflow: auto;
+    }
+    /* The tabs and their tables take the whole frame, so a wide table is not clipped by the panel. */
+    html[data-look="v2"] [data-surface="admin"] .fund-dossier .fund-tail {
+      grid-column: 1 / -1;
+      grid-row: 2;
     }
   }
 }

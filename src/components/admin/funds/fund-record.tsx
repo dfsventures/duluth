@@ -123,6 +123,9 @@ export function FundRecord({
         <div className="fund-main min-w-0">
           {performance}
           {editingPerformance && performanceForm}
+        </div>
+
+        <div className="fund-tail min-w-0">
           <TabBar<FundTab> label="Fund sections" tabs={tabs} active={activeTab} fallback="deals" />
           {children}
         </div>
