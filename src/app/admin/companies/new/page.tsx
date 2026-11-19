@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { useNewLook } from "@/lib/use-new-look";
-import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD } from "@/lib/editor-styles";
+import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD, segmentClass } from "@/lib/editor-styles";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -117,16 +117,23 @@ export default function NewCompanyPage() {
       <PageHeader
         title="Add Company"
         description="Manually create a new portfolio company."
+        // New look (audit #8): the Form header. A quiet back link before the title and the one primary on the right.
+        back={{ href: "/admin/companies", label: "Companies" }}
         action={
-          <Button variant="ghost" onClick={() => router.push("/admin/companies")}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Companies
-          </Button>
+          <>
+            <Button variant="ghost" className="v2:hidden" onClick={() => router.push("/admin/companies")}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Companies
+            </Button>
+            <Button type="submit" form="add-company-form" disabled={saving} className="hidden v2:inline-flex">
+              {saving ? "Creating..." : "Create company"}
+            </Button>
+          </>
         }
       />
 
 
-      <form onSubmit={handleSubmit} className={cn("space-y-6 v2:space-y-8", EDITOR_COLUMN)}>
+      <form id="add-company-form" onSubmit={handleSubmit} className={cn("space-y-6 v2:space-y-8", EDITOR_COLUMN)}>
         {/* Company details */}
         <Card className={EDITOR_SECTION_CARD}>
           <CardHeader>
@@ -208,7 +215,7 @@ export default function NewCompanyPage() {
                   variant={assignUser === "none" && !newLook ? "primary" : "secondary"}
                   size="sm"
                   aria-pressed={newLook ? assignUser === "none" : undefined}
-                  className={newLook && assignUser === "none" ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]" : undefined}
+                  className={newLook ? segmentClass(assignUser === "none") : undefined}
                   onClick={() => setAssignUser("none")}
                 >
                   None
@@ -218,7 +225,7 @@ export default function NewCompanyPage() {
                   variant={assignUser === "existing" && !newLook ? "primary" : "secondary"}
                   size="sm"
                   aria-pressed={newLook ? assignUser === "existing" : undefined}
-                  className={newLook && assignUser === "existing" ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]" : undefined}
+                  className={newLook ? segmentClass(assignUser === "existing") : undefined}
                   onClick={() => setAssignUser("existing")}
                 >
                   Existing User
@@ -228,7 +235,7 @@ export default function NewCompanyPage() {
                   variant={assignUser === "new" && !newLook ? "primary" : "secondary"}
                   size="sm"
                   aria-pressed={newLook ? assignUser === "new" : undefined}
-                  className={newLook && assignUser === "new" ? "border-[color:var(--color-accent)] text-[color:var(--color-accent)]" : undefined}
+                  className={newLook ? segmentClass(assignUser === "new") : undefined}
                   onClick={() => setAssignUser("new")}
                 >
                   Create New User
@@ -296,7 +303,7 @@ export default function NewCompanyPage() {
         </Card>
 
         {/* Submit */}
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-end gap-3 v2:hidden">
           <Button
             type="button"
             variant="secondary"

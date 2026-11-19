@@ -30,7 +30,7 @@ function SectionHeading({ title, description }: { title: string; description?: s
   return (
     <div className="mb-4">
       <h2 className="font-display text-sm font-semibold text-foreground v2:font-sans v2:text-row v2:font-medium">{title}</h2>
-      {description && <p className="text-xs text-muted-foreground">{description}</p>}
+      {description && <p className="text-xs text-muted-foreground v2:text-body">{description}</p>}
     </div>
   );
 }
@@ -72,12 +72,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
   });
 
   return (
-    <AppShell width="narrow">
+    // New look (audit #44): the "detail" frame has room for the section list as a left rail beside a 720 column.
+    <AppShell width="detail">
       <PageHeader
         title="Settings"
         description="Platform configuration and diagnostics."
       />
-    <div className="max-w-3xl">
+    <div className="max-w-3xl v2:max-w-none">
       <SettingsStatusStrip
         resendOn={hasApiKey}
         cronOn={!!process.env.CRON_SECRET}
@@ -86,7 +87,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
         slackOn={slackConfigured}
       />
 
+      <div className="md:v2:grid md:v2:grid-cols-[168px_minmax(0,1fr)] md:v2:items-start md:v2:gap-10">
       <SettingsTabs active={tab} />
+      <div className="min-w-0 v2:max-w-[var(--column-narrow)]">
 
       {tab === "email" && (
         <>
@@ -103,7 +106,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
 
           <section className={SECTION}>
             <SectionHeading title="Update reminders" />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground v2:text-body">
               Runs daily at 9:00 AM UTC. Cadence is set per company on its detail page.{" "}
               <Link href="/admin/companies" className="text-primary underline">
                 Open companies
@@ -130,7 +133,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
         <>
           <section className={SECTION}>
             <SectionHeading title="Granola (call intake)" description="Optional. Does nothing until its environment variables are set." />
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted-foreground v2:text-body">
               <dt className="min-w-0 break-all font-mono text-foreground">GRANOLA_API_KEY</dt>
               <dd><Status on={!!process.env.GRANOLA_API_KEY} /></dd>
               <dt className="min-w-0 break-all font-mono text-foreground">GRANOLA_FOLDER_ID</dt>
@@ -138,11 +141,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
               <dt className="min-w-0 break-all font-mono text-foreground">GRANOLA_WEBHOOK_SECRET</dt>
               <dd><Status on={!!process.env.GRANOLA_WEBHOOK_SECRET} /></dd>
             </dl>
-            <p className="mt-3 text-xs text-muted-foreground">
+            <p className="mt-3 text-xs text-muted-foreground v2:text-body">
               Webhook URL to register with Granola (the route is live; it answers 404 until all three variables above are set):
             </p>
             <p className="mt-1 select-all break-all font-mono text-xs text-foreground">{`${BASE_URL}/api/webhooks/granola`}</p>
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground v2:text-body">
               Webhook:{" "}
               <span className="text-foreground">
                 {granolaOn && !!process.env.GRANOLA_WEBHOOK_SECRET ? "Active, accepting signed deliveries" : "Inactive until GRANOLA_WEBHOOK_SECRET is set"}
@@ -150,7 +153,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
               . Granola generates the signing secret and shows it only once, when the endpoint is created. Do not invent your own;
               copy the <span className="font-mono">whsec_</span> value from the create response. The daily sweep covers any missed delivery.
             </p>
-            <p className="mt-3 text-xs text-muted-foreground">
+            <p className="mt-3 text-xs text-muted-foreground v2:text-body">
               Last intake:{" "}
               {lastIntake ? (
                 <span className="text-foreground">
@@ -173,7 +176,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
                 <span className="inline-block transition-transform group-open:rotate-90" aria-hidden>&rsaquo;</span>
                 Which API key should I use?
               </summary>
-              <p className="mt-3 border-l border-border pl-4 text-xs text-muted-foreground">
+              <p className="mt-3 border-l border-border pl-4 text-xs text-muted-foreground v2:text-body">
                 Reads one folder only, and only each note&apos;s summary. A <em>personal</em> API key cannot see teammates&apos;
                 calls that were not shared with its owner (they would never appear); a <em>workspace</em> key sees folders with API
                 access enabled. Use a workspace key.
@@ -183,11 +186,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
 
           <section className={SECTION}>
             <SectionHeading title="Slack (digest post)" description="Optional. Does nothing until its environment variable is set." />
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted-foreground v2:text-body">
               <dt className="min-w-0 break-all font-mono text-foreground">SLACK_DIGEST_WEBHOOK_URL</dt>
               <dd><Status on={slackConfigured} /></dd>
             </dl>
-            <p className="mt-3 text-xs text-muted-foreground">
+            <p className="mt-3 text-xs text-muted-foreground v2:text-body">
               When set, sending a digest also posts its open items to one channel (once per digest).
             </p>
             <SlackTestPanel configured={slackConfigured} />
@@ -195,7 +198,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
 
           <section className={SECTION}>
             <SectionHeading title="Marge (Slack assistant)" description="Optional. Off until MARGE_MCP_MODE and MARGE_ASSERTION_JWKS are set. Memo tools also need MARGE_MEMO_TOOLS=on." />
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground v2:text-body">
               Marge:{" "}
               <span className="text-foreground">
                 {margeMode === "write" ? "Read and draft" : margeMode === "read" ? "Read only" : "Off"}
@@ -212,6 +215,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: { t
           </section>
         </>
       )}
+      </div>
+      </div>
     </div>
     </AppShell>
   );

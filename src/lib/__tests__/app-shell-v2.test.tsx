@@ -68,7 +68,9 @@ describe("shell source", () => {
     expect(shell).toContain('"page" | "narrow" | "wide" | "full" | "detail" | "detail-wide"');
     expect(read("app/globals.css")).toMatch(/\.shell-page\[data-width="narrow"\] \{\s*--frame: var\(--column-narrow\);/);
     // Editors, forms and Settings share one narrow column with their header bar.
-    for (const f of ["app/admin/settings/page.tsx", "app/admin/broadcasts/[id]/page.tsx", "app/admin/reports/[id]/page.tsx", "app/admin/digest/[id]/page.tsx", "app/admin/companies/new/page.tsx"]) {
+    // Settings moved to the "detail" frame in the admin audit (left rail of sections beside a 720 column).
+    expect(read("app/admin/settings/page.tsx")).toContain('<AppShell width="detail">');
+    for (const f of ["app/admin/broadcasts/[id]/page.tsx", "app/admin/reports/[id]/page.tsx", "app/admin/digest/[id]/page.tsx", "app/admin/companies/new/page.tsx"]) {
       expect(read(f)).toContain('<AppShell width="narrow">');
     }
     expect(shell).toContain("v2:mx-auto v2:max-w-[calc(var(--frame)+2*var(--gutter))] v2:px-[var(--gutter)]");

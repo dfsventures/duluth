@@ -59,8 +59,40 @@ function metadataEntries(metadata: unknown): [string, unknown][] {
   return Object.entries(metadata as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined);
 }
 
+// New look (audit #41): actions read as sentences. Any code gets sentence-cased (FUND_UPDATED → "Fund
+// updated"), so a code added later reads fine without touching this file; the raw code is the cell's tooltip.
+function actionLabel(action: string): string {
+  if (ACTION_LABELS[action]) return ACTION_LABELS[action];
+  const words = action.toLowerCase().replace(/\bportco\b/g, "portfolio company").replace(/_/g, " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : action;
+}
+
+// "FundReport" → "Fund report".
+function typeLabel(t: string): string {
+  const words = t.replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// The name the event itself recorded, when it recorded one (no extra lookups: the page keeps its one query).
+function targetName(r: AuditRowData): string | null {
+  const m = r.metadata;
+  if (!m || typeof m !== "object" || Array.isArray(m)) return null;
+  const bag = m as Record<string, unknown>;
+  for (const k of ["name", "title", "displayName", "email", "label", "slug"]) {
+    const v = bag[k];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  return null;
+}
+
 function targetText(r: AuditRowData): string {
-  return r.targetType ? `${r.targetType}${r.targetId ? ` · ${r.targetId}` : ""}` : "—";
+  if (!r.targetType) return "—";
+  const name = targetName(r);
+  return name ? `${typeLabel(r.targetType)} · ${name}` : typeLabel(r.targetType);
+}
+
+function targetTitle(r: AuditRowData): string | null {
+  return r.targetType ? `${r.targetType}${r.targetId ? ` · ${r.targetId}` : ""}` : null;
 }
 
 // A native <details>, as in the old look: one line closed; open, the row grows (see the WS170 rule in
@@ -99,12 +131,12 @@ const auditColumns: DataTableColumn<AuditRowData>[] = [
   {
     key: "action",
     header: "Action",
-    sortValue: (r) => ACTION_LABELS[r.action] ?? r.action,
+    sortValue: (r) => actionLabel(r.action),
     mobile: "meta",
     title: (r) => r.action,
-    cell: (r) => ACTION_LABELS[r.action] ?? r.action,
+    cell: (r) => actionLabel(r.action),
   },
-  { key: "target", header: "Target", sortValue: (r) => r.targetType, mobile: "meta", cell: (r) => targetText(r) },
+  { key: "target", header: "Target", sortValue: (r) => r.targetType, mobile: "meta", title: targetTitle, cell: (r) => targetText(r) },
   {
     key: "details",
     header: "Details",

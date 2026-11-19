@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { parseContactsCSV } from "@/lib/csv";
 import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -21,6 +21,7 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { ModalDialog } from "@/components/ui/dialog";
 import { DealRecord } from "@/components/admin/portfolio/deal-record";
 import { useNewLook } from "@/lib/use-new-look";
+import { noticeClasses } from "@/components/ui/notice";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
 
@@ -132,6 +133,7 @@ export default function AdminPortfolioCompanyPage() {
   // Part 30, WS70.4 — Contacts section state.
   const [contactForm, setContactForm] = useState({ name: "", email: "", role: "" });
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [showContactForm, setShowContactForm] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [contactError, setContactError] = useState("");
   const [importing, setImporting] = useState(false);
@@ -513,17 +515,18 @@ export default function AdminPortfolioCompanyPage() {
   // The record's sections (contacts, positions, deals, rounds, valuation history), shared by both looks.
   // Declared after the return (function declarations are hoisted) so the old look's markup stays put.
   function renderSections(data: CompanyDetail) {
+    // New look (audit #33): numbers first, people last (CSS order; the old look keeps its markup order).
     return (
-      <>
+      <div className="v2:flex v2:flex-col">
       {/* Contacts (Part 30, WS70.4) — people first, then numbers */}
-      <div className="mb-6 v2:mb-8">
+      <div className="mb-6 v2:order-5 v2:mb-8">
         <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
           <Users className="h-4 w-4 v2:hidden" />
           Contacts
         </h3>
 
         {importResult && (
-          <div className="mb-3 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-tone-sage-ink">
+          <div className={noticeClasses("sage", "mb-3 flex items-start gap-2")}>
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="flex-1">
               <span className="font-medium">Import complete.</span> {importResult.created} created, {importResult.updated} updated
@@ -543,7 +546,7 @@ export default function AdminPortfolioCompanyPage() {
           </div>
         )}
         {importError && (
-          <div className="mb-3 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink">
+          <div className={noticeClasses("clay", "mb-3 flex items-center gap-2")}>
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span className="flex-1">{importError}</span>
             <button onClick={() => setImportError(null)}>
@@ -579,6 +582,8 @@ export default function AdminPortfolioCompanyPage() {
         <form onSubmit={handleSaveContact} className="rounded-md border border-border bg-card p-3 v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0">
           {/* New look: Name, Email, Role and Add on one row from md up (they stack on a phone); Import CSV drops to its own line. */}
           <div className="flex flex-wrap items-end gap-2">
+            {/* New look (audit #33): the inputs appear after "Add contact" (or while editing a contact). */}
+            <div className={cn("contents", newLook && !showContactForm && !editingContactId && "hidden")}>
             <input
               type="text"
               placeholder="Name"
@@ -609,7 +614,17 @@ export default function AdminPortfolioCompanyPage() {
                 Cancel
               </Button>
             )}
-            <span aria-hidden="true" className="hidden h-0 basis-full v2:order-1 v2:block" />
+            </div>
+            {newLook && !showContactForm && !editingContactId && (
+              <Button type="button" variant="secondary" size="sm" onClick={() => setShowContactForm(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add contact
+              </Button>
+            )}
+            <span
+              aria-hidden="true"
+              className={cn("hidden h-0 basis-full v2:order-1 v2:block", newLook && !showContactForm && !editingContactId && "v2:hidden")}
+            />
             <Button
               type="button"
               variant="secondary"
@@ -644,7 +659,7 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Positions (computed, per fund) */}
-      <div className="mb-6 v2:mb-8">
+      <div className="mb-6 v2:order-1 v2:mb-8">
         <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
           <TrendingUp className="h-4 w-4 v2:hidden" />
           Positions by fund
@@ -661,7 +676,7 @@ export default function AdminPortfolioCompanyPage() {
                 <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground v2:mt-0 v2:text-meta">
                   <span>${p.invested.toLocaleString()} invested</span>
                   <span>{p.dealCount} deal{p.dealCount !== 1 ? "s" : ""}</span>
-                  <span>{multipleLabel(p.latestMultiple)}</span>
+                  <span>{p.latestMultiple === null && newLook ? "—" : multipleLabel(p.latestMultiple)}</span>
                   <span className="inline-flex items-center gap-1.5">
                     ${Math.round(p.impliedValue).toLocaleString()} implied
                     {!p.dilutionAware && <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data recorded" />}
@@ -674,7 +689,7 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Deals across funds */}
-      <div className="mb-6 v2:mb-8">
+      <div className="mb-6 v2:order-2 v2:mb-8">
         <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
           <Layers className="h-4 w-4 v2:hidden" />
           Deals across funds
@@ -759,7 +774,7 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Rounds timeline */}
-      <div className="mb-6 v2:mb-8">
+      <div className="mb-6 v2:order-3 v2:mb-8">
         <div className="mb-3 flex items-center justify-between v2:mb-2">
           <h3 className="flex items-center gap-2 font-semibold v2:font-sans v2:text-base">
             <History className="h-4 w-4 v2:hidden" />
@@ -804,13 +819,16 @@ export default function AdminPortfolioCompanyPage() {
       </div>
 
       {/* Valuation marks */}
-      <div className="mb-6 v2:mb-8">
+      <div className="mb-6 v2:order-4 v2:mb-8">
         <h3 className="mb-3 flex items-center gap-2 font-semibold v2:mb-2 v2:font-sans v2:text-base">
           <TrendingUp className="h-4 w-4 v2:hidden" />
           Valuation history
         </h3>
         {data.marks.length === 0 ? (
-          <EmptyState icon={<TrendingUp className="h-6 w-6" />} title="No valuation marks yet" />
+          <>
+            <div className="v2:hidden"><EmptyState icon={<TrendingUp className="h-6 w-6" />} title="No valuation marks yet" /></div>
+            <p className="mb-3 hidden text-row text-muted-foreground v2:block">No valuation yet.</p>
+          </>
         ) : (
           <div className="mb-4 space-y-2 v2:space-y-0">
             {data.marks.map((m) => (
@@ -828,7 +846,7 @@ export default function AdminPortfolioCompanyPage() {
             ))}
           </div>
         )}
-        <form onSubmit={handleRecordMark} className="rounded-md border border-border bg-card p-3">
+        <form onSubmit={handleRecordMark} className="rounded-md border border-border bg-card p-3 v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0">
           <p className="mb-2 text-xs text-muted-foreground">Recording a mark updates the current valuation on all of this company&apos;s deals.</p>
           <div className="flex flex-wrap items-end gap-2">
             <Input
@@ -858,7 +876,7 @@ export default function AdminPortfolioCompanyPage() {
         </form>
       </div>
 
-      </>
+      </div>
     );
   }
 

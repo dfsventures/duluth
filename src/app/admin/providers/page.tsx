@@ -26,7 +26,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
 import { ModalSheet } from "@/components/ui/sheet";
-import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
+import { DataTable, type DataTableColumn, type DataTableGroupBy } from "@/components/ui/data-table";
 import { useNewLook } from "@/lib/use-new-look";
 import type { FilterChipDef } from "@/lib/data-table";
 
@@ -189,7 +189,8 @@ export default function AdminProvidersPage() {
     {
       key: "name",
       header: "Provider",
-      sortValue: (p) => p.name,
+      // Pending rows come first: the table groups in the order the rows appear (audit #40).
+      sortValue: (p) => `${p.status === "PENDING" ? 0 : 1}${p.name.toLowerCase()}`,
       title: (p) => p.description,
       cell: (p) => (
         <>
@@ -253,36 +254,52 @@ export default function AdminProvidersPage() {
       cell: (p) => p.endorsementCount ?? p.endorsements?.length ?? 0,
     },
   ];
-  const providerActions = (p: Provider, approve?: () => void, reject?: () => void) => (
+  // `decideOnly`: just Approve / Reject (shown all the time on pending rows); false: just Edit / Delete (on hover).
+  const providerActions = (p: Provider, approve?: () => void, reject?: () => void, decideOnly?: boolean) => (
     <>
-      {approve && (
+      {decideOnly !== false && approve && (
         <Button size="sm" onClick={approve} disabled={!!actionStates[p.id]?.loading}>
           <CheckCircle2 className="h-3.5 w-3.5" />
           {p.status === "REJECTED" ? "Restore" : "Approve"}
           <span className="sr-only"> {p.name}</span>
         </Button>
       )}
-      {reject && (
+      {decideOnly !== false && reject && (
         <Button size="sm" variant="secondary" onClick={reject} disabled={!!actionStates[p.id]?.loading} className="text-tone-clay-ink">
           <XCircle className="h-3.5 w-3.5" />
           Reject
           <span className="sr-only"> {p.name}</span>
         </Button>
       )}
-      <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
-        <Pencil className="h-3.5 w-3.5" />
-        <span className="sr-only">Edit {p.name}</span>
-      </Button>
-      <Button size="sm" variant="ghost" className="hover:text-tone-clay-ink" onClick={() => handleDelete(p.id)}>
-        <Trash2 className="h-3.5 w-3.5" />
-        <span className="sr-only">Delete {p.name}</span>
-      </Button>
+      {decideOnly !== true && (
+        <>
+          <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
+            <Pencil className="h-3.5 w-3.5" />
+            <span className="sr-only">Edit {p.name}</span>
+          </Button>
+          <Button size="sm" variant="ghost" className="hover:text-tone-clay-ink" onClick={() => handleDelete(p.id)}>
+            <Trash2 className="h-3.5 w-3.5" />
+            <span className="sr-only">Delete {p.name}</span>
+          </Button>
+        </>
+      )}
     </>
   );
-  const REST_CHIPS: FilterChipDef<Provider>[] = [
+  const PROVIDER_CHIPS: FilterChipDef<Provider>[] = [
+    { key: "pending", label: "Pending", test: (p) => p.status === "PENDING" },
     { key: "vetted", label: "Vetted", test: (p) => p.status === "VETTED" },
     { key: "rejected", label: "Rejected", test: (p) => p.status === "REJECTED" },
   ];
+  const PROVIDER_GROUP_BY: DataTableGroupBy<Provider> = {
+    fixed: "review",
+    options: [
+      {
+        key: "review",
+        label: "Review",
+        getGroup: (p) => (p.status === "PENDING" ? { id: "pending", label: "Pending review" } : { id: "directory", label: "Directory" }),
+      },
+    ],
+  };
 
   return (
     <AppShell width={newLook ? "wide" : undefined}>
@@ -310,69 +327,42 @@ export default function AdminProvidersPage() {
         }
       />
 
+      {/* New look (audit #40): one table, "Pending review" first and "Directory" below it. */}
       {newLook && (
-        <div className="space-y-12">
-          {pending.length > 0 && (
-            <section aria-labelledby="providers-pending">
-              <h2 id="providers-pending" className="mx-[var(--row-pad)] mb-3 text-meta font-medium text-foreground">
-                Pending review <span className="ml-1 tabular-nums text-muted-foreground">{pending.length}</span>
-              </h2>
-              <DataTable<Provider>
-                label="Providers pending review"
-                noun="provider"
-                rows={pending}
-                rowKey={(p) => p.id}
-                columns={providerColumns()}
-                defaultSort={{ key: "name", dir: "asc" }}
-                urlState={false}
-                minWidth={760}
-                actionsLabel="Row actions"
-                actionsAlwaysVisible
-                rowActions={(p) => providerActions(p, () => setStatus(p.id, "VETTED"), () => setStatus(p.id, "REJECTED"))}
-                loading={loading}
-                empty={null}
-              />
-            </section>
-          )}
-          {(rest.length > 0 || pending.length === 0) && <section aria-labelledby="providers-all">
-            {rest.length > 0 && (
-              <h2 id="providers-all" className="mx-[var(--row-pad)] mb-3 text-meta font-medium text-foreground">
-                All providers <span className="ml-1 tabular-nums text-muted-foreground">{rest.length}</span>
-              </h2>
-            )}
-            <DataTable<Provider>
-              label="Service providers"
-              noun="provider"
-              rows={rest}
-              rowKey={(p) => p.id}
-              columns={providerColumns()}
-              defaultSort={{ key: "name", dir: "asc" }}
-              urlState={false}
-              minWidth={760}
-              searchText={(p) => [p.name, p.category.name, p.city, p.country]}
-              searchPlaceholder="Filter providers"
-              chips={REST_CHIPS}
-              rowActions={(p) =>
-                providerActions(
-                  p,
-                  p.status === "REJECTED" ? () => setStatus(p.id, "VETTED") : undefined,
-                  p.status === "VETTED" ? () => setStatus(p.id, "REJECTED") : undefined
-                )
-              }
-              actionsLabel="Row actions"
-              loading={loading}
-              empty={
-                <EmptyState
-                  className="mx-[var(--row-pad)] py-3"
-                  eyebrow="Service Providers"
-                  icon={<Building2 className="h-8 w-8" />}
-                  title="No providers found"
-                  description="Adjust filters or wait for submissions."
-                />
-              }
+        <DataTable<Provider>
+          label="Service providers"
+          noun="provider"
+          rows={providers}
+          rowKey={(p) => p.id}
+          columns={providerColumns()}
+          defaultSort={{ key: "name", dir: "asc" }}
+          groupBy={PROVIDER_GROUP_BY}
+          urlState={false}
+          minWidth={760}
+          searchText={(p) => [p.name, p.category.name, p.city, p.country]}
+          searchPlaceholder="Filter providers"
+          chips={PROVIDER_CHIPS}
+          rowActions={(p) =>
+            <>
+              {p.status === "PENDING" && providerActions(p, () => setStatus(p.id, "VETTED"), () => setStatus(p.id, "REJECTED"), true)}
+              <span className="flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100 [@media(hover:none)]:opacity-100">
+                {providerActions(p, undefined, undefined, false)}
+              </span>
+            </>
+          }
+          actionsAlwaysVisible
+          actionsLabel="Row actions"
+          loading={loading}
+          empty={
+            <EmptyState
+              className="mx-[var(--row-pad)] py-3"
+              eyebrow="Service Providers"
+              icon={<Building2 className="h-8 w-8" />}
+              title="No providers found"
+              description="Adjust filters or wait for submissions."
             />
-          </section>}
-        </div>
+          }
+        />
       )}
 
       {/* Filters */}

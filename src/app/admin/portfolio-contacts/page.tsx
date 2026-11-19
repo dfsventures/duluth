@@ -129,6 +129,7 @@ function AdminPortfolioContactsPageInner() {
   const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [search, setSearch] = useState("");
   const [noContactsOnly, setNoContactsOnly] = useState(false);
+  const [showCsvFormat, setShowCsvFormat] = useState(false);
 
   const loadCompanies = useCallback(async () => {
     try {
@@ -303,6 +304,15 @@ function AdminPortfolioContactsPageInner() {
         action={
           activeTab === "contacts" ? (
             <div className="flex flex-wrap gap-2">
+              {/* New look (audit #42): the format note sits behind this link, not above the table. */}
+              <Button
+                variant="ghost"
+                aria-expanded={showCsvFormat}
+                className="hidden v2:inline-flex"
+                onClick={() => setShowCsvFormat((v) => !v)}
+              >
+                CSV format
+              </Button>
               <Button variant="secondary" disabled={importing} onClick={() => fileInputRef.current?.click()}>
                 <Upload className="mr-2 h-4 w-4" />
                 {importing ? "Importing..." : "Import contacts (CSV)"}
@@ -331,7 +341,7 @@ function AdminPortfolioContactsPageInner() {
               : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
           }`}
         >
-          <Users className="h-4 w-4" />
+          <Users className="h-4 w-4 v2:hidden" />
           Contacts
         </button>
         <button
@@ -342,7 +352,7 @@ function AdminPortfolioContactsPageInner() {
               : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
           }`}
         >
-          <LinkIcon className="h-4 w-4" />
+          <LinkIcon className="h-4 w-4 v2:hidden" />
           Links
         </button>
       </div>
@@ -350,7 +360,7 @@ function AdminPortfolioContactsPageInner() {
       {activeTab === "contacts" ? (
         <>
           {importResult && (
-            <div className="mb-6 flex items-start gap-2 rounded-md border border-acacia/30 bg-acacia/10 px-4 py-3 text-sm text-tone-sage-ink v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-sage">
+            <div className={noticeClasses("sage", "mb-6 flex items-start gap-2 v2:mb-0 v2:mt-4")}>
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <div className="flex-1">
                 <span className="font-medium">Import complete.</span> {importResult.created} created, {importResult.updated} updated
@@ -378,7 +388,7 @@ function AdminPortfolioContactsPageInner() {
               </button>
             </div>
           )}
-          <div className="mb-6 v2:mb-4 v2:mt-4">
+          <div className="mb-6 v2:hidden">
             <ComposerDisclosure label="CSV format" className="v2:border-t-0">
               <p className="text-sm text-muted-foreground">
                 CSV columns: <code className="rounded bg-muted px-1">company</code>,{" "}
@@ -388,18 +398,26 @@ function AdminPortfolioContactsPageInner() {
               </p>
             </ComposerDisclosure>
           </div>
+          {newLook && showCsvFormat && (
+            <p className={noticeClasses("sky", "v2:mx-[var(--row-pad)] v2:mt-4")}>
+              CSV columns: <code>company</code>, <code>name</code>, <code>email</code>, optional <code>role</code>. <code>company</code> must
+              match an existing portfolio company. Unmatched rows are reported, never created.
+            </p>
+          )}
 
           {newLook ? (
             companiesLoaded && companies.length === 0 ? (
               <EmptyState icon={<Users className="h-8 w-8" />} title="No portfolio companies yet" />
             ) : (
               <>
-                {companiesLoaded && (
-                  <p className="text-meta text-muted-foreground">
-                    {companiesWithContacts} of {companies.length} portfolio companies have at least one contact.
-                  </p>
-                )}
                 <DataTable<PortfolioCompanyRow>
+                  toolbarExtra={
+                    companiesLoaded ? (
+                      <span className="whitespace-nowrap text-meta text-muted-foreground">
+                        {companiesWithContacts} of {companies.length} have contacts
+                      </span>
+                    ) : undefined
+                  }
                   label="Contacts"
                   noun="company"
                   pluralNoun="companies"

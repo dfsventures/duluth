@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Sparkles, Loader2, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
+import { noticeClasses } from "@/components/ui/notice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -192,7 +194,9 @@ export default function NewDigestPage() {
 
   return (
     <AppShell width="narrow">
-      <div className="mb-6 flex items-center justify-between gap-4">
+      {/* New look (audit #8): the Form header. The old heading block below is not drawn. */}
+      <PageHeader newLookOnly back={{ href: "/admin/digest", label: "All digests" }} title="New weekly digest" />
+      <div className="mb-6 flex items-center justify-between gap-4 v2:hidden">
         <div>
           <Link
             href="/admin/digest"
@@ -214,7 +218,7 @@ export default function NewDigestPage() {
                 Paste Granola share links (one per line), raw meeting notes, or a mix of both. Claude will fetch and structure everything into the digest.
               </p>
               <textarea
-                className="input-field min-h-[320px] w-full resize-y font-mono text-sm"
+                className="input-field min-h-[320px] w-full resize-y font-mono text-sm v2:min-h-[192px] v2:font-sans v2:text-row"
                 placeholder={`https://notes.granola.ai/t/...\nhttps://notes.granola.ai/t/...\n\nOr paste raw notes here…`}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
@@ -225,7 +229,10 @@ export default function NewDigestPage() {
               <p className="text-sm text-destructive">{generateError}</p>
             )}
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-3">
+              {!notes.trim() && !generating && (
+                <p className="hidden text-meta text-muted-foreground v2:block">Paste at least one link or some notes.</p>
+              )}
               <Button
                 onClick={handleGenerate}
                 disabled={generating || !notes.trim()}
@@ -246,7 +253,7 @@ export default function NewDigestPage() {
       {step === "edit" && (
         <div className={cn("space-y-5 v2:space-y-8", EDITOR_COLUMN)}>
           {warnings.length > 0 && (
-            <div className="rounded-md border border-ochre/40 bg-ochre/10 px-4 py-3 text-sm text-foreground v2:border-transparent v2:bg-tone-amber">
+            <div className={noticeClasses("amber", "border-ochre/40")}>
               {warnings.map((w) => (
                 <p key={w}>{w}</p>
               ))}

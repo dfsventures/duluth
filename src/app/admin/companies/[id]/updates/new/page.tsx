@@ -12,6 +12,7 @@ import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { ComposerTitleField } from "@/components/composer/composer-title-field";
 import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { useFlashMessage } from "@/lib/use-flash-message";
+import { useNewLook } from "@/lib/use-new-look";
 import { cn } from "@/lib/utils";
 import { EDITOR_COLUMN } from "@/lib/editor-styles";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -28,6 +29,7 @@ interface Company {
 }
 
 export default function AdminCreateUpdatePage() {
+  const newLook = useNewLook();
   const params = useParams();
   const router = useRouter();
   const { data: session } = useSession();
@@ -141,15 +143,19 @@ export default function AdminCreateUpdatePage() {
 
   return (
     <AppShell width="narrow">
-      <button
-        onClick={() => router.push(`/admin/companies/${companyId}`)}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Company
-      </button>
+      {/* New look (audit #8, #20): the back link moves into the sticky record header bar. */}
+      {!newLook && (
+        <button
+          onClick={() => router.push(`/admin/companies/${companyId}`)}
+          className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Company
+        </button>
+      )}
 
       <ComposerTopBar
+        back={{ href: `/admin/companies/${companyId}`, label: "Company" }}
         draftLabel={company ? `Draft in ${company.name}` : "Draft"}
         secondaryActions={
           <Button variant="secondary" size="sm" disabled={submitting} onClick={() => handleSubmit("DRAFT")}>

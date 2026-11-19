@@ -36,12 +36,14 @@ describe("Settings", () => {
     expect(html).toContain("v2:bg-[color:var(--color-done)]");
     expect(html).toContain("v2:bg-[color:var(--color-warn)]");
     expect(html).toContain("v2:bg-[color:var(--color-ctl)]");
-    expect(html).toContain("v2:border-0");
+    // The old list stays (hidden under the new look); the new look gets the one-line summary.
+    expect(html).toContain("v2:hidden");
+    expect(html).toContain("other services are working");
   });
 
   it("the header is the first child of the shell, outside the 3xl wrapper", () => {
     const header = settings.indexOf("<PageHeader");
-    const wrapper = settings.indexOf('<div className="max-w-3xl">');
+    const wrapper = settings.indexOf('<div className="max-w-3xl v2:max-w-none">');
     expect(header).toBeGreaterThan(-1);
     expect(wrapper).toBeGreaterThan(header);
   });
@@ -51,14 +53,15 @@ describe("Service Providers", () => {
   it("uses the same endpoints as before and the same handlers for Approve, Reject, Edit and Delete", () => {
     const urls = [...providers.matchAll(/fetch\(\s*[`"]([^`"]+)[`"]/g)].map((m) => m[1]);
     for (const u of urls) expect(u).toMatch(/^\/api\/(admin\/)?providers/);
-    const actions = providers.slice(providers.indexOf("const providerActions"), providers.indexOf("const REST_CHIPS"));
+    const actions = providers.slice(providers.indexOf("const providerActions"), providers.indexOf("const PROVIDER_CHIPS"));
     expect(actions).toContain("openEdit(p)");
     expect(actions).toContain("handleDelete(p.id)");
     const table = providers.slice(providers.indexOf("{newLook && ("), providers.indexOf("{/* Filters */}"));
     expect(table).toContain('setStatus(p.id, "VETTED")');
     expect(table).toContain('setStatus(p.id, "REJECTED")');
     expect(table).toContain("actionsAlwaysVisible");
-    expect(table.match(/urlState=\{false\}/g)).toHaveLength(2);
+    // One table (admin audit #40): Pending review and Directory are groups of the same table.
+    expect(table.match(/urlState=\{false\}/g)).toHaveLength(1);
   });
 
   it("keeps the old filters and cards for the old look", () => {

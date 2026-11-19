@@ -13,8 +13,13 @@ import {
   Send,
   EyeOff,
   Eye,
+  MoreHorizontal,
+  Search,
   Trash2,
 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { FilterBar } from "@/components/ui/filter-bar";
+import { matchesQuery } from "@/lib/data-table";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -149,6 +154,8 @@ export default function ApprovalsPage() {
   // New look (WS160): the pending list shows as dense rows beside a pane. `visibleRows` is the
   // list as shown (it gives the pane its position and previous / next).
   const newLook = useNewLook();
+  // New look (audit #18): one filter at the top of the page narrows all three tables.
+  const [pageQuery, setPageQuery] = useState("");
   const [visibleRows, setVisibleRows] = useState<Approval[]>([]);
   const visibleKeys = useMemo(() => visibleRows.map((a) => a.id), [visibleRows]);
   const [deleteStates, setDeleteStates] = useState<
@@ -504,6 +511,13 @@ export default function ApprovalsPage() {
   const processedApprovals = approvals.filter(
     (a) => actionStates[a.id]?.result && !(newLook && rowCollapse.isCollapsing(a.id))
   );
+  // New look: the page-level filter (audit #18) narrows the signups here and the two account tables below.
+  const shownPending = newLook && pageQuery.trim()
+    ? pendingApprovals.filter((a) => matchesQuery([a.name, a.email, a.companyName], pageQuery))
+    : pendingApprovals;
+  const matchesPageQuery = (...fields: (string | null | undefined)[]) => !newLook || !pageQuery.trim() || matchesQuery(fields, pageQuery);
+  // The filter shows only when there is enough to narrow (audit #14).
+  const showPageFilter = newLook && approvals.length + awaitingUsers.length >= 8;
 
   // Part 31, WS77 / Part 45, WS153 — the per-signup view of the portfolio-company suggestion
   // (STRONG/MEDIUM show by default (D2); WEAK sits behind the per-row toggle) and of the
@@ -786,6 +800,37 @@ export default function ApprovalsPage() {
         description="Review and approve new sign-up requests from portfolio founders."
       />
 
+      {showPageFilter && (
+        <FilterBar
+          className="mb-6"
+          label="Filter approvals"
+          chips={[]}
+          onOpen={() => {}}
+          onRemove={() => {}}
+          onClearAll={() => setPageQuery("")}
+          showClear={pageQuery.trim() !== ""}
+          leading={
+            <div className="relative w-56 min-w-[140px] flex-none max-md:w-44">
+              <label htmlFor="approvals-filter" className="sr-only">
+                Filter signups and accounts
+              </label>
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                id="approvals-filter"
+                value={pageQuery}
+                onChange={(e) => setPageQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setPageQuery("");
+                }}
+                placeholder="Filter by name or email"
+                autoComplete="off"
+                className="h-9 w-full rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-9 pr-3 text-row text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base"
+              />
+            </div>
+          }
+        />
+      )}
+
       {approvals.length === 0 ? (
         <div className="v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)] v2:py-3">
           <EmptyState eyebrow="Approvals"
@@ -796,6 +841,12 @@ export default function ApprovalsPage() {
         </div>
       ) : newLook ? (
         <>
+          {pendingApprovals.length > 0 && (
+            <h2 className="mx-[var(--row-pad)] mb-3 flex items-baseline gap-1.5 text-row font-medium text-foreground">
+              Pending approval
+              <span className="text-meta font-normal text-muted-foreground">{shownPending.length}</span>
+            </h2>
+          )}
           {pendingApprovals.length > 0 && (
             <OpenParam fallback={<TableSkeleton rows={4} cols={4} />}>
               {(openId, setOpenId) => {
@@ -839,15 +890,13 @@ export default function ApprovalsPage() {
                         <DataTable<Approval>
                           label="Pending approvals"
                           noun="signup"
-                          rows={pendingApprovals}
+                          rows={shownPending}
                           rowKey={(a) => a.id}
                           onOpenRow={(a) => setOpenId(a.id)}
                           openKey={openId}
                           onVisibleRowsChange={setVisibleRows}
                           rowClassName={(a) => rowCollapse.className(a.id, "fade")}
                           defaultSort={{ key: "signedUp", dir: "desc" }}
-                          searchText={(a) => [a.name, a.email, a.companyName]}
-                          searchPlaceholder="Filter signups"
                           empty={null}
                           columns={[
                             {
@@ -1134,12 +1183,16 @@ export default function ApprovalsPage() {
           state above: approved-but-unset accounts are a separate population
           (F21). Hidden entirely when empty (WS48: both sub-sections empty). */}
       {!awaitingLoading && awaitingUsers.length > 0 && (() => {
+        const inFilter = (u: AwaitingUser) => matchesPageQuery(u.name, u.email, u.memberships?.[0]?.company?.name);
         const activeAwaiting = awaitingUsers.filter(
-          (u) => !u.setupQueueDismissedAt && !isStale(u)
+          (u) => !u.setupQueueDismissedAt && !isStale(u) && inFilter(u)
         );
         const dismissedOrStale = awaitingUsers.filter(
-          (u) => u.setupQueueDismissedAt || isStale(u)
+          (u) => (u.setupQueueDismissedAt || isStale(u)) && inFilter(u)
         );
+        // New look (audit #16): the two account tables share one column template, so their right-hand
+        // actions end at the same x. Person (flexible), Company 240, Detail 200, Actions 280.
+        const TEMPLATE = [null, 240, 200, 280];
 
         // Shared first columns for both tables.
         const personColumn: DataTableColumn<AwaitingUser> = {
@@ -1198,7 +1251,7 @@ export default function ApprovalsPage() {
               const isCompanyCreator = u.memberships.some((m) => m.company.createdById === u.id);
               return (
                 <span className="flex flex-col py-0.5 font-normal">
-                  <span className={`font-mono text-xs ${expired ? "text-tone-clay-ink" : "text-muted-foreground"}`}>
+                  <span className={`font-mono text-xs v2:font-sans v2:text-meta ${expired ? "text-tone-clay-ink" : "text-muted-foreground"}`}>
                     {u.tokenExpiresAt
                       ? expired
                         ? `expired ${formatDate(u.tokenExpiresAt)}`
@@ -1226,14 +1279,15 @@ export default function ApprovalsPage() {
         ];
 
         return (
-          <div className="mt-8 space-y-8 v2:mx-[var(--row-pad)] v2:max-w-[var(--column-wide)]">
+          <div className="mt-8 space-y-8 v2:mx-[var(--row-pad)] v2:mt-12 v2:max-w-[var(--column-wide)] v2:space-y-12">
             {activeAwaiting.length > 0 && (
               <section aria-labelledby="awaiting-heading" className="space-y-3">
                 <div>
-                  <h2 id="awaiting-heading" className="text-sm font-semibold text-foreground">
+                  <h2 id="awaiting-heading" className="text-sm font-semibold text-foreground v2:flex v2:items-baseline v2:gap-1.5 v2:text-row v2:font-medium">
                     Awaiting password setup
+                    <span className="hidden text-meta font-normal text-muted-foreground v2:inline">{activeAwaiting.length}</span>
                   </h2>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground v2:mt-1 v2:text-meta">
                     Approved accounts that haven&apos;t finished setup. Resend replaces the old link.
                   </p>
                 </div>
@@ -1244,16 +1298,44 @@ export default function ApprovalsPage() {
                   rowKey={(u) => u.id}
                   columns={activeColumns}
                   defaultSort={{ key: "person", dir: "asc" }}
-                  searchText={(u) => [u.name, u.email, u.memberships?.[0]?.company?.name]}
+                  searchText={newLook ? undefined : (u) => [u.name, u.email, u.memberships?.[0]?.company?.name]}
                   searchPlaceholder="Filter accounts"
                   urlState={false}
                   minWidth={680}
+                  columnWidths={TEMPLATE}
                   actionsLabel="Row actions"
                   actionsAlwaysVisible
                   empty={null}
                   rowClassName={(u) => rowCollapse.className(u.id, "fade")}
                   rowActions={(u) => {
                     const isCompanyCreator = u.memberships.some((m) => m.company.createdById === u.id);
+                    if (newLook) {
+                      // New look (audit #17): Resend link stays; Dismiss and Delete go in a menu, Delete last in clay.
+                      return (
+                        <>
+                          {resendButton(u)}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label={`More actions for ${u.name ?? u.email}`}>
+                                <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => handleDismissToggle(u.id, true)}>
+                                <EyeOff aria-hidden className="h-3.5 w-3.5" />
+                                Dismiss
+                              </DropdownMenuItem>
+                              {!isCompanyCreator && (
+                                <DropdownMenuItem onSelect={() => requestDelete(u)} className="text-tone-clay-ink">
+                                  <Trash2 aria-hidden className="h-3.5 w-3.5" />
+                                  Delete
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </>
+                      );
+                    }
                     return (
                       <>
                         {resendButton(u)}
@@ -1289,8 +1371,9 @@ export default function ApprovalsPage() {
 
             {dismissedOrStale.length > 0 && (
               <section aria-labelledby="dismissed-heading" className="space-y-2">
-                <h3 id="dismissed-heading" className="text-sm font-medium text-muted-foreground">
-                  Dismissed / stale ({dismissedOrStale.length})
+                <h3 id="dismissed-heading" className="text-sm font-medium text-muted-foreground v2:flex v2:items-baseline v2:gap-1.5 v2:text-row v2:text-foreground">
+                  Dismissed / stale <span className="hidden text-meta font-normal text-muted-foreground v2:inline">{dismissedOrStale.length}</span>
+                  <span className="v2:hidden">({dismissedOrStale.length})</span>
                 </h3>
                 <DataTable<AwaitingUser>
                   label="Dismissed or stale accounts"
@@ -1301,6 +1384,7 @@ export default function ApprovalsPage() {
                   defaultSort={{ key: "person", dir: "asc" }}
                   urlState={false}
                   minWidth={560}
+                  columnWidths={TEMPLATE}
                   actionsLabel="Row actions"
                   actionsAlwaysVisible
                   empty={null}

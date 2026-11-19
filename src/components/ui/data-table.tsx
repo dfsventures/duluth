@@ -1097,7 +1097,8 @@ function DataTableInner<T>({
                                 className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
                               />
                               {g.label}
-                              <span className="num ml-1 font-normal text-muted-foreground">{countText}</span>
+                              {/* New look (audit #39): with one group the footer already says how many. */}
+                              {groups.length > 1 && <span className="num ml-1 font-normal text-muted-foreground">{countText}</span>}
                             </button>
                           ) : (
                             <>
@@ -1157,9 +1158,11 @@ function DataTableInner<T>({
                           />
                           {g.label}
                           {/* New look: the count sits beside the label, "2 items", as on desktop. */}
-                          <span className="num ml-1 font-normal text-muted-foreground">
-                            {g.rows.length} {g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}
-                          </span>
+                          {groups.length > 1 && (
+                            <span className="num ml-1 font-normal text-muted-foreground">
+                              {g.rows.length} {g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}
+                            </span>
+                          )}
                         </button>
                       ) : (
                         g.label

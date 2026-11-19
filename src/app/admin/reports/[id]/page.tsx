@@ -7,6 +7,8 @@ import { ArrowLeft, Eye } from "lucide-react";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
+import { noticeClasses } from "@/components/ui/notice";
+import { useNewLook } from "@/lib/use-new-look";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { portcoMention } from "@/components/ui/portco-mention";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
@@ -38,6 +40,7 @@ interface ReportDetail {
 }
 
 export default function AdminReportEditorPage() {
+  const newLook = useNewLook();
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as string;
@@ -263,9 +266,12 @@ export default function AdminReportEditorPage() {
 
   return (
     <AppShell width="narrow">
-      <Breadcrumb items={[{ label: "Fund Reports", href: "/admin/reports" }, { label: title.trim() || "Untitled report" }]} />
+      {!newLook && <Breadcrumb items={[{ label: "Fund Reports", href: "/admin/reports" }, { label: title.trim() || "Untitled report" }]} />}
 
       <ComposerTopBar
+        back={{ href: "/admin/reports", label: "Fund Reports" }}
+        // New look (audit #26): a published report has no primary; "Unpublish to edit" is a secondary button.
+        showPublish={isDraft || !newLook}
         draftLabel={`${isDraft ? "Draft" : "Published"} in ${report.fund.name}`}
         secondaryActions={
           <>
@@ -275,6 +281,11 @@ export default function AdminReportEditorPage() {
                 Preview
               </Button>
             </Link>
+            {!isDraft && newLook && (
+              <Button variant="secondary" size="sm" disabled={unpublishing} onClick={handleUnpublish}>
+                {unpublishing ? "Unpublishing..." : "Unpublish to edit"}
+              </Button>
+            )}
             {isDraft && (
               <Button variant="secondary" size="sm" disabled={saving} onClick={handleSave}>
                 {saving ? "Saving..." : "Save"}
@@ -295,7 +306,7 @@ export default function AdminReportEditorPage() {
 
 
       {confirmPublish && (
-        <div className={cn("mb-6 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 v2:border-transparent v2:bg-tone-amber", EDITOR_COLUMN)}>
+        <div className={noticeClasses("amber", cn("mb-6", EDITOR_COLUMN))}>
           {/* Part 10, WS27.6 (Q27) — absent entirely when sync is disabled. */}
           {syncEnabled && (
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-ochre/20 pb-2">
@@ -316,7 +327,7 @@ export default function AdminReportEditorPage() {
                   type="checkbox"
                   checked={notifyLps}
                   onChange={(e) => setNotifyLps(e.target.checked)}
-                  className="h-4 w-4 rounded-sm border-ochre/50"
+                  className="h-4 w-4 rounded-sm border-ochre/50 v2:border-[color:var(--color-ctl)]"
                 />
                 Notify this fund&apos;s LPs by email
               </label>
@@ -330,7 +341,7 @@ export default function AdminReportEditorPage() {
           </div>
           {notifyLps && (
             <div className="mt-2 w-full">
-              <label htmlFor="lp-note" className="mb-1 block text-xs text-foreground">
+              <label htmlFor="lp-note" className="mb-1 block text-xs text-foreground v2:text-row">
                 Add a note to the email (optional)
               </label>
               <textarea
@@ -340,7 +351,7 @@ export default function AdminReportEditorPage() {
                 maxLength={500}
                 rows={3}
                 placeholder="A short personal note — appears above the “Read the Report” button. Leave blank to send the standard email."
-                className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50 v2:border-[color:var(--color-ctl)] v2:bg-background"
+                className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50 v2:border-[color:var(--color-ctl)] v2:bg-[var(--color-surface)]"
               />
               <p className="mt-1 text-right text-xs text-muted-foreground">{lpNote.length}/500</p>
             </div>
@@ -370,7 +381,8 @@ export default function AdminReportEditorPage() {
 
         {isDraft ? (
           <>
-            <p className="mb-3 text-xs text-muted-foreground">
+            {/* New look (audit #28): this help is the empty editor's placeholder instead of a standing paragraph. */}
+            <p className="mb-3 text-xs text-muted-foreground v2:hidden">
               Type <span className="font-mono">@</span> to mention a portfolio company — mentioned companies get a valuation hover card in the LP view.
               Use the chart icon in the toolbar to insert this fund&apos;s performance snapshot.
             </p>
@@ -401,7 +413,11 @@ export default function AdminReportEditorPage() {
               variant="chromeless"
               value={body}
               onChange={setBody}
-              placeholder="Dear limited partners…"
+              placeholder={
+                newLook
+                  ? "Dear limited partners… Type @ to mention a portfolio company. Use the chart icon in the toolbar to insert this fund’s performance snapshot."
+                  : "Dear limited partners…"
+              }
               extraExtensions={extraExtensions}
               fundSnapshot={{ id: report.fund.id, name: report.fund.name }}
             />

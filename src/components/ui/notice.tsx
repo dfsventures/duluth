@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 // control radius. Under the old look it keeps the bordered tint the pages always had, so the
 // old pages are unchanged: callers that had their own old-look spacing pass it in className.
 
-export type NoticeTone = "amber" | "clay" | "sky";
+export type NoticeTone = "amber" | "clay" | "sky" | "sage";
 
 const BASE = "rounded-md border px-4 py-3 text-sm v2:min-h-10 v2:rounded-ctl v2:border-transparent v2:px-4 v2:py-3 v2:text-row";
 
@@ -13,6 +13,7 @@ const TONES: Record<NoticeTone, string> = {
   amber: "border-ochre/30 bg-ochre/10 text-foreground v2:bg-tone-amber v2:text-foreground",
   clay: "border-laterite/30 bg-laterite/10 text-tone-clay-ink v2:bg-tone-clay v2:text-tone-clay-ink",
   sky: "border-border bg-well text-foreground v2:bg-tone-sky v2:text-foreground",
+  sage: "border-acacia/30 bg-acacia/10 text-tone-sage-ink v2:bg-tone-sage v2:text-tone-sage-ink",
 };
 
 /** The class string, for places that cannot take a wrapper element. */

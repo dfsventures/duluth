@@ -12,12 +12,14 @@ import { Select } from "@/components/ui/select";
 import { MEMO_LIMITS } from "@/lib/memos";
 import { readError, targetValue, type LinkTargets } from "@/components/admin/memos/types";
 import { cn } from "@/lib/utils";
+import { useNewLook } from "@/lib/use-new-look";
 import { EDITOR_COLUMN, EDITOR_SECTION_CARD } from "@/lib/editor-styles";
 
 const NOT_IN_MOLLY = "__pending__";
 
 export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
   const router = useRouter();
+  const newLook = useNewLook();
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [pending, setPending] = useState("");
@@ -49,10 +51,20 @@ export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
 
   return (
     <AppShell width="narrow">
-      <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "New memo" }]} />
-      <PageHeader title="New memo" description="Starts as a private draft with the house sections. Nobody else can see it until you share it." />
+      {/* New look (audit #8): the Form header replaces the breadcrumb row. */}
+      {!newLook && <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "New memo" }]} />}
+      <PageHeader
+        title="New memo"
+        description="Starts as a private draft with the house sections. Nobody else can see it until you share it."
+        back={{ href: "/admin/memos", label: "Memos" }}
+        action={
+          <Button type="submit" form="new-memo-form" loading={saving} disabled={!title.trim()} className="hidden v2:inline-flex">
+            Create memo
+          </Button>
+        }
+      />
       <Card className={cn("max-w-xl", EDITOR_COLUMN, EDITOR_SECTION_CARD)}>
-        <form onSubmit={submit} className="space-y-4">
+        <form id="new-memo-form" onSubmit={submit} className="space-y-4">
           <Input
             id="memo-title"
             label="Title"
@@ -97,7 +109,7 @@ export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
               {error}
             </p>
           )}
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-2 v2:hidden">
             <Button type="button" variant="secondary" onClick={() => router.push("/admin/memos")}>
               Cancel
             </Button>

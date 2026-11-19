@@ -14,6 +14,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { noticeClasses } from "@/components/ui/notice";
+import { PickerList } from "@/components/ui/picker-list";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -432,7 +433,7 @@ export default function AdminLinksPage() {
               />
 
               {publishedUpdates.length > 0 && (
-                <div className="space-y-2 rounded-md border border-dashed p-3">
+                <div className="space-y-2 rounded-md border border-dashed p-3 v2:rounded-none v2:border-0 v2:p-0">
                   <label className="label">Bulk select by period (LP report link)</label>
                   <div className="flex flex-wrap items-end gap-3">
                     <Input
@@ -487,7 +488,24 @@ export default function AdminLinksPage() {
                 {publishedUpdates.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No published updates yet.</p>
                 ) : (
-                  <div className="max-h-72 overflow-y-auto rounded-md border divide-y">
+                  <>
+                  <div className="hidden v2:block">
+                    <PickerList
+                      ariaLabel="Updates to include"
+                      items={Object.values(updatesByCompany).flatMap(({ company, updates }) =>
+                        updates.map((u) => ({
+                          id: u.id,
+                          label: u.title,
+                          sub: u.period,
+                          meta: u.sentAt ? new Date(u.sentAt).toLocaleDateString() : undefined,
+                          group: company.name,
+                        }))
+                      )}
+                      selected={selectedUpdateIds}
+                      onToggle={toggleUpdate}
+                    />
+                  </div>
+                  <div className="max-h-72 overflow-y-auto rounded-md border divide-y v2:hidden">
                     {Object.values(updatesByCompany).map(({ company, updates }) => (
                       <div key={company.id}>
                         <div className="px-3 py-1.5 bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -520,6 +538,7 @@ export default function AdminLinksPage() {
                       </div>
                     ))}
                   </div>
+                  </>
                 )}
                 {selectedUpdateIds.length > 0 && (
                   <p className="text-xs text-muted-foreground">{selectedUpdateIds.length} update{selectedUpdateIds.length !== 1 ? "s" : ""} selected</p>
@@ -534,10 +553,10 @@ export default function AdminLinksPage() {
                       key={opt.label}
                       type="button"
                       onClick={() => setExpiryDays(opt.days)}
-                      className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors v2:h-8 v2:rounded-ctl v2:border-[color:var(--color-ctl)] v2:py-0 v2:text-row ${
                         expiryDays === opt.days
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-card text-muted-foreground hover:border-primary hover:text-foreground"
+                          ? "border-primary bg-primary text-primary-foreground v2:bg-[var(--color-surface)] v2:text-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-primary hover:text-foreground v2:bg-transparent v2:font-normal v2:text-secondary"
                       }`}
                     >
                       {opt.label}
@@ -603,12 +622,31 @@ export default function AdminLinksPage() {
                     : null
                 }
                 list={
+                  // Audit #37: "c" on a focused row copies its link (display:contents keeps the layout as it was).
+                  <div
+                    className="contents"
+                    onKeyDown={(e) => {
+                      if (e.key !== "c" || e.metaKey || e.ctrlKey || e.altKey) return;
+                      const rowEl = (e.target as HTMLElement).closest<HTMLElement>("tr[data-row]");
+                      if (!rowEl || e.target !== rowEl) return;
+                      const hit = links.find((l) => l.id === rowEl.dataset.key);
+                      if (!hit) return;
+                      e.preventDefault();
+                      copyLink(hit.token, hit.id);
+                    }}
+                  >
                   <DataTable<LinkItem>
                     label="Investor links"
                     noun="link"
                     rows={links}
                     rowKey={(l) => l.id}
                     columns={linkColumns}
+                    rowActions={(l) => (
+                      <Button variant="ghost" size="sm" onClick={() => copyLink(l.token, l.id)} aria-label={`Copy link for ${l.label || "Untitled link"}`}>
+                        {copiedId === l.id ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        {copiedId === l.id ? "Copied" : "Copy link"}
+                      </Button>
+                    )}
                     onOpenRow={(l) => setOpenId(l.id)}
                     openKey={openId}
                     onVisibleRowsChange={setVisibleRows}
@@ -619,6 +657,7 @@ export default function AdminLinksPage() {
                     chips={linkChips}
                     empty={null}
                   />
+                  </div>
                 }
               />
             );
