@@ -121,6 +121,8 @@ function GrowTitle({ value, onChange }: { value: string; onChange: (v: string) =
   );
 }
 
+const SEND_DISABLED_REASON = "Add a message and pick at least one company to send.";
+
 export default function AdminBroadcastEditorPage() {
   const newLook = useNewLook();
   const [sentTab, setSentTab] = useState<"message" | "delivery">("message");
@@ -401,7 +403,7 @@ export default function AdminBroadcastEditorPage() {
         statusExtra={dirty ? <span className="hidden text-tone-amber-ink v2:inline">Unsaved changes</span> : undefined}
         // New look (audit #22): a sent broadcast has nothing left to send, so no Send, not even a disabled one.
         showPublish={isDraft || !newLook}
-        disabledReason="Add a message and pick at least one company to send."
+        disabledReason={newLook ? SEND_DISABLED_REASON : undefined}
         draftLabel={
           isDraft
             ? "Draft"
@@ -479,6 +481,8 @@ export default function AdminBroadcastEditorPage() {
             />
           )}
         </div>
+
+        {newLook && isDraft && !canSend && <p className="-mt-2 mb-4 text-meta text-muted-foreground">{SEND_DISABLED_REASON}</p>}
 
         {newLook && !isDraft && (
           <>

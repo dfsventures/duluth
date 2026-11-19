@@ -23,7 +23,7 @@ export default async function AdminReportPreviewPage({ params }: { params: Promi
           what this is; nothing under the old look (it never drew a bar here). */}
       <PageHeader
         newLookOnly
-        back={{ href: `/admin/reports/${id}`, label: "Edit report" }}
+        back={{ href: `/admin/reports/${id}`, label: "Report" }}
         title="Preview"
         description="How LPs will see this. Numbers are not frozen until you publish."
         action={

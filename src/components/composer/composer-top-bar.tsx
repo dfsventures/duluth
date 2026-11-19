@@ -31,7 +31,7 @@ interface ComposerTopBarProps {
   back?: { href: string; label: string };
   /** More status text after the label, e.g. an amber "Unsaved changes". */
   statusExtra?: React.ReactNode;
-  /** New look: why the primary is disabled, as a muted line under the bar's actions (audit #19). */
+  /** Why the primary is disabled: a tooltip on the button (the page may also show it as a quiet line). */
   disabledReason?: string;
 }
 
@@ -72,8 +72,9 @@ export function ComposerTopBar({
     // New look (audit #8, #20): the record header. A sticky 52px bar (the .shell-header rules give it the
     // hairline, the bleed and the stick when it is the first thing on the page) with a "‹ Back" link and
     // the status on the left and the actions on the right. Sentence-case status in sans.
-    <div className="shell-header mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4 v2:mb-6 v2:min-h-9 v2:pb-0">
-      <div className="flex flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
+    // Same rhythm as PageHeader: the bar's height, padding and bottom margin come from .shell-header alone.
+    <div className="shell-header mb-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b pb-4 v2:pb-0">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
         {back && (
           <Link
             href={back.href}
@@ -91,7 +92,12 @@ export function ComposerTopBar({
       <div className="flex flex-wrap items-center justify-end gap-2">
         {secondaryActions}
         {showPublish && (
-          <Button size="sm" disabled={publishDisabled || publishing} onClick={onPublishClick}>
+          <Button
+            size="sm"
+            disabled={publishDisabled || publishing}
+            onClick={onPublishClick}
+            title={publishDisabled && disabledReason ? disabledReason : undefined}
+          >
             {publishing ? "Publishing..." : publishLabel}
           </Button>
         )}
@@ -131,9 +137,6 @@ export function ComposerTopBar({
           </div>
         )}
       </div>
-      {disabledReason && publishDisabled && showPublish && (
-        <p className="hidden basis-full text-right text-meta text-muted-foreground v2:block">{disabledReason}</p>
-      )}
     </div>
   );
 }

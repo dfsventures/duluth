@@ -74,7 +74,7 @@ export function SettingsStatusStrip({ resendOn, cronOn, uploadFailureCount, gran
       <div className="mb-6 grid grid-cols-1 border border-border sm:grid-cols-2 v2:hidden" aria-label="System status">
         {rows.map(renderRow)}
       </div>
-      <div className="mb-8 hidden v2:block">
+      <div className="mb-8 hidden v2:block v2:max-w-[calc(168px+2.5rem+var(--column-narrow))]">
         {problems.length > 0 && <div className="mb-3 grid grid-cols-1" aria-label="Needs attention">{problems.map(renderRow)}</div>}
         <details className="group">
           <summary className="flex min-h-[44px] cursor-pointer list-none items-center gap-3 text-body text-foreground [&::-webkit-details-marker]:hidden">
