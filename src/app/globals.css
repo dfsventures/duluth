@@ -844,11 +844,6 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
   font-size: 12px;
   color: var(--color-text-muted);
 }
-/* The row-actions line: the ghost buttons have 12px of their own side padding (44px tall on a
-   phone), so pull the line back 12 and the first icon sits on the same edge as the text above. */
-html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > li > div.mt-2 {
-  margin-left: -12px;
-}
 
 /* Memo page, direction B "Dossier" (PLAN-1, WS163; B-175). A 720px reading column with a sticky
    deal panel (296px) on its right. Layout follows the width of the main area (a size container, see

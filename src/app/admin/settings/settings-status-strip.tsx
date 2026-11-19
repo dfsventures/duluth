@@ -48,7 +48,7 @@ export function SettingsStatusStrip({ resendOn, cronOn, uploadFailureCount, gran
   ];
 
   return (
-    <div className="mb-6 grid grid-cols-1 border border-border sm:grid-cols-2 v2:max-w-[720px] v2:border-0 v2:sm:grid-cols-1" aria-label="System status">
+    <div className="mb-6 grid grid-cols-1 border border-border sm:grid-cols-2 v2:border-0 v2:sm:grid-cols-1" aria-label="System status">
       {rows.map((r) => (
         <Link
           key={r.label}

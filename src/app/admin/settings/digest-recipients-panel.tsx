@@ -94,11 +94,11 @@ export function DigestRecipientsPanel() {
       {admins.length > 0 && (
         <div>
           <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide v2:text-meta v2:normal-case v2:tracking-normal">Team admins</p>
-          <ul className="space-y-2">
+          <ul className="space-y-2 v2:space-y-0">
             {admins.map((u) => (
               <li
                 key={u.id}
-                className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-2.5"
+                className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/50 px-4 py-2.5 v2:min-h-[52px] v2:rounded-none v2:border-0 v2:border-b v2:border-row-divider v2:bg-transparent v2:px-0 v2:py-2"
               >
                 <div>
                   <p className="text-sm font-medium text-foreground">{u.name ?? u.email}</p>
@@ -125,11 +125,11 @@ export function DigestRecipientsPanel() {
         <p className="mb-2 text-xs font-medium text-muted-foreground uppercase tracking-wide v2:text-meta v2:normal-case v2:tracking-normal">Additional recipients</p>
 
         {extras.length > 0 && (
-          <ul className="mb-3 space-y-2">
+          <ul className="mb-3 space-y-2 v2:space-y-0">
             {extras.map((e) => (
               <li
                 key={e.id}
-                className="flex items-center justify-between rounded-md border border-border bg-muted/50 px-4 py-2.5"
+                className="flex items-center justify-between gap-3 rounded-md border border-border bg-muted/50 px-4 py-2.5 v2:min-h-[52px] v2:rounded-none v2:border-0 v2:border-b v2:border-row-divider v2:bg-transparent v2:px-0 v2:py-2"
               >
                 <span className="text-sm text-foreground">{e.email}</span>
                 <button
