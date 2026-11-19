@@ -39,6 +39,9 @@ next-env.d.ts
 # uploads
 /uploads/
 
+# local screenshots from scripts/visual (npm run shoot / shoot:mock)
+/.visual/
+
 # vercel pulled env (may contain credentials)
 .env.vercel
 

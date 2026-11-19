@@ -68,7 +68,12 @@ const looks = list("looks", ["new", "old"]);
 const viewportKeys = list("viewports", Object.keys(VIEWPORTS));
 const withStates = !process.argv.includes("--no-states");
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
-const outDir = path.resolve(arg("out") ?? `/tmp/molly-visual/${stamp}`);
+// Default output stays inside the repo, in the git-ignored .visual/ folder.
+const outDir = path.resolve(arg("out") ?? path.join(REPO, ".visual", stamp));
+if (!outDir.startsWith(REPO + path.sep)) {
+  console.error(`--out must be inside the repo (${REPO}); got ${outDir}`);
+  process.exit(2);
+}
 
 const failures: string[] = [];
 const written: string[] = [];

@@ -8,10 +8,13 @@ else sees it. Nothing here touches production, the network, or any real data.
 
 1. `npx tsx scripts/visual/setup.ts` creates the tables in the local database `molly_local` and
    fills it with placeholder data (Acme, Globex, "Sam Admin", example.com ...). Safe to re-run: it wipes first.
-2. `npx tsx scripts/visual/shoot.ts` starts `next dev` on port 3100, signs in as the seeded admin,
-   takes the screenshots, and stops the server it started.
+   It wipes data, so it stays a command Joseph runs; it has no npm script on purpose.
+2. `npm run shoot -- [options]` starts `next dev` on port 3100, signs in as the seeded admin,
+   takes the screenshots, and stops the server it started. It only reads the database.
+   Agents use the npm script (it runs without a request to Joseph), not `npx tsx scripts/visual/shoot.ts`.
+3. `npm run shoot:mock -- docs/design/<mockup>.html .visual/<name>` screenshots a design mockup.
 
-Narrow a run with `--pages companies,approvals` (dashboard, companies, updates, approvals, deals, memos, board),
+Narrow a run with `--pages companies,approvals` (see PAGES in shoot.ts; `company`, `update`, `memo`, `fund`, `deal` open a single record),
 `--looks new` (new, old), `--viewports desktop,phone` (desktop 1440x900, wide 1920x1080, phone 390x844),
 `--out <dir>`, and `--no-states` (skips the open-pane, hover and command-palette pictures).
 
@@ -31,7 +34,7 @@ The session secret in `env.ts` is a fixed local-only string, not a secret.
 
 ## Where the pictures go
 
-`/tmp/molly-visual/<timestamp>/`, named like `companies__new-light__desktop.png`. Extra states:
+`.visual/<timestamp>/` inside the repo (git-ignored; `--out` must also be inside the repo), named like `companies__new-light__desktop.png`. Extra states:
 `companies-pane__...`, `companies-hover__...`, `approvals-pane__...`, `palette__...` (new look, first requested size).
 The run exits non-zero if any page redirects to `/login` or shows an error page; browser console errors are printed.
 

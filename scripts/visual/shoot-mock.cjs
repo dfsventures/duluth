@@ -1,5 +1,6 @@
 // Screenshot a design mockup (docs/design/*.html with Direction/Mode/View toggles) in a few states.
-// Usage: node scripts/visual/shoot-mock.cjs docs/design/memo-page-v1.html /tmp/molly-mock
+// Usage: npm run shoot:mock -- docs/design/memo-page-v1.html .visual/memo-mock
+// Output must stay inside the repo (.visual/ is git-ignored).
 // Toggles are buttons inside [data-g="dir"|"theme"|"view"] with data-v values (Nisat's mockup convention).
 const { createRequire } = require("node:module");
 const path = require("node:path");
@@ -8,7 +9,13 @@ const req = createRequire(path.join("/Users/josephbenson/.cache/molly-visual", "
 const { chromium } = req("playwright");
 
 (async () => {
-  const [html, out] = process.argv.slice(2);
+  const [html, outArg] = process.argv.slice(2);
+  const repo = process.cwd();
+  const out = path.resolve(outArg || path.join(".visual", "mock"));
+  if (!out.startsWith(repo + path.sep)) {
+    console.error(`Output must be inside the repo (${repo}); got ${out}`);
+    process.exit(2);
+  }
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch();
   const errors = [];
