@@ -81,6 +81,9 @@ export function RichEditor({
   const [focused, setFocused] = useState(false);
 
   const editor = useEditor({
+    // Render the editor on the client only. Without this, Tiptap throws its SSR
+    // hydration error in dev and the page shows the error overlay.
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
