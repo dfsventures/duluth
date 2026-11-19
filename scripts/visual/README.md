@@ -11,8 +11,10 @@ else sees it. Nothing here touches production, the network, or any real data.
    It wipes data, so it stays a command Joseph runs; it has no npm script on purpose.
 2. `npm run shoot -- [options]` starts `next dev` on port 3100, signs in as the seeded admin,
    takes the screenshots, and stops the server it started. It only reads the database.
-   Agents use the npm script (it runs without a request to Joseph), not `npx tsx scripts/visual/shoot.ts`.
-3. `npm run shoot:mock -- docs/design/<mockup>.html .visual/<name>` screenshots a design mockup.
+   Agents use the npm script, not `npx tsx scripts/visual/shoot.ts`. It runs without a request to Joseph
+   only when the words after `--` are plain (letters, digits and . _ : , = + @ -): no quotes, slashes or paths.
+3. `npm run shoot:mock -- <mockup-name>` (for example `memo-page-v1`) screenshots docs/design/<mockup-name>.html
+   into `.visual/mock-<mockup-name>/`.
 
 Narrow a run with `--pages companies,approvals` (see PAGES in shoot.ts; `company`, `update`, `memo`, `fund`, `deal` open a single record),
 `--looks new` (new, old), `--viewports desktop,phone` (desktop 1440x900, wide 1920x1080, phone 390x844),
