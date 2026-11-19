@@ -7,6 +7,7 @@ import { Users, LinkIcon, Unlink, Upload, CheckCircle2, AlertCircle, X } from "l
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { noticeClasses } from "@/components/ui/notice";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
@@ -369,7 +370,7 @@ function AdminPortfolioContactsPageInner() {
             </div>
           )}
           {importError && (
-            <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-clay">
+            <div className={noticeClasses("clay", "mb-6 flex items-center gap-2 v2:mb-0 v2:mt-4")}>
               <AlertCircle className="h-4 w-4 shrink-0" />
               <span className="flex-1">{importError}</span>
               <button onClick={() => setImportError(null)}>

@@ -13,6 +13,7 @@ import type { FilterChipDef } from "@/lib/data-table";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { noticeClasses } from "@/components/ui/notice";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -411,7 +412,7 @@ export default function AdminLinksPage() {
 
 
       {error && (
-        <div className="mb-6 flex items-center gap-2 rounded-md border border-laterite/30 bg-laterite/10 px-4 py-3 text-sm text-tone-clay-ink v2:mx-[var(--row-pad)] v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-clay">
+        <div className={noticeClasses("clay", "mb-6 flex items-center gap-2 v2:mx-[var(--row-pad)] v2:mb-0 v2:mt-4")}>
           <AlertCircle className="h-4 w-4" />{error}
         </div>
       )}

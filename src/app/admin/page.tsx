@@ -19,6 +19,7 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Stat } from "@/components/ui/stat";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StatusDot } from "@/components/ui/status-dot";
 import { NeedsYouInbox } from "@/components/admin/needs-you-inbox";
@@ -222,7 +223,7 @@ export default function AdminDashboardPage() {
     return (
       <div className={className}>
         {/* Updates per month bar chart */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 v2:rounded-lg v2:border-0 v2:bg-card v2:shadow-none">
           <CardHeader>
             <CardTitle className="text-sm font-medium">Updates Published — Last 6 Months</CardTitle>
           </CardHeader>
@@ -232,7 +233,8 @@ export default function AdminDashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={d.updatesByMonth} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
+                  {/* New look: hairline horizontal gridlines only, no dashes (audit #15). */}
+                  <CartesianGrid strokeDasharray={v2 ? undefined : "3 3"} vertical={!v2} stroke="var(--color-border)" />
                   <XAxis
                     dataKey="month"
                     tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
@@ -263,7 +265,7 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Sector breakdown */}
-        <Card>
+        <Card className="v2:rounded-lg v2:border-0 v2:bg-card v2:shadow-none">
           <CardHeader>
             <CardTitle className="text-sm font-medium">Portfolio by Sector</CardTitle>
           </CardHeader>
@@ -330,12 +332,9 @@ export default function AdminDashboardPage() {
             <h2 id="portfolio-heading" className="mb-3 text-meta font-medium text-muted-foreground">
               Portfolio
             </h2>
-            <dl aria-label="Portfolio totals" className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <dl aria-label="Portfolio totals" className="grid grid-cols-2 gap-x-8 gap-y-4 lg:grid-cols-4">
               {stats.map((k) => (
-                <div key={k.label} className="rounded-lg bg-card p-4">
-                  <dt className="mb-1 text-meta text-muted-foreground">{k.label}</dt>
-                  <dd className="text-xl font-semibold text-foreground">{k.value}</dd>
-                </div>
+                <Stat key={k.label} semantic label={k.label} value={k.value} />
               ))}
             </dl>
             {renderCharts("mt-4 grid gap-4 lg:grid-cols-3")}

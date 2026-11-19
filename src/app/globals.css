@@ -316,7 +316,7 @@ html[data-look="v2"][data-theme="dark"] body[data-surface="admin"] {
 /* The page header is a bar: 52px, hairline under it, 32px before the page. */
 html[data-look="v2"] [data-surface="admin"] .shell-header {
   min-height: var(--bar-h);
-  margin-bottom: 32px;
+  margin-bottom: 24px; /* one top edge: every page's content starts 24px under the bar (audit #7) */
   padding-block: 2px;
   border-bottom: 1px solid var(--color-border);
 }
@@ -371,7 +371,7 @@ html[data-look="v2"] [data-surface="admin"] .shell-page > .shell-header:first-ch
   top: 0;
   z-index: 10;
   margin-top: calc(var(--shell-pt, 0px) * -1);
-  margin-bottom: 32px;
+  margin-bottom: 24px;
   margin-left: calc((var(--frame-off) + var(--page-pad)) * -1);
   margin-right: calc((var(--frame-off) + var(--page-pad)) * -1);
   padding-left: calc(var(--frame-off) + var(--gutter));
@@ -490,6 +490,16 @@ html[data-look="v2"] [data-surface="admin"] .badge-danger::before {
    mostly types, counts and tags ("Initial", "Team", "3"), so they get none. */
 html[data-look="v2"] [data-surface="admin"] .badge-info::before,
 html[data-look="v2"] [data-surface="admin"] .badge-neutral::before {
+  display: none;
+}
+
+/* A status is one glyph and a word (audit #3): the dot or triangle above is the glyph, so an icon a
+   page puts inside a badge is not drawn. */
+html[data-look="v2"] [data-surface="admin"] .badge-success > svg,
+html[data-look="v2"] [data-surface="admin"] .badge-warning > svg,
+html[data-look="v2"] [data-surface="admin"] .badge-danger > svg,
+html[data-look="v2"] [data-surface="admin"] .badge-info > svg,
+html[data-look="v2"] [data-surface="admin"] .badge-neutral > svg {
   display: none;
 }
 

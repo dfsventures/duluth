@@ -18,6 +18,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { noticeClasses } from "@/components/ui/notice";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
@@ -576,7 +577,7 @@ export default function ApprovalsPage() {
         )}
 
         {matches.length > 0 && (
-          <div className="w-full rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm">
+          <div className={noticeClasses("amber", "w-full px-3 py-2")}>
             {selected && visibleMatches.length > 0 ? (
               <>
                 <p className="text-foreground">
@@ -1008,7 +1009,7 @@ export default function ApprovalsPage() {
                       )}
 
                       {matches.length > 0 && (
-                        <div className="w-full rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm">
+                        <div className={noticeClasses("amber", "w-full px-3 py-2")}>
                           {selected && visibleMatches.length > 0 ? (
                             <>
                               <p className="text-foreground">

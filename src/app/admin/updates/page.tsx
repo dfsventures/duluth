@@ -230,7 +230,7 @@ function AdminUpdatesPageInner() {
               : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
           }`}
         >
-          <FileText className="h-4 w-4" />
+          <FileText className="h-4 w-4 v2:hidden" />
           Updates
         </button>
         <button
@@ -241,7 +241,7 @@ function AdminUpdatesPageInner() {
               : "border-transparent text-muted-foreground hover:border-muted-foreground/30 hover:text-foreground"
           }`}
         >
-          <LayoutTemplate className="h-4 w-4" />
+          <LayoutTemplate className="h-4 w-4 v2:hidden" />
           Templates
         </button>
       </div>
@@ -289,7 +289,7 @@ function AdminUpdatesPageInner() {
                 id="updates-company"
                 value={companyFilter}
                 onChange={(e) => setCompanyParam(e.target.value)}
-                className="h-8 w-auto py-0 text-[13px]"
+                className="h-8 w-auto py-0 text-[13px] v2:h-9 v2:bg-transparent v2:text-row"
               >
                 <option value="">All companies</option>
                 {companies.map((c) => (

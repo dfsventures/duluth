@@ -22,6 +22,8 @@ export interface FilterBarChip {
   set?: boolean;
   /** A live count shown after the label, e.g. how many rows the chip would show. */
   count?: number;
+  /** The "All" chip: when picked it is tinted like a set chip but has no x (there is nothing to remove). */
+  plain?: boolean;
 }
 
 interface FilterBarProps {
@@ -58,7 +60,23 @@ export function FilterBar({ chips, onOpen, onRemove, onClearAll, leading, traili
     >
       {leading}
       {chips.map((c) =>
-        isSet(c) ? (
+        c.plain ? (
+          <button
+            key={c.key}
+            type="button"
+            aria-pressed={isSet(c)}
+            onClick={() => onOpen(c.key)}
+            className={cn(
+              "relative inline-flex h-7 items-center gap-1 whitespace-nowrap rounded px-3 max-md:h-8 " + TAP,
+              isSet(c)
+                ? "bg-[var(--color-surface,transparent)] font-medium text-primary"
+                : "text-secondary hover:bg-row-hover"
+            )}
+          >
+            {c.label}
+            {c.count !== undefined && <span className="num font-normal text-muted-foreground">{c.count}</span>}
+          </button>
+        ) : isSet(c) ? (
           <span
             key={c.key}
             className="inline-flex h-7 items-center gap-1 rounded bg-[var(--color-accent-soft,transparent)] pl-3 pr-0.5 font-medium text-primary max-md:h-8"

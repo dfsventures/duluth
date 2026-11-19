@@ -4,11 +4,13 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as Tabs from "@radix-ui/react-tabs";
-import { AlertCircle, ChevronDown, Plus } from "lucide-react";
+import { AlertCircle, ChevronDown, Plus, Search } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FilterBar } from "@/components/ui/filter-bar";
+import { noticeClasses } from "@/components/ui/notice";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/board";
 import { cn } from "@/lib/utils";
 import { BoardCard } from "@/components/admin/board/board-card";
@@ -364,6 +366,8 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   }
 
   const needsReviewCount = data?.needsReviewCount ?? 0;
+  const FILTER_SELECT =
+    "h-9 max-w-[15rem] flex-none rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-3 text-row text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base";
   const selectCls = "h-9 w-full rounded-sm border border-input bg-card pl-3 text-sm text-foreground sm:w-44";
 
   // Apply a saved/created/resolved card immediately, then reconcile with the
@@ -478,7 +482,64 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           ) : (
             <>
               {/* Filter row: Pattern D */}
-              <div className="mb-4 flex flex-wrap items-end gap-x-4 gap-y-3 v2:mb-4 v2:gap-x-3">
+              {newLook && (
+                // New look (audit #10, #36): the same filter bar as every list: outlined selects with the
+                // label inside as the first option, and the search field, in one 44px bar.
+                <FilterBar
+                  label="Filter the board"
+                  chips={[]}
+                  onOpen={() => {}}
+                  onRemove={() => {}}
+                  onClearAll={() => {}}
+                  className="mb-2 px-0"
+                  leading={
+                    <>
+                      <div className="relative w-56 min-w-[140px] flex-none max-md:w-40">
+                        <label htmlFor="board-search" className="sr-only">Search items</label>
+                        <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                          id="board-search"
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          placeholder="Search titles…"
+                          autoComplete="off"
+                          className="h-9 w-full rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-9 pr-3 text-row text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base"
+                        />
+                      </div>
+                      <select
+                        aria-label="Filter by project"
+                        value={projectFilter}
+                        onChange={(e) => setFilter("project", e.target.value)}
+                        className={FILTER_SELECT}
+                      >
+                        <option value="">All projects</option>
+                        <option value="none">No project</option>
+                        {data.projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label="Filter by owner"
+                        value={ownerFilter}
+                        onChange={(e) => setFilter("owner", e.target.value)}
+                        className={FILTER_SELECT}
+                      >
+                        <option value="">All owners</option>
+                        {myPersonId && <option value="me">Me</option>}
+                        <option value="none">Unassigned</option>
+                        {activePeople.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  }
+                />
+              )}
+              <div className={cn("mb-4 flex flex-wrap items-end gap-x-4 gap-y-3 v2:mb-4 v2:gap-x-3", newLook && "hidden")}>
                 <label className="flex w-full flex-col gap-1 sm:w-auto">
                   <span className="label">Project</span>
                   <select
@@ -529,7 +590,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
               {needsReviewCount > 0 && (
                 <div
                   role="status"
-                  className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm border border-ochre bg-ochre/10 px-3 py-2"
+                  className={noticeClasses("amber", "mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-sm border-ochre px-3 py-2")}
                 >
                   <AlertCircle className="h-4 w-4 shrink-0 text-tone-amber-ink" aria-hidden />
                   <p className="min-w-0 flex-1 basis-48 text-sm text-foreground">

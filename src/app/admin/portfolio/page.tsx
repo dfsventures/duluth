@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Select } from "@/components/ui/select";
+import { Stat } from "@/components/ui/stat";
 import { DataTable, type DataTableColumn, type DataTableGroupBy } from "@/components/ui/data-table";
 import { formatDate } from "@/lib/utils";
 import { blendedMultiple, multipleLabel, multipleValue, summarizeLedger, type LedgerSummary } from "@/lib/ledger";
@@ -155,13 +156,17 @@ const GROUP_BY: DataTableGroupBy<PortfolioDeal> = {
   },
 };
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+// The shared Stat (audit #12, #13): the old look keeps its mono caps label and display number.
+function LedgerStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="min-w-0">
-      <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 font-display text-xl font-semibold text-foreground">{value}</dd>
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
-    </div>
+    <Stat
+      semantic
+      label={label}
+      value={value}
+      caption={hint}
+      legacyLabel="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground"
+      legacyValue="mt-0.5 font-display text-xl font-semibold text-foreground"
+    />
   );
 }
 
@@ -233,17 +238,17 @@ function LedgerPage() {
 
       <dl
         aria-label="Totals for the deals shown"
-        className="mb-5 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 sm:grid-cols-3 lg:grid-cols-5 v2:mb-0 v2:border-y-0 v2:pt-0 v2:pb-6"
+        className="mb-5 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 sm:grid-cols-3 lg:grid-cols-5 v2:mb-0 v2:gap-x-8 v2:border-y-0 v2:px-[var(--row-pad)] v2:pt-0 v2:pb-6"
       >
-        <Stat label="Total invested" value={`$${summary.totalInvested.toLocaleString()}`} />
-        <Stat
+        <LedgerStat label="Total invested" value={`$${summary.totalInvested.toLocaleString()}`} />
+        <LedgerStat
           label={`Implied value${!summary.anyDilutionAware && summary.dealCount > 0 ? " *" : ""}`}
           value={`$${Math.round(summary.blendedImpliedValue).toLocaleString()}`}
           hint="Admin-only estimate"
         />
-        <Stat label="Deals" value={String(summary.dealCount)} />
-        <Stat label="Companies" value={String(summary.companyCount)} />
-        <Stat label="Funds" value={String(summary.fundCount)} />
+        <LedgerStat label="Deals" value={String(summary.dealCount)} />
+        <LedgerStat label="Companies" value={String(summary.companyCount)} />
+        <LedgerStat label="Funds" value={String(summary.fundCount)} />
       </dl>
 
       <DataTable<PortfolioDeal>
@@ -269,7 +274,7 @@ function LedgerPage() {
               id="ledger-fund"
               value={fundId}
               onChange={(e) => setFundParam(e.target.value)}
-              className="h-8 w-auto py-0 text-[13px]"
+              className="h-8 w-auto py-0 text-[13px] v2:h-9 v2:bg-transparent v2:text-row"
             >
               <option value="">All funds</option>
               {funds.map((f) => (

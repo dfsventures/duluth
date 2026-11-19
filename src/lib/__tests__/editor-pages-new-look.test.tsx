@@ -35,7 +35,8 @@ describe("composer bar", () => {
   });
 
   it("drops the rule and the mono caps only under v2", () => {
-    expect(html).toContain("v2:border-b-0");
+    // Audit #8 / #20: the bar is now the page header's sticky bar (hairline from .shell-header).
+    expect(html).toContain("shell-header");
     expect(html).toContain("v2:normal-case");
     expect(html).toContain("v2:font-sans");
   });

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -24,6 +25,14 @@ interface ComposerTopBarProps {
   publishDisabled?: boolean;
   publishing?: boolean;
   overflowItems?: ComposerOverflowItem[];
+  /** Set false for a sent or published record that has nothing left to publish: no primary button. */
+  showPublish?: boolean;
+  /** New look: the "‹ Broadcasts" link at the start of the bar (the page drops its breadcrumb). */
+  back?: { href: string; label: string };
+  /** More status text after the label, e.g. an amber "Unsaved changes". */
+  statusExtra?: React.ReactNode;
+  /** New look: why the primary is disabled, as a muted line under the bar's actions (audit #19). */
+  disabledReason?: string;
 }
 
 /**
@@ -40,6 +49,10 @@ export function ComposerTopBar({
   publishDisabled,
   publishing,
   overflowItems,
+  showPublish = true,
+  back,
+  statusExtra,
+  disabledReason,
 }: ComposerTopBarProps) {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
@@ -56,18 +69,32 @@ export function ComposerTopBar({
   }, [overflowOpen]);
 
   return (
-    // New look: no rule under the bar and a sentence-case status in sans, like the record headers.
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4 v2:mb-6 v2:min-h-9 v2:border-b-0 v2:pb-0">
+    // New look (audit #8, #20): the record header. A sticky 52px bar (the .shell-header rules give it the
+    // hairline, the bleed and the stick when it is the first thing on the page) with a "‹ Back" link and
+    // the status on the left and the actions on the right. Sentence-case status in sans.
+    <div className="shell-header mb-6 flex flex-wrap items-center justify-between gap-3 border-b pb-4 v2:mb-6 v2:min-h-9 v2:pb-0">
       <div className="flex flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">
+        {back && (
+          <Link
+            href={back.href}
+            className="hidden items-center gap-0.5 text-row text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:inline-flex"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            {back.label}
+          </Link>
+        )}
         <span>{draftLabel}</span>
         {saveStateLabel && <span className="normal-case tracking-normal text-muted-foreground/80">{saveStateLabel}</span>}
+        {statusExtra}
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         {secondaryActions}
-        <Button size="sm" disabled={publishDisabled || publishing} onClick={onPublishClick}>
-          {publishing ? "Publishing..." : publishLabel}
-        </Button>
+        {showPublish && (
+          <Button size="sm" disabled={publishDisabled || publishing} onClick={onPublishClick}>
+            {publishing ? "Publishing..." : publishLabel}
+          </Button>
+        )}
 
         {overflowItems && overflowItems.length > 0 && (
           <div className="relative" ref={overflowRef}>
@@ -104,6 +131,9 @@ export function ComposerTopBar({
           </div>
         )}
       </div>
+      {disabledReason && publishDisabled && showPublish && (
+        <p className="hidden basis-full text-right text-meta text-muted-foreground v2:block">{disabledReason}</p>
+      )}
     </div>
   );
 }

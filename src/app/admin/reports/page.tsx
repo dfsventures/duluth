@@ -186,7 +186,9 @@ function AdminReportsPageInner() {
             { key: "published", label: "Published", test: (r) => r.status === "PUBLISHED" },
           ]}
           toolbarExtra={
-            <Select aria-label="Fund" value={fundFilter} onChange={(e) => setFundFilter(e.target.value)} className="max-w-[15rem]">
+            // A short list has nothing to narrow (audit #14); the select stays while a fund is picked, so it can be undone.
+            reports.length < 8 && fundFilter === "" ? undefined : (
+            <Select aria-label="Fund" value={fundFilter} onChange={(e) => setFundFilter(e.target.value)} className="h-9 max-w-[15rem] border-[color:var(--color-ctl)] bg-transparent text-row">
               <option value="">All funds</option>
               {funds.map((f) => (
                 <option key={f.id} value={f.id}>
@@ -194,6 +196,7 @@ function AdminReportsPageInner() {
                 </option>
               ))}
             </Select>
+            )
           }
           loading={loading}
           minWidth={760}

@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { PageHeaderMenu, type SecondaryAction } from "./page-header-menu";
 
 export type { SecondaryAction };
@@ -15,9 +17,14 @@ interface PageHeaderProps {
   secondaryActions?: SecondaryAction[];
   /** Small status next to the title, e.g. a RefreshIndicator. */
   indicator?: React.ReactNode;
+  /**
+   * New look, Form header (audit #8): a quiet "‹ Label" link before the title, in the same bar, in
+   * place of the breadcrumb row. Not drawn under the old look (the page keeps its own breadcrumb).
+   */
+  back?: { href: string; label: string };
 }
 
-export function PageHeader({ title, description, action, secondaryActions, indicator }: PageHeaderProps) {
+export function PageHeader({ title, description, action, secondaryActions, indicator, back }: PageHeaderProps) {
   const folded = !!secondaryActions?.length;
   return (
     // Stacks on phones (buttons drop below the title instead of pushing
@@ -31,6 +38,15 @@ export function PageHeader({ title, description, action, secondaryActions, indic
       }`}
     >
       <div className="min-w-0 v2:flex v2:flex-1 v2:items-baseline v2:gap-4">
+        {back && (
+          <Link
+            href={back.href}
+            className="hidden shrink-0 items-center gap-0.5 text-row text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:inline-flex"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            {back.label}
+          </Link>
+        )}
         <h1
           className={`flex items-center gap-2 font-display text-2xl font-semibold tracking-tight text-foreground v2:text-row v2:font-semibold v2:tracking-normal ${
             folded ? "v2:min-w-0 md:v2:shrink-0" : "v2:shrink-0"

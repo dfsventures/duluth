@@ -1,3 +1,4 @@
+import { Stat } from "@/components/ui/stat";
 import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 import type { FundPerformance, FundSnapshotDealRow, OverrideMetric, StoredFundPerformanceOverride } from "@/lib/portfolio-metrics";
@@ -42,6 +43,9 @@ interface FundPerformanceCardProps {
   overrides?: StoredFundPerformanceOverride | null;
 }
 
+// The old look's classes for the figures (the LP page keeps them; see Stat).
+const LEGACY = { legacyLabel: "text-xs text-muted-foreground", legacyValue: "font-mono text-lg font-semibold" } as const;
+
 function multipleLabel(multiple: number | null): string {
   if (multiple === null) return "n/a";
   if (multiple === 0) return "Written off";
@@ -79,50 +83,48 @@ export function FundPerformanceCard({ performance, deals, fundName, showCaveat =
   // `overrides.netIrr !== null` here or anywhere else in this file.
   const overrideActive = hasOverrideValue(overrides);
   return (
-    <div className="mb-6 rounded-md border border-edge bg-card p-4 shadow-soft">
+    // New look (audit #31): no box. The same figures as a Stat strip.
+    <div className="mb-6 rounded-md border border-edge bg-card p-4 shadow-soft v2:mb-4 v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0 v2:shadow-none">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold">{fundName ? `${fundName} — Performance` : "Performance"}</h3>
-        <span className="text-xs text-muted-foreground">As of {formatDate(performance.asOf)}</span>
+        <h3 className="font-semibold v2:text-row v2:font-medium">{fundName ? `${fundName} — Performance` : "Performance"}</h3>
+        <span className="text-xs text-muted-foreground v2:text-meta">As of {formatDate(performance.asOf)}</span>
       </div>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <div>
-          <p className="text-xs text-muted-foreground">Invested</p>
-          <p className="font-mono text-lg font-semibold">${performance.invested.toLocaleString()}</p>
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Implied Value{showCaveat && !performance.dilutionAware ? " *" : ""}</p>
-          <p className="font-mono text-lg font-semibold">${Math.round(performance.impliedValue).toLocaleString()}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 v2:gap-x-8">
+        <Stat label="Invested" value={`$${performance.invested.toLocaleString()}`} {...LEGACY} />
+        <Stat
+          label={`Implied Value${showCaveat && !performance.dilutionAware ? " *" : ""}`}
+          value={`$${Math.round(performance.impliedValue).toLocaleString()}`}
+          {...LEGACY}
+        />
         {overrideActive ? (
           <>
             {visibleOverrideMetrics(overrides).map((m) => (
-              <div key={m.key}>
-                <p className="text-xs text-muted-foreground">{m.label}</p>
-                <p className="font-mono text-lg font-semibold">{formatOverrideMetric(m)}</p>
-              </div>
+              <Stat key={m.key} label={m.label} value={formatOverrideMetric(m)} {...LEGACY} />
             ))}
           </>
         ) : (
           <>
-            <div>
-              <p className="text-xs text-muted-foreground">TVPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
-              <p className="font-mono text-lg font-semibold">{performance.tvpi !== null ? `${performance.tvpi.toFixed(2)}x` : "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">DPI{showCaveat && performance.approximate ? " ≈" : ""}</p>
-              <p className="font-mono text-lg font-semibold">{performance.dpi !== null ? `${performance.dpi.toFixed(2)}x` : "—"}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Gross IRR</p>
-              <p className="font-mono text-lg font-semibold" title={performance.grossIrr === null ? "Doesn't converge with the cashflow data recorded so far" : undefined}>
-                {performance.grossIrr !== null ? `${(performance.grossIrr * 100).toFixed(1)}%` : "—"}
-              </p>
-            </div>
+            <Stat
+              label={`TVPI${showCaveat && performance.approximate ? " ≈" : ""}`}
+              value={performance.tvpi !== null ? `${performance.tvpi.toFixed(2)}x` : "—"}
+              {...LEGACY}
+            />
+            <Stat
+              label={`DPI${showCaveat && performance.approximate ? " ≈" : ""}`}
+              value={performance.dpi !== null ? `${performance.dpi.toFixed(2)}x` : "—"}
+              {...LEGACY}
+            />
+            <Stat
+              label="Gross IRR"
+              value={performance.grossIrr !== null ? `${(performance.grossIrr * 100).toFixed(1)}%` : "—"}
+              title={performance.grossIrr === null ? "Doesn't converge with the cashflow data recorded so far" : undefined}
+              {...LEGACY}
+            />
           </>
         )}
       </div>
       {showCaveat && (
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground v2:text-meta">
           Admin-only estimate; gross of fees unless FEE cashflow rows are recorded.
           {!overrideActive && performance.approximate && " TVPI/DPI use total invested as a paid-in stand-in — no capital-call rows recorded yet, so treat as approximate."}
           {!performance.dilutionAware && " * Implied value assumes zero dilution (no ownership % recorded on these deals yet)."}

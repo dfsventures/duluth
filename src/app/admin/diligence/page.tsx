@@ -22,6 +22,7 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { noticeClasses } from "@/components/ui/notice";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -421,7 +422,7 @@ export default function AdminDiligencePage() {
       />
 
       {notice && (
-        <div className="mb-6 flex items-start gap-2 rounded-md border border-ochre/30 bg-ochre/10 px-4 py-3 text-sm text-foreground v2:mx-[var(--row-pad)] v2:mb-0 v2:mt-4 v2:border-transparent v2:bg-tone-amber">
+        <div className={noticeClasses("amber", "mb-6 flex items-start gap-2 v2:mx-[var(--row-pad)] v2:mb-0 v2:mt-4")}>
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-tone-amber-ink" />
           <span>{notice}</span>
         </div>

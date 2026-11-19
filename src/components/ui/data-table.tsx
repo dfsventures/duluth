@@ -156,6 +156,17 @@ export interface DataTableProps<T> {
   openKey?: string | null;
   /** New look: keep the column headings for screen readers only (a list whose rows speak for themselves). */
   hideHeader?: boolean;
+  /**
+   * New look: below this many rows (default 8) the search box and filter chips are not drawn. Set 0 to
+   * always show them. Rows are counted before any filter, so the bar never vanishes while in use.
+   */
+  minRowsForFilter?: number;
+  /**
+   * New look: one fixed layout for stacked tables, so their columns line up. One entry per shown
+   * column, then one for the actions column when there is one (px number, CSS width, or null for the
+   * flexible column). Nothing happens under the old look.
+   */
+  columnWidths?: (number | string | null)[];
 }
 
 export function DataTable<T>(props: DataTableProps<T>) {
@@ -209,6 +220,8 @@ function DataTableInner<T>({
   onOpenRow,
   openKey = null,
   hideHeader,
+  minRowsForFilter = 8,
+  columnWidths,
 }: DataTableProps<T>) {
   const router = useRouter();
   const pathname = usePathname();
@@ -497,8 +510,19 @@ function DataTableInner<T>({
     onVisibleRowsChange?.(visible);
   }, [visible, onVisibleRowsChange]);
 
+  // New look (audit #14): a short list has nothing to find, so the search box and chips stay away.
+  // The other controls (extras, export, columns) are unaffected. Never applied to a filtered view
+  // that already has a search or chip set, and never under the old look.
+  const tooShort = v2 && rows.length < minRowsForFilter && state.q.trim() === "" && state.filter === "all";
+  const showSearch = !tooShort;
+  const showChips = !tooShort;
   const hasToolbar = Boolean(
-    searchText || (chips && chips.length > 0) || toolbarExtra || groupPicker || exportCsv || (tableId && hideableCols.length > 0)
+    (searchText && showSearch) ||
+      (chips && chips.length > 0 && showChips) ||
+      toolbarExtra ||
+      groupPicker ||
+      exportCsv ||
+      (tableId && hideableCols.length > 0)
   );
   const filtersActive = state.q.trim() !== "" || state.filter !== "all";
 
@@ -772,13 +796,19 @@ function DataTableInner<T>({
     <FilterBar
       label={`Filter ${label.toLowerCase()}`}
       className={cn(listMode && "sticky top-[var(--bar-h)] z-[5] bg-background")}
-      chips={(chips ?? []).map((c) => ({ key: c.key, label: c.label, set: state.filter === c.key, count: counts[c.key] ?? 0 }))}
+      chips={(showChips ? (chips ?? []) : []).map((c) => ({
+        key: c.key,
+        label: c.label,
+        set: state.filter === c.key,
+        count: counts[c.key] ?? 0,
+        plain: c.key === "all",
+      }))}
       onOpen={(key) => writeState({ ...state, filter: key })}
       onRemove={() => writeState({ ...state, filter: "all" })}
       onClearAll={clearFilters}
       showClear={filtersActive}
       leading={
-        searchText ? (
+        searchText && showSearch ? (
           <div className="relative w-56 min-w-[140px] flex-none max-md:w-44">
             <label htmlFor={`dt-search-${label}`} className="sr-only">
               {searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
@@ -825,7 +855,7 @@ function DataTableInner<T>({
                   id={`dt-group-${label}`}
                   value={activeGroup?.key ?? ""}
                   onChange={(e) => setGroupKey(e.target.value)}
-                  className="input-field h-9 w-auto py-0"
+                  className="input-field h-9 w-auto bg-transparent py-0"
                 >
                   <option value="">No grouping</option>
                   {groupBy.options.map((o) => (
@@ -984,8 +1014,18 @@ function DataTableInner<T>({
             data-scroll-more={watchScroll && moreRight ? "true" : undefined}
             className="table-scroll-fade hidden overflow-x-auto border border-border bg-card md:block"
           >
-            <table className="w-full text-[13px]" style={minWidth ? { minWidth } : undefined}>
+            <table
+              className="w-full text-[13px]"
+              style={{ ...(minWidth ? { minWidth } : {}), ...(v2 && columnWidths ? { tableLayout: "fixed" } : {}) }}
+            >
               <caption className="sr-only">{label}</caption>
+              {v2 && columnWidths && (
+                <colgroup>
+                  {columnWidths.map((w, i) => (
+                    <col key={i} style={w == null ? undefined : { width: typeof w === "number" ? `${w}px` : w }} />
+                  ))}
+                </colgroup>
+              )}
               <thead className={v2 && hideHeader ? "sr-only" : undefined}>
                 <tr className="border-b border-border text-left">
                   {cols.map((c, i) => {

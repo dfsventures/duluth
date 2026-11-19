@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { TabBar } from "@/components/ui/tab-bar";
 import { toast } from "@/lib/toast";
+import { useNewLook } from "@/lib/use-new-look";
 import { cn } from "@/lib/utils";
 import { parseTab } from "@/lib/url-tab";
 import { relativeTime } from "@/lib/relative-time";
@@ -76,6 +77,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
   const [unlinked, setUnlinked] = useState(false);
 
   // JC-MB-A: ?view= wins, then the stored choice, then Board. Null until resolved, so no Board-then-List flash.
+  const newLook = useNewLook();
   const [view, setView] = useState<MemoView | null>(null);
   const viewParam = searchParams.get("view");
   useEffect(() => {
@@ -284,6 +286,40 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
     [me]
   );
 
+  // "6 memos · 1 in review · 2 idle". Under the new look it is the filter bar's right-hand meta.
+  const countsLine =
+    !(loading && rows.length === 0) && !error && boardRows.length > 0 ? (
+      <p className="mb-3 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground v2:mb-0 v2:ml-auto v2:text-meta">
+        <span>{`${counts.total} ${counts.total === 1 ? "memo" : "memos"}`}</span>
+        {(counts.inReview > 0 || status === "IN_REVIEW") && (
+          <>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              aria-pressed={status === "IN_REVIEW"}
+              onClick={() => applyFilters({ status: status === "IN_REVIEW" ? "" : "IN_REVIEW" })}
+              className={cn(SEGMENT, status === "IN_REVIEW" && "font-medium text-foreground")}
+            >
+              {counts.inReview} in review
+            </button>
+          </>
+        )}
+        {(counts.idle > 0 || idleOnly) && (
+          <>
+            <span aria-hidden="true">·</span>
+            <button
+              type="button"
+              aria-pressed={idleOnly}
+              onClick={() => setIdleOnly((v) => !v)}
+              className={cn(SEGMENT, idleOnly && "font-medium text-foreground")}
+            >
+              {counts.idle} idle
+            </button>
+          </>
+        )}
+      </p>
+    ) : null;
+
   return (
     <AppShell width="wide">
       <PageHeader
@@ -303,9 +339,10 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
         }
       />
 
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border v2:border-b-0">
+      {/* New look (audit #34): the view switch shares the tabs' row, right-aligned, 28 high. */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border v2:items-center v2:border-b-0">
         <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" className="mb-0 border-b-0" />
-        <div role="group" aria-label="Memo view" className="flex gap-1.5 pb-1.5">
+        <div role="group" aria-label="Memo view" className="flex gap-1.5 pb-1.5 v2:pb-0">
           {(
             [
               { key: "board", label: "Board", Icon: LayoutGrid },
@@ -318,7 +355,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
               aria-pressed={view === key}
               onClick={() => switchView(key)}
               className={cn(
-                "inline-flex h-8 items-center justify-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "inline-flex h-8 items-center justify-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors v2:h-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 view === key
                   ? "border-foreground bg-foreground text-background v2:border-transparent v2:bg-sel v2:font-medium v2:text-foreground"
                   : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground"
@@ -342,8 +379,8 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
 
       {view === "board" ? (
         <>
-          <div className="mb-3 flex flex-wrap items-center gap-2 lg:flex-nowrap">
-            <div className="relative min-w-[200px] flex-1 basis-56">
+          <div className="mb-3 flex flex-wrap items-center gap-2 lg:flex-nowrap v2:mb-4 v2:min-h-11">
+            <div className="relative min-w-[200px] flex-1 basis-56 v2:w-56 v2:flex-none v2:basis-auto">
               <label htmlFor="memo-board-search" className="sr-only">
                 Search memos
               </label>
@@ -357,7 +394,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
                 }}
                 placeholder="Search memos"
                 autoComplete="off"
-                className="h-8 w-full rounded-ctl border border-input bg-card pl-8 pr-2 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-8 w-full rounded-ctl border border-input bg-card pl-8 pr-2 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:h-9 v2:border-[color:var(--color-ctl)] v2:bg-transparent v2:pl-9 v2:text-row"
               />
             </div>
             <MemoFilters
@@ -369,38 +406,10 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
               showDecision={false}
               onChange={applyFilters}
             />
+            {/* New look (audit #34): the count line is the bar's right-hand meta. */}
+            {newLook && countsLine}
           </div>
-          {!(loading && rows.length === 0) && !error && boardRows.length > 0 && (
-            <p className="mb-3 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-              <span>{`${counts.total} ${counts.total === 1 ? "memo" : "memos"}`}</span>
-              {(counts.inReview > 0 || status === "IN_REVIEW") && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <button
-                    type="button"
-                    aria-pressed={status === "IN_REVIEW"}
-                    onClick={() => applyFilters({ status: status === "IN_REVIEW" ? "" : "IN_REVIEW" })}
-                    className={cn(SEGMENT, status === "IN_REVIEW" && "font-medium text-foreground")}
-                  >
-                    {counts.inReview} in review
-                  </button>
-                </>
-              )}
-              {(counts.idle > 0 || idleOnly) && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <button
-                    type="button"
-                    aria-pressed={idleOnly}
-                    onClick={() => setIdleOnly((v) => !v)}
-                    className={cn(SEGMENT, idleOnly && "font-medium text-foreground")}
-                  >
-                    {counts.idle} idle
-                  </button>
-                </>
-              )}
-            </p>
-          )}
+          {!newLook && countsLine}
           {loading && rows.length === 0 ? (
             <p role="status" className="py-10 text-center text-sm text-muted-foreground">
               Loading memos…
