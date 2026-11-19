@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Molly admin: the three page types (v1)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  Nisat, 2026-11-19. Card B-216. Spec: docs/design/page-types-v1.md.
+  Placeholders only. Toggles: buttons inside [data-g] groups with data-v values.
+    dir    list | detail | editor
+    theme  light | dark
+    view   desktop (1440) | wide (1920) | phone (390)
+    state  normal | long | empty | filters | scrolled | preview
+    look   new (proposed) | now (as built today) | old (old look)   -- now/old show screenshots from .visual/
+    guides off | on        -- draws every measured box with its number
+    lw     fill | cap      -- list width at 1920: fill the frame (today) or a 1296 centred frame
+  A hash opens a view directly: page-types-v1.html#dir=editor&theme=dark&view=wide&state=scrolled
+-->
+<style>
+:root{--f:"Inter",ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--ease:cubic-bezier(.2,.7,.2,1)}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--f);background:#C9CDD3;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+
+/* ---------- control strip (not part of the design) ---------- */
+.strip{position:sticky;top:0;z-index:100;height:44px;display:flex;align-items:center;gap:12px;padding:0 12px;background:#0F1216;color:#AEB4BD;font:500 11px/16px var(--f);white-space:nowrap;overflow-x:auto}
+.strip .g{display:flex;align-items:center;gap:6px}
+.strip .g>span{color:#6F7782;text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+.strip [data-g]{display:flex;gap:2px;background:#1B2027;border-radius:6px;padding:2px}
+.strip [data-g] button{all:unset;cursor:pointer;padding:4px 8px;border-radius:4px;color:#AEB4BD}
+.strip [data-g] button:hover{color:#fff}
+.strip [data-g] button.on{background:#384150;color:#fff}
+.strip .note{color:#E0A640}
+.stage{padding:12px 16px 24px;display:flex;flex-direction:column;align-items:center;gap:16px}
+.scaler{position:relative;flex:none}
+.device{position:absolute;left:0;top:0;transform-origin:0 0;overflow:hidden;box-shadow:0 1px 0 rgba(0,0,0,.08),0 12px 40px -12px rgba(0,0,0,.35)}
+.device[data-view="phone"]{border-radius:28px}
+.cap-line{font:500 12px/18px var(--f);color:#3A4048;max-width:1100px;text-align:center}
+
+/* ---------- tokens: the new look as approved (globals.css v2 block) ---------- */
+.device[data-theme="light"]{
+  --bg:#FFFFFF;--sidebar:#F4F5F7;--surface:#F0F2F4;--well:#E6E9ED;
+  --hover:rgba(18,24,38,.035);--sel:rgba(18,24,38,.06);--divider:rgba(18,24,38,.09);--border:rgba(18,24,38,.09);--border-2:rgba(18,24,38,.17);--ctl:#858C97;
+  --t1:#15181D;--t2:#474D57;--t3:#5A616C;
+  --accent:#44688E;--accent-h:#3A5876;--accent-fg:#FFFFFF;--accent-soft:rgba(68,104,142,.10);--mark:#5B8DC5;
+  --done:#1B7448;--warn:#8A5A0B;--stuck:#B3362A;--seg-on:#FFFFFF;--seg-shadow:0 0 0 1px rgba(18,24,38,.09),0 1px 2px rgba(18,24,38,.06);
+}
+.device[data-theme="dark"]{
+  --bg:#14171B;--sidebar:#0E1013;--surface:#20242A;--well:#292E36;
+  --hover:rgba(255,255,255,.04);--sel:rgba(255,255,255,.07);--divider:rgba(255,255,255,.08);--border:rgba(255,255,255,.08);--border-2:rgba(255,255,255,.14);--ctl:#6E7681;
+  --t1:#E9ECF0;--t2:#A7AEB9;--t3:#9AA1AC;
+  --accent:#7BA9DD;--accent-h:#93BAE6;--accent-fg:#0C1522;--accent-soft:rgba(123,169,221,.16);--mark:#7BA9DD;
+  --done:#5BC48E;--warn:#E0A640;--stuck:#F2877C;--seg-on:#292E36;--seg-shadow:0 0 0 1px rgba(255,255,255,.08);
+  color-scheme:dark;
+}
+
+/* ---------- shell ---------- */
+.app{display:flex;height:100%;background:var(--bg);color:var(--t1);font:400 14px/20px var(--f)}
+.side{width:224px;flex:none;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.logo{height:52px;flex:none;display:flex;align-items:center;padding:0 24px;font:700 17px/20px var(--f);letter-spacing:-.02em;color:var(--t1)}
+.logo .u{color:var(--mark)}
+.sb-search{margin:4px 12px 16px;height:36px;flex:none;border:1px solid var(--border-2);border-radius:6px;display:flex;align-items:center;gap:8px;padding:0 8px 0 12px;color:var(--t3);background:var(--bg)}
+.sb-search kbd{margin-left:auto;font:500 10px/16px var(--f);border:1px solid var(--border-2);border-radius:4px;padding:0 4px;color:var(--t3)}
+.nav{padding:0 12px 12px;overflow:hidden;flex:1;min-height:0}
+.nav a{display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border-radius:6px;color:var(--t2);text-decoration:none}
+.nav a svg{color:var(--t3);flex:none}
+.nav a.on{background:var(--sel);color:var(--t1);font-weight:500}
+.nav a .c{margin-left:auto;font-size:12px;line-height:18px;color:var(--t3);font-variant-numeric:tabular-nums}
+.grp{display:flex;align-items:center;justify-content:space-between;padding:24px 12px 4px;font-size:12px;line-height:18px;color:var(--t3)}
+.foot{flex:none;padding:12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;color:var(--t2)}
+.av{width:24px;height:24px;border-radius:50%;background:var(--well);display:grid;place-items:center;font:600 11px/1 var(--f);color:var(--t2);flex:none}
+.foot .nm{flex:1;color:var(--t1)}
+.main{flex:1;min-width:0;overflow:auto;position:relative;background:var(--bg)}
+.mbar{height:52px;display:flex;align-items:center;gap:4px;padding:0 4px;border-bottom:1px solid var(--border);color:var(--t2)}
+.mbar .ib{width:44px;height:44px;display:grid;place-items:center}
+.mbar .logo{padding:0 4px;height:auto}
+.mbar .ib:last-child{margin-left:auto}
+
+/* The page frame (d078cad): a gutter each side, content at most --frame wide, centred. */
+.frame{max-width:calc(var(--frame) + 2 * var(--gutter));padding:0 var(--gutter);margin:0 auto}
+
+/* ---------- controls ---------- */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 16px;border-radius:6px;border:1px solid var(--border-2);background:var(--bg);color:var(--t1);font:500 14px/20px var(--f);white-space:nowrap;cursor:default;flex:none}
+.btn svg{flex:none;color:var(--t2)}
+.btn.has-i{padding-left:12px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.pri svg{color:currentColor}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--t2)}
+.btn.sm{height:32px;padding:0 12px}
+.btn.sm.has-i{padding-left:8px}
+.btn.icon{width:36px;padding:0}
+.btn.sm.icon{width:32px}
+.btn.dis{opacity:.45}
+
+/* ---------- page head (list and detail) ---------- */
+.head{padding-top:40px}
+.back{display:inline-flex;align-items:center;gap:4px;height:20px;margin-left:-4px;color:var(--t2);text-decoration:none;font:400 14px/20px var(--f)}
+.back svg{color:var(--t3)}
+.back+.hrow{margin-top:12px}
+.hrow{display:flex;align-items:flex-start;gap:16px;min-height:36px}
+.h1{flex:1;min-width:0;margin:0;padding-top:2px;font:600 24px/32px var(--f);letter-spacing:-.012em;color:var(--t1);overflow-wrap:anywhere}
+.acts{display:flex;align-items:center;gap:8px;flex:none}
+.desc{margin:4px 0 0;color:var(--t2);max-width:720px}
+.status{margin:4px 0 0;color:var(--t2);display:flex;flex-wrap:wrap;align-items:center;column-gap:8px}
+.status .sep{color:var(--t3)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:0}
+.dot.done{background:var(--done)} .dot.warn{background:var(--warn)} .dot.sky{background:var(--accent)}
+.tri{display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-bottom:7px solid var(--warn);margin-right:6px}
+
+/* Condensed bar: appears only after the page title scrolls away. The title moves up into it. */
+.sbar{position:sticky;top:0;z-index:20;height:52px;margin-bottom:-52px;background:var(--bg);border-bottom:1px solid var(--border);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity 140ms var(--ease),transform 140ms var(--ease)}
+.main.scrolled .sbar{opacity:1;transform:none;pointer-events:auto}
+.sbar .in{height:51px;display:flex;align-items:center;gap:12px}
+.sbar .tt{flex:1;min-width:0;font:600 14px/20px var(--f);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sbar .bk{width:32px;height:32px;margin-left:-8px;display:grid;place-items:center;color:var(--t3);border-radius:6px;flex:none}
+.sbar .bk+.tt{margin-left:-8px}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex;gap:24px;border-bottom:1px solid var(--border);margin-top:24px}
+.tab{height:40px;display:flex;align-items:center;gap:6px;color:var(--t2);font-weight:500;position:relative;white-space:nowrap}
+.tab .n{font-size:12px;line-height:18px;font-weight:400;color:var(--t3);font-variant-numeric:tabular-nums}
+.tab.on{color:var(--t1)}
+.tab.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:1px;background:var(--accent)}
+
+/* ---------- filter row ---------- */
+.frow{position:sticky;top:52px;z-index:6;background:var(--bg);display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 0;margin:16px 0 8px}
+.tabs+.frow{margin-top:8px}
+.search{position:relative;flex:0 1 320px;min-width:280px;max-width:400px;height:36px}
+.search .in{height:36px;border:1px solid var(--ctl);border-radius:6px;display:flex;align-items:center;padding:0 36px;color:var(--t3);white-space:nowrap;overflow:hidden}
+.search .in.val{color:var(--t1)}
+.search>svg{position:absolute;left:12px;top:10px;color:var(--t3)}
+.search kbd{position:absolute;right:8px;top:8px;width:20px;height:20px;display:grid;place-items:center;border:1px solid var(--border-2);border-radius:4px;font:500 11px/1 var(--f);color:var(--t3)}
+.sel{position:relative;height:36px;min-width:160px;max-width:240px;border:1px solid var(--ctl);border-radius:6px;display:inline-flex;align-items:center;padding:0 36px 0 12px;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none}
+.sel>span{overflow:hidden;text-overflow:ellipsis}
+.sel svg{position:absolute;right:12px;top:10px;color:var(--t3)}
+.seg{display:inline-flex;height:36px;padding:2px;gap:2px;border-radius:8px;background:var(--surface);flex:none}
+.seg b{height:32px;padding:0 12px;border-radius:6px;display:flex;align-items:center;gap:6px;font-weight:500;color:var(--t2);white-space:nowrap}
+.seg b .n{font-size:12px;line-height:18px;font-weight:400;color:var(--t3);font-variant-numeric:tabular-nums}
+.seg b.on{background:var(--seg-on);color:var(--t1);box-shadow:var(--seg-shadow)}
+.chip{height:36px;display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:0 4px 0 12px;background:var(--accent-soft);color:var(--accent);font-weight:500;white-space:nowrap;flex:none}
+.chip .v{color:var(--t1);font-weight:400}
+.chip .x{width:28px;height:28px;display:grid;place-items:center;border-radius:4px;color:var(--t2)}
+.addf{height:36px;display:inline-flex;align-items:center;gap:6px;border:1px dashed var(--ctl);border-radius:6px;padding:0 12px;color:var(--t2);white-space:nowrap;flex:none}
+.clear{height:36px;display:inline-flex;align-items:center;padding:0 8px;color:var(--t2);white-space:nowrap;flex:none}
+.fend{margin-left:auto;display:flex;align-items:center;gap:16px;color:var(--t3);white-space:nowrap;font-variant-numeric:tabular-nums;padding-left:16px}
+
+/* ---------- table ---------- */
+table.t{width:100%;border-collapse:collapse}
+.t th{height:40px;padding:0 12px;text-align:left;font:500 12px/18px var(--f);color:var(--t2);border-bottom:1px solid var(--border);white-space:nowrap;background:var(--bg);position:sticky;top:104px;z-index:4}
+.t.nostick th{position:static}
+.t td{height:44px;padding:0 12px;border-bottom:1px solid var(--divider);color:var(--t2);white-space:nowrap}
+.t th:first-child,.t td:first-child{padding-left:0}
+.t th:last-child,.t td:last-child{padding-right:0}
+.t td.ti{width:100%;max-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--t1);font-weight:500}
+.t td.cap{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+.t .r{text-align:right}
+.t .num{font-variant-numeric:tabular-nums}
+.t th .srt{color:var(--t3);margin-left:4px;font-size:10px}
+.t tbody tr:hover td{background:var(--hover)}
+.t tbody tr:hover td:first-child{box-shadow:-12px 0 0 var(--hover)}
+.t tbody tr:hover td:last-child{box-shadow:12px 0 0 var(--hover)}
+.t td.empty{color:var(--t2);font-weight:400;max-width:none}
+.t td.empty a{color:var(--accent);text-decoration:none;margin-left:8px}
+.foot-line{height:44px;display:flex;align-items:center;justify-content:space-between;color:var(--t3)}
+
+/* phone list rows */
+.plist .r2{padding:12px 0;border-bottom:1px solid var(--divider);display:flex;flex-direction:column;gap:4px;min-height:64px;justify-content:center}
+.plist .r2 .a{font-weight:500;color:var(--t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plist .r2 .b{font-size:12px;line-height:18px;color:var(--t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pcount{font-size:12px;line-height:18px;color:var(--t3);margin:0 0 4px}
+
+/* ---------- detail ---------- */
+.dgrid{display:grid;grid-template-columns:minmax(0,1fr) 296px;column-gap:40px;align-items:start;margin-top:32px;padding-bottom:96px}
+.sec+.sec{margin-top:48px}
+.sh{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:32px;margin-bottom:12px}
+.sh h2{margin:0;font:600 16px/24px var(--f);color:var(--t1)}
+.sh .m{font-size:12px;line-height:18px;color:var(--t3)}
+.prose14{font:400 14px/22px var(--f);color:var(--t1);margin:0;max-width:720px}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:24px}
+.stat .l{font-size:12px;line-height:18px;color:var(--t3)}
+.stat .v{margin-top:4px;font:600 20px/28px var(--f);font-variant-numeric:tabular-nums;color:var(--t1)}
+.stat .d{font-size:12px;line-height:18px;color:var(--t3)}
+.panel{position:sticky;top:76px;background:var(--surface);border-radius:8px;padding:24px}
+.panel h3{margin:0 0 12px;font:500 12px/18px var(--f);color:var(--t3)}
+.facts{display:grid;grid-template-columns:96px minmax(0,1fr);row-gap:8px;column-gap:12px;margin:0}
+.facts dt{font-size:12px;line-height:20px;color:var(--t3)}
+.facts dd{margin:0;color:var(--t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.facts dd a,.panel a{color:var(--accent);text-decoration:none}
+.prule{height:1px;background:var(--border);margin:16px 0}
+.person{display:flex;align-items:center;gap:8px}
+.person .e{font-size:12px;line-height:18px;color:var(--t3)}
+.dtab-gap{margin-top:16px}
+
+/* ---------- editor ---------- */
+.ebar{position:sticky;top:0;z-index:20;height:52px;background:var(--bg);border-bottom:1px solid var(--border)}
+.ebar .in{height:51px;display:flex;align-items:center;gap:12px}
+.ebar .l{flex:1;min-width:0;display:flex;align-items:center;gap:12px}
+.ebar .back{flex:none}
+.vr{width:1px;height:16px;background:var(--border-2);flex:none}
+.est{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--t3)}
+.est b{font-weight:500;color:var(--t2)}
+.est .warn{color:var(--warn)}
+.ebody{padding-top:40px;padding-bottom:96px}
+.etitle{margin:0;font:600 28px/36px var(--f);letter-spacing:-.015em;color:var(--t1);overflow-wrap:anywhere}
+.etitle.ph{color:var(--t3)}
+.emeta{margin-top:8px;color:var(--t2)}
+.hint{margin-top:8px;font-size:12px;line-height:18px;color:var(--t3);max-width:600px}
+.tb{position:sticky;top:52px;z-index:6;background:var(--bg);height:40px;display:flex;align-items:center;gap:0;margin:24px -8px 16px;padding:0;border-bottom:1px solid transparent;transition:border-color 140ms var(--ease)}
+.tb.stuck{border-bottom-color:var(--border)}
+.tb i{width:32px;height:32px;display:grid;place-items:center;border-radius:6px;color:var(--t3);font:600 12px/1 var(--f);font-style:normal;flex:none}
+.tb .s{width:1px;height:16px;background:var(--border);margin:0 8px;flex:none}
+.prose{font:400 16px/28px var(--f);color:var(--t1)}
+.prose p{margin:0 0 16px}
+.prose h3{margin:32px 0 8px;font:600 18px/28px var(--f)}
+.prose ul{margin:0 0 16px;padding-left:24px}
+.mention{color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:0 3px}
+.esec{margin-top:48px;padding-top:24px;border-top:1px solid var(--border)}
+.pick .row{height:40px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--divider)}
+.pick .row:first-child{border-top:1px solid var(--divider)}
+.cb{width:16px;height:16px;border-radius:4px;border:1px solid var(--ctl);flex:none;display:grid;place-items:center}
+.cb.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.pick .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pick .mt{font-size:12px;line-height:18px;color:var(--t3);white-space:nowrap}
+.ctlrow{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ctlrow .search{flex:0 0 240px;min-width:240px}
+.sheet .kicker{font-size:12px;line-height:18px;color:var(--t3);margin-bottom:8px}
+
+/* ---------- phone ---------- */
+.device[data-view="phone"] .head{padding-top:24px}
+.device[data-view="phone"] .h1{font-size:20px;line-height:28px;padding-top:4px}
+.device[data-view="phone"] .tabs{margin-top:16px;overflow-x:auto}
+.device[data-view="phone"] .frow{position:static;margin:16px 0 8px;padding:0;flex-wrap:wrap;row-gap:8px}
+.device[data-view="phone"] .search{flex:1 1 100%;min-width:0;max-width:none;height:44px}
+.device[data-view="phone"] .search .in{height:44px;font-size:16px;line-height:24px}
+.device[data-view="phone"] .search>svg{top:14px}
+.device[data-view="phone"] .search kbd{display:none}
+.device[data-view="phone"] .fscroll{flex:1 1 100%;display:flex;gap:8px;overflow-x:auto;margin-right:calc(var(--gutter) * -1);padding-right:var(--gutter)}
+.device[data-view="phone"] .fscroll>*{height:44px}
+.device[data-view="phone"] .fscroll .seg b{height:40px}
+.device[data-view="phone"] .fend{display:none}
+.device[data-view="phone"] .dgrid{display:block;margin-top:24px}
+.device[data-view="phone"] .panel{position:static;margin-bottom:32px;padding:16px}
+.device[data-view="phone"] .stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.device[data-view="phone"] .pacts{display:flex;gap:8px;margin-top:16px}
+.device[data-view="phone"] .pacts .btn{height:44px}
+.device[data-view="phone"] .pacts .btn.pri{flex:1}
+.device[data-view="phone"] .pacts .btn.icon{width:44px}
+.device[data-view="phone"] .ebar .back{width:44px;height:44px;margin-left:-12px;justify-content:center}
+.device[data-view="phone"] .ebar .in{gap:8px}
+.device[data-view="phone"] .ebody{padding-top:24px}
+.device[data-view="phone"] .etitle{font-size:24px;line-height:32px}
+.device[data-view="phone"] .tb{overflow-x:auto;margin-right:calc(var(--gutter) * -1)}
+.device[data-view="phone"] .ctlrow{flex-wrap:wrap}
+.device[data-view="phone"] .ctlrow .search{flex:1 1 100%;min-width:0}
+.device[data-view="phone"] .sbar .btn.sm{height:36px}
+
+/* ---------- old / today screenshots ---------- */
+.shot{width:100%;height:auto;display:block;background:#EEE}
+.noshot{height:100%;display:grid;place-items:center;font:500 14px/20px var(--f);color:#5A616C;background:#F4F5F7;padding:24px;text-align:center}
+
+/* ---------- guides ---------- */
+.device.guides .frame{outline:1px dashed rgba(0,160,200,.75);outline-offset:-1px}
+.device.guides [data-m]{outline:1px dashed rgba(214,51,92,.85);outline-offset:0}
+.device.guides [data-m]:not(.stk):not(th):not(.panel){position:relative}
+.device.guides [data-m]::after{content:attr(data-m);position:absolute;left:0;top:-13px;z-index:40;font:600 9px/12px var(--f);letter-spacing:.01em;color:#fff;background:#D6335C;padding:0 4px;border-radius:2px;white-space:nowrap;pointer-events:none}
+.device.guides [data-m].mr::after{left:auto;right:0}
+.device.guides [data-m].mb::after{top:auto;bottom:-13px}
+</style>
+</head>
+<body>
+<div class="strip" id="strip">
+  <div class="g"><span>Page</span><div data-g="dir"><button data-v="list">List</button><button data-v="detail">Detail</button><button data-v="editor">Editor</button></div></div>
+  <div class="g"><span>Theme</span><div data-g="theme"><button data-v="light">Light</button><button data-v="dark">Dark</button></div></div>
+  <div class="g"><span>View</span><div data-g="view"><button data-v="desktop">1440</button><button data-v="wide">1920</button><button data-v="phone">Phone</button></div></div>
+  <div class="g"><span>State</span><div data-g="state"><button data-v="normal">Normal</button><button data-v="long">Long text</button><button data-v="empty">Empty</button><button data-v="filters">Many filters</button><button data-v="scrolled">Scrolled</button><button data-v="preview">Preview</button></div></div>
+  <div class="g"><span>Look</span><div data-g="look"><button data-v="new">Proposed</button><button data-v="now">Today</button><button data-v="old">Old look</button></div></div>
+  <div class="g"><span>Guides</span><div data-g="guides"><button data-v="off">Off</button><button data-v="on">On</button></div></div>
+  <div class="g"><span>List width</span><div data-g="lw"><button data-v="fill">Fill</button><button data-v="cap">1296</button></div></div>
+  <span class="note" id="note"></span>
+</div>
+<div class="stage">
+  <div class="scaler" id="scaler"><div class="device" id="device"></div></div>
+  <div class="cap-line" id="capline"></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+var S={dir:"list",theme:"light",view:"desktop",state:"normal",look:"new",guides:"off",lw:"fill"};
+var VALID={list:["normal","long","empty","filters","scrolled"],detail:["normal","long","empty","scrolled"],editor:["normal","long","scrolled","preview"]};
+var DIMS={desktop:[1440,900],wide:[1920,1080],phone:[390,844]};
+var GUT={desktop:48,wide:64,phone:20};
+
+/* ---------- icons (lucide shapes, 24 grid) ---------- */
+var P={
+ chevL:'<path d="m15 18-6-6 6-6"/>',chevD:'<path d="m6 9 6 6 6-6"/>',
+ search:'<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+ more:'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+ plus:'<path d="M5 12h14M12 5v14"/>',x:'<path d="M18 6 6 18M6 6l12 12"/>',
+ eye:'<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+ upload:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/>',
+ menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+ grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+ shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+ clip:'<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/>',
+ bld:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
+ file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/>',
+ link:'<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+ notes:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+ bank:'<path d="M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 2l8 5H4z"/>',
+ table:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>',
+ user:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="12" cy="11" r="3"/><path d="M7 20c.8-2.3 2.7-3.5 5-3.5s4.2 1.2 5 3.5"/>',
+ hand:'<path d="M12 21s-7-4.4-9-9a5 5 0 0 1 9-3 5 5 0 0 1 9 3c-2 4.6-9 9-9 9z"/>',
+ report:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 18v-3M12 18v-6M15 18v-4"/>',
+ mega:'<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+ kanban:'<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 7v7M12 7v4M16 7v9"/>',
+ book:'<path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>',
+ wrench:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+ log:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+ gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+ moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/>',
+ out:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+ undo:'<path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/>',redo:'<path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 15-6.7L21 13"/>',
+ bold:'<path d="M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z"/>',ital:'<path d="M19 4h-9M14 20H5M15 4 9 20"/>',
+ under:'<path d="M6 4v6a6 6 0 0 0 12 0V4M4 20h16"/>',ul:'<path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/>',
+ ol:'<path d="M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
+ quote:'<path d="M3 21c3 0 7-1 7-8V5H3v7h4M14 21c3 0 7-1 7-8V5h-7v7h4"/>',
+ chart:'<path d="M3 3v18h18M7 16V9M12 16V5M17 16v-4"/>',check:'<path d="M20 6 9 17l-5-5"/>',
+ paper:'<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>'
+};
+function ic(n,s){s=s||16;return '<svg width="'+s+'" height="'+s+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+P[n]+'</svg>';}
+function esc(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+
+/* ---------- sidebar ---------- */
+var NAV=[[null,[["Needs you","grid"]]],
+ ["Company Operations",[["Approvals","shield","3"],["Diligence","clip"],["Companies","bld"],["Updates","file"],["Investor Links","link"],["Memos","notes"]]],
+ ["Funds & LPs",[["Funds","bank"],["Deal Ledger","table"],["Portfolio Contacts","user"],["LPs","hand"],["Fund Reports","report"],["Broadcasts","mega"]]],
+ ["Team & Resources",[["Team Board","kanban","1 to review"],["Weekly Digest","book"],["Service Providers","wrench"]]],
+ ["Admin Tools",[["Audit Log","log"],["Settings","gear"]]]];
+function sidebar(active){
+  var h='<aside class="side"><div class="logo"><span class="u">_</span>Molly</div><div class="sb-search">'+ic("search",14)+'<span>Search or jump to</span><kbd>⌘K</kbd></div><nav class="nav">';
+  NAV.forEach(function(g){
+    if(g[0]) h+='<div class="grp"><span>'+esc(g[0])+'</span>'+ic("chevD",14)+'</div>';
+    g[1].forEach(function(it){h+='<a class="'+(it[0]===active?"on":"")+'">'+ic(it[1],16)+'<span>'+esc(it[0])+'</span>'+(it[2]?'<span class="c">'+it[2]+'</span>':'')+'</a>';});
+  });
+  return h+'</nav><div class="foot"><span class="av">S</span><span class="nm">Sam Admin</span>'+ic("moon",16)+ic("out",16)+'</div></aside>';
+}
+function mbar(){return '<div class="mbar"><span class="ib">'+ic("menu",20)+'</span><span class="logo"><span class="u">_</span>Molly</span><span class="ib">'+ic("search",20)+'</span></div>';}
+
+/* ---------- data (placeholders) ---------- */
+var LONGCO="Northwind Traders International Agricultural Technology and Supply Chain Holdings Limited";
+var UPD=[
+ ["Vandelay Imports update, 2026-11","Vandelay Imports","Nov 2026","Nov 14, 2026","Nora Haddad"],
+ ["Soylent Foods update, 2026-11","Soylent Foods","Nov 2026","Nov 13, 2026","Lena Vogel"],
+ ["Cyberdyne Bio update, 2026-11","Cyberdyne Bio","Nov 2026","Nov 11, 2026","Sofia Marin"],
+ ["Acme Robotics update, 2026-11","Acme Robotics","Nov 2026","Nov 9, 2026","Jane Founder"],
+ ["Pied Piper Cloud update, 2026-11","Pied Piper Cloud","Nov 2026","Nov 7, 2026","Amara Diallo"],
+ ["Northwind update, 2026-10",LONGCO,"Oct 2026","Oct 28, 2026","Kwame Mensah"],
+ ["Globex Energy update, 2026-10","Globex Energy","Oct 2026","Oct 25, 2026","Omar Okafor"],
+ ["Vandelay Imports update, 2026-10","Vandelay Imports","Oct 2026","Oct 15, 2026","Nora Haddad"],
+ ["Soylent Foods update, 2026-10","Soylent Foods","Oct 2026","Oct 14, 2026","Lena Vogel"],
+ ["Cyberdyne Bio update, 2026-10","Cyberdyne Bio","Oct 2026","Oct 12, 2026","Sofia Marin"],
+ ["Acme Robotics update, 2026-10","Acme Robotics","Oct 2026","Oct 10, 2026","Jane Founder"],
+ ["Pied Piper Cloud update, 2026-10","Pied Piper Cloud","Oct 2026","Oct 8, 2026","Amara Diallo"],
+ ["Northwind update, 2026-09",LONGCO,"Sep 2026","Sep 30, 2026","Kwame Mensah"],
+ ["Gringotts Savings update, 2026-09","Gringotts Savings","Sep 2026","Sep 20, 2026","Zainab Bello"],
+ ["Globex Energy update, 2026-09","Globex Energy","Sep 2026","Sep 25, 2026","Omar Okafor"],
+ ["Initech Payments update, 2026-09","Initech Payments","Sep 2026","Sep 18, 2026","Sam Okoro"]
+];
+var UPD_LONG=[
+ ["Vandelay Imports investor update for November: hiring plan, the new warehouse lease and what we learned from the pilot with three distributors","Vandelay Imports","Nov 2026","Nov 14, 2026","Nora Haddad"],
+ ["Soylent Foods update, 2026-11","Soylent Foods","Nov 2026","Nov 13, 2026","Lena Vogel-Fairweather-Okonkwo"],
+ ["Q3 2026 board pack and investor letter (revised after the October board meeting, with the corrected cash figures)",LONGCO,"Q3 2026 (July to September)","Oct 28, 2026","Kwame Mensah"]
+].concat(UPD.slice(1,10));
+var COS=[
+ ["Acme Robotics","done","Current","Series A","Industrial Tech","Nigeria","Nov 9, 2026"],
+ ["Globex Energy","warn","Behind","Seed","Energy","Kenya","Aug 25, 2026"],
+ ["Initech Payments","done","Current","Seed","Fintech","Ghana","Nov 2, 2026"],
+ ["Pied Piper Cloud","done","Current","Pre-seed","Software","Nigeria","Nov 7, 2026"],
+ [LONGCO,"warn","Behind","Series A","Agriculture","Côte d’Ivoire","Jul 30, 2026"],
+ ["Hooli Health","sky","New","Pre-seed","Health","Rwanda","None yet"]
+];
+
+/* ---------- list page ---------- */
+function listPage(st,ph){
+  var co=(st==="filters"),h="";
+  var title=co?"Companies":"Updates";
+  var desc=co?"Every company in the portfolio, and how current its updates are.":"Every published update across the portfolio, in one feed.";
+  var acts="",sacts="";
+  if(co){
+    acts=ph?'<div class="acts"><span class="btn icon" aria-label="More">'+ic("more")+'</span><span class="btn pri has-i">'+ic("plus")+'Add company</span></div>'
+           :'<div class="acts" data-m="buttons 36 · gap 8"><span class="btn has-i">'+ic("upload")+'Import CSV</span><span class="btn pri has-i">'+ic("plus")+'Add company</span></div>';
+    sacts='<span class="btn sm pri has-i">'+ic("plus")+'Add company</span>';
+  }
+  h+='<div class="sbar stk"><div class="frame"><div class="in"><span class="tt">'+title+'</span>'+sacts+'</div></div></div>';
+  h+='<div class="frame">';
+  h+='<div class="head" data-m="top 40">';
+  h+='<div class="hrow" data-m="header row 36 · title 24/32 600"><h1 class="h1" id="h1">'+title+'</h1>'+acts+'</div>';
+  h+='<p class="desc" data-m="14/20 secondary · 4 under row · max 720">'+desc+'</p></div>';
+  if(!co) h+='<div class="tabs" data-m="tabs 40 · 24 apart · hairline · 24 under head"><span class="tab on">Updates<span class="n">48</span></span><span class="tab">Templates<span class="n">3</span></span></div>';
+  // filter row
+  var q=(st==="empty")?"zebra":"";
+  var search='<div class="search" data-m="search 320 (min 280, max 400)">'+ic("search")+'<div class="in'+(q?" val":"")+'">'+(q||(co?"Filter by name or sector":"Filter by title or company"))+'</div><kbd>/</kbd></div>';
+  var rest="",end="";
+  if(co){
+    rest='<div class="seg" data-m="one-choice: segmented 36">'+'<b class="on">All<span class="n">15</span></b><b>Current<span class="n">9</span></b><b>Behind<span class="n">4</span></b><b>New<span class="n">2</span></b></div>'
+        +'<span class="sel" data-m="select 160–240"><span>All sectors</span>'+ic("chevD")+'</span>'
+        +'<span class="chip" data-m="set filter">Owner<span class="v">Sam Admin</span><span class="x">'+ic("x",14)+'</span></span>'
+        +'<span class="chip">Country<span class="v">Nigeria, Kenya, Ghana</span><span class="x">'+ic("x",14)+'</span></span>'
+        +'<span class="addf" data-m="more filters">'+ic("plus",14)+'Filter</span>'
+        +'<span class="clear">Clear filters</span>';
+    end='<div class="fend" data-m="count, right end">6 of 15 companies<span class="btn ghost">Group: none</span></div>';
+  } else {
+    rest='<span class="sel" data-m="select 160–240"><span>All companies</span>'+ic("chevD")+'</span>'+(q?'<span class="clear">Clear filters</span>':'');
+    end='<div class="fend" data-m="count, right end">'+(q?"0 updates":"48 updates")+'</div>';
+  }
+  if(ph) h+='<div class="frow">'+search+'<div class="fscroll">'+rest+'</div></div><p class="pcount">'+(co?"6 of 15 companies":q?"0 updates":"48 updates")+'</p>';
+  else h+='<div class="frow stk" data-m="filter row: controls 36 · gap 8 · 16 above and below">'+search+rest+end+'</div>';
+  // body
+  if(ph){
+    h+='<div class="plist">';
+    if(q) h+='<div class="r2"><div class="a" style="font-weight:400;color:var(--t2)">No updates match “zebra”.</div><div class="b" style="color:var(--accent)">Clear filters</div></div>';
+    else if(co) COS.forEach(function(r){h+='<div class="r2"><div class="a">'+esc(r[0])+'</div><div class="b">'+(r[1]==="warn"?'<span class="tri"></span>':'<span class="dot '+r[1]+'"></span>')+r[2]+' · '+r[3]+' · '+esc(r[5])+'</div></div>';});
+    else (st==="long"?UPD_LONG:UPD).forEach(function(r){h+='<div class="r2"><div class="a">'+esc(r[0])+'</div><div class="b">'+esc(r[1])+' · '+r[3]+'</div></div>';});
+    h+='</div><div style="height:48px"></div>';
+  } else if(co){
+    h+='<table class="t"><thead><tr><th data-m="head 40 · 12/18 500">Company</th><th>Updates</th><th>Stage</th><th>Sector</th><th>Country</th><th class="r">Last update<span class="srt">▾</span></th></tr></thead><tbody>';
+    COS.forEach(function(r){h+='<tr><td class="ti">'+esc(r[0])+'</td><td>'+(r[1]==="warn"?'<span class="tri"></span>':'<span class="dot '+r[1]+'"></span>')+r[2]+'</td><td>'+r[3]+'</td><td>'+r[4]+'</td><td>'+esc(r[5])+'</td><td class="r num">'+r[6]+'</td></tr>';});
+    h+='</tbody></table><div style="height:96px"></div>';
+  } else {
+    h+='<table class="t"><thead><tr><th data-m="head 40 · 12/18 500">Update<span class="srt">↕</span></th><th>Company</th><th>Period</th><th class="r">Published<span class="srt">▾</span></th><th>Author</th></tr></thead><tbody>';
+    if(q) h+='<tr><td class="ti empty" colspan="5" data-m="empty: one row 44">No updates match “zebra”.<a>Clear filters</a></td></tr>';
+    else (st==="long"?UPD_LONG:UPD).forEach(function(r,i){h+='<tr><td class="ti"'+(i===0?' data-m="row 44 · 14/20 500"':'')+' title="'+esc(r[0])+'">'+esc(r[0])+'</td><td class="cap"'+(i===5||(st==="long"&&i===2)?' data-m="max 280, ellipsis"':'')+' title="'+esc(r[1])+'">'+esc(r[1])+'</td><td class="cap">'+esc(r[2])+'</td><td class="r num">'+r[3]+'</td><td class="cap">'+esc(r[4])+'</td></tr>';});
+    h+='</tbody></table>';
+    h+='<div style="height:96px"></div>';
+  }
+  return h+'</div>';
+}
+
+/* ---------- detail page ---------- */
+function detailPage(st,ph){
+  var long=(st==="long"),empty=(st==="empty");
+  var name=long?LONGCO:"Acme Robotics";
+  var h='<div class="sbar stk"><div class="frame"><div class="in"><span class="bk">'+ic("chevL")+'</span><span class="tt">'+esc(name)+'</span>'+(ph?'':'<span class="btn sm">Edit</span>')+'<span class="btn sm pri has-i">'+ic("plus")+'Create update</span>'+(ph?'':'<span class="btn sm ghost icon">'+ic("more")+'</span>')+'</div></div></div>';
+  h+='<div class="frame"><div class="head" data-m="top 40">';
+  h+='<a class="back" data-m="back 14/20 · 12 above row">'+ic("chevL")+'Companies</a>';
+  var acts='<div class="acts" data-m="actions 36, top-aligned to title line"><span class="btn">Edit</span><span class="btn pri has-i">'+ic("plus")+'Create update</span><span class="btn icon ghost">'+ic("more")+'</span></div>';
+  h+='<div class="hrow" data-m="header row 36 · title 24/32 600">'+'<h1 class="h1" id="h1">'+esc(name)+'</h1>'+(ph?'':acts)+'</div>';
+  var stl=long?['<span><span class="dot done"></span>Portfolio</span>','<span class="sep">·</span><span>Series A</span>','<span class="sep">·</span><span>Agriculture and supply chain</span>','<span class="sep">·</span><span>Côte d’Ivoire, Ghana and Burkina Faso</span>','<span class="sep">·</span><span>Owner Sam Admin</span>','<span class="sep">·</span><span>Updated 3 days ago</span>']
+             :['<span><span class="dot done"></span>Portfolio</span>','<span class="sep">·</span><span>Series A</span>','<span class="sep">·</span><span>Industrial Tech</span>','<span class="sep">·</span><span>Nigeria</span>','<span class="sep">·</span><span>Owner Sam Admin</span>'];
+  h+='<div class="status" data-m="status line 14/20 · 4 under row">'+stl.join("")+'</div>';
+  if(ph) h+='<div class="pacts"><span class="btn pri has-i">'+ic("plus")+'Create update</span><span class="btn">Edit</span><span class="btn icon">'+ic("more")+'</span></div>';
+  h+='</div>';
+  var panel='<aside class="panel" data-m="panel 296 · padding 24 · sticky 76">'
+   +'<dl class="facts"><dt>Stage</dt><dd>Series A</dd><dt>Sector</dt><dd>Industrial Tech</dd><dt>Country</dt><dd>Nigeria</dd><dt>Website</dt><dd><a>acme.example.com</a></dd><dt>Cadence</dt><dd>Monthly</dd><dt>Reminders</dt><dd>Off</dd><dt>Since</dt><dd>Mar 2024</dd></dl>'
+   +'<div class="prule"></div><h3>In the Deal Ledger</h3><a>2 deals in Example Fund I →</a>'
+   +'<div class="prule"></div><h3>Founders</h3><div class="person"><span class="av">J</span><div><div>Jane Founder</div><div class="e">jane@example.com</div></div></div></aside>';
+  var main='<div class="dmain">';
+  main+='<section class="sec"><div class="sh" data-m="section heading 16/24 600 · 12 under"><h2>About</h2></div><p class="prose14">'+(empty?'<span style="color:var(--t2)">No description yet.</span>':'Warehouse robots for mid-sized distributors. Founded in 2023, Acme leases its pickers to third-party logistics firms on a per-shift price, so a warehouse can start with two robots and add more in peak season.')+'</p></section>';
+  main+='<section class="sec" data-m="48 between sections"><div class="sh"><h2>Latest figures</h2><span class="m">From the Nov 2026 update</span></div>';
+  main+=empty?'<p class="prose14" style="color:var(--t2)">No figures yet. They appear here when Acme Robotics shares an update with numbers.</p>'
+    :'<div class="stats"><div class="stat"><div class="l">Monthly revenue</div><div class="v">$48.2k</div><div class="d">+12% on Oct</div></div><div class="stat"><div class="l">Runway</div><div class="v">14 mo</div><div class="d">at Nov burn</div></div><div class="stat"><div class="l">Headcount</div><div class="v">23</div><div class="d">+2 on Oct</div></div></div>';
+  main+='</section>';
+  main+='<section class="sec"><div class="tabs" style="margin-top:0"><span class="tab on">Updates<span class="n">'+(empty?0:6)+'</span></span><span class="tab">Metrics<span class="n">2</span></span><span class="tab">Documents<span class="n">0</span></span><span class="tab">Members<span class="n">1</span></span><span class="tab">Notes</span></div>';
+  if(ph){
+    main+='<div class="plist">'+(empty?'<div class="r2"><div class="a" style="font-weight:400;color:var(--t2)">No updates yet.</div></div>':
+      [["Acme Robotics draft for November","Draft · Nov 19","warn"],["Acme Robotics update, 2026-11","Sent · Nov 9","done"],["Acme Robotics update, 2026-10","Sent · Oct 10","done"],["Acme Robotics update, 2026-09","Sent · Sep 10","done"]].map(function(r){return '<div class="r2"><div class="a">'+r[0]+'</div><div class="b">'+r[1]+'</div></div>';}).join(""))+'</div>';
+  } else {
+    main+='<table class="t nostick dtab-gap"><tbody>';
+    if(empty) main+='<tr><td class="ti empty" colspan="4">No updates yet. They appear here when Acme Robotics publishes one.</td></tr>';
+    else [["Acme Robotics draft for November","2026-11","warn","Draft","Nov 19, 2026"],["Acme Robotics update, 2026-11","2026-11","done","Sent","Nov 9, 2026"],["Acme Robotics update, 2026-10","2026-10","done","Sent","Oct 10, 2026"],["Acme Robotics update, 2026-09","2026-09","done","Sent","Sep 10, 2026"],["Acme Robotics update, 2026-08","2026-08","done","Sent","Aug 11, 2026"],["Acme Robotics update, 2026-07","2026-07","done","Sent","Jul 12, 2026"]].forEach(function(r,i){
+      main+='<tr><td class="ti"'+(i===0?' data-m="row 44"':'')+'>'+r[0]+'</td><td class="num">'+r[1]+'</td><td>'+(r[2]==="warn"?'<span class="tri"></span>':'<span class="dot done"></span>')+r[3]+'</td><td class="r num">'+r[4]+'</td></tr>';});
+    main+='</tbody></table>';
+  }
+  main+='</section></div>';
+  h+='<div class="dgrid" data-m="720 + 40 + 296 = 1056 · 32 under head">'+(ph?panel+main:main+panel)+'</div>';
+  return h+'</div>';
+}
+
+/* ---------- editor page ---------- */
+function editorPage(st,ph){
+  var prev=(st==="preview"),long=(st==="long");
+  var h='<div class="ebar stk" data-m="bar 52 · one row · everything 14/20, centred"><div class="frame"><div class="in">';
+  if(prev){
+    h+='<div class="l"><a class="back">'+ic("chevL")+(ph?'':'Report')+'</a><span class="vr"></span><span class="est"><b>Preview</b> · How LPs will see it. Numbers aren’t frozen until you publish.</span></div>';
+  } else {
+    var stat=long?'<b>Draft</b> in Example Pan-African Agricultural Growth Fund II · Saved 2:41 PM':'<b>Draft</b> in Example Fund I · Saved 2:41 PM';
+    h+='<div class="l"><a class="back" data-m="back 14/20">'+ic("chevL")+(ph?'':'Fund Reports')+'</a><span class="vr"></span><span class="est" data-m="status 14/20, truncates">'+stat+'</span></div>';
+    if(ph) h+='<span class="btn sm pri">Publish</span><span class="btn sm ghost icon">'+ic("more")+'</span>';
+    else h+='<div class="acts" data-m="buttons 32 · gap 8 · 10 above and below"><span class="btn sm has-i">'+ic("eye")+'Preview</span><span class="btn sm">Save</span><span class="btn sm pri">Publish</span><span class="btn sm ghost icon">'+ic("more")+'</span></div>';
+  }
+  h+='</div></div></div><div class="frame"><div class="ebody">';
+  if(prev){
+    h+='<div class="sheet"><div class="kicker">Example Fund I · H1 2026</div><h1 class="etitle">Example Fund I: H1 2026 Report</h1><div class="prose" style="margin-top:24px">'+proseBody()+'</div></div>';
+    return h+'</div></div>';
+  }
+  var t=long?"Example Pan-African Agricultural Growth Fund II: H1 2026 report to limited partners, with the restated Q1 valuations":"Example Fund I: H1 2026 Report";
+  h+='<h1 class="etitle" id="h1" data-m="title field 28/36 600 · grows, never clips">'+t+'</h1>';
+  h+='<div class="emeta" data-m="meta 14/20 · 8 under">H1 2026 · Example Fund I · 12 LPs</div>';
+  h+='<div class="hint">Type @ to mention a portfolio company. The chart button adds this fund’s performance snapshot.</div>';
+  h+='<div class="tb stk" id="tb" data-m="toolbar 40 · sticky under bar · 24 above, 16 below"><i>'+ic("undo")+'</i><i>'+ic("redo")+'</i><span class="s"></span><i>H2</i><i>H3</i><span class="s"></span><i>'+ic("bold")+'</i><i>'+ic("ital")+'</i><i>'+ic("under")+'</i><span class="s"></span><i>'+ic("ul")+'</i><i>'+ic("ol")+'</i><i>'+ic("quote")+'</i><span class="s"></span><i>'+ic("link")+'</i><i>'+ic("chart")+'</i></div>';
+  h+='<div class="prose" data-m="body 16/28 · paragraphs 16 apart">'+proseBody()+'</div>';
+  h+='<section class="esec" data-m="bottom section: 48 above, hairline, 24 to heading"><div class="sh"><h2>Shared with</h2><span class="m">12 LPs in Example Fund I</span></div>';
+  h+='<div class="ctlrow"><div class="search">'+ic("search")+'<div class="in">Filter LPs</div></div><span class="btn">Select all</span><span class="btn ghost">Clear</span></div>';
+  h+='<div class="pick" data-m="picker rows 40">'+[["Example Pension Trust","ops@example.com",1],["Acme Family Office","sam@example.com",1],["Globex Endowment","lp@example.org",1],["Initech Partners","finance@example.net",0]].map(function(r){return '<div class="row"><span class="cb'+(r[2]?" on":"")+'">'+(r[2]?ic("check",12):"")+'</span><span class="nm">'+r[0]+'</span><span class="mt">'+r[1]+'</span></div>';}).join("")+'</div></section>';
+  h+='<section class="esec"><div class="sh"><h2>Attachments</h2><span class="btn sm ghost has-i">'+ic("paper")+'Add file</span></div><div class="pick"><div class="row"><span class="nm">Example Fund I H1 2026 financial statements.pdf</span><span class="mt">2.4 MB</span></div></div></section>';
+  return h+'</div></div>';
+}
+function proseBody(){
+  return '<p>The first half closed with the portfolio broadly on plan. Seven of nine companies grew revenue quarter on quarter, and two raised follow-on rounds led by outside investors.</p>'
+   +'<h3>Portfolio highlights</h3><p><span class="mention">Acme Robotics</span> doubled its leased fleet to 140 pickers and signed its first distributor outside Nigeria. <span class="mention">Globex Energy</span> is behind plan on installations after a supply delay, and we have agreed a revised milestone with the team.</p>'
+   +'<ul><li>Two follow-on rounds closed, both at a step-up.</li><li>One write-down, covered in the valuations section.</li><li>Fund I is 82% deployed.</li></ul>'
+   +'<h3>Valuations</h3><p>Marks follow the policy agreed with the advisory committee in March. Figures are as of June 30, 2026 and are not frozen until the report is published.</p>'
+   +'<p>We will send the H2 report in the third week of January.</p>';
+}
+
+/* ---------- screenshots for Today and Old look ---------- */
+var V=".."+"/"+".."+"/.visual/";
+var SHOTS={
+ old:{list:{desktop:"20261119-202535/updates__old-light__desktop.png",wide:"20261119-192143/updates__old-light__wide.png"},
+      detail:{desktop:"20261119-185723/company__old-light__desktop.png",wide:"20261119-185723/company__old-light__wide.png",phone:"20261119-185723/company__old-light__phone.png"},
+      editor:{desktop:"20261119-205439/report-detail__old-light__desktop.png",wide:"20261119-205439/report-detail__old-light__wide.png",phone:"20261119-193049/report-detail__old-light__phone.png"}},
+ now:{list:{desktop:"20261119-202535/updates__new-light__desktop.png",wide:"20261119-192143/updates__new-light__wide.png"},
+      detail:{desktop:"20261119-190608/company__new-light__desktop.png",wide:"20261119-190608/company__new-light__wide.png",phone:"20261119-190608/company__new-light__phone.png"},
+      editor:{desktop:"20261119-205439/report-detail__new-light__desktop.png",wide:"20261119-210205/report-detail__new-light__wide.png",phone:"20261119-210205/report-detail__new-light__phone.png"}}
+};
+
+/* ---------- render ---------- */
+var device=document.getElementById("device"),scaler=document.getElementById("scaler");
+function readHash(){location.hash.replace(/^#/,"").split("&").forEach(function(kv){var p=kv.split("=");if(p[0] in S&&p[1])S[p[0]]=decodeURIComponent(p[1]);});}
+function writeHash(){var a=[];for(var k in S)a.push(k+"="+S[k]);history.replaceState(null,"","#"+a.join("&"));}
+function fit(){
+  var d=DIMS[S.view],W=d[0],sc=Math.min(1,(window.innerWidth-32)/W);
+  var H=S.view==="phone"?d[1]:Math.max(d[1]*0.75,Math.round((window.innerHeight-44-24)/sc));
+  device.style.width=W+"px";device.style.height=H+"px";device.style.transform="scale("+sc+")";
+  scaler.style.width=(W*sc)+"px";scaler.style.height=(H*sc)+"px";
+}
+function render(){
+  document.querySelectorAll("[data-g]").forEach(function(g){var k=g.getAttribute("data-g");g.querySelectorAll("button").forEach(function(b){b.classList.toggle("on",b.getAttribute("data-v")===S[k]);});});
+  var st=VALID[S.dir].indexOf(S.state)>=0?S.state:"normal";
+  document.getElementById("note").textContent=st!==S.state?("“"+S.state+"” does not apply to this page type; showing Normal"):"";
+  device.setAttribute("data-theme",S.theme);device.setAttribute("data-view",S.view);
+  device.classList.toggle("guides",S.guides==="on");
+  var ph=S.view==="phone";
+  device.style.setProperty("--gutter",GUT[S.view]+"px");
+  device.style.setProperty("--frame",S.dir==="list"?(S.lw==="cap"?"1296px":"100000px"):S.dir==="detail"?"1056px":"720px");
+  fit();
+  var cap={list:"List page · Updates (Companies in “Many filters”) · title is a real heading; filters sit together on the left; the right end holds only the count and view controls.",
+           detail:"Detail page · company record (Dossier) · back link, title row with actions, status line; 720 main + 296 panel.",
+           editor:"Editor page · fund report · one 52px bar, one baseline, 32px buttons; 720 writing column."}[S.dir];
+  if(S.look!=="new"){
+    var src=(SHOTS[S.look][S.dir]||{})[S.view];
+    device.innerHTML=src?'<img class="shot" alt="" src="'+V+src+'" onerror="this.outerHTML=\'<div class=noshot>Screenshot not found in .visual/ on this Mac.</div>\'">'
+      :'<div class="noshot">No '+(S.look==="old"?"old-look":"current")+' screenshot of this page at this size.</div>';
+    document.getElementById("capline").textContent=(S.look==="old"?"Old look, ":"Today, ")+"light, from .visual/ screenshots. Compare with Proposed at the same size.";
+    return;
+  }
+  document.getElementById("capline").textContent=cap;
+  var active=S.dir==="list"?(st==="filters"?"Companies":"Updates"):S.dir==="detail"?"Companies":"Fund Reports";
+  var page=S.dir==="list"?listPage(st,ph):S.dir==="detail"?detailPage(st,ph):editorPage(st,ph);
+  device.innerHTML='<div class="app">'+(ph?"":sidebar(active))+'<div class="main" id="main">'+(ph?mbar():"")+page+'</div></div>';
+  var main=document.getElementById("main");
+  function onScroll(){
+    var h1=document.getElementById("h1");
+    if(h1){var y=0,n=h1;while(n&&n!==main){y+=n.offsetTop;n=n.offsetParent;}main.classList.toggle("scrolled",S.dir!=="editor"&&main.scrollTop>y+h1.offsetHeight-12);}
+    var tb=document.getElementById("tb");
+    if(tb){tb.classList.toggle("stuck",tbTop>0&&main.scrollTop>=tbTop-53);}
+  }
+  // The toolbar's resting position (measured once, before any scroll), so "stuck" is exact.
+  var tbEl=document.getElementById("tb"),tbTop=0;
+  if(tbEl){var n2=tbEl;while(n2&&n2!==main){tbTop+=n2.offsetTop;n2=n2.offsetParent;}}
+  // Table headers stick under the filter row, whatever its height (it wraps when there are many filters).
+  var fr=main.querySelector(".frow.stk");
+  main.querySelectorAll(".t th").forEach(function(th){th.style.top=fr?(52+fr.offsetHeight)+"px":"52px";});
+  main.addEventListener("scroll",onScroll);
+  if(st==="scrolled") main.scrollTop=S.dir==="editor"?(ph?260:300):(ph?220:200);
+  onScroll();
+}
+document.querySelectorAll("[data-g]").forEach(function(g){
+  g.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;S[g.getAttribute("data-g")]=b.getAttribute("data-v");writeHash();render();});
+});
+window.addEventListener("resize",fit);
+readHash();render();
+})();
+</script>
+</body>
+</html>
