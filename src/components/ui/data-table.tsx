@@ -640,10 +640,11 @@ function DataTableInner<T>({
 
   function renderMobileRow(row: T) {
     const href = rowHref?.(row);
-    // New look: a cell may hold its own link (the Fund in the deal ledger), and a link inside a link
-    // is invalid. So the row's link wraps the title only and is stretched over the whole row (its
-    // ::after), with the cells' own links lifted above it: the same things are clickable.
-    if (v2 && href) {
+    // A cell may hold its own link (the Fund in the deal ledger), and a link inside a link is invalid
+    // (a hydration error). So in both looks the row's link wraps the title only and is stretched over
+    // the whole row (its ::after), with the cells' own links lifted above it: the same things are
+    // clickable and the card looks the same.
+    if (href) {
       const lift = "[&_a]:relative [&_a]:z-[1]";
       return (
         <li
