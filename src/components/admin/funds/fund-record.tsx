@@ -42,7 +42,7 @@ interface Props {
  * the one primary, ⋯), then a main column and a sticky 296px panel of the fund's properties. Unlike
  * those pages the main column is up to 960px, not 720, because the Deals table has eleven columns and
  * needs about 900px; the group stays centred. Geometry lives in globals.css under `.fund-dossier`.
- * Under 1040px the panel sits under the title.
+ * Under 1344px (the group plus gutters) the panel sits under the title and the main column fills the width.
  */
 export function FundRecord({
   fund,

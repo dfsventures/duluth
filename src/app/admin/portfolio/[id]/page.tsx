@@ -98,6 +98,11 @@ interface ContactsImportResult {
   unmatchedCompanies: string[];
 }
 
+// "Deals across funds" cells. The v2: parts are the new look only: one gutter (16) between columns, none
+// before the first, 44px rows.
+const DEALS_TD = "px-4 py-2.5 v2:py-1.5 v2:pl-4 v2:pr-0 v2:first:pl-0";
+const DEALS_TH = "v2:font-sans v2:text-meta v2:font-medium v2:normal-case v2:tracking-normal v2:pl-4 v2:pr-0";
+
 function multipleLabel(m: number | null): string {
   if (m === null) return "n/a";
   if (m === 0) return "Written off";
@@ -571,14 +576,15 @@ export default function AdminPortfolioCompanyPage() {
           </div>
         )}
 
-        <form onSubmit={handleSaveContact} className="rounded-md border border-border bg-card p-3">
+        <form onSubmit={handleSaveContact} className="rounded-md border border-border bg-card p-3 v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0">
+          {/* New look: Name, Email, Role and Add on one row from md up (they stack on a phone); Import CSV drops to its own line. */}
           <div className="flex flex-wrap items-end gap-2">
             <input
               type="text"
               placeholder="Name"
               value={contactForm.name}
               onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))}
-              className="input-field"
+              className="input-field md:v2:w-auto md:v2:min-w-0 md:v2:flex-1"
             />
             <input
               type="email"
@@ -586,14 +592,14 @@ export default function AdminPortfolioCompanyPage() {
               required
               value={contactForm.email}
               onChange={(e) => setContactForm((f) => ({ ...f, email: e.target.value }))}
-              className="input-field"
+              className="input-field md:v2:w-auto md:v2:min-w-0 md:v2:flex-1"
             />
             <input
               type="text"
               placeholder="Role (optional)"
               value={contactForm.role}
               onChange={(e) => setContactForm((f) => ({ ...f, role: e.target.value }))}
-              className="input-field"
+              className="input-field md:v2:w-auto md:v2:min-w-0 md:v2:flex-1"
             />
             <Button type="submit" size="sm" disabled={savingContact || !contactForm.email.trim()}>
               {savingContact ? "Saving..." : editingContactId ? "Save" : "Add"}
@@ -603,10 +609,12 @@ export default function AdminPortfolioCompanyPage() {
                 Cancel
               </Button>
             )}
+            <span aria-hidden="true" className="hidden h-0 basis-full v2:order-1 v2:block" />
             <Button
               type="button"
               variant="secondary"
               size="sm"
+              className="v2:order-2"
               disabled={importing}
               onClick={() => contactsFileInputRef.current?.click()}
             >
@@ -674,32 +682,40 @@ export default function AdminPortfolioCompanyPage() {
         {data.deals.length === 0 ? (
           <EmptyState icon={<Layers className="h-6 w-6" />} title="No deals yet" />
         ) : (
-          <Table tableClassName="min-w-[960px] v2:min-w-[720px]">
+          // New look: the DataTable look (no box or fill, sentence-case sans headings, hairline rows, one
+          // line per cell). From md up the columns share the 720 column instead of scrolling; a phone scrolls.
+          <Table
+            className="v2:rounded-none v2:border-0 v2:bg-transparent v2:shadow-none v2:[background-image:none] v2:[&_thead]:bg-transparent"
+            tableClassName="min-w-[960px] v2:min-w-[720px] md:v2:min-w-0"
+          >
             <TableHead>
-              <Th>Fund</Th>
-              <Th>Type</Th>
-              <Th>Date</Th>
-              <Th>Amount</Th>
-              <Th>Round</Th>
-              <Th>Ownership %</Th>
-              <Th>Position Value</Th>
+              <Th className={DEALS_TH + " v2:first:pl-0"}>Fund</Th>
+              <Th className={DEALS_TH}>Type</Th>
+              <Th className={DEALS_TH}>Date</Th>
+              <Th className={DEALS_TH}>Amount</Th>
+              <Th className={DEALS_TH}>Round</Th>
+              <Th className={DEALS_TH}>Ownership %</Th>
+              <Th className={DEALS_TH}>
+                Position <span className="v2:hidden">V</span>
+                <span className="hidden v2:inline">v</span>alue
+              </Th>
             </TableHead>
             <tbody>
               {data.deals.map((d) => (
                 <TableRow key={d.id}>
-                  <td className="px-4 py-2.5 font-medium">
+                  <td className={`${DEALS_TD} font-medium v2:max-w-[11rem] v2:truncate v2:first:pl-0`} title={d.fund.name}>
                     <Link href={`/admin/funds/${d.fund.id}`} className="hover:underline">
                       {d.fund.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className={DEALS_TD}>
                     <Badge variant={d.investmentType === "INITIAL" ? "info" : "neutral"}>
                       {d.investmentType === "INITIAL" ? "Initial" : "Follow-on"}
                     </Badge>
                   </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">{formatDate(d.dealDate)}</td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">${d.amountUsd.toLocaleString()}</td>
-                  <td className="px-4 py-2.5">
+                  <td className={`${DEALS_TD} whitespace-nowrap`}>{formatDate(d.dealDate)}</td>
+                  <td className={`${DEALS_TD} whitespace-nowrap`}>${d.amountUsd.toLocaleString()}</td>
+                  <td className={DEALS_TD}>
                     <select
                       value={d.roundId ?? ""}
                       onChange={(e) => handleAssignRound(d.id, e.target.value)}
@@ -713,7 +729,7 @@ export default function AdminPortfolioCompanyPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="px-4 py-2.5">
+                  <td className={DEALS_TD}>
                     <input
                       type="number"
                       min={0}
@@ -727,7 +743,7 @@ export default function AdminPortfolioCompanyPage() {
                       className="w-20 rounded-sm border border-input bg-card px-2 py-1 text-xs"
                     />
                   </td>
-                  <td className="px-4 py-2.5 whitespace-nowrap">
+                  <td className={`${DEALS_TD} whitespace-nowrap`}>
                     <span className="inline-flex items-center gap-1.5">
                       {d.positionValue !== null ? `$${Math.round(d.positionValue).toLocaleString()}` : "—"}
                       {!d.dilutionAware && d.positionValue !== null && (

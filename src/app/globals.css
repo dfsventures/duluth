@@ -1094,7 +1094,7 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
 }
 /* Fund page (PLAN-1, WS163; B-133): the same group, but the main column is 960 instead of 720 because the
    Deals table has eleven columns and needs about 900px. 960 + 40 gap + 296 panel = 1296, centred. The
-   panel sits under the title below 1040px of main width. */
+   panel sits under the title below 1344px of main width (the group plus gutters). */
 @media screen {
   html[data-look="v2"] [data-surface="admin"] .fund-dossier-grid {
     display: grid;
@@ -1104,9 +1104,6 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
   html[data-look="v2"] [data-surface="admin"] .fund-dossier {
     max-width: 1296px;
     margin-inline: max(var(--gutter), calc((100cqw - 1296px) / 2));
-  }
-  html[data-look="v2"] [data-surface="admin"] .fund-dossier .fund-main {
-    max-width: 960px;
   }
   /* Per-LP Remove shows on hover or keyboard focus, and always on touch. */
   html[data-look="v2"] [data-surface="admin"] .fund-item .fund-act {
@@ -1123,7 +1120,10 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
     opacity: 1;
   }
 }
-@container (min-width: 1040px) {
+/* Side by side only when the whole 960 + 40 + 296 group fits with a 24px gutter each side (1344).
+   Narrower, the panel sits under the title and the main column fills the width, so the Deals table
+   fits. */
+@container (min-width: 1344px) {
   @media screen {
     html[data-look="v2"] [data-surface="admin"] .fund-dossier-grid {
       grid-template-columns: minmax(0, 960px) 296px;
@@ -1131,6 +1131,7 @@ html[data-look="v2"] [data-surface="admin"] [data-datatable][data-density] ul > 
       align-items: start;
     }
     html[data-look="v2"] [data-surface="admin"] .fund-dossier .fund-main {
+      max-width: 960px;
       grid-column: 1;
       grid-row: 1;
     }
