@@ -36,6 +36,12 @@ interface ComposerTopBarProps {
   disabledReason?: string;
   /** The bar is drawn only under the new look (a page that had no bar in the old look). */
   newLookOnly?: boolean;
+  /**
+   * New look on phones (page types v1, §6): the same actions as `secondaryActions`, as menu items. When
+   * given, the secondary buttons are hidden below md and these items lead the "⋯" menu instead, so the
+   * bar keeps the back chevron, the status, the primary and ⋯. Desktop and the old look are unchanged.
+   */
+  phoneMenuItems?: ComposerOverflowItem[];
 }
 
 /**
@@ -57,7 +63,15 @@ export function ComposerTopBar({
   statusExtra,
   disabledReason,
   newLookOnly,
+  phoneMenuItems,
 }: ComposerTopBarProps) {
+  const phoneItems = phoneMenuItems ?? [];
+  const menuItems: (ComposerOverflowItem & { phoneOnly?: boolean })[] = [
+    ...phoneItems.map((i) => ({ ...i, phoneOnly: true })),
+    ...(overflowItems ?? []),
+  ];
+  // Only phone items: the ⋯ exists on phones under the new look only.
+  const phoneOnlyMenu = !overflowItems?.length && phoneItems.length > 0;
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
 
@@ -107,7 +121,7 @@ export function ComposerTopBar({
       </div>
 
       <div data-align="actions" className="flex flex-wrap items-center justify-end gap-2 v2:shrink-0 v2:flex-nowrap">
-        {secondaryActions}
+        {phoneItems.length > 0 ? <div className="contents max-md:v2:hidden">{secondaryActions}</div> : secondaryActions}
         {showPublish && (
           <Button
             size="sm"
@@ -119,8 +133,8 @@ export function ComposerTopBar({
           </Button>
         )}
 
-        {overflowItems && overflowItems.length > 0 && (
-          <div className="relative" ref={overflowRef}>
+        {menuItems.length > 0 && (
+          <div className={phoneOnlyMenu ? "relative hidden max-md:v2:block" : "relative"} ref={overflowRef}>
             <button
               type="button"
               onClick={() => setOverflowOpen((v) => !v)}
@@ -132,9 +146,9 @@ export function ComposerTopBar({
             </button>
             {overflowOpen && (
               <div className="absolute right-0 z-20 mt-1 w-48 rounded-float border border-edge bg-card py-1 shadow-float">
-                {overflowItems.map((item) => (
+                {menuItems.map((item) => (
                   <button
-                    key={item.label}
+                    key={`${item.phoneOnly ? "phone-" : ""}${item.label}`}
                     type="button"
                     disabled={item.disabled}
                     onClick={() => {
@@ -143,6 +157,7 @@ export function ComposerTopBar({
                     }}
                     className={cn(
                       "block w-full px-3 py-2 text-left text-sm transition-colors disabled:opacity-40",
+                      item.phoneOnly && "hidden max-md:v2:block",
                       item.danger ? "text-tone-clay-ink hover:bg-laterite/10" : "text-foreground hover:bg-muted"
                     )}
                   >

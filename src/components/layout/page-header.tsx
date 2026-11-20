@@ -44,19 +44,22 @@ interface PageHeaderProps {
   type?: "list" | "detail" | "form";
 }
 
-/** A Detail status line's items, split by a muted " · " (page types v1, §4.2). Empty items are skipped. */
+/**
+ * A Detail status line's items, split by a muted " · " (page types v1, §4.2). Empty items are skipped.
+ * The separator trails its item, so a line that wraps starts with an item on the content edge, not a dot.
+ */
 export function StatusItems({ items }: { items: React.ReactNode[] }) {
   const shown = items.filter((i) => i !== null && i !== undefined && i !== false && i !== "");
   return (
     <>
       {shown.map((item, i) => (
         <span key={i} className="inline-flex items-center gap-2">
-          {i > 0 && (
+          {item}
+          {i < shown.length - 1 && (
             <span aria-hidden="true" className="text-muted-foreground">
               ·
             </span>
           )}
-          {item}
         </span>
       ))}
     </>

@@ -342,8 +342,9 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
 
       {/* New look (audit #34): the view switch shares the tabs' row, right-aligned, 28 high. */}
       {/* Page types v1 (D12): the hairline runs under the whole row; 16 to the filter row. */}
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border v2:mb-4 v2:items-center">
-        <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" className="mb-0 border-b-0 v2:mb-0" />
+      {/* Phones: the switch wraps under the tabs, so the hairline belongs to the tab row, not the wrapper. */}
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border v2:mb-4 v2:items-center max-md:v2:border-b-0">
+        <TabBar tabs={TABS} active={scope} fallback="mine" label="Memo lists" className="mb-0 border-b-0 v2:mb-0 max-md:v2:w-full max-md:v2:border-b" />
         <div role="group" aria-label="Memo view" className="flex gap-1.5 pb-1.5 v2:pb-0">
           {(
             [

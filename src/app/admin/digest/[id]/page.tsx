@@ -255,7 +255,8 @@ export default function DigestDetailPage() {
               All digests
             </Link>
           </div>
-          <div className="min-w-0 flex-1">
+          {/* Phones (§6): the title and status take the row; the actions get their own row under them. */}
+          <div className="min-w-0 flex-1 max-sm:basis-full">
             {editing ? (
               <input className="input-field w-full" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="Title" />
             ) : (
@@ -273,7 +274,7 @@ export default function DigestDetailPage() {
               </p>
             )}
           </div>
-          <div data-align="actions" className="flex flex-none flex-wrap items-center justify-end gap-2">
+          <div data-align="actions" className="flex flex-none flex-wrap items-center justify-end gap-2 max-sm:mt-4 max-sm:w-full max-sm:justify-start">
             {editing ? (
               <>
                 <Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>

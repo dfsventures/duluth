@@ -178,7 +178,8 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
             Memos
           </Link>
         </div>
-      <header className="min-w-0 flex-1">
+      {/* Phones (§6): the title and status take the row; the actions get their own row under them. */}
+      <header className="min-w-0 flex-1 max-sm:v2:basis-full">
         <h1 data-align="title" className="flex min-h-9 items-center gap-2 py-0.5 font-sans text-page-title font-semibold text-foreground max-md:min-h-0 max-md:py-1 max-md:text-pane-title">
           <span className="min-w-0 break-words">{memo.title}</span>
           {sameAsTitle && <span className="memo-no-print">{companyIcon}</span>}
@@ -211,7 +212,7 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
         </p>
         {memo.draftedByMarge && <p className="mt-1 hidden text-sm print:block">Drafted with Marge</p>}
       </header>
-        <div data-align="actions" className="memo-no-print flex shrink-0 items-center gap-2">
+        <div data-align="actions" className="memo-no-print flex shrink-0 items-center gap-2 max-sm:v2:mt-4 max-sm:v2:w-full">
           {shareButton}
           <DetailMenu>
             {memo.canEdit && (

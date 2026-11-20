@@ -124,7 +124,8 @@ export default function NewCompanyPage() {
         showPublish={false}
         secondaryActions={
           <>
-            <Button type="button" variant="ghost" size="sm" onClick={() => router.push("/admin/companies")}>
+            {/* Phones: the back chevron does the same, so Cancel is not drawn (§6). */}
+            <Button type="button" variant="ghost" size="sm" className="max-md:v2:hidden" onClick={() => router.push("/admin/companies")}>
               Cancel
             </Button>
             <Button type="submit" size="sm" form="add-company-form" disabled={saving}>

@@ -78,7 +78,12 @@ export function FilterBar({
     >
       {leading}
       {segmented && chips.length > 0 ? (
-        <div role="radiogroup" aria-label={label} className={cn("seg inline-flex flex-none items-center rounded-md bg-[var(--color-surface)] p-0.5", CTL)}>
+        // Phones (§6): the control never runs past the screen edge; it scrolls sideways inside it.
+        <div
+          role="radiogroup"
+          aria-label={label}
+          className={cn("seg inline-flex flex-none items-center rounded-md bg-[var(--color-surface)] p-0.5 max-md:max-w-full max-md:overflow-x-auto", CTL)}
+        >
           {chips.map((c) => (
             <button
               key={c.key}
@@ -87,7 +92,7 @@ export function FilterBar({
               aria-checked={isSet(c)}
               onClick={() => onOpen(c.key)}
               className={cn(
-                "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-[6px] px-3 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:h-10",
+                "inline-flex h-8 flex-none items-center gap-1.5 whitespace-nowrap rounded-[6px] px-3 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:h-10",
                 isSet(c) ? "seg-on text-foreground" : "text-secondary hover:text-foreground"
               )}
             >
@@ -135,14 +140,18 @@ export function FilterBar({
           )
         )
       )}
-      {filters && <div className="flex flex-none flex-wrap items-center gap-2 [&_select]:min-w-[160px] [&_select]:max-w-[240px]">{filters}</div>}
+      {/* Phones: the selects take the row's width, so they wrap inside it instead of running off the edge. */}
+      {filters && (
+        <div className="flex flex-none flex-wrap items-center gap-2 max-md:w-full [&_select]:min-w-[160px] [&_select]:max-w-[240px]">{filters}</div>
+      )}
       {anySet && (
         <button type="button" onClick={onClearAll} className={cn("flex-none whitespace-nowrap rounded-ctl px-2 text-secondary hover:bg-row-hover", CTL)}>
           Clear filters
         </button>
       )}
       {trailing && (
-        <div data-align="filters-end" className="ml-auto flex flex-none items-center gap-4 pl-4 max-md:w-full max-md:pl-0">
+        // Phones: the count and view controls wrap onto further lines rather than run off the edge (D11).
+        <div data-align="filters-end" className="ml-auto flex flex-none items-center gap-4 pl-4 max-md:w-full max-md:flex-wrap max-md:gap-2 max-md:pl-0">
           {trailing}
         </div>
       )}

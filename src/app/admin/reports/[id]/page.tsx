@@ -293,6 +293,14 @@ export default function AdminReportEditorPage() {
             )}
           </>
         }
+        // Phone, new look (§6): Preview and Save (or Unpublish) fold into ⋯.
+        phoneMenuItems={[
+          { label: "Preview", onClick: () => router.push(`/admin/reports/${reportId}/preview`) },
+          ...(!isDraft && newLook
+            ? [{ label: unpublishing ? "Unpublishing..." : "Unpublish to edit", onClick: handleUnpublish, disabled: unpublishing }]
+            : []),
+          ...(isDraft ? [{ label: saving ? "Saving..." : "Save", onClick: handleSave, disabled: saving }] : []),
+        ]}
         publishLabel={isDraft ? "Publish" : unpublishing ? "Unpublishing..." : "Unpublish to edit"}
         onPublishClick={isDraft ? () => setConfirmPublish(true) : handleUnpublish}
         publishDisabled={isDraft && !canPublish}

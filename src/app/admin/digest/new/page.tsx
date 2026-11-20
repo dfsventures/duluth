@@ -201,25 +201,20 @@ export default function NewDigestPage() {
         newLookOnly
         back={{ href: "/admin/digest", label: "All digests" }}
         draftLabel="Not saved yet"
-        showPublish={false}
-        secondaryActions={
-          step === "paste" ? (
-            <Button size="sm" onClick={handleGenerate} disabled={generating || !notes.trim()}>
-              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {generating ? "Generating…" : "Generate digest"}
-            </Button>
-          ) : (
-            <>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setStep("paste")}>
-                Back to notes
-              </Button>
-              <Button size="sm" onClick={handleSave} disabled={saving || !title.trim()}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {saving ? "Saving…" : "Save draft"}
-              </Button>
-            </>
-          )
+        publishLabel={
+          step === "paste" ? (generating ? "Generating…" : "Generate digest") : saving ? "Saving…" : "Save draft"
         }
+        onPublishClick={step === "paste" ? handleGenerate : handleSave}
+        publishDisabled={step === "paste" ? generating || !notes.trim() : saving || !title.trim()}
+        secondaryActions={
+          step === "edit" ? (
+            <Button type="button" variant="ghost" size="sm" onClick={() => setStep("paste")}>
+              Back to notes
+            </Button>
+          ) : undefined
+        }
+        // Phones (§6): Back to notes folds into ⋯.
+        phoneMenuItems={step === "edit" ? [{ label: "Back to notes", onClick: () => setStep("paste") }] : undefined}
       />
       <PageHeader newLookOnly type="form" title="New weekly digest" />
       <div className="mb-6 flex items-center justify-between gap-4 v2:hidden">

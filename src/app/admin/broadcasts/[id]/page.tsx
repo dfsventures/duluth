@@ -472,6 +472,19 @@ export default function AdminBroadcastEditorPage() {
             </Button>
           )
         }
+        // Phone, new look (§6): Save and Send test fold into ⋯.
+        phoneMenuItems={
+          isDraft
+            ? [
+                { label: saving ? "Saving..." : "Save", onClick: handleSave, disabled: saving },
+                {
+                  label: testSending ? "Sending test..." : "Send test to me",
+                  onClick: handleSendTest,
+                  disabled: testSending || !subject.trim() || !body.trim(),
+                },
+              ]
+            : undefined
+        }
         publishLabel="Send"
         onPublishClick={() => setConfirmSend(true)}
         publishDisabled={!isDraft || !canSend}

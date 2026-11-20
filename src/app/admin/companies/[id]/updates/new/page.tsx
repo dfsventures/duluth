@@ -162,6 +162,8 @@ export default function AdminCreateUpdatePage() {
             {submitting ? "Saving..." : "Save as draft"}
           </Button>
         }
+        // Phone, new look (§6): Save as draft folds into ⋯.
+        phoneMenuItems={[{ label: submitting ? "Saving..." : "Save as draft", onClick: () => handleSubmit("DRAFT"), disabled: submitting }]}
         publishLabel="Send update"
         onPublishClick={() => handleSubmit("SENT")}
         publishDisabled={!canPublish}

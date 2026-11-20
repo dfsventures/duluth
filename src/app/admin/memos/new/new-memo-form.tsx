@@ -62,7 +62,8 @@ export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
         showPublish={false}
         secondaryActions={
           <>
-            <Button type="button" variant="ghost" size="sm" onClick={() => router.push("/admin/memos")}>
+            {/* Phones: the back chevron does the same, so Cancel is not drawn (§6). */}
+            <Button type="button" variant="ghost" size="sm" className="max-md:v2:hidden" onClick={() => router.push("/admin/memos")}>
               Cancel
             </Button>
             <Button type="submit" size="sm" form="new-memo-form" loading={saving} disabled={!title.trim()}>

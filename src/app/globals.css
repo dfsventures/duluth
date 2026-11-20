@@ -329,6 +329,10 @@ html[data-look="v2"] [data-surface="admin"] .shell-header {
   html[data-look="v2"] [data-surface="admin"] .shell-header {
     margin-bottom: 24px;
   }
+  /* Phone (§6): bar buttons stay 32, with 10px above and below, instead of the 44 phone button. */
+  html[data-look="v2"] [data-surface="admin"] .editor-bar [data-align="actions"] button {
+    height: 32px;
+  }
 }
 
 /* Segmented control (D9): the selected segment is lifted, lighter than the well in both themes. */

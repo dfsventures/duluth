@@ -838,7 +838,8 @@ function DataTableInner<T>({
             {filtersActive ? `${visible.length} of ${rows.length} ${pluralNoun ?? `${noun}s`}` : `${rows.length} ${rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}`}
           </span>
           {(groupPicker || columnsMenu || exportButton) && (
-          <div className="flex items-center gap-2">
+          // Phones: the view controls wrap instead of running off the screen edge.
+          <div className="flex items-center gap-2 max-md:flex-wrap">
             {groupBy && groupPicker && (
               <>
                 <label htmlFor={`dt-group-${label}`} className="sr-only">
