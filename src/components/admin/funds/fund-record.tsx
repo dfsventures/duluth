@@ -1,10 +1,11 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { ArrowLeft, MoreHorizontal, Pencil, Plus, TrendingUp } from "lucide-react";
+import { Pencil, Plus, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/layout/page-header";
+import { DetailMenu } from "@/components/layout/page-header-menu";
 import { TabBar, type TabDef } from "@/components/ui/tab-bar";
 import { formatDate } from "@/lib/utils";
 
@@ -63,44 +64,38 @@ export function FundRecord({
   if (fund.aumUsd !== null) rows.push({ label: "AUM", value: `$${fund.aumUsd.toLocaleString()}` });
   if (fund.firstDealDate) rows.push({ label: "First deal", value: formatDate(fund.firstDealDate) });
 
+  const addDeal = (
+    <Button variant="primary" onClick={onAddDeal}>
+      <Plus className="h-4 w-4" />
+      Add deal
+    </Button>
+  );
+
   return (
     // The page is AppShell width="detail-wide": the shared page frame gives the padding and the width.
     <div className="fund-dossier">
-      <div className="mb-6 flex h-9 items-center gap-2">
-        <Link
-          href="/admin/funds"
-          className="inline-flex h-9 items-center gap-1.5 rounded-ctl pr-2 text-meta text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          Funds
-        </Link>
-        <span className="flex-1" />
-        <Button variant="primary" onClick={onAddDeal}>
-          <Plus className="h-4 w-4" />
-          Add deal
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="icon" aria-label="More actions">
-              <MoreHorizontal aria-hidden className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onEditDetails}>
-              <Pencil aria-hidden className="h-3.5 w-3.5" />
-              Edit details
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={onEditPerformance} disabled={editingPerformance}>
-              <TrendingUp aria-hidden className="h-3.5 w-3.5" />
-              Edit performance metrics
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <header className="mb-6">
-        <h1 className="break-words font-sans text-title font-semibold text-foreground">{fund.name}</h1>
-      </header>
+      {/* Page types v1, Detail: back above the title, the actions on the title row. */}
+      <PageHeader
+        type="detail"
+        back={{ href: "/admin/funds", label: "Funds" }}
+        title={fund.name}
+        condensedAction={addDeal}
+        action={
+          <div className="flex items-center gap-2">
+            {addDeal}
+            <DetailMenu>
+              <DropdownMenuItem onSelect={onEditDetails}>
+                <Pencil aria-hidden className="h-3.5 w-3.5" />
+                Edit details
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={onEditPerformance} disabled={editingPerformance}>
+                <TrendingUp aria-hidden className="h-3.5 w-3.5" />
+                Edit performance metrics
+              </DropdownMenuItem>
+            </DetailMenu>
+          </div>
+        }
+      />
 
       <div className="fund-dossier-grid">
         <aside aria-label="Fund details" className="fund-aside">

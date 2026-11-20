@@ -2,9 +2,11 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Archive, ArrowLeft, ChevronDown, ExternalLink, Link2, Lock, MoreHorizontal, Pencil, Printer, Share2, Users } from "lucide-react";
+import { Archive, ChevronDown, ChevronLeft, ExternalLink, Link2, Lock, Pencil, Printer, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { CondensedBar } from "@/components/layout/condensed-bar";
+import { DetailMenu } from "@/components/layout/page-header-menu";
 import { cn } from "@/lib/utils";
 import { TONE_CLASSES, type Tone } from "@/lib/status-tone";
 import { COLUMN_TONE, sameName } from "@/lib/memo-board";
@@ -152,29 +154,66 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
     </div>
   ) : null;
 
+  const shareButton = (
+    <Button variant="primary" onClick={onOpenShare}>
+      <Share2 className="h-4 w-4" />
+      Share
+    </Button>
+  );
+
   return (
     // The page is AppShell width="detail": the shared page frame gives the padding and the width.
     <div className="memo-dossier">
-      <div className="memo-no-print mb-6 flex h-9 items-center gap-2">
-        <Link
-          href="/admin/memos"
-          className="inline-flex h-9 items-center gap-1.5 rounded-ctl pr-2 text-meta text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          Memos
-        </Link>
-        <span className="flex-1" />
-        <Button variant="primary" onClick={onOpenShare}>
-          <Share2 className="h-4 w-4" />
-          Share
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="icon" aria-label="More actions">
-              <MoreHorizontal aria-hidden className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+      {/* Page types v1, Detail: the shared header's geometry (back above the title, the actions on the
+          title row, the status lines under it), drawn here because the memo's title block has print rules. */}
+      <CondensedBar headId="memo-head" title={memo.title} back={{ href: "/admin/memos", label: "Memos" }} action={shareButton} />
+      <div id="memo-head" data-page-head="" data-type="detail" className="page-head mb-8 flex flex-wrap items-start justify-between gap-x-4">
+        <div className="page-back-row memo-no-print">
+          <Link
+            href="/admin/memos"
+            data-align="back"
+            className="page-back focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            Memos
+          </Link>
+        </div>
+      <header className="min-w-0 flex-1">
+        <h1 data-align="title" className="flex min-h-9 items-center gap-2 py-0.5 font-sans text-page-title font-semibold text-foreground max-md:min-h-0 max-md:py-1 max-md:text-pane-title">
+          <span className="min-w-0 break-words">{memo.title}</span>
+          {sameAsTitle && <span className="memo-no-print">{companyIcon}</span>}
+        </h1>
+        {!sameAsTitle && companyLine && (
+          <p data-align="desc" className="mt-1 text-row">
+            {companyLine}
+          </p>
+        )}
+        {/* The Stage / Memo status line prints; the controls in the panel do not. */}
+        <p className="mt-3 hidden text-sm print:block">
+          {`${MEMO_DECISION_NOUN}: ${stageLabel} · ${MEMO_STATUS_NOUN}: ${MEMO_STATUS_LABELS[memo.status]}`}
+        </p>
+        <p data-align={!sameAsTitle && companyLine ? undefined : "desc"} className="mt-1 flex flex-wrap gap-x-2 text-row text-secondary">
+          <span>Owned by {ownerLabel(memo.owner)}</span>
+          <span aria-hidden="true" className="text-muted-foreground">·</span>
+          <span>Updated {updated}</span>
+          {memo.importedFromNotion && (
+            <>
+              <span aria-hidden="true" className="text-muted-foreground">·</span>
+              <span>From Notion</span>
+            </>
+          )}
+          {memo.draftedByMarge && (
+            <span className="memo-no-print contents">
+              <span aria-hidden="true" className="text-muted-foreground">·</span>
+              <span>Drafted by Marge</span>
+            </span>
+          )}
+        </p>
+        {memo.draftedByMarge && <p className="mt-1 hidden text-sm print:block">Drafted with Marge</p>}
+      </header>
+        <div data-align="actions" className="memo-no-print flex shrink-0 items-center gap-2">
+          {shareButton}
+          <DetailMenu>
             {memo.canEdit && (
               <DropdownMenuItem onSelect={onEditDetails}>
                 <Pencil aria-hidden className="h-3.5 w-3.5" />
@@ -200,41 +239,11 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
                 </DropdownMenuItem>
               </>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </DetailMenu>
+        </div>
       </div>
 
-      <header>
-        <h1 className="flex items-center gap-2 font-sans text-title font-semibold text-foreground">
-          <span className="min-w-0 break-words">{memo.title}</span>
-          {sameAsTitle && <span className="memo-no-print">{companyIcon}</span>}
-        </h1>
-        {!sameAsTitle && companyLine && <p className="mt-1 text-sm">{companyLine}</p>}
-        {/* The Stage / Memo status line prints; the controls in the panel do not. */}
-        <p className="mt-3 hidden text-sm print:block">
-          {`${MEMO_DECISION_NOUN}: ${stageLabel} · ${MEMO_STATUS_NOUN}: ${MEMO_STATUS_LABELS[memo.status]}`}
-        </p>
-        <p className="mt-1 flex flex-wrap gap-x-2 text-meta text-muted-foreground">
-          <span>Owned by {ownerLabel(memo.owner)}</span>
-          <span aria-hidden="true">·</span>
-          <span>Updated {updated}</span>
-          {memo.importedFromNotion && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>From Notion</span>
-            </>
-          )}
-          {memo.draftedByMarge && (
-            <span className="memo-no-print contents">
-              <span aria-hidden="true">·</span>
-              <span>Drafted by Marge</span>
-            </span>
-          )}
-        </p>
-        {memo.draftedByMarge && <p className="mt-1 hidden text-sm print:block">Drafted with Marge</p>}
-      </header>
-
-      {banner && <div className="mt-4">{banner}</div>}
+      {banner && <div className="mb-6">{banner}</div>}
 
       {/* Print shows the facts as plain lines, as the old Details box did. */}
       <dl className="mt-4 hidden gap-x-6 gap-y-1 text-sm print:grid print:grid-cols-[110px_1fr]">
@@ -277,7 +286,7 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
         )}
       </dl>
 
-      <div className="memo-dossier-grid mt-6">
+      <div className="memo-dossier-grid">
         <aside aria-label="Deal facts" className="memo-aside memo-no-print">
           <div className="rounded-lg bg-muted/60 p-4 v2:bg-card">
             <dl className="grid grid-cols-[84px_minmax(0,1fr)] items-start gap-x-3 gap-y-2 text-row">

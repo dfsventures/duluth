@@ -111,8 +111,12 @@ const MEASURE_JS = `(() => {
   const frame = document.querySelector(".shell-page");
   if (frame) {
     const r = frame.getBoundingClientRect();
-    const pad = parseFloat(getComputedStyle(frame).paddingRight) || 0;
-    put("frameR", r.right - pad);
+    const cs = getComputedStyle(frame);
+    const left = r.left + (parseFloat(cs.paddingLeft) || 0);
+    put("frameR", r.right - (parseFloat(cs.paddingRight) || 0));
+    // Left edges are reported from the content's left edge (frames differ in width by type: a Detail
+    // page may be 1056, 1296 or 720 wide), so 0 means "on the content edge".
+    for (const k of ["titleX", "backX", "tabsX", "filtersX", "theadX"]) if (k in m) m[k] = Math.round((m[k] - left) * 10) / 10;
   }
   // A section heading (h2) between the header and the table moves the table down on purpose.
   let section = false;
@@ -146,7 +150,9 @@ function alignReport(): number {
   let flags = 0;
   const vps = [...new Set(alignRows.map((r) => r.vp))];
   for (const vp of vps) {
-    console.log(`\nAlignment, ${vp} (px from the window's top-left; * = off its type by more than 1px)`);
+    console.log(
+      `\nAlignment, ${vp} (X: px from the content's left edge, so 0 = on the edge; Y and the right edges: px from the window's top-left; * = off its type by more than 1px)`
+    );
     for (const type of ["list", "detail", "editor"]) {
       const rows = alignRows.filter((r) => r.vp === vp && r.type === type);
       if (!rows.length) continue;

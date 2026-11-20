@@ -35,6 +35,27 @@ interface PageHeaderProps {
   back?: { href: string; label: string };
   /** The header is drawn only under the new look (a page that had no header in the old look). */
   newLookOnly?: boolean;
+  /** Page type (page types v1): a Detail header has 32px under it (a List header 24). */
+  type?: "list" | "detail";
+}
+
+/** A Detail status line's items, split by a muted " · " (page types v1, §4.2). Empty items are skipped. */
+export function StatusItems({ items }: { items: React.ReactNode[] }) {
+  const shown = items.filter((i) => i !== null && i !== undefined && i !== false && i !== "");
+  return (
+    <>
+      {shown.map((item, i) => (
+        <span key={i} className="inline-flex items-center gap-2">
+          {i > 0 && (
+            <span aria-hidden="true" className="text-muted-foreground">
+              ·
+            </span>
+          )}
+          {item}
+        </span>
+      ))}
+    </>
+  );
 }
 
 function headId(title: string) {
@@ -58,6 +79,7 @@ export function PageHeader({
   indicator,
   back,
   newLookOnly,
+  type = "list",
 }: PageHeaderProps) {
   const folded = !!secondaryActions?.length;
   const id = headId(title);
@@ -68,19 +90,22 @@ export function PageHeader({
       <div
         id={id}
         data-page-head=""
-        className={`page-head mb-8 ${newLookOnly ? "hidden v2:flex" : "flex"} flex-col gap-4 sm:flex-row sm:items-start sm:justify-between v2:mb-6 v2:flex-row v2:items-start v2:justify-between v2:gap-x-4 v2:gap-y-0 ${
+        data-type={type}
+        className={`page-head mb-8 ${newLookOnly ? "hidden v2:flex" : "flex"} flex-col gap-4 sm:flex-row sm:items-start sm:justify-between ${type === "detail" ? "v2:mb-8" : "v2:mb-6"} v2:flex-row v2:items-start v2:justify-between v2:gap-x-4 v2:gap-y-0 ${
           folded && !back ? "v2:flex-nowrap" : "v2:flex-wrap"
         }`}
       >
         {back && (
-          <Link
-            href={back.href}
-            data-align="back"
-            className="page-back hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:inline-flex"
-          >
-            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-            {back.label}
-          </Link>
+          <div className="page-back-row hidden v2:block">
+            <Link
+              href={back.href}
+              data-align="back"
+              className="page-back focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+              {back.label}
+            </Link>
+          </div>
         )}
         <div className="min-w-0 v2:flex-1">
           <h1

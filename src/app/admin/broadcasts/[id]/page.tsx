@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
+import { PageHeader, StatusItems } from "@/components/layout/page-header";
+import { DetailMenu } from "@/components/layout/page-header-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { noticeClasses } from "@/components/ui/notice";
 import { PickerList } from "@/components/ui/picker-list";
@@ -398,6 +401,47 @@ export default function AdminBroadcastEditorPage() {
     <AppShell width="narrow">
       {!newLook && <Breadcrumb items={[{ label: "Broadcasts", href: "/admin/broadcasts" }, { label: subject.trim() || "Untitled broadcast" }]} />}
 
+      {/* Page types v1: a sent broadcast is a Detail page (no panel, 720); a draft keeps the editor bar. */}
+      {newLook && !isDraft && (
+        <PageHeader
+          type="detail"
+          back={{ href: "/admin/broadcasts", label: "Broadcasts" }}
+          title={subject.trim() || "Untitled broadcast"}
+          status={
+            <StatusItems
+              items={[
+                `Sent ${data.publishedAt ? formatDate(data.publishedAt) : ""}${data.senderLabel ? ` by ${data.senderLabel}` : ""}`.trim(),
+                <span key="reach" className="whitespace-nowrap">
+                  {plural(data.recipients.length, "contact", "contacts")} at {plural(data.targets.length, "company", "companies")}: {deliveredCount} delivered
+                  {failedCount > 0 && (
+                    <>
+                      ,{" "}
+                      <button type="button" onClick={() => setSentTab("delivery")} className="whitespace-nowrap text-tone-clay-ink underline-offset-2 hover:underline">
+                        {failedCount} failed
+                      </button>
+                    </>
+                  )}
+                </span>,
+              ]}
+            />
+          }
+          // A sent broadcast has no primary action (audit #22), so its actions live in the ⋯ menu.
+          condensedAction={null}
+          action={
+            <DetailMenu>
+              <DropdownMenuItem onSelect={handleDuplicate} disabled={duplicating}>
+                {duplicating ? "Duplicating..." : "Duplicate as draft"}
+              </DropdownMenuItem>
+              {hasUnsent && (
+                <DropdownMenuItem onSelect={handleRetry} disabled={retrying}>
+                  {retrying ? "Retrying..." : "Retry unsent"}
+                </DropdownMenuItem>
+              )}
+            </DetailMenu>
+          }
+        />
+      )}
+      {(isDraft || !newLook) && (
       <ComposerTopBar
         back={{ href: "/admin/broadcasts", label: "Broadcasts" }}
         statusExtra={dirty ? <span className="hidden text-tone-amber-ink v2:inline">Unsaved changes</span> : undefined}
@@ -440,7 +484,7 @@ export default function AdminBroadcastEditorPage() {
             : undefined
         }
       />
-
+      )}
 
       {confirmSend && (
         <div className={noticeClasses("amber", cn("mb-6", EDITOR_COLUMN))}>
@@ -462,14 +506,12 @@ export default function AdminBroadcastEditorPage() {
       )}
 
       <div className={cn("mx-auto max-w-3xl", EDITOR_COLUMN)}>
-        <div className="mb-6 v2:mb-4">
+        <div className={cn("mb-6 v2:mb-4", newLook && !isDraft && "hidden")}>
           {newLook ? (
-            // New look (audit #23): the subject wraps instead of being cut off, and a sent one is plain heading text.
+            // New look (audit #23): the subject wraps instead of being cut off. A sent one's title is the page header.
             isDraft ? (
               <GrowTitle value={subject} onChange={setSubject} />
-            ) : (
-              <h1 className="break-words text-title font-semibold tracking-normal text-foreground">{subject}</h1>
-            )
+            ) : null
           ) : (
             <input
               value={subject}
@@ -486,36 +528,9 @@ export default function AdminBroadcastEditorPage() {
 
         {newLook && !isDraft && (
           <>
-            {/* Audit #24: who it reached, in one line under the title. */}
-            <div className="mb-4 space-y-1 text-meta text-muted-foreground">
-              <p>
-                Sent {data.publishedAt ? formatDate(data.publishedAt) : ""}
-                {data.senderLabel ? ` by ${data.senderLabel}` : ""}
-              </p>
-              <p>
-                <span className="whitespace-nowrap">
-                  {plural(data.recipients.length, "contact", "contacts")} at {plural(data.targets.length, "company", "companies")}:
-                </span>{" "}
-                <span className="whitespace-nowrap">{deliveredCount} delivered</span>
-                {failedCount > 0 && (
-                  <>
-                    ,{" "}
-                    <button type="button" onClick={() => setSentTab("delivery")} className="whitespace-nowrap text-tone-clay-ink underline-offset-2 hover:underline">
-                      {failedCount} failed
-                    </button>
-                  </>
-                )}
-              </p>
-              {hasUnsent && (
-                <div>
-                  <Button size="sm" variant="ghost" className="-ml-3 v2:h-7" disabled={retrying} onClick={handleRetry}>
-                    {retrying ? "Retrying..." : "Retry unsent"}
-                  </Button>
-                </div>
-              )}
-            </div>
+            {/* Audit #24 (who it reached) is now the header's status line; Retry unsent is a header action. */}
             {/* Audit #25: Message / Delivery. */}
-            <div role="tablist" aria-label="Broadcast sections" className="mb-6 flex gap-5">
+            <div role="tablist" aria-label="Broadcast sections" data-align="tabs" className="page-tabs mb-6 flex gap-5">
               {(
                 [
                   { key: "message", label: "Message" },
@@ -530,7 +545,7 @@ export default function AdminBroadcastEditorPage() {
                   onClick={() => setSentTab(t.key)}
                   className={cn(
                     "border-b-2 border-transparent py-2.5 text-row font-medium text-muted-foreground hover:text-foreground",
-                    sentTab === t.key && "border-foreground text-foreground"
+                    sentTab === t.key && "border-primary text-foreground"
                   )}
                 >
                   {t.label}

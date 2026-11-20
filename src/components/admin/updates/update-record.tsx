@@ -2,10 +2,12 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, Download, Eye, FileText, Globe, MoreHorizontal, Pencil, Trash2, Calendar, X } from "lucide-react";
+import { Download, Eye, FileText, Globe, Pencil, Trash2, Calendar, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { PageHeader, StatusItems } from "@/components/layout/page-header";
+import { DetailMenu } from "@/components/layout/page-header-menu";
 import { DOC_TYPES } from "@/lib/constants";
 import { isInlineViewable } from "@/lib/documents";
 import { formatDate, formatPeriod } from "@/lib/utils";
@@ -121,105 +123,100 @@ export function UpdateRecord({
   if (update.createdBy?.name) rows.push({ label: "Added by", value: update.createdBy.name });
   rows.push({ label: "Source", value: filed ? "Email, via Marge" : "Founder" });
 
+  const primaryButton =
+    primary === "publish" ? (
+      <Button variant="primary" disabled={sending || deleting} onClick={onPublish}>
+        <Globe className="h-4 w-4" />
+        Publish
+      </Button>
+    ) : primary === "edit" ? (
+      <Button variant="primary" onClick={onEdit}>
+        <Pencil className="h-4 w-4" />
+        Edit
+      </Button>
+    ) : primary === "pdf" ? (
+      <Link href={downloadHref}>
+        <Button variant="primary">
+          <Download className="h-4 w-4" />
+          Download PDF
+        </Button>
+      </Link>
+    ) : null;
+
+  const menu = (
+    <DetailMenu>
+      {primary !== "edit" && canEdit && (
+        <DropdownMenuItem onSelect={onEdit}>
+          <Pencil aria-hidden className="h-3.5 w-3.5" />
+          Edit
+        </DropdownMenuItem>
+      )}
+      {draft && !update.scheduledFor && (
+        <DropdownMenuItem onSelect={onToggleSchedule}>
+          <Calendar aria-hidden className="h-3.5 w-3.5" />
+          Schedule for later
+        </DropdownMenuItem>
+      )}
+      {draft && update.scheduledFor && (
+        <DropdownMenuItem onSelect={onCancelSchedule}>
+          <X aria-hidden className="h-3.5 w-3.5" />
+          Cancel schedule
+        </DropdownMenuItem>
+      )}
+      {primary !== "pdf" && (
+        <DropdownMenuItem asChild>
+          <Link href={downloadHref}>
+            <Download aria-hidden className="h-3.5 w-3.5" />
+            Download PDF
+          </Link>
+        </DropdownMenuItem>
+      )}
+      {(draft || canRemoveFiled) && <DropdownMenuSeparator />}
+      {draft && (
+        <DropdownMenuItem onSelect={onDeleteDraft} disabled={deleting} className="text-destructive">
+          <Trash2 aria-hidden className="h-3.5 w-3.5" />
+          Delete draft
+        </DropdownMenuItem>
+      )}
+      {canRemoveFiled && (
+        <DropdownMenuItem onSelect={onRemoveFiled} disabled={deleting} className="text-destructive">
+          <Trash2 aria-hidden className="h-3.5 w-3.5" />
+          Remove update
+        </DropdownMenuItem>
+      )}
+    </DetailMenu>
+  );
+
   return (
     // The page is AppShell width="detail": the shared page frame gives the padding and the width.
     <div className="up-dossier">
-      <div className="mb-6 flex h-9 items-center gap-2">
-        <Link
-          href="/updates"
-          className="inline-flex h-9 items-center gap-1.5 rounded-ctl pr-2 text-meta text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          Updates
-        </Link>
-        <span className="flex-1" />
-        {primary === "publish" && (
-          <Button variant="primary" disabled={sending || deleting} onClick={onPublish}>
-            <Globe className="h-4 w-4" />
-            Publish
-          </Button>
-        )}
-        {primary === "edit" && (
-          <Button variant="primary" onClick={onEdit}>
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-        )}
-        {primary === "pdf" && (
-          <Link href={downloadHref}>
-            <Button variant="primary">
-              <Download className="h-4 w-4" />
-              Download PDF
-            </Button>
-          </Link>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="icon" aria-label="More actions">
-              <MoreHorizontal aria-hidden className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {primary !== "edit" && canEdit && (
-              <DropdownMenuItem onSelect={onEdit}>
-                <Pencil aria-hidden className="h-3.5 w-3.5" />
-                Edit
-              </DropdownMenuItem>
-            )}
-            {draft && !update.scheduledFor && (
-              <DropdownMenuItem onSelect={onToggleSchedule}>
-                <Calendar aria-hidden className="h-3.5 w-3.5" />
-                Schedule for later
-              </DropdownMenuItem>
-            )}
-            {draft && update.scheduledFor && (
-              <DropdownMenuItem onSelect={onCancelSchedule}>
-                <X aria-hidden className="h-3.5 w-3.5" />
-                Cancel schedule
-              </DropdownMenuItem>
-            )}
-            {primary !== "pdf" && (
-              <DropdownMenuItem asChild>
-                <Link href={downloadHref}>
-                  <Download aria-hidden className="h-3.5 w-3.5" />
-                  Download PDF
-                </Link>
-              </DropdownMenuItem>
-            )}
-            {(draft || canRemoveFiled) && <DropdownMenuSeparator />}
-            {draft && (
-              <DropdownMenuItem onSelect={onDeleteDraft} disabled={deleting} className="text-destructive">
-                <Trash2 aria-hidden className="h-3.5 w-3.5" />
-                Delete draft
-              </DropdownMenuItem>
-            )}
-            {canRemoveFiled && (
-              <DropdownMenuItem onSelect={onRemoveFiled} disabled={deleting} className="text-destructive">
-                <Trash2 aria-hidden className="h-3.5 w-3.5" />
-                Remove update
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <header className="mb-6">
-        <h1 className="break-words font-sans text-title font-semibold text-foreground">{update.title}</h1>
-        {filed && (
-          <p className="mt-2 text-meta text-muted-foreground">
-            From email &middot; added by {update.createdBy?.name ?? "a teammate"} via Marge
-            {permalink && (
-              <>
-                {" "}
-                &middot;{" "}
-                <a href={permalink} target="_blank" rel="noopener noreferrer" className="underline">
-                  Open in Slack
-                </a>
-              </>
-            )}
-          </p>
-        )}
-      </header>
+      {/* Page types v1, Detail: back above the title, the actions on the title row, a status line under it. */}
+      <PageHeader
+        type="detail"
+        back={{ href: "/updates", label: "Updates" }}
+        title={update.title}
+        status={
+          filed ? (
+            <StatusItems
+              items={[
+                `From email, added by ${update.createdBy?.name ?? "a teammate"} via Marge`,
+                permalink ? (
+                  <a href={permalink} target="_blank" rel="noopener noreferrer" className="underline">
+                    Open in Slack
+                  </a>
+                ) : null,
+              ]}
+            />
+          ) : undefined
+        }
+        condensedAction={primaryButton}
+        action={
+          <div className="flex items-center gap-2">
+            {primaryButton}
+            {menu}
+          </div>
+        }
+      />
 
       {notices && <div className="mb-6 space-y-3">{notices}</div>}
 

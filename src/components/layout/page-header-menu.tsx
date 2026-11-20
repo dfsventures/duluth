@@ -13,6 +13,23 @@ export interface SecondaryAction {
 }
 
 /**
+ * The "⋯" of a Detail page's header row (page types v1, §4.2): a 36px ghost square, last in the row.
+ * Children are DropdownMenuItems.
+ */
+export function DetailMenu({ children, label = "More actions" }: { children: React.ReactNode; label?: string }) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label={label} className="v2:h-9 v2:w-9 text-muted-foreground max-md:v2:h-11 max-md:v2:w-11">
+          <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">{children}</DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
  * Secondary header actions. From md up (and in the old look) they are the buttons they always were;
  * on phones in the new look the buttons hide and a "⋯" menu with the same actions shows instead.
  */

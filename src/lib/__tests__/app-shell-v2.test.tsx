@@ -39,7 +39,8 @@ describe("PageHeader", () => {
     const html = renderToStaticMarkup(
       <PageHeader title="Acme" back={{ href: "/admin/companies", label: "Companies" }} status={<span>Active</span>} />
     );
-    expect(html).toMatch(/<a [^>]*data-align="back"[^>]*class="page-back hidden[^"]*v2:inline-flex/);
+    // The back link sits in its own full-width row, drawn only under the new look.
+    expect(html).toMatch(/<div class="page-back-row hidden v2:block"><a [^>]*data-align="back"[^>]*class="page-back/);
     expect(html.indexOf('data-align="back"')).toBeLessThan(html.indexOf("<h1"));
     expect(html).toMatch(/data-align="desc" class="hidden v2:mt-1 v2:flex/);
   });

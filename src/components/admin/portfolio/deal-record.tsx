@@ -2,9 +2,11 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Link2, Link2Off, MoreHorizontal, Plus } from "lucide-react";
+import { ExternalLink, Link2, Link2Off, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/layout/page-header";
+import { DetailMenu } from "@/components/layout/page-header-menu";
 
 interface Props {
   name: string;
@@ -42,29 +44,26 @@ export function DealRecord({ name, country, latestValuation, linked, onNewRound,
     ),
   });
 
+  const newRound = (
+    <Button variant="primary" onClick={onNewRound}>
+      <Plus className="h-4 w-4" />
+      New round
+    </Button>
+  );
+
   return (
     // The page is AppShell width="detail": the shared page frame gives the padding and the width.
     <div className="dl-dossier">
-      <div className="mb-6 flex h-9 items-center gap-2">
-        <Link
-          href="/admin/portfolio"
-          className="inline-flex h-9 items-center gap-1.5 rounded-ctl pr-2 text-meta text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-          Deal Ledger
-        </Link>
-        <span className="flex-1" />
-        <Button variant="primary" onClick={onNewRound}>
-          <Plus className="h-4 w-4" />
-          New round
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="secondary" size="icon" aria-label="More actions">
-              <MoreHorizontal aria-hidden className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+      {/* Page types v1, Detail: back above the title, the actions on the title row. */}
+      <PageHeader
+        type="detail"
+        back={{ href: "/admin/portfolio", label: "Deal Ledger" }}
+        title={name}
+        condensedAction={newRound}
+        action={
+          <div className="flex items-center gap-2">
+            {newRound}
+            <DetailMenu>
             {linked ? (
               <>
                 <DropdownMenuItem asChild>
@@ -84,13 +83,10 @@ export function DealRecord({ name, country, latestValuation, linked, onNewRound,
                 Link to a Molly account…
               </DropdownMenuItem>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <header className="mb-6">
-        <h1 className="break-words font-sans text-title font-semibold text-foreground">{name}</h1>
-      </header>
+            </DetailMenu>
+          </div>
+        }
+      />
 
       {notices && <div className="mb-6">{notices}</div>}
 

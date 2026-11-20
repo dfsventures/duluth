@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, ChevronLeft, MoreHorizontal, Send, CheckCircle2, Clock, AlertCircle,
+  ArrowLeft, ChevronLeft, Send, CheckCircle2, Clock, AlertCircle,
   Loader2, Pencil, Trash2, X, Plus, Save,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { CondensedBar } from "@/components/layout/condensed-bar";
+import { DetailMenu } from "@/components/layout/page-header-menu";
 import { useNewLook } from "@/lib/use-new-look";
 import { cn, formatDate } from "@/lib/utils";
 import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD, EDITOR_TITLE } from "@/lib/editor-styles";
@@ -230,29 +232,48 @@ export default function DigestDetailPage() {
     <AppShell width="narrow">
       {/* New look (audit #46): the Record header. Back link, title, a status line, and the actions at the top
           right: the primary and a ⋯ menu that holds Edit and Delete, so the row never wraps. */}
+      {/* Page types v1, Detail: the shared header geometry (drawn here because the title turns into an input while editing). */}
+      {newLook && !editing && (
+        <CondensedBar
+          headId="digest-head"
+          title={digest.title}
+          back={{ href: "/admin/digest", label: "All digests" }}
+          action={
+            isEditWindow && !confirmDelete ? (
+              <Button onClick={handleSend} disabled={sending}>
+                {sending ? "Sending…" : digest.sentAt ? "Resend" : "Send to team"}
+              </Button>
+            ) : null
+          }
+        />
+      )}
       {newLook && (
-        <div className="mb-6 flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <Link href="/admin/digest" className="mb-2 inline-flex items-center gap-1 text-row text-muted-foreground hover:text-foreground">
+        <div id="digest-head" data-page-head="" data-type="detail" className="page-head mb-8 flex flex-wrap items-start justify-between gap-x-4">
+          <div className="page-back-row">
+            <Link href="/admin/digest" data-align="back" className="page-back focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <ChevronLeft aria-hidden="true" className="h-4 w-4" />
               All digests
             </Link>
+          </div>
+          <div className="min-w-0 flex-1">
             {editing ? (
               <input className="input-field w-full" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} aria-label="Title" />
             ) : (
-              <h1 className="break-words text-title font-semibold tracking-normal text-foreground">{digest.title}</h1>
+              <h1 data-align="title" className="min-h-9 break-words py-0.5 font-sans text-page-title font-semibold text-foreground max-md:min-h-0 max-md:py-1 max-md:text-pane-title">
+                {digest.title}
+              </h1>
             )}
             {editing ? (
               <input type="date" className="input-field mt-2 text-sm" value={editWeekOf} onChange={(e) => setEditWeekOf(e.target.value)} aria-label="Week of" />
             ) : (
-              <p className="mt-1 flex flex-wrap items-center gap-x-2 text-meta text-muted-foreground">
+              <p data-align="desc" className="mt-1 flex flex-wrap items-center gap-x-2 text-row text-secondary">
                 <Badge variant={digest.sentAt ? "success" : "warning"}>{digest.sentAt ? `Sent ${formatDate(digest.sentAt)}` : "Draft"}</Badge>
-                <span aria-hidden="true">·</span>
+                <span aria-hidden="true" className="text-muted-foreground">·</span>
                 <span>Week of {formatDate(digest.weekOf)}</span>
               </p>
             )}
           </div>
-          <div className="flex flex-none flex-wrap items-center justify-end gap-2">
+          <div data-align="actions" className="flex flex-none flex-wrap items-center justify-end gap-2">
             {editing ? (
               <>
                 <Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
@@ -274,13 +295,7 @@ export default function DigestDetailPage() {
                   </Button>
                 )}
                 {(isEditWindow || isDraft) && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="secondary" size="icon" aria-label="More actions">
-                        <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                  <DetailMenu>
                       {isEditWindow && (
                         <DropdownMenuItem onSelect={startEditing}>
                           <Pencil aria-hidden className="h-3.5 w-3.5" />
@@ -293,8 +308,7 @@ export default function DigestDetailPage() {
                           Delete
                         </DropdownMenuItem>
                       )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  </DetailMenu>
                 )}
               </>
             )}
