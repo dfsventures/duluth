@@ -405,6 +405,11 @@ html[data-look="v2"] [data-surface="admin"] [data-condensed-slot] {
   margin-top: calc(var(--shell-pt, 0px) * -1);
   margin-bottom: var(--shell-pt, 0px);
 }
+/* On an editor page the slot's margins would collapse with the editor bar's pull-up and leave the
+   bar 40px down; the bar sits at the very top (page types v1, §4.3), so the slot gives none back. */
+html[data-look="v2"] [data-surface="admin"] [data-condensed-slot]:has(+ .shell-header) {
+  margin-bottom: 0;
+}
 html[data-look="v2"] [data-surface="admin"] .condensed-bar {
   position: absolute;
   top: 0;

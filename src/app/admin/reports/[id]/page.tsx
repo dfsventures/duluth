@@ -367,7 +367,8 @@ export default function AdminReportEditorPage() {
             placeholder="Title"
             aria-label="Title"
             disabled={!isDraft}
-            className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title")}
+            data-align="title"
+            className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-doc-title v2:disabled:opacity-100")}
           />
           <input
             value={periodLabel}
@@ -375,7 +376,8 @@ export default function AdminReportEditorPage() {
             placeholder="Period label (e.g. H1 2026)"
             aria-label="Period label"
             disabled={!isDraft}
-            className="mt-2 w-64 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 v2:font-sans v2:text-row"
+            data-align="desc"
+            className="mt-2 w-64 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 v2:font-sans v2:text-row v2:text-secondary"
           />
         </div>
 

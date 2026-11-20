@@ -23,4 +23,4 @@ export const segmentClass = (on: boolean) =>
     : "bg-transparent font-normal text-secondary";
 
 /** A title input or page title in sans at the record-title size. */
-export const EDITOR_TITLE = "v2:font-sans v2:text-title v2:font-semibold v2:tracking-normal";
+export const EDITOR_TITLE = "v2:font-sans v2:text-doc-title";

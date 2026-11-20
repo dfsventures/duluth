@@ -21,7 +21,8 @@ interface ComposerTopBarProps {
   /** Extra buttons rendered before Publish — e.g. "Save as Draft", "Cancel". */
   secondaryActions?: React.ReactNode;
   publishLabel?: string;
-  onPublishClick: () => void;
+  /** Optional only for a bar with showPublish={false} (a server page can't pass a handler). */
+  onPublishClick?: () => void;
   publishDisabled?: boolean;
   publishing?: boolean;
   overflowItems?: ComposerOverflowItem[];
@@ -33,6 +34,8 @@ interface ComposerTopBarProps {
   statusExtra?: React.ReactNode;
   /** Why the primary is disabled: a tooltip on the button (the page may also show it as a quiet line). */
   disabledReason?: string;
+  /** The bar is drawn only under the new look (a page that had no bar in the old look). */
+  newLookOnly?: boolean;
 }
 
 /**
@@ -53,6 +56,7 @@ export function ComposerTopBar({
   back,
   statusExtra,
   disabledReason,
+  newLookOnly,
 }: ComposerTopBarProps) {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const overflowRef = useRef<HTMLDivElement>(null);
@@ -75,7 +79,7 @@ export function ComposerTopBar({
     // Same rhythm as PageHeader: the bar's height, padding and bottom margin come from .shell-header alone.
     // Page types v1 (§4.3, §5): one text size (14/20), items centred on one line (not baselines), a
     // 1x16 divider after the back link, buttons 32. The status truncates; the buttons never wrap.
-    <div className="shell-header editor-bar mb-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b pb-4 v2:pb-0">
+    <div className={`shell-header editor-bar mb-6 ${newLookOnly ? "hidden v2:flex" : "flex"} flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b pb-4 v2:pb-0`}>
       <div className="flex min-w-0 flex-wrap items-baseline gap-3 font-mono text-xs uppercase tracking-[0.08em] text-muted-foreground v2:flex-1 v2:flex-nowrap v2:items-center v2:font-sans v2:text-row v2:normal-case v2:tracking-normal">
         {back && (
           <>

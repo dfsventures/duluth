@@ -126,7 +126,11 @@ const MEASURE_JS = `(() => {
       if (r.height > 0 && r.top > title.bottom && r.bottom <= thead.top) section = true;
     }
   }
-  const shape = [back ? "back" : "", desc ? "desc" : "", tabs ? "tabs" : "", stats ? "stats" : "", filters ? "filt" : "", section ? "h2" : ""].filter(Boolean).join("+") || "plain";
+  // Editors: a document title field (28/36 input, meta 8 under) and a form heading (24/32 h1, description
+  // 4 under) are two variants of the type (page types v1, §4.3), so their description lines sit apart.
+  const titleEl = document.querySelector('main [data-align="title"]');
+  const doc = !!titleEl && (titleEl.tagName === "INPUT" || titleEl.tagName === "TEXTAREA");
+  const shape = [doc ? "doc" : "", back ? "back" : "", desc ? "desc" : "", tabs ? "tabs" : "", stats ? "stats" : "", filters ? "filt" : "", section ? "h2" : ""].filter(Boolean).join("+") || "plain";
   return { m, shape };
 })()`;
 

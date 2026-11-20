@@ -119,7 +119,8 @@ function GrowTitle({ value, onChange }: { value: string; onChange: (v: string) =
       }}
       placeholder="Subject"
       aria-label="Subject"
-      className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-title font-semibold tracking-normal text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0"
+      data-align="title"
+      className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 font-sans text-doc-title text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0"
     />
   );
 }

@@ -48,7 +48,8 @@ describe("composer title field", () => {
     expect(html).toContain("font-display text-3xl");
     expect(html).toContain("font-mono text-sm");
     expect(html).toContain("v2:font-sans");
-    expect(html).toContain("v2:text-title");
+    // Page types v1 (D18): the document title is 28/36 under the new look.
+    expect(html).toContain("v2:text-doc-title");
   });
 });
 

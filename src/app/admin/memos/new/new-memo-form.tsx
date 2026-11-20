@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -53,15 +54,27 @@ export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
     <AppShell width="narrow">
       {/* New look (audit #8): the Form header replaces the breadcrumb row. */}
       {!newLook && <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "New memo" }]} />}
+      {/* New look (page types v1, §4.3 form variant): the editor bar holds the way back and the actions. */}
+      <ComposerTopBar
+        newLookOnly
+        back={{ href: "/admin/memos", label: "Memos" }}
+        draftLabel="Not saved yet"
+        showPublish={false}
+        secondaryActions={
+          <>
+            <Button type="button" variant="ghost" size="sm" onClick={() => router.push("/admin/memos")}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" form="new-memo-form" loading={saving} disabled={!title.trim()}>
+              Create memo
+            </Button>
+          </>
+        }
+      />
       <PageHeader
+        type="form"
         title="New memo"
         description="Starts as a private draft with the house sections. Nobody else can see it until you share it."
-        back={{ href: "/admin/memos", label: "Memos" }}
-        action={
-          <Button type="submit" form="new-memo-form" loading={saving} disabled={!title.trim()} className="hidden v2:inline-flex">
-            Create memo
-          </Button>
-        }
       />
       <Card className={cn("max-w-xl", EDITOR_COLUMN, EDITOR_SECTION_CARD)}>
         <form id="new-memo-form" onSubmit={submit} className="space-y-4">

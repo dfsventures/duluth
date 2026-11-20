@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -73,8 +74,20 @@ export default function TemplateEditor({ version, sections }: { version: number;
     <AppShell width="narrow">
       {/* New look (audit #8): the Form header replaces the breadcrumb row. */}
       {!newLook && <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "Memo template" }]} />}
-      <PageHeader
+      {/* New look (page types v1, §4.3 form variant): the editor bar holds the way back and the action. */}
+      <ComposerTopBar
+        newLookOnly
         back={{ href: "/admin/memos", label: "Memos" }}
+        draftLabel={`Version ${version}`}
+        showPublish={false}
+        secondaryActions={
+          <Button size="sm" onClick={save} loading={saving} disabled={rows.length === 0 || rows.some((r) => !r.title.trim())}>
+            Save as new version
+          </Button>
+        }
+      />
+      <PageHeader
+        type="form"
         title="Memo template"
         description={`Version ${version}. The sections every new memo starts with.`}
         action={

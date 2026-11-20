@@ -35,8 +35,13 @@ interface PageHeaderProps {
   back?: { href: string; label: string };
   /** The header is drawn only under the new look (a page that had no header in the old look). */
   newLookOnly?: boolean;
-  /** Page type (page types v1): a Detail header has 32px under it (a List header 24). */
-  type?: "list" | "detail";
+  /**
+   * Page type (page types v1): a Detail header has 32px under it (a List header 24). A Form header
+   * (§4.3, form variant) sits under the page's editor bar (ComposerTopBar), which holds the back link and
+   * the actions under the new look: so no back line, no slim scroll bar, and `action` is drawn in the old
+   * look only. 32px under it.
+   */
+  type?: "list" | "detail" | "form";
 }
 
 /** A Detail status line's items, split by a muted " · " (page types v1, §4.2). Empty items are skipped. */
@@ -82,20 +87,23 @@ export function PageHeader({
   type = "list",
 }: PageHeaderProps) {
   const folded = !!secondaryActions?.length;
+  const form = type === "form";
   const id = headId(title);
   return (
     <>
-      <CondensedBar headId={id} title={title} back={back} action={condensedAction === undefined ? action : condensedAction} />
+      {!form && (
+        <CondensedBar headId={id} title={title} back={back} action={condensedAction === undefined ? action : condensedAction} />
+      )}
       {/* Stacks on phones (buttons drop below the title instead of pushing off-screen); side-by-side from sm: up. */}
       <div
         id={id}
         data-page-head=""
         data-type={type}
-        className={`page-head mb-8 ${newLookOnly ? "hidden v2:flex" : "flex"} flex-col gap-4 sm:flex-row sm:items-start sm:justify-between ${type === "detail" ? "v2:mb-8" : "v2:mb-6"} v2:flex-row v2:items-start v2:justify-between v2:gap-x-4 v2:gap-y-0 ${
+        className={`page-head mb-8 ${newLookOnly ? "hidden v2:flex" : "flex"} flex-col gap-4 sm:flex-row sm:items-start sm:justify-between ${type === "list" ? "v2:mb-6" : "v2:mb-8"} v2:flex-row v2:items-start v2:justify-between v2:gap-x-4 v2:gap-y-0 ${
           folded && !back ? "v2:flex-nowrap" : "v2:flex-wrap"
         }`}
       >
-        {back && (
+        {back && !form && (
           <div className="page-back-row hidden v2:block">
             <Link
               href={back.href}
@@ -137,8 +145,8 @@ export function PageHeader({
             // New look, phones: the actions take their own line under the title and wrap, instead of
             // running off the screen.
             <div
-              data-align="actions"
-              className="shrink-0 max-sm:v2:mt-4 max-sm:v2:w-full max-sm:v2:shrink max-sm:v2:[&>*]:flex-wrap"
+              data-align={form ? undefined : "actions"}
+              className={`shrink-0 ${form ? "v2:hidden " : ""}max-sm:v2:mt-4 max-sm:v2:w-full max-sm:v2:shrink max-sm:v2:[&>*]:flex-wrap`}
             >
               {action}
             </div>

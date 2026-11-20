@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Sparkles, Loader2, Plus, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { noticeClasses } from "@/components/ui/notice";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -195,7 +196,32 @@ export default function NewDigestPage() {
   return (
     <AppShell width="narrow">
       {/* New look (audit #8): the Form header. The old heading block below is not drawn. */}
-      <PageHeader newLookOnly back={{ href: "/admin/digest", label: "All digests" }} title="New weekly digest" />
+      {/* Page types v1 (§4.3 form variant): the editor bar holds the way back and each step's actions. */}
+      <ComposerTopBar
+        newLookOnly
+        back={{ href: "/admin/digest", label: "All digests" }}
+        draftLabel="Not saved yet"
+        showPublish={false}
+        secondaryActions={
+          step === "paste" ? (
+            <Button size="sm" onClick={handleGenerate} disabled={generating || !notes.trim()}>
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              {generating ? "Generating…" : "Generate digest"}
+            </Button>
+          ) : (
+            <>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setStep("paste")}>
+                Back to notes
+              </Button>
+              <Button size="sm" onClick={handleSave} disabled={saving || !title.trim()}>
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {saving ? "Saving…" : "Save draft"}
+              </Button>
+            </>
+          )
+        }
+      />
+      <PageHeader newLookOnly type="form" title="New weekly digest" />
       <div className="mb-6 flex items-center justify-between gap-4 v2:hidden">
         <div>
           <Link
@@ -229,14 +255,15 @@ export default function NewDigestPage() {
               <p className="text-sm text-destructive">{generateError}</p>
             )}
 
-            <div className="flex items-center justify-end gap-3">
+            {/* New look: the button lives in the editor bar; only the hint stays here. */}
+            <div className="flex items-center justify-end gap-3 v2:justify-start">
               {!notes.trim() && !generating && (
                 <p className="hidden text-meta text-muted-foreground v2:block">Paste at least one link or some notes.</p>
               )}
               <Button
                 onClick={handleGenerate}
                 disabled={generating || !notes.trim()}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 v2:hidden"
               >
                 {generating ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -416,7 +443,8 @@ export default function NewDigestPage() {
             <p className="text-sm text-destructive">{saveError}</p>
           )}
 
-          <div className="flex items-center justify-between gap-4 pb-8">
+          {/* New look: these two live in the editor bar. */}
+          <div className="flex items-center justify-between gap-4 pb-8 v2:hidden">
             <Button variant="secondary" onClick={() => setStep("paste")}>
               ← Back to notes
             </Button>

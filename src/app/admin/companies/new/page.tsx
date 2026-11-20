@@ -8,6 +8,7 @@ import { cn, normalizeUrl } from "@/lib/utils";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
+import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -114,21 +115,33 @@ export default function NewCompanyPage() {
 
   return (
     <AppShell width="narrow">
-      <PageHeader
-        title="Add company"
-        description="Manually create a new portfolio company."
-        // New look (audit #8): the Form header. A quiet back link before the title and the one primary on the right.
+      {/* New look (page types v1, §4.3 form variant): the editor bar holds the way back and the actions;
+          the heading opens the content. */}
+      <ComposerTopBar
+        newLookOnly
         back={{ href: "/admin/companies", label: "Companies" }}
-        action={
+        draftLabel="Not saved yet"
+        showPublish={false}
+        secondaryActions={
           <>
-            <Button variant="ghost" className="v2:hidden" onClick={() => router.push("/admin/companies")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Companies
+            <Button type="button" variant="ghost" size="sm" onClick={() => router.push("/admin/companies")}>
+              Cancel
             </Button>
-            <Button type="submit" form="add-company-form" disabled={saving} className="hidden v2:inline-flex">
+            <Button type="submit" size="sm" form="add-company-form" disabled={saving}>
               {saving ? "Creating..." : "Create company"}
             </Button>
           </>
+        }
+      />
+      <PageHeader
+        type="form"
+        title="Add company"
+        description="Manually create a new portfolio company."
+        action={
+          <Button variant="ghost" onClick={() => router.push("/admin/companies")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Companies
+          </Button>
         }
       />
 
