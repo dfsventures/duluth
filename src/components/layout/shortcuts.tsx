@@ -141,7 +141,7 @@ export function Shortcuts() {
             <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
               {gotoRows.map((p) => (
                 <li key={p.href} className="flex items-center justify-between gap-3">
-                  <span>{p.label}</span>
+                  <span>{newLook && p.labelV2 ? p.labelV2 : p.label}</span>
                   <Keys keys={["g", p.goto!]} />
                 </li>
               ))}
