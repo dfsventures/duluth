@@ -4,17 +4,34 @@
 // Logic lives in lib/shortcuts.ts (pure, tested); this only wires DOM events.
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { ALL_ADMIN_PAGES } from "@/lib/admin-nav";
 import {
+  EXPAND_RETURN_KEY,
+  expandReturnHref,
+  FILTER_PREFIX,
   isPaletteShortcut,
+  isTopEscLayer,
   isTypingTarget,
-  SHORTCUT_HELP,
+  parseExpandReturn,
+  readEscLayers,
+  shortcutHelpRows,
   stepShortcut,
   type GotoState,
 } from "@/lib/shortcuts";
-import { openCommandPalette } from "./command-palette";
+import { escapeBelongsToField } from "@/lib/split-view";
+import { useNewLook } from "@/lib/use-new-look";
+import { FILTERABLE_LIST_SELECTOR } from "@/lib/command-palette";
+import { openCommandPalette, openCommandPaletteWith } from "./command-palette";
+
+function readExpandReturn() {
+  try {
+    return parseExpandReturn(window.sessionStorage.getItem(EXPAND_RETURN_KEY));
+  } catch {
+    return null;
+  }
+}
 
 function Keys({ keys }: { keys: string[] }) {
   return (
@@ -33,8 +50,12 @@ function Keys({ keys }: { keys: string[] }) {
 
 export function Shortcuts() {
   const router = useRouter();
+  const pathname = usePathname();
+  const newLook = useNewLook();
   const [helpOpen, setHelpOpen] = useState(false);
   const state = useRef<GotoState>({ armedAt: null });
+  const live = useRef({ newLook, pathname });
+  live.current = { newLook, pathname };
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -44,6 +65,25 @@ export function Shortcuts() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      const { newLook: v2, pathname: path } = live.current;
+      // New look: Esc on a full page opened from a pane goes back to the list with that pane
+      // open, once nothing above it (palette, menu, drawer) is open. A text field keeps its Esc.
+      // Only the new-look pane (and its `o` key) writes the return entry, so this needs no look
+      // check of its own, and it also works on /updates/[id], which sits outside /admin.
+      if (e.key === "Escape") {
+        if (escapeBelongsToField(document.activeElement)) return;
+        if (!isTopEscLayer("full-page", readEscLayers(document))) return;
+        const back = expandReturnHref(readExpandReturn(), path);
+        if (!back) return;
+        e.preventDefault();
+        try {
+          window.sessionStorage.removeItem(EXPAND_RETURN_KEY);
+        } catch {
+          // Storage blocked: going back still works.
+        }
+        router.push(back);
+        return;
+      }
       if (isTypingTarget(document.activeElement)) return;
       const step = stepShortcut(state.current, e.key, Date.now());
       state.current = step.state;
@@ -53,13 +93,32 @@ export function Shortcuts() {
       } else if (step.result.type === "help") {
         e.preventDefault();
         setHelpOpen(true);
+      } else if (step.result.type === "filter") {
+        // Only under the new look, and only where there is a list to filter.
+        if (!v2 || !document.querySelector(FILTERABLE_LIST_SELECTOR)) return;
+        e.preventDefault();
+        openCommandPaletteWith(FILTER_PREFIX);
       }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [router]);
 
+  // The return entry only lasts while you stay on that full page: going anywhere else drops it,
+  // so a later visit to the same page by another route does not "go back" to an old list.
+  useEffect(() => {
+    const entry = readExpandReturn();
+    if (entry && !expandReturnHref(entry, pathname)) {
+      try {
+        window.sessionStorage.removeItem(EXPAND_RETURN_KEY);
+      } catch {
+        // Storage blocked: nothing stored either.
+      }
+    }
+  }, [pathname]);
+
   const gotoRows = ALL_ADMIN_PAGES.filter((p) => p.goto);
+  const helpRows = shortcutHelpRows(newLook);
 
   return (
     <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
@@ -67,7 +126,7 @@ export function Shortcuts() {
         <DialogBody className="space-y-5">
           <section aria-label="General">
             <ul className="space-y-2 text-sm">
-              {SHORTCUT_HELP.map((row) => (
+              {helpRows.map((row) => (
                 <li key={row.label} className="flex items-center justify-between gap-4">
                   <span>{row.label}</span>
                   <Keys keys={row.keys} />

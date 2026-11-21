@@ -24,7 +24,58 @@ export interface PaletteItem {
   href: string;
   keywords: string[];
   /** Set on items that do something in place instead of navigating (href is then empty). */
-  action?: "toggle-look" | "toggle-theme";
+  action?: "toggle-look" | "toggle-theme" | "filter-list" | "prefill-filter" | "open-pane";
+  /** filter-list: the text to filter the page's list by ("" clears it). */
+  filterText?: string;
+  /** open-pane: the record to open in the page's pane (?open=<id>). */
+  openId?: string;
+}
+
+/** Sent to the page's list (DataTable) by "Filter: …" in the palette. detail: { text }. */
+export const FILTER_LIST_EVENT = "molly:filter-list";
+/** A list that can take FILTER_LIST_EVENT (new look, with its search box showing). */
+export const FILTERABLE_LIST_SELECTOR = "[data-datatable][data-filterable]";
+
+/** The text after "Filter:" when the query starts with it, else null. */
+export function parseFilterQuery(query: string): string | null {
+  const m = /^\s*filter:\s?(.*)$/i.exec(query);
+  return m ? m[1].trim() : null;
+}
+
+/**
+ * "Filter: …" on the current list (PLAN-1, WS164; new look only, and only when the page has a
+ * list with a search box). A query starting "Filter:" offers one item that filters the list by
+ * the rest of it; otherwise a "Filter this list" action that puts "Filter: " in the box.
+ * The raw query is a keyword so cmdk always keeps the item.
+ */
+export function filterListItems(query: string, hasList: boolean): PaletteItem[] {
+  if (!hasList) return [];
+  const term = parseFilterQuery(query);
+  if (term === null) {
+    return [
+      {
+        id: "action:filter-list",
+        group: "Actions",
+        label: "Filter this list",
+        hint: "F",
+        href: "",
+        keywords: ["filter", "search", "find"],
+        action: "prefill-filter",
+      },
+    ];
+  }
+  return [
+    {
+      id: "action:filter-list-by",
+      group: "Actions",
+      label: term ? `Filter this list: “${term}”` : "Filter this list: type what to look for",
+      hint: "Action",
+      href: "",
+      keywords: [query],
+      action: "filter-list",
+      filterText: term,
+    },
+  ];
 }
 
 /** The new-look switch and, once it is on, the light/dark item (PLAN-1, WS156). */
@@ -56,8 +107,17 @@ export function lookActionItems(look: "v1" | "v2", theme: "light" | "dark"): Pal
 
 export const GROUP_ORDER: PaletteGroup[] = ["Go to", "Actions", "Companies", "Funds", "Deals", "LPs"];
 
-export function buildPaletteItems(index: SearchIndex | null, look: "v1" | "v2" = "v1"): PaletteItem[] {
+/** The page whose company rows open in a pane under the new look. */
+export const COMPANIES_PATH = "/admin/companies";
+
+export function buildPaletteItems(
+  index: SearchIndex | null,
+  look: "v1" | "v2" = "v1",
+  pathname: string | null = null
+): PaletteItem[] {
   const ix = index ?? EMPTY_INDEX;
+  // New look, on Companies: a company opens in the pane beside the list instead of its page.
+  const companyInPane = look === "v2" && pathname === COMPANIES_PATH;
   const items: PaletteItem[] = [];
 
   for (const p of ALL_ADMIN_PAGES) {
@@ -73,7 +133,20 @@ export function buildPaletteItems(index: SearchIndex | null, look: "v1" | "v2" =
     keywords: ["new", "create"],
   });
   for (const c of ix.companies) {
-    items.push({ id: `company:${c.id}`, group: "Companies", label: c.name, hint: "Company", href: `/admin/companies/${c.id}`, keywords: [] });
+    if (companyInPane) {
+      items.push({
+        id: `company:${c.id}`,
+        group: "Companies",
+        label: `Open ${c.name}`,
+        hint: "Pane",
+        href: "",
+        keywords: [c.name],
+        action: "open-pane",
+        openId: c.id,
+      });
+    } else {
+      items.push({ id: `company:${c.id}`, group: "Companies", label: c.name, hint: "Company", href: `/admin/companies/${c.id}`, keywords: [] });
+    }
   }
   for (const f of ix.funds) {
     items.push({ id: `fund:${f.id}`, group: "Funds", label: f.name, hint: "Fund", href: `/admin/funds/${f.id}`, keywords: [] });

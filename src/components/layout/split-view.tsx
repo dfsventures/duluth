@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useNewLook } from "@/lib/use-new-look";
 import { buildOpenQuery, escapeBelongsToField, parseOpenParam } from "@/lib/split-view";
+import { isTopEscLayer, readEscLayers } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
 
 /**
@@ -80,6 +81,8 @@ export function SplitView({ list, pane, open, onClose, paneLabel }: SplitViewPro
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       if (escapeBelongsToField(e.target as HTMLElement | null)) return;
+      // The phone drawer (or any other layer above the pane) closes first (PLAN-1, WS164).
+      if (!isTopEscLayer("pane", readEscLayers(document))) return;
       e.preventDefault();
       onClose();
     }

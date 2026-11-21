@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronUp, Maximize2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { rememberExpandReturn } from "@/lib/shortcuts";
 
 // Detail pane (PLAN-1, WS160, pattern 10). A fixed order: a crumb bar (place and position,
 // previous / next, open full page, close), then the title, the property chips, the one thing to
@@ -49,7 +50,13 @@ export function DetailPane({ crumb, title, mark, chips, card, onPrev, onNext, on
           <ChevronDown aria-hidden="true" className="h-4 w-4" />
         </button>
         {expandHref && (
-          <Link href={expandHref} aria-label="Open full page" className={ICON_BTN}>
+          <Link
+            href={expandHref}
+            aria-label="Open full page"
+            className={ICON_BTN}
+            // Esc on the full page comes back here, with this record still open (PLAN-1, WS164).
+            onClick={() => rememberExpandReturn(expandHref)}
+          >
             <Maximize2 aria-hidden="true" className="h-4 w-4" />
           </Link>
         )}

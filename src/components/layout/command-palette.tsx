@@ -4,19 +4,24 @@
 // the matching, listbox semantics and arrow-key movement; the name index comes
 // from GET /api/admin/search the first time it opens.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { Search } from "lucide-react";
 import {
   buildPaletteItems,
+  FILTER_LIST_EVENT,
+  FILTERABLE_LIST_SELECTOR,
+  filterListItems,
   GROUP_ORDER,
   lookActionItems,
   newUpdateItems,
   type PaletteItem,
   type SearchIndex,
 } from "@/lib/command-palette";
+import { buildOpenQuery } from "@/lib/split-view";
+import { FILTER_PREFIX } from "@/lib/shortcuts";
 
 import { useLook } from "@/lib/use-look";
 import { usePaletteKey } from "@/lib/use-palette-key";
@@ -27,26 +32,40 @@ export function openCommandPalette() {
   window.dispatchEvent(new Event(OPEN_PALETTE_EVENT));
 }
 
+/** Opens the palette with `text` already in the box (`f` passes "Filter: "). */
+export function openCommandPaletteWith(text: string) {
+  window.dispatchEvent(new CustomEvent(OPEN_PALETTE_EVENT, { detail: { prefill: text } }));
+}
+
 // Module cache so reopening is instant; refreshed after a minute.
 let cached: { at: number; index: SearchIndex } | null = null;
 const CACHE_MS = 60_000;
 
 export function CommandPalette() {
   const router = useRouter();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState<SearchIndex | null>(cached?.index ?? null);
   const [failed, setFailed] = useState(false);
+  // Whether the page behind has a list "Filter: …" can act on; read each time the palette opens.
+  const [hasList, setHasList] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<{ prefill?: string } | undefined>).detail;
+      // Set before the box mounts, so it opens with the text in it ("" for a plain open).
+      setQuery(typeof detail?.prefill === "string" ? detail.prefill : "");
+      setHasList(Boolean(document.querySelector(FILTERABLE_LIST_SELECTOR)));
+      setOpen(true);
+    };
     window.addEventListener(OPEN_PALETTE_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PALETTE_EVENT, onOpen);
   }, []);
 
   useEffect(() => {
     if (!open) return;
-    setQuery("");
     if (cached && Date.now() - cached.at < CACHE_MS) {
       setIndex(cached.index);
       return;
@@ -72,18 +91,35 @@ export function CommandPalette() {
   const paletteKey = usePaletteKey();
 
   const items = useMemo(
-    () => [...buildPaletteItems(index, look), ...lookActionItems(look, theme), ...newUpdateItems(index, query)],
-    [index, query, look, theme]
+    () => [
+      ...buildPaletteItems(index, look, pathname),
+      ...lookActionItems(look, theme),
+      // "Filter: …" is a new-look action (PLAN-1, WS164).
+      ...(look === "v2" ? filterListItems(query, hasList) : []),
+      ...newUpdateItems(index, query),
+    ],
+    [index, query, look, theme, pathname, hasList]
   );
 
   const go = useCallback(
     (item: PaletteItem) => {
+      // Stays open: puts "Filter: " in the box so the next words filter the list.
+      if (item.action === "prefill-filter") return setQuery(FILTER_PREFIX);
       setOpen(false);
       if (item.action === "toggle-look") return toggleLook();
       if (item.action === "toggle-theme") return toggleTheme();
+      if (item.action === "filter-list") {
+        window.dispatchEvent(new CustomEvent(FILTER_LIST_EVENT, { detail: { text: item.filterText ?? "" } }));
+        return;
+      }
+      if (item.action === "open-pane" && item.openId) {
+        // Same as clicking the row: ?open=<id> on this page, keeping its search, filter and sort.
+        router.replace(`${pathname}${buildOpenQuery(new URLSearchParams(window.location.search), item.openId)}`, { scroll: false });
+        return;
+      }
       router.push(item.href);
     },
-    [router, toggleLook, toggleTheme]
+    [router, pathname, toggleLook, toggleTheme]
   );
 
   return (
@@ -91,7 +127,17 @@ export function CommandPalette() {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 flex items-start justify-center bg-[color:var(--scrim)] px-4 pt-[12vh] v2:pt-24 data-[state=open]:animate-overlay-in data-[state=closed]:animate-overlay-out">
           <DialogPrimitive.Content
+            data-palette=""
             aria-describedby={undefined}
+            // Radix would focus the box with its text selected, so "Filter: " (from `f`) would be
+            // replaced by the first key typed. Focus it with the caret at the end instead.
+            onOpenAutoFocus={(e) => {
+              const el = inputRef.current;
+              if (!el) return;
+              e.preventDefault();
+              el.focus();
+              el.setSelectionRange(el.value.length, el.value.length);
+            }}
             className="w-full max-w-[520px] border border-border bg-card shadow-float data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out v2:max-w-[560px] v2:rounded-float v2:bg-pane v2:data-[state=open]:[animation-duration:160ms]"
           >
             <DialogPrimitive.Title className="sr-only">Search and jump to anything</DialogPrimitive.Title>
@@ -99,6 +145,7 @@ export function CommandPalette() {
               <div className="flex items-center gap-2 border-b border-border px-4">
                 <Search aria-hidden="true" className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <Command.Input
+                  ref={inputRef}
                   value={query}
                   onValueChange={setQuery}
                   placeholder="Jump to a company, fund, page or action"

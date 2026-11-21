@@ -17,9 +17,10 @@ import { AlertCircle, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Colu
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
-import { isTypingTarget } from "@/lib/shortcuts";
+import { isTopEscLayer, isTypingTarget, readEscLayers, rememberExpandReturn } from "@/lib/shortcuts";
+import { FILTER_LIST_EVENT, FILTERABLE_LIST_SELECTOR } from "@/lib/command-palette";
 import { useNewLook } from "@/lib/use-new-look";
-import { stepCursor } from "@/lib/split-view";
+import { escapeBelongsToField, stepCursor } from "@/lib/split-view";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { csvFilename, downloadCsv, toCsv, type CsvCell } from "@/lib/csv-export";
@@ -346,6 +347,41 @@ function DataTableInner<T>({
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  // New look (PLAN-1, WS164). "Filter: …" in the palette lands in the first list on the page
+  // that shows its search box; and Esc, when nothing above it is open (palette, menu, drawer,
+  // full page, pane), clears this list's search and chip. The latest state is read through a ref.
+  const filterLive = useRef({ v2, filtersActive: false, clear: () => {} });
+  useEffect(() => {
+    if (!v2) return;
+    function isFirstFilterable() {
+      return Boolean(wrapRef.current) && document.querySelector(FILTERABLE_LIST_SELECTOR) === wrapRef.current;
+    }
+    function onFilter(e: Event) {
+      if (!isFirstFilterable()) return;
+      const text = (e as CustomEvent<{ text?: string } | undefined>).detail?.text ?? "";
+      setQInput(text);
+      // The palette hands focus back as it closes; put it in the search box afterwards.
+      window.setTimeout(() => searchRef.current?.focus(), 0);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Escape" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      const L = filterLive.current;
+      if (!L.v2 || !L.filtersActive) return;
+      if (!wrapRef.current || wrapRef.current.offsetParent === null) return;
+      // The search box has its own Esc (clear, then leave the box).
+      if (escapeBelongsToField(document.activeElement)) return;
+      if (!isTopEscLayer("filters", readEscLayers(document))) return;
+      e.preventDefault();
+      L.clear();
+    }
+    window.addEventListener(FILTER_LIST_EVENT, onFilter);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener(FILTER_LIST_EVENT, onFilter);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [v2]);
+
   // j / k move through rows, Enter opens one (spec 6.9). Works when focus is in
   // this table, or on the page body for the first table on the page.
   useEffect(() => {
@@ -386,6 +422,8 @@ function DataTableInner<T>({
           const href = target ? L.rowHref?.(target) : undefined;
           if (!href) return;
           e.preventDefault();
+          // Esc on the full page comes back to this list with the record open (PLAN-1, WS164).
+          rememberExpandReturn(href, L.rowKey(target));
           L.router.push(href);
           return;
         }
@@ -525,6 +563,7 @@ function DataTableInner<T>({
       (tableId && hideableCols.length > 0)
   );
   const filtersActive = state.q.trim() !== "" || state.filter !== "all";
+  filterLive.current = { v2, filtersActive, clear: clearFilters };
 
   if (loading) {
     return <TableSkeleton rows={6} cols={Math.min(columns.length, 5)} className={className} />;
@@ -883,6 +922,8 @@ function DataTableInner<T>({
             "data-pane-open": listMode && openKey != null ? "" : undefined,
             // No filter bar above the list, so its sticky group headings sit right under the header.
             "data-no-toolbar": hasToolbar ? undefined : "",
+            // "Filter: …" in the palette can act on this list (its search box is showing).
+            "data-filterable": searchText && showSearch ? "" : undefined,
           }
         : {})}
       className={className}

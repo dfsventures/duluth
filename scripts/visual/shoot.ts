@@ -542,6 +542,36 @@ async function main() {
             await page.keyboard.press("Meta+k");
             await page.waitForTimeout(600);
             await snap(page, `palette__${tag}.png`, false);
+            // WS164: `?` opens the shortcut sheet once Esc has closed the palette.
+            await page.keyboard.press("Escape");
+            await page.waitForTimeout(300);
+            await page.keyboard.press("?");
+            await page.waitForTimeout(600);
+            await snap(page, `shortcuts-help__${tag}.png`, false);
+          }
+          await page.close();
+        }
+        // WS164: on Companies the palette's company items open the pane ("Open <company>"), and `f`
+        // opens the palette on "Filter: " for the list.
+        if (pageKeys.includes("companies")) {
+          const page = await context.newPage();
+          watch(page, `palette-companies ${tag}`);
+          if (await open(page, `palette-companies ${tag}`, "/admin/companies")) {
+            await page.keyboard.press("Meta+k");
+            await page.waitForTimeout(600);
+            await page.keyboard.type("acme");
+            await page.waitForTimeout(600);
+            await snap(page, `palette-companies__${tag}.png`, false);
+            await page.keyboard.press("Escape");
+            await page.waitForTimeout(500);
+            await page.keyboard.press("f");
+            await page.waitForTimeout(600);
+            await page.keyboard.type("acme");
+            await page.waitForTimeout(400);
+            await snap(page, `palette-filter__${tag}.png`, false);
+            await page.keyboard.press("Enter");
+            await page.waitForTimeout(800);
+            await snap(page, `palette-filter-applied__${tag}.png`, false);
           }
           await page.close();
         }

@@ -13,6 +13,7 @@ import { TableSkeleton } from "@/components/ui/skeleton";
 import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
 import { companyNextAction } from "@/lib/company-pane";
 import { crumbLabel, stepCursor } from "@/lib/split-view";
+import { rememberExpandReturn } from "@/lib/shortcuts";
 import { statusTone, TONE_CLASSES } from "@/lib/status-tone";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -487,7 +488,11 @@ export default function AdminCompaniesPage() {
           onClose={closePane}
           reminding={Boolean(reminding[openCompany.id])}
           onRemind={() => void sendReminder(openCompany)}
-          onOpenCompany={() => router.push(`/admin/companies/${openCompany.id}`)}
+          onOpenCompany={() => {
+            // Esc on the company page comes back to this list with the pane open (PLAN-1, WS164).
+            rememberExpandReturn(`/admin/companies/${openCompany.id}`);
+            router.push(`/admin/companies/${openCompany.id}`);
+          }}
         />
       ) : null;
       return (

@@ -11,6 +11,7 @@ import { Shortcuts } from "./shortcuts";
 import { SurfaceSync } from "./surface-sync";
 import { surfaceForPath, type Surface } from "@/lib/surface";
 import { cn } from "@/lib/utils";
+import { useNewLook } from "@/lib/use-new-look";
 
 export const MAIN_ID = "main-content";
 
@@ -47,6 +48,7 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
   // The palette and shortcuts are admin only in v1 (spec decision 3).
   const { data: session } = useSession();
   const isAdmin = session?.user?.roles?.includes("ADMIN") ?? false;
+  const newLook = useNewLook();
 
   // Phone drawer: Esc closes it, focus moves into it on open and back to the
   // menu button on close, so keyboard and screen reader users are not stranded.
@@ -55,18 +57,26 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
     const button = menuButton.current;
     document.getElementById(SIDEBAR_ID)?.querySelector<HTMLElement>("a[href], button")?.focus();
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setSidebarOpen(false);
+      if (e.key !== "Escape") return;
+      // New look, layered Esc (PLAN-1, WS164): a menu or dialog open on top closes first (it
+      // marks the event handled), and the drawer then takes this Esc so the pane or filters
+      // under it stay put. The old look keeps closing the drawer on any Esc.
+      if (newLook) {
+        if (e.defaultPrevented) return;
+        e.preventDefault();
+      }
+      setSidebarOpen(false);
     }
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("keydown", onKey);
       button?.focus();
     };
-  }, [sidebarOpen]);
+  }, [sidebarOpen, newLook]);
 
   return (
     // h-dvh, not h-screen — see the note in sidebar.tsx
-    <div className="flex h-dvh overflow-hidden" data-surface={surface}>
+    <div className="flex h-dvh overflow-hidden" data-surface={surface} data-drawer-open={sidebarOpen ? "" : undefined}>
       <SurfaceSync surface={surface} />
       {/* Skip link: only exists under the new look, only visible when focused (see globals.css) */}
       <a href={`#${MAIN_ID}`} className="skip-link hidden">

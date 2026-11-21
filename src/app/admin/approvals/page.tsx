@@ -41,6 +41,7 @@ import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/comp
 import { NameTile } from "@/components/ui/name-tile";
 import { useNewLook } from "@/lib/use-new-look";
 import { crumbLabel, nextAfterRemoval, stepCursor } from "@/lib/split-view";
+import { isTypingTarget } from "@/lib/shortcuts";
 import { TONE_CLASSES } from "@/lib/status-tone";
 
 // WS48 — awaiting-setup rows this stale (past their own token's expiry)
@@ -129,6 +130,25 @@ function LeaveWatcher({
       }
     }
   });
+  return null;
+}
+
+// New look (PLAN-1, WS164): `a` approves the signup open in the pane, the same as its Approve
+// button (which shows the A hint). Off while that signup is busy or done, while typing in a field
+// or a select, inside a dialog or menu, and with a modifier held. Renders nothing.
+function ApproveKey({ onApprove }: { onApprove: (() => void) | null }) {
+  useEffect(() => {
+    if (!onApprove) return;
+    const approve = onApprove;
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "a" || e.repeat || e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
+      if (isTypingTarget(document.activeElement) || document.querySelector('[role="menu"][data-state="open"]')) return;
+      e.preventDefault();
+      approve();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onApprove]);
   return null;
 }
 
@@ -737,7 +757,7 @@ export default function ApprovalsPage() {
             heading={`Approve ${approval.name}`}
             actions={
               <>
-                <Button disabled={busy} loading={Boolean(state?.loading)} onClick={() => handleAction(approval.id, "approve")}>
+                <Button disabled={busy} loading={Boolean(state?.loading)} kbd="A" onClick={() => handleAction(approval.id, "approve")}>
                   Approve
                 </Button>
                 {hasMatch && selected && (
@@ -853,8 +873,15 @@ export default function ApprovalsPage() {
                 // moves on, so the pane does not flash shut between two signups.
                 const openApproval = openId ? (approvals.find((a) => a.id === openId) ?? null) : null;
                 const at = openApproval ? visibleKeys.indexOf(openApproval.id) : -1;
+                const openState = openApproval ? actionStates[openApproval.id] : undefined;
+                const approveId = openApproval?.id;
                 return (
                   <>
+                    <ApproveKey
+                      onApprove={
+                        approveId && !openState?.loading && !openState?.result ? () => handleAction(approveId, "approve") : null
+                      }
+                    />
                     <LeaveWatcher
                       results={actionStates}
                       onNew={(id, result) => {
