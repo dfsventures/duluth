@@ -18,6 +18,7 @@ import { MetricChart } from "@/components/ui/metric-chart";
 import { formatDate } from "@/lib/utils";
 import { useCompany } from "@/context/company-context";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { V2_FORM_BLOCK, V2_HEADING, V2_UNBOX } from "@/lib/founder-look";
 
 interface MetricWithValues {
   id: string;
@@ -210,9 +211,11 @@ export default function MetricsPage() {
       )}
 
       {/* Define a new metric */}
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Define a New Metric</CardTitle>
+      {/* New look: the add form sits on the page above a hairline; each metric is a section on the
+          page (a hairline above, a 16/24 heading), not a card. */}
+      <Card className={`mb-8 ${V2_FORM_BLOCK} v2:mb-10`}>
+        <CardHeader className="v2:mb-3">
+          <CardTitle className={V2_HEADING}>Define a New Metric</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAddMetric} className="flex flex-wrap items-end gap-3">
@@ -245,7 +248,7 @@ export default function MetricsPage() {
 
       {/* Metrics list */}
       <div>
-        <h2 className="mb-4 text-lg font-semibold">Your Metrics</h2>
+        <h2 className={`mb-4 text-lg font-semibold ${V2_HEADING}`}>Your Metrics</h2>
 
         {metrics.length === 0 ? (
           <EmptyState eyebrow="Metrics"
@@ -254,14 +257,14 @@ export default function MetricsPage() {
             description="Add your first metric above to start tracking key indicators."
           />
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-6 v2:space-y-10">
             {metrics.map((metric) => {
               const formData = valueForms[metric.id] ?? { date: "", value: "" };
 
               return (
-                <Card key={metric.id}>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                <Card key={metric.id} className={`${V2_UNBOX} v2:border-t v2:border-border v2:pt-6`}>
+                  <CardHeader className="v2:mb-3">
+                    <CardTitle className={`flex items-center gap-2 ${V2_HEADING}`}>
                       {metric.name}
                       {metric.unit && (
                         <span className="text-sm font-normal text-muted-foreground">
@@ -284,7 +287,7 @@ export default function MetricsPage() {
                     </div>
 
                     {/* Add value form */}
-                    <div className="mb-4 flex flex-wrap items-end gap-3 border-t pt-4">
+                    <div className="mb-4 flex flex-wrap items-end gap-3 border-t pt-4 v2:mb-6 v2:border-t-0 v2:pt-2">
                       <div className="w-44">
                         <Input
                           id={`date-${metric.id}`}
@@ -316,6 +319,7 @@ export default function MetricsPage() {
                       <Button
                         type="button"
                         size="sm"
+                        className="v2:h-9"
                         disabled={
                           addingValue === metric.id ||
                           !formData.date ||
@@ -330,21 +334,21 @@ export default function MetricsPage() {
                     {/* Recent values table */}
                     {metric.values.length > 0 && (
                       <div>
-                        <p className="mb-2 text-sm font-medium text-muted-foreground">
+                        <p className="mb-2 text-sm font-medium text-muted-foreground v2:text-meta">
                           Recent Values
                         </p>
-                        <table className="w-full text-sm">
-                          <thead>
+                        <table className="w-full text-sm v2:text-row">
+                          <thead className="v2:bg-transparent">
                             <tr className="border-b text-left text-muted-foreground">
-                              <th className="pb-2 font-medium">Date</th>
-                              <th className="pb-2 font-medium">Value</th>
+                              <th className="pb-2 font-medium v2:h-10 v2:bg-transparent v2:pb-0 v2:align-middle v2:text-meta v2:text-secondary">Date</th>
+                              <th className="pb-2 font-medium v2:h-10 v2:bg-transparent v2:pb-0 v2:align-middle v2:text-meta v2:text-secondary">Value</th>
                             </tr>
                           </thead>
                           <tbody>
                             {metric.values.slice(0, 10).map((v) => (
-                              <tr key={v.id} className="border-b last:border-0">
-                                <td className="py-2">{formatDate(v.date)}</td>
-                                <td className="py-2">
+                              <tr key={v.id} className="border-b last:border-0 v2:border-row-divider">
+                                <td className="py-2 v2:h-11 v2:py-0">{formatDate(v.date)}</td>
+                                <td className="py-2 v2:h-11 v2:py-0 v2:tabular-nums">
                                   {Number(v.value).toLocaleString()}
                                   {metric.unit ? ` ${metric.unit}` : ""}
                                 </td>

@@ -157,14 +157,16 @@ export function SectorCombobox({ value, onChange, isAdmin, id, label }: SectorCo
           }}
           onFocus={() => setOpen(true)}
           placeholder="Select or type a sector"
-          className="input-field pr-8"
+          className="input-field pr-8 max-md:v2:pr-11"
           autoComplete="off"
         />
+        {/* New look on phones: the toggle is a 44px square at the field's right edge. */}
         <button
           type="button"
           tabIndex={-1}
+          aria-label="Show sectors"
           onClick={() => { setOpen((v) => !v); inputRef.current?.focus(); }}
-          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted-foreground"
+          className="absolute inset-y-0 right-0 flex items-center pr-2.5 text-muted-foreground max-md:v2:w-11 max-md:v2:justify-center max-md:v2:pr-0"
         >
           <ChevronDown className="h-4 w-4" />
         </button>

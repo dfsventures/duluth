@@ -27,6 +27,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ORG_NAME } from "@/lib/org";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
+import { V2_EYEBROW } from "@/lib/founder-look";
+
+// New look on phones: a small text link or button gets a 44px tap height without moving the text.
+const PHONE_TAP = "max-md:v2:inline-flex max-md:v2:min-h-11 max-md:v2:items-center";
 
 interface Category {
   id: string;
@@ -191,7 +195,8 @@ export default function ProvidersPage() {
       {/* Filters */}
       <div className="mb-6 flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+          {/* New look: drawn above the field (the field's wrapper comes later and covered it). */}
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none v2:z-10" />
           <Input
             placeholder="Search providers..."
             value={search}
@@ -209,12 +214,13 @@ export default function ProvidersPage() {
             <option key={c.id} value={c.id}>{c.name}</option>
           ))}
         </Select>
-        <div className="flex rounded-md border border-border overflow-hidden text-sm font-medium">
+        <div className="flex rounded-md border border-border overflow-hidden text-sm font-medium v2:rounded-ctl v2:text-row max-md:v2:w-full">
           {(["", "VETTED", "PENDING"] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-3 py-2 transition-colors ${statusFilter === s ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
+              aria-pressed={statusFilter === s}
+              className={`px-3 py-2 transition-colors v2:h-9 v2:py-0 max-md:v2:h-11 max-md:v2:flex-1 ${statusFilter === s ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
             >
               {s === "" ? "All" : s === "VETTED" ? "Vetted" : "Community"}
             </button>
@@ -224,7 +230,7 @@ export default function ProvidersPage() {
 
       {/* Counts */}
       {!loading && (
-        <p className="mb-4 text-xs text-muted-foreground font-mono uppercase tracking-wider">
+        <p className={`mb-4 text-xs text-muted-foreground font-mono uppercase tracking-wider ${V2_EYEBROW}`}>
           {displayed.length} provider{displayed.length !== 1 ? "s" : ""}{" "}
           {statusFilter === "" && `· ${vetted.length} vetted · ${pending.length} community`}
         </p>
@@ -407,8 +413,9 @@ function ProviderCard({
   const hasEndorsed = !!p.userEndorsement;
 
   return (
-    <Card className="flex flex-col">
-      <CardContent className="flex flex-col flex-1 p-5">
+    // New look: each provider sits on the raised tier with no edge or shadow (radius 8).
+    <Card className="flex flex-col v2:rounded-lg v2:border-0 v2:p-5 v2:shadow-none max-md:v2:p-4">
+      <CardContent className="flex flex-col flex-1 p-5 v2:p-0">
         {/* Header row */}
         <div className="mb-3 flex items-start justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
@@ -437,19 +444,19 @@ function ProviderCard({
         )}
 
         {/* Links */}
-        <div className="mb-3 flex flex-wrap gap-2">
+        <div className="mb-3 flex flex-wrap gap-2 max-md:v2:my-0 max-md:v2:gap-x-4 max-md:v2:gap-y-0">
           {p.website && (
-            <a href={p.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+            <a href={p.website} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 text-xs text-primary hover:underline ${PHONE_TAP}`}>
               <ExternalLink className="h-3 w-3" /> Website
             </a>
           )}
           {p.linkedin && (
-            <a href={p.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+            <a href={p.linkedin} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 text-xs text-primary hover:underline ${PHONE_TAP}`}>
               <Linkedin className="h-3 w-3" /> LinkedIn
             </a>
           )}
           {p.contactEmail && (
-            <a href={`mailto:${p.contactEmail}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+            <a href={`mailto:${p.contactEmail}`} className={`inline-flex items-center gap-1 text-xs text-primary hover:underline ${PHONE_TAP}`}>
               <Mail className="h-3 w-3" /> Email
             </a>
           )}
@@ -460,7 +467,8 @@ function ProviderCard({
           <button
             onClick={onToggleExpand}
             disabled={p.endorsementCount === 0}
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:pointer-events-none"
+            aria-expanded={p.endorsementCount > 0 ? expanded : undefined}
+            className={`inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:pointer-events-none ${PHONE_TAP}`}
           >
             <ThumbsUp className="h-3.5 w-3.5" />
             <span>{p.endorsementCount} endorsement{p.endorsementCount !== 1 ? "s" : ""}</span>
@@ -468,8 +476,8 @@ function ProviderCard({
           </button>
           {hasEndorsed ? (
             <div className="flex items-center gap-2">
-              <button onClick={onEndorse} className="text-xs text-muted-foreground hover:text-foreground underline">Edit</button>
-              <button onClick={onRemoveEndorsement} className="text-xs text-tone-clay-ink hover:text-tone-clay-ink underline">Remove</button>
+              <button onClick={onEndorse} className={`text-xs text-muted-foreground hover:text-foreground underline ${PHONE_TAP} max-md:v2:px-2`}>Edit</button>
+              <button onClick={onRemoveEndorsement} className={`text-xs text-tone-clay-ink hover:text-tone-clay-ink underline ${PHONE_TAP} max-md:v2:px-2`}>Remove</button>
             </div>
           ) : (
             <Button size="sm" variant="secondary" onClick={onEndorse}>

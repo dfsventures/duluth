@@ -32,6 +32,7 @@ import { BrandingCard, type BrandingValues } from "@/components/company/branding
 import { logoPublicPath } from "@/lib/company-logo";
 import { normalizeLogoPlate } from "@/lib/brand-theme";
 import { CompanyLogo } from "@/components/share/company-brand";
+import { V2_HEADING, V2_PANEL, V2_SECTIONS } from "@/lib/founder-look";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
@@ -245,9 +246,12 @@ export default function CompanyProfilePage() {
     );
   }
 
+  // New look (page types v1, Form): the 720 column; the summary sits on the raised tier with no
+  // edge, and in edit mode each card is a section on the page with a hairline between.
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <PageHeader
+        type="form"
         title="Company Profile"
         description={`Manage your company information visible to the ${ORG_NAME} team.`}
       />
@@ -266,7 +270,7 @@ export default function CompanyProfilePage() {
             <AlertCircle className="h-4 w-4 shrink-0" />
           )}
           <span className="flex-1">{message.text}</span>
-          <button onClick={() => setMessage(null)}>
+          <button onClick={() => setMessage(null)} aria-label="Dismiss" className="v2:-my-2 v2:grid v2:h-8 v2:w-8 v2:place-items-center max-md:v2:h-11 max-md:v2:w-11">
             <X className="h-4 w-4 opacity-50 hover:opacity-100" />
           </button>
         </div>
@@ -274,10 +278,10 @@ export default function CompanyProfilePage() {
 
       {!editing ? (
         /* ── View mode ── */
-        <Card>
+        <Card className={V2_PANEL}>
           <CardHeader>
-            <div className="flex items-start justify-between">
-              <CardTitle className="flex items-center gap-3">
+            <div className="flex items-start justify-between v2:items-center">
+              <CardTitle className={`flex items-center gap-3 ${V2_HEADING}`}>
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-100 text-primary-700">
                   <Building2 className="h-5 w-5" />
                 </div>
@@ -325,7 +329,7 @@ export default function CompanyProfilePage() {
                       href={form.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-primary hover:underline"
+                      className="flex items-center gap-1.5 text-primary hover:underline max-md:v2:-my-3 max-md:v2:min-h-11"
                     >
                       <Globe className="h-3.5 w-3.5" />
                       Website
@@ -349,7 +353,7 @@ export default function CompanyProfilePage() {
         </Card>
       ) : (
         /* ── Edit mode ── */
-        <form onSubmit={handleSave} className="space-y-6">
+        <form onSubmit={handleSave} className={`space-y-6 ${V2_SECTIONS}`}>
           {/* Logo upload */}
           <Card>
             <CardHeader>
@@ -373,7 +377,7 @@ export default function CompanyProfilePage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <label
-                      className={`inline-flex h-8 cursor-pointer items-center rounded-ctl border border-edge bg-btn2 px-3 text-[13px] font-medium text-foreground shadow-soft hover:bg-muted focus-within:ring-2 focus-within:ring-ring ${logoBusy ? "pointer-events-none opacity-50" : ""}`}
+                      className={`inline-flex h-8 max-md:v2:h-11 cursor-pointer items-center rounded-ctl border border-edge bg-btn2 px-3 text-[13px] font-medium text-foreground shadow-soft hover:bg-muted focus-within:ring-2 focus-within:ring-ring ${logoBusy ? "pointer-events-none opacity-50" : ""}`}
                     >
                       <input
                         type="file"
@@ -477,7 +481,7 @@ export default function CompanyProfilePage() {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 v2:border-t v2:border-border v2:pt-6">
             <Button
               type="button"
               variant="secondary"

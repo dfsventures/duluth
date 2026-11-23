@@ -1457,9 +1457,14 @@ html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-i
   html[data-look="v2"] [data-v2-scope][data-surface="founder"] .composer-disclosure > button {
     min-height: 44px;
   }
+  /* Form fields: 44 high on founder phones (36 elsewhere), so every field is a full tap target. */
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .shell-page input.input-field,
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .shell-page select.input-field {
+    height: 44px;
+  }
   /* The Detail back link: a 44px hit area that takes no extra room (its line stays 20px). */
   html[data-look="v2"] [data-v2-scope][data-surface="founder"] .page-back {
-    padding-block: 12px;
+    height: 44px;
     margin-block: -12px;
   }
 }

@@ -21,6 +21,9 @@ import { uploadDocument } from "@/lib/upload-document";
 import { RefreshCw } from "lucide-react";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { V2_HEADING, V2_SECTIONS, V2_UNBOX } from "@/lib/founder-look";
+
+const RADIO_LABEL = "flex items-center gap-1.5 text-sm cursor-pointer v2:text-row max-md:v2:min-h-11 max-md:v2:gap-2";
 
 // Part 16, WS40 — founder-facing DD checklist. Purpose-built (not a
 // /setup-wizard extension, per F31 — that step's file input has no
@@ -201,9 +204,12 @@ export default function DiligencePage() {
     return null;
   }
 
+  // New look (page types v1, Form): the 720 column; each card is a section on the page with a
+  // hairline between, and the Yes/No choices are 44 tall on phones.
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <PageHeader
+        type="form"
         title="Due Diligence"
         description="A few documents and quick questions before we close — everything else in Molly is already yours to use."
       />
@@ -225,15 +231,15 @@ export default function DiligencePage() {
       </div>
 
 
-      <form onSubmit={handleSave} className="space-y-6">
+      <form onSubmit={handleSave} className={`space-y-6 ${V2_SECTIONS}`}>
         <Card>
           <CardHeader>
             <CardTitle>Incorporation</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm font-medium">Is the company incorporated in the US?</p>
-            <div className="flex flex-wrap gap-3">
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+            <div className="flex flex-wrap gap-3 max-md:v2:gap-6">
+              <label className={RADIO_LABEL}>
                 <input
                   type="radio"
                   name="isUsIncorporated"
@@ -242,7 +248,7 @@ export default function DiligencePage() {
                 />
                 Yes
               </label>
-              <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+              <label className={RADIO_LABEL}>
                 <input
                   type="radio"
                   name="isUsIncorporated"
@@ -279,16 +285,16 @@ export default function DiligencePage() {
           </Card>
         )}
 
-        <div className="flex justify-end">
+        <div className="flex justify-end v2:pb-2">
           <Button type="submit" disabled={saving}>
             {saving ? "Saving..." : "Save"}
           </Button>
         </div>
       </form>
 
-      <Card className="mt-6">
+      <Card className={`mt-6 ${V2_UNBOX} v2:mt-8 v2:border-t v2:border-border v2:pt-8`}>
         <CardHeader>
-          <CardTitle>Documents</CardTitle>
+          <CardTitle className={V2_HEADING}>Documents</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {DD_DOC_TYPES.map((docType) => {
@@ -300,7 +306,7 @@ export default function DiligencePage() {
             return (
               <div
                 key={docType.value}
-                className="border-b border-border pb-4 last:border-0 last:pb-0"
+                className="border-b border-border pb-4 last:border-0 last:pb-0 v2:border-row-divider"
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-48 flex-1">

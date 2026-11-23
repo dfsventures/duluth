@@ -41,5 +41,20 @@ export const V2_ROW_FLUSH = "v2:min-h-11 v2:px-0 v2:py-0 v2:hover:bg-row-hover m
  */
 export const V2_PANEL = "v2:border-0 v2:shadow-none v2:rounded-lg v2:p-6 max-md:v2:p-4";
 
+/**
+ * A wrapper around a stack of `<Card>`s (a long form, a settings page): each card becomes a section on
+ * the page, no box, a hairline between sections, its CardTitle a 16/24 heading. Only direct `.card`
+ * children are touched, so cards nested inside a section keep their own look.
+ */
+export const V2_SECTIONS =
+  "v2:space-y-0 v2:[&>.card]:rounded-none v2:[&>.card]:border-0 v2:[&>.card]:bg-transparent v2:[&>.card]:px-0 v2:[&>.card]:py-8 v2:[&>.card]:shadow-none v2:[&>.card:first-child]:pt-0 v2:[&>.card+.card]:border-t v2:[&>.card_h3]:font-sans v2:[&>.card_h3]:text-heading v2:[&>.card_h3]:leading-6";
+
 /** A card that is only a frame (a form, a table) loses its box altogether. */
 export const V2_UNBOX = "v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0 v2:shadow-none";
+
+/**
+ * A card holding a form above the page's list (New link, Invite, Define a metric). Fields are filled
+ * with the raised tier, so the form sits on the page (not on a V2_PANEL, where they would vanish),
+ * closed off from the list by a hairline.
+ */
+export const V2_FORM_BLOCK = `${V2_UNBOX} v2:border-b v2:border-border v2:pb-8`;

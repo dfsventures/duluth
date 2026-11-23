@@ -27,6 +27,10 @@ import { ORG_NAME } from "@/lib/org";
 import { uploadDocument } from "@/lib/upload-document";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { V2_UNBOX } from "@/lib/founder-look";
+
+// New look: a row's icon actions are 32px squares (44 on phones).
+const ICON_BTN = "v2:grid v2:h-8 v2:w-8 v2:place-items-center v2:rounded-ctl v2:hover:bg-row-hover max-md:v2:h-11 max-md:v2:w-11";
 
 interface Document {
   id: string;
@@ -208,7 +212,11 @@ export default function CompanyDocumentsPage() {
                 <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 Retry
               </Button>
-              <button onClick={() => setFailedUploads((prev) => prev.filter((x) => x.key !== f.key))}>
+              <button
+                onClick={() => setFailedUploads((prev) => prev.filter((x) => x.key !== f.key))}
+                aria-label="Dismiss"
+                className="v2:-my-2 v2:grid v2:h-8 v2:w-8 v2:place-items-center max-md:v2:h-11 max-md:v2:w-11"
+              >
                 <X className="h-4 w-4 opacity-50 hover:opacity-100" />
               </button>
             </div>
@@ -218,7 +226,7 @@ export default function CompanyDocumentsPage() {
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[160px]">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground max-md:v2:top-3.5" />
           <input
             type="text"
             placeholder="Search documents..."
@@ -227,7 +235,8 @@ export default function CompanyDocumentsPage() {
               setDocSearch(e.target.value);
               loadDocuments(companyId, { search: e.target.value, docType: docTypeFilter });
             }}
-            className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm"
+            aria-label="Search documents"
+            className="h-9 w-full rounded-md border border-input bg-background pl-8 pr-3 text-sm v2:rounded-ctl v2:border-[color:var(--color-ctl)] v2:text-row max-md:v2:h-11 max-md:v2:text-base"
           />
         </div>
         <Select
@@ -252,30 +261,32 @@ export default function CompanyDocumentsPage() {
           description="No documents have been uploaded for this company yet."
         />
       ) : (
-        <Card>
+        // New look: the table sits on the page (no card), 40px header, 44px rows, cells on the content
+        // edge. On phones it keeps name, date and the actions so nothing scrolls sideways.
+        <Card className={V2_UNBOX}>
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[640px] text-sm">
-                <thead>
-                  <tr className="border-b text-left text-muted-foreground">
+            <div className="overflow-x-auto max-md:v2:overflow-visible">
+              <table className="w-full min-w-[640px] text-sm v2:text-row max-md:v2:min-w-0 v2:[&_td:first-child]:pl-0 v2:[&_th:first-child]:pl-0 v2:[&_td:last-child]:pr-0 v2:[&_th:last-child]:pr-0">
+                <thead className="v2:bg-transparent">
+                  <tr className="border-b text-left text-muted-foreground v2:[&>th]:h-10 v2:[&>th]:bg-transparent v2:[&>th]:py-0 v2:[&>th]:text-meta v2:[&>th]:text-secondary">
                     <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Type</th>
+                    <th className="px-4 py-3 font-medium max-md:v2:hidden">Type</th>
                     <th className="px-4 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Uploaded By</th>
-                    <th className="px-4 py-3 font-medium">Size</th>
-                    <th className="px-4 py-3"></th>
+                    <th className="px-4 py-3 font-medium max-md:v2:hidden">Uploaded By</th>
+                    <th className="px-4 py-3 font-medium max-md:v2:hidden">Size</th>
+                    <th className="px-4 py-3"><span className="sr-only">Actions</span></th>
                   </tr>
                 </thead>
                 <tbody>
                   {documents.map((doc) => (
-                    <tr key={doc.id} className="border-b last:border-0 hover:bg-muted/50">
+                    <tr key={doc.id} className="border-b last:border-0 hover:bg-muted/50 v2:border-row-divider v2:hover:bg-row-hover v2:[&>td]:h-11 v2:[&>td]:py-0">
                       <td className="px-4 py-3 font-medium">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-muted-foreground" />
+                        <div className="flex items-center gap-2 max-md:v2:break-all">
+                          <FileText className="h-4 w-4 text-muted-foreground v2:shrink-0" />
                           {doc.name}
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 max-md:v2:hidden">
                         {doc.docType ? (
                           <Badge variant="neutral">
                             {DOC_TYPES.find((t) => t.value === doc.docType)?.label ?? doc.docType}
@@ -284,13 +295,13 @@ export default function CompanyDocumentsPage() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-muted-foreground max-md:v2:whitespace-nowrap">
                         {formatDate(doc.createdAt)}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-muted-foreground max-md:v2:hidden">
                         {doc.uploadedBy ?? "Unknown"}
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground">
+                      <td className="px-4 py-3 text-muted-foreground max-md:v2:hidden">
                         {formatFileSize(doc.size)}
                       </td>
                       <td className="px-4 py-3">
@@ -305,22 +316,24 @@ export default function CompanyDocumentsPage() {
                             Received
                           </span>
                         ) : (
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 v2:justify-end v2:gap-1">
                             {isInlineViewable(doc.mimeType) && (
                               <a
                                 href={`/api/documents/${doc.id}/view`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-muted-foreground hover:text-primary"
+                                className={`text-muted-foreground hover:text-primary ${ICON_BTN}`}
                                 title="View"
+                                aria-label={`View ${doc.name}`}
                               >
                                 <Eye className="h-4 w-4" />
                               </a>
                             )}
                             <button
                               onClick={() => handleDownload(doc.id, doc.name)}
-                              className="text-muted-foreground hover:text-primary"
+                              className={`text-muted-foreground hover:text-primary ${ICON_BTN}`}
                               title="Download"
+                              aria-label={`Download ${doc.name}`}
                             >
                               <Download className="h-4 w-4" />
                             </button>

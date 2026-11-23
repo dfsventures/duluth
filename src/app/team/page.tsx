@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useCompany } from "@/context/company-context";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { TableSkeleton } from "@/components/ui/skeleton";
+import { V2_FORM_BLOCK, V2_UNBOX } from "@/lib/founder-look";
 
 interface Member {
   membershipId: string;
@@ -180,10 +181,10 @@ export default function TeamPage() {
 
       {/* Invite form */}
       {showInvite && (
-        <Card className="mb-4">
-          <CardContent className="pt-4">
-            <p className="mb-3 text-sm font-medium">Invite a teammate</p>
-            <div className="flex gap-2">
+        <Card className={`mb-4 ${V2_FORM_BLOCK} v2:mb-8`}>
+          <CardContent className="pt-4 v2:pt-0">
+            <p className="mb-3 text-sm font-medium v2:text-row">Invite a teammate</p>
+            <div className="flex gap-2 max-md:v2:flex-col">
               <Input
                 id="invite-email"
                 label=""
@@ -235,26 +236,27 @@ export default function TeamPage() {
           description="Invite teammates to collaborate on your company updates."
         />
       ) : (
-        <div className="space-y-2">
+        // New look: hairline rows (as Updates), a 28px initial, name and email on one line on desktop.
+        <div className="space-y-2 v2:space-y-0 v2:divide-y v2:divide-row-divider v2:border-y v2:border-row-divider">
           {members.map((member) => {
             const isPending = !member.name;
             const isOwnerRow = member.membershipRole === "OWNER";
             return (
-              <Card key={member.membershipId}>
-                <CardContent className="flex flex-wrap items-center gap-3 py-3">
-                  <div className="min-w-48 flex-1 flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium">
+              <Card key={member.membershipId} className={V2_UNBOX}>
+                <CardContent className="flex flex-wrap items-center gap-3 py-3 v2:min-h-14 v2:py-2">
+                  <div className="min-w-48 flex-1 flex items-center gap-3 v2:min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-medium v2:h-7 v2:w-7 v2:bg-muted v2:text-meta v2:text-secondary">
                       {(member.name?.[0] ?? member.email[0]).toUpperCase()}
                     </div>
-                    <div>
+                    <div className="v2:min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className="font-medium">{member.name ?? member.email}</p>
+                        <p className="font-medium v2:truncate v2:text-row">{member.name ?? member.email}</p>
                         {isPending && (
                           <Badge variant="neutral">Invite pending</Badge>
                         )}
                       </div>
                       {member.name && (
-                        <p className="text-sm text-muted-foreground">{member.email}</p>
+                        <p className="text-sm text-muted-foreground v2:truncate v2:text-meta">{member.email}</p>
                       )}
                     </div>
                   </div>
@@ -285,8 +287,9 @@ export default function TeamPage() {
                       <button
                         onClick={() => handleRemove(member)}
                         disabled={removingId === member.userId}
-                        className="text-muted-foreground hover:text-destructive disabled:opacity-40"
+                        className="text-muted-foreground hover:text-destructive disabled:opacity-40 v2:grid v2:h-8 v2:w-8 v2:place-items-center v2:rounded-ctl v2:hover:bg-row-hover max-md:v2:h-11 max-md:v2:w-11"
                         title="Remove member"
+                        aria-label={`Remove ${member.name ?? member.email}`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { V2_HEADING, V2_UNBOX } from "@/lib/founder-look";
 
 const STEPS = [
   { label: "Company Profile", icon: Building2 },
@@ -209,9 +210,12 @@ export default function SetupWizardPage() {
     }
   }
 
+  // New look (page types v1, Form): the 720 column, a quieter step line (28px marks, 1px rule), and
+  // the step's form on the page with no box (fields are filled, so a panel would hide them).
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <PageHeader
+        type="form"
         title="Setup Your Account"
         description="Complete these steps to start using the Molly platform."
       />
@@ -228,7 +232,7 @@ export default function SetupWizardPage() {
               <div key={step.label} className="flex flex-1 items-center">
                 <div className="flex flex-col items-center">
                   <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors ${
+                    className={`flex h-10 w-10 items-center justify-center rounded-full border-2 transition-colors v2:h-7 v2:w-7 v2:border v2:[&_svg]:h-3.5 v2:[&_svg]:w-3.5 ${
                       isCompleted
                         ? "border-primary bg-primary text-primary-foreground"
                         : isActive
@@ -243,7 +247,7 @@ export default function SetupWizardPage() {
                     )}
                   </div>
                   <span
-                    className={`mt-2 text-xs font-medium ${
+                    className={`mt-2 text-xs font-medium v2:text-meta ${
                       isActive
                         ? "text-primary"
                         : isCompleted
@@ -256,7 +260,7 @@ export default function SetupWizardPage() {
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
-                    className={`mx-4 h-0.5 flex-1 ${
+                    className={`mx-4 h-0.5 flex-1 v2:mx-3 v2:-mt-6 v2:h-px max-md:v2:mx-2 ${
                       index < currentStep ? "bg-primary" : "bg-muted-foreground/20"
                     }`}
                   />
@@ -276,9 +280,9 @@ export default function SetupWizardPage() {
 
       {/* Step 1: Company Profile */}
       {currentStep === 0 && (
-        <Card>
+        <Card className={V2_UNBOX}>
           <CardHeader>
-            <CardTitle>Company Profile</CardTitle>
+            <CardTitle className={V2_HEADING}>Company Profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
@@ -328,9 +332,9 @@ export default function SetupWizardPage() {
 
       {/* Step 2: Define Metrics */}
       {currentStep === 1 && (
-        <Card>
+        <Card className={V2_UNBOX}>
           <CardHeader>
-            <CardTitle>Define Your Key Metrics</CardTitle>
+            <CardTitle className={V2_HEADING}>Define Your Key Metrics</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm text-muted-foreground">
@@ -369,6 +373,8 @@ export default function SetupWizardPage() {
                       size="sm"
                       onClick={() => removeMetricRow(index)}
                       title="Remove metric"
+                      aria-label={`Remove metric ${index + 1}`}
+                      className="max-md:v2:w-11 max-md:v2:px-0"
                     >
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
                     </Button>
@@ -392,9 +398,9 @@ export default function SetupWizardPage() {
 
       {/* Step 3: Upload Documents */}
       {currentStep === 2 && (
-        <Card>
+        <Card className={V2_UNBOX}>
           <CardHeader>
-            <CardTitle>Upload Initial Documents</CardTitle>
+            <CardTitle className={V2_HEADING}>Upload Initial Documents</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="mb-4 text-sm text-muted-foreground">
@@ -447,7 +453,7 @@ export default function SetupWizardPage() {
       )}
 
       {/* Navigation buttons */}
-      <div className="mt-6 flex justify-between">
+      <div className="mt-6 flex justify-between v2:mt-8 v2:border-t v2:border-border v2:pt-6">
         <div>
           {currentStep > 0 && (
             <Button variant="secondary" onClick={handleBack} disabled={submitting}>

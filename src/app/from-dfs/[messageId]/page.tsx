@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { ArrowLeft, Megaphone } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader, StatusItems } from "@/components/layout/page-header";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/context/company-context";
 import { formatDate } from "@/lib/utils";
@@ -49,9 +50,12 @@ export default function FromDfsMessagePage() {
     );
   }
 
+  // New look (page types v1, Detail): the shared header (back line, title, the date as the status line)
+  // on the 720 column. Decided by CSS: the old link and heading are hidden under the new look and the
+  // header is drawn only under it, so nothing flashes. The old look is unchanged.
   return (
-    <AppShell>
-      <Link href="/from-dfs" className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+    <AppShell width="narrow">
+      <Link href="/from-dfs" className="mb-6 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground v2:hidden">
         <ArrowLeft className="h-4 w-4" /> All messages
       </Link>
       {!message ? (
@@ -61,17 +65,26 @@ export default function FromDfsMessagePage() {
           description={`Messages from the ${ORG_NAME} team will appear here.`}
         />
       ) : (
-        <article className="mx-auto max-w-2xl">
-          <p className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+        <>
+        <PageHeader
+          newLookOnly
+          type="detail"
+          back={{ href: "/from-dfs", label: `From ${ORG_NAME}` }}
+          title={message.subject}
+          status={<StatusItems items={[`From ${ORG_NAME}`, message.publishedAt ? formatDate(message.publishedAt) : null]} />}
+        />
+        <article className="mx-auto max-w-2xl v2:mx-0 v2:max-w-none">
+          <p className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground v2:hidden">
             From {ORG_NAME}
             {message.publishedAt ? ` · ${formatDate(message.publishedAt)}` : ""}
           </p>
-          <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight text-foreground">{message.subject}</h1>
+          <h1 className="mt-2 font-display text-2xl font-semibold tracking-tight text-foreground v2:hidden">{message.subject}</h1>
           <div
-            className="prose prose-sm mt-6 max-w-none leading-relaxed"
+            className="prose prose-sm mt-6 max-w-none leading-relaxed v2:mt-0"
             dangerouslySetInnerHTML={{ __html: message.body }}
           />
         </article>
+        </>
       )}
     </AppShell>
   );

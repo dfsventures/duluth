@@ -21,6 +21,7 @@ import {
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { V2_SECTIONS } from "@/lib/founder-look";
 
 // Part 29, WS68 — Dilution Planner editor. "use client", useCompany() for
 // selectedCompany.id (same as /diligence). Computes the stage-by-stage
@@ -390,14 +391,19 @@ export default function ScenarioEditorPage() {
   const lastStage = enabledStages[enabledStages.length - 1];
   const resultRows = lastStage ? lastStage.stakeholders : [];
 
+  // New look (page types v1): the 720 column, a back line above the title, and each card a section on
+  // the page (a hairline between, no box) rather than a stack of boxes. The cards themselves are
+  // unchanged; the wrapper below restyles them under the new look only.
   return (
-    <AppShell>
+    <AppShell width="narrow">
       <PageHeader
+        type="detail"
+        back={{ href: "/planner", label: "Dilution Planner" }}
         title={scenarioName || "Untitled scenario"}
         description="A hypothetical model — nothing here is your real cap table."
         action={
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-xs text-muted-foreground">{autosave.label}</span>
+          <div className="flex flex-wrap items-center gap-3 v2:gap-2">
+            <span className="text-xs text-muted-foreground v2:mr-2 v2:text-meta">{autosave.label}</span>
             <Button variant="secondary" size="sm" onClick={handleDelete} disabled={deleting}>
               <Trash2 className="mr-2 h-4 w-4" />
               {deleting ? "Deleting..." : "Delete"}
@@ -410,7 +416,7 @@ export default function ScenarioEditorPage() {
       />
 
 
-      <div className="space-y-6">
+      <div className={`space-y-6 ${V2_SECTIONS}`}>
         <Card>
           <CardHeader>
             <CardTitle>Scenario</CardTitle>
@@ -450,8 +456,9 @@ export default function ScenarioEditorPage() {
                 <button
                   type="button"
                   onClick={() => removeFounder(i)}
-                  className="ml-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+                  className="ml-auto rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive v2:grid v2:h-9 v2:w-9 v2:place-items-center v2:p-0 max-md:v2:h-11 max-md:v2:w-11"
                   title="Remove founder"
+                  aria-label={`Remove founder ${i + 1}`}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -695,7 +702,8 @@ export default function ScenarioEditorPage() {
         </Card>
       </div>
 
-      <div className="mt-6">
+      {/* New look: the back line above the title replaces this. */}
+      <div className="mt-6 v2:hidden">
         <Button variant="ghost" onClick={() => router.push("/planner")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Dilution Planner

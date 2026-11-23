@@ -265,6 +265,10 @@ const FOLLOW: Record<string, { list: string; suffix?: string; last?: boolean }> 
   "f-from-dfs-detail": { list: "/from-dfs/" },
   "f-planner-detail": { list: "/planner/" },
 };
+// WS165: founder pages that only finish loading when reached in the app (their loader runs once, before
+// the company is known, so a fresh load of the URL stays on the skeleton; a known bug, reported, not
+// fixed here). These open the dashboard first and click through to the page.
+const VIA_DASHBOARD = new Set(["f-links", "f-team"]);
 const VIEWPORTS: Record<string, { width: number; height: number }> = {
   desktop: { width: 1440, height: 900 },
   wide: { width: 1920, height: 1080 },
@@ -530,7 +534,22 @@ async function main() {
         await context.addCookies([{ name: COOKIE_NAME, value: asCookie, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
         const page = await context.newPage();
         watch(page, `${key} ${tag}`);
-        let ok = await open(page, `${key} ${tag}`, PAGES[key]);
+        let ok = await open(page, `${key} ${tag}`, VIA_DASHBOARD.has(key) ? "/dashboard" : PAGES[key]);
+        if (ok && VIA_DASHBOARD.has(key)) {
+          // A script click works even when the phone sidebar is closed; next/link routes it in the app.
+          ok = await page
+            .evaluate((href: string) => {
+              const a = document.querySelector<HTMLAnchorElement>(`a[href="${href}"]`);
+              a?.click();
+              return !!a;
+            }, PAGES[key])
+            .catch(() => false);
+          if (ok) {
+            await page.waitForURL(`**${PAGES[key]}`, { timeout: 15000 }).catch(() => {});
+            await page.waitForLoadState("networkidle").catch(() => {});
+            await page.waitForTimeout(800);
+          } else console.log(`  [skip] ${key} ${tag}: no sidebar link to ${PAGES[key]} on /dashboard`);
+        }
         // Detail pages open their list first, then follow its first row (ids are random).
         const DETAIL: Record<string, { prefix: string; parts: number; exclude?: string[]; list: string }> = {
           fund: { prefix: "/admin/funds/", parts: 4, list: "/admin/funds" },

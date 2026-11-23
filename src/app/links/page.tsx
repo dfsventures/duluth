@@ -14,6 +14,7 @@ import { useCompany } from "@/context/company-context";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { EXPIRY_OPTIONS } from "@/lib/expiry-options";
+import { V2_FORM_BLOCK, V2_HEADING, V2_UNBOX } from "@/lib/founder-look";
 
 
 interface PublishedUpdate {
@@ -214,9 +215,11 @@ export default function FounderLinksPage() {
       )}
 
       {/* Create form */}
+      {/* New look: the create form sits on the page above a hairline; each link is a hairline row
+          rather than a card. */}
       {showForm && (
-        <Card className="mb-6">
-          <CardHeader><CardTitle className="text-base">New Investor Link</CardTitle></CardHeader>
+        <Card className={`mb-6 ${V2_FORM_BLOCK} v2:mb-8`}>
+          <CardHeader className="v2:mb-3"><CardTitle className={`text-base ${V2_HEADING}`}>New Investor Link</CardTitle></CardHeader>
           <CardContent>
             <form onSubmit={handleCreate} className="space-y-4">
               <Input
@@ -236,7 +239,7 @@ export default function FounderLinksPage() {
                     {publishedUpdates.map((u) => (
                       <label
                         key={u.id}
-                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors ${
+                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer v2:min-h-11 v2:py-2 hover:bg-muted/30 transition-colors ${
                           selectedUpdateIds.includes(u.id) ? "bg-primary/5" : ""
                         }`}
                       >
@@ -272,7 +275,7 @@ export default function FounderLinksPage() {
                       key={opt.label}
                       type="button"
                       onClick={() => setExpiryDays(opt.days)}
-                      className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                      className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors v2:h-8 v2:rounded-ctl v2:py-0 v2:text-row max-md:v2:h-11 ${
                         expiryDays === opt.days
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-card text-muted-foreground hover:border-primary hover:text-foreground"
@@ -305,20 +308,20 @@ export default function FounderLinksPage() {
           action={<Button size="sm" onClick={() => setShowForm(true)}><Plus className="mr-2 h-4 w-4" />New Link</Button>}
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-4 v2:space-y-0 v2:divide-y v2:divide-row-divider v2:border-y v2:border-row-divider">
           {links.map((link) => {
             const expired = link.expiresAt ? new Date(link.expiresAt) < new Date() : false;
             return (
-              <Card key={link.id} className={expired ? "opacity-60" : ""}>
-                <CardContent className="py-4">
-                  <div className="flex flex-wrap items-start gap-4">
-                    <div className="min-w-48 flex-1 space-y-1.5">
+              <Card key={link.id} className={`${expired ? "opacity-60" : ""} ${V2_UNBOX}`}>
+                <CardContent className="py-4 v2:py-3">
+                  <div className="flex flex-wrap items-start gap-4 v2:items-center v2:gap-x-6 v2:gap-y-2">
+                    <div className="min-w-48 flex-1 space-y-1.5 v2:space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <p className="font-medium">{link.label || "Untitled link"}</p>
+                        <Link2 className="h-4 w-4 shrink-0 text-muted-foreground v2:hidden" />
+                        <p className="font-medium v2:text-row">{link.label || "Untitled link"}</p>
                         {expired && <Badge variant="neutral">Expired</Badge>}
                       </div>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs text-muted-foreground v2:text-meta">
                         {expiryLabel(link.expiresAt)}
                         {" · "}
                         Created {formatDate(link.createdAt)}
@@ -349,7 +352,7 @@ export default function FounderLinksPage() {
                           <Button variant="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
                         </>
                       ) : (
-                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(link.id)}>
+                        <Button variant="ghost" size="sm" aria-label="Revoke link" className="max-md:v2:w-11 max-md:v2:px-0" onClick={() => setConfirmDeleteId(link.id)}>
                           <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                         </Button>
                       )}
@@ -358,7 +361,7 @@ export default function FounderLinksPage() {
 
                   {/* View log */}
                   {expandedViews === link.id && (
-                    <div className="mt-4 rounded-md border bg-muted/30 p-3">
+                    <div className="mt-4 rounded-md border bg-muted/30 p-3 v2:mt-3 v2:rounded-lg v2:border-0 v2:bg-muted v2:px-4">
                       {!viewLogs[link.id] || viewLogs[link.id].length === 0 ? (
                         <p className="text-xs text-muted-foreground">No views yet.</p>
                       ) : (

@@ -10,6 +10,7 @@ import { PageSkeleton } from "@/components/ui/skeleton";
 import { useCompany } from "@/context/company-context";
 import { formatDate } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
+import { V2_LIST, V2_ROW } from "@/lib/founder-look";
 
 interface Message {
   id: string;
@@ -60,15 +61,16 @@ export default function FromDfsPage() {
           description={`Messages from the ${ORG_NAME} team will appear here.`}
         />
       ) : (
-        <ul className="divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft">
+        // New look: hairline rows; one 44px line on desktop, subject over date on phones.
+        <ul className={`divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft ${V2_LIST}`}>
           {messages.map((m) => (
             <li key={m.id}>
               <Link
                 href={`/from-dfs/${m.id}`}
-                className="flex min-h-[56px] items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                className={`flex min-h-[56px] items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${V2_ROW} max-md:v2:flex-col max-md:v2:items-start max-md:v2:justify-center max-md:v2:gap-1`}
               >
-                <span className="min-w-0 flex-1 truncate font-medium">{m.subject}</span>
-                {m.publishedAt && <span className="shrink-0 text-sm text-muted-foreground">{formatDate(m.publishedAt)}</span>}
+                <span className="min-w-0 flex-1 truncate font-medium v2:text-row max-md:v2:w-full max-md:v2:flex-none">{m.subject}</span>
+                {m.publishedAt && <span className="shrink-0 text-sm text-muted-foreground v2:text-row max-md:v2:text-meta">{formatDate(m.publishedAt)}</span>}
               </Link>
             </li>
           ))}

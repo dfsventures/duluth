@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/utils";
 import { useCompany } from "@/context/company-context";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { V2_UNBOX } from "@/lib/founder-look";
 
 // Part 29, WS68 — Dilution Planner list page, mirroring /updates/page.tsx
 // (list-plus-editor split, Q71-B: multiple named scenarios per company).
@@ -146,22 +147,24 @@ export default function PlannerListPage() {
           }
         />
       ) : (
-        <div className="space-y-2">
+        // New look: hairline rows (as Updates); one 44px line on desktop, two lines on phones.
+        <div className="space-y-2 v2:space-y-0 v2:divide-y v2:divide-row-divider v2:border-y v2:border-row-divider">
           {scenarios.map((scenario) => (
-            <Card key={scenario.id} className="card-lift transition-colors hover:bg-muted/50">
-              <CardContent className="flex items-center justify-between py-3">
-                <Link href={`/planner/${scenario.id}`} className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{scenario.name}</p>
-                  <p className="text-sm text-muted-foreground">
+            <Card key={scenario.id} className={`card-lift transition-colors hover:bg-muted/50 ${V2_UNBOX} v2:hover:translate-y-0 v2:hover:bg-row-hover`}>
+              <CardContent className="flex items-center justify-between py-3 v2:min-h-11 v2:py-0 max-md:v2:min-h-16 max-md:v2:py-3">
+                <Link href={`/planner/${scenario.id}`} className="min-w-0 flex-1 md:v2:flex md:v2:items-center md:v2:gap-6 max-md:v2:py-1">
+                  <p className="truncate font-medium v2:text-row md:v2:min-w-0 md:v2:flex-1">{scenario.name}</p>
+                  <p className="text-sm text-muted-foreground v2:text-row v2:text-secondary md:v2:shrink-0 max-md:v2:mt-1 max-md:v2:text-meta max-md:v2:text-muted-foreground">
                     Updated {formatDate(scenario.updatedAt)}
                   </p>
                 </Link>
-                <div className="flex items-center gap-2 shrink-0 ml-3">
+                <div className="flex items-center gap-2 shrink-0 ml-3 v2:ml-6">
                   <button
                     onClick={(e) => handleDelete(e, scenario.id)}
                     disabled={deletingId === scenario.id}
-                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
+                    className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50 v2:grid v2:h-8 v2:w-8 v2:place-items-center v2:p-0 v2:hover:bg-row-hover max-md:v2:h-11 max-md:v2:w-11 max-md:v2:-mr-3"
                     title="Delete scenario"
+                    aria-label="Delete scenario"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
