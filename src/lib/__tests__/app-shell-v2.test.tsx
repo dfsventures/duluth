@@ -12,10 +12,10 @@ import tailwindConfig from "../../../tailwind.config";
 const read = (p: string) => readFileSync(join(__dirname, "..", "..", p), "utf-8");
 
 describe("v2 variants", () => {
-  it("only match admin pages while the switch is on", () => {
+  it("only match pages in the app shell (admin and founder) while the switch is on", () => {
     const src = read("../tailwind.config.ts");
-    expect(src).toContain(`addVariant("v2", 'html[data-look="v2"] [data-surface="admin"] &')`);
-    expect(src).toContain(`[data-theme="dark"] [data-surface="admin"] &'`);
+    expect(src).toContain(`addVariant("v2", 'html[data-look="v2"] [data-v2-scope] &')`);
+    expect(src).toContain(`[data-theme="dark"] [data-v2-scope] &'`);
     expect(tailwindConfig.plugins?.length).toBeGreaterThanOrEqual(2);
   });
 });

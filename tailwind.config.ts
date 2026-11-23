@@ -232,13 +232,14 @@ const config: Config = {
   },
   plugins: [
     require("@tailwindcss/typography"),
-    // New look (PLAN-1, WS158). `v2:` classes apply only on admin pages while
+    // New look (PLAN-1, WS158). `v2:` classes apply only inside the app shell
+    // ([data-v2-scope]: admin pages, and founder pages since WS165) while
     // <html data-look="v2"> is set, and are decided by CSS alone, so the markup
     // is the same either way and there is no flash of the old look on load.
     // `v2dark:` is the same, but only in the dark theme.
     plugin(({ addVariant }) => {
-      addVariant("v2", 'html[data-look="v2"] [data-surface="admin"] &');
-      addVariant("v2dark", 'html[data-look="v2"][data-theme="dark"] [data-surface="admin"] &');
+      addVariant("v2", 'html[data-look="v2"] [data-v2-scope] &');
+      addVariant("v2dark", 'html[data-look="v2"][data-theme="dark"] [data-v2-scope] &');
     }),
   ],
 };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
 import { join } from "path";
-import { surfaceForPath } from "../surface";
+import { inNewLookScope, surfaceForPath } from "../surface";
 
 // Direction B (rounded corners, soft shadows, warm tints) is for founder and LP
 // surfaces ONLY. Admin must render exactly as Direction A+. These tests pin the
@@ -89,7 +89,7 @@ describe("surface scoping", () => {
     }
   });
 
-  it("new look (stage 1): every selector is v2 AND admin scoped; none can match :root, founder, LP, auth or share", () => {
+  it("new look: every selector is v2 AND shell scoped; none can match :root, LP, auth or share", () => {
     expect(V2_START).toBeGreaterThan(0);
     expect(V2_END).toBeGreaterThan(V2_START);
     // @media and @container wrappers (phone-only values, columns dropping out) are skipped; the
@@ -99,11 +99,30 @@ describe("surface scoping", () => {
     for (const sel of selectors) {
       for (const part of sel.split(",")) {
         const p = part.trim();
-        expect(p).toContain('[data-surface="admin"]');
+        expect(p).toContain("[data-v2-scope]");
         expect(p).toMatch(/^html\[data-look="v2"\]/);
         expect(p).not.toMatch(/^:root/);
-        expect(p).not.toContain('[data-surface="founder"]');
+        // The founder surface is named only together with the shell scope (the Direction B overrides).
+        if (p.includes('[data-surface="founder"]')) expect(p).toContain('[data-v2-scope][data-surface="founder"]');
       }
+    }
+  });
+
+  it("new look scope: only the app shell carries it; LP, auth, home and share pages never do", () => {
+    const read = (f: string) => readFileSync(join(__dirname, "..", "..", f), "utf-8");
+    expect(read("components/layout/app-shell.tsx")).toContain('data-v2-scope=""');
+    expect(read("components/layout/surface-sync.tsx")).toContain('body.setAttribute("data-v2-scope", "")');
+    for (const f of ["app/lp/layout.tsx", "components/auth/auth-layout.tsx", "app/page.tsx", "app/share/[token]/page.tsx", "app/admin/reports/[id]/preview/frame/page.tsx"]) {
+      expect(read(f), f).not.toContain("data-v2-scope");
+    }
+  });
+
+  it("new look scope by path: admin and the founder app pages; never LP, auth, home, share or the print page", () => {
+    for (const p of ["/admin", "/admin/companies", "/dashboard", "/updates", "/updates/new", "/updates/abc", "/from-dfs/x", "/company/profile", "/company/metrics", "/planner/abc", "/links", "/team", "/providers", "/diligence", "/setup-wizard"]) {
+      expect(inNewLookScope(p), p).toBe(true);
+    }
+    for (const p of [null, "/", "/lp", "/lp/reports/x", "/login", "/signup", "/set-password", "/share/abc", "/share/m/abc", "/investors", "/updates/abc/download", "/dashboards", "/linksx"]) {
+      expect(inNewLookScope(p), String(p)).toBe(false);
     }
   });
 
@@ -119,7 +138,8 @@ describe("surface scoping", () => {
     // surfaceForPath only ever yields "admin" for /admin paths.
     expect(surfaceForPath("/share/abc")).toBe("founder");
     expect(surfaceForPath("/share/m/abc")).toBe("founder");
-    expect(v2Section).not.toMatch(/\[data-surface="founder"\]|:root|(^|\n)\s*body\s*\{/);
+    // The founder surface appears only fused to the shell scope ("[data-v2-scope][data-surface=...]").
+    expect(v2Section).not.toMatch(/(^|[\s,])\[data-surface="founder"\]|:root|(^|\n)\s*body\s*\{/);
   });
 
   it("tailwind radii and shadows are token-driven, not literal B values", () => {

@@ -26,8 +26,8 @@ function blockFor(selectorStart: string): Record<string, string> {
   return vars;
 }
 
-const LIGHT = blockFor('html[data-look="v2"] [data-surface="admin"],');
-const DARK = blockFor('html[data-look="v2"][data-theme="dark"] [data-surface="admin"],');
+const LIGHT = blockFor('html[data-look="v2"] [data-v2-scope],');
+const DARK = blockFor('html[data-look="v2"][data-theme="dark"] [data-v2-scope],');
 
 type RGBA = { r: number; g: number; b: number; a: number };
 
@@ -278,7 +278,30 @@ describe("new look core components: the rules are scoped and present", () => {
 
   it("the new look reaches the plain-CSS components: badge, status-dot, label and input", () => {
     for (const sel of [".badge-success", ".badge-danger", ".status-dot", ".label", ".input-field"]) {
-      expect(section, sel).toContain(`[data-surface="admin"] ${sel}`);
+      expect(section, sel).toContain(`[data-v2-scope] ${sel}`);
+    }
+  });
+
+  it("form labels (<label class=label>) are 14/20; other .label elements stay 12/18", () => {
+    expect(section).toMatch(/\[data-v2-scope\] \.label \{[^}]*font-size: 12px;/);
+    expect(section).toMatch(/\[data-v2-scope\] label\.label \{[^}]*font-size: 14px;[^}]*line-height: 20px;/);
+  });
+
+  // Stage 2 (WS165): founder pages share the scope. The token blocks redefine every token Direction B's
+  // founder block sets, so under the new look a founder page gets the new look's radii, shadows and fills.
+  it("founder pages: the light block redefines every token Direction B's founder block sets", () => {
+    const at = css.indexOf('[data-surface="founder"] {');
+    const founder = css.slice(css.indexOf("{", at) + 1, css.indexOf("}", at)).replace(/\/\*[\s\S]*?\*\//g, "");
+    const keys = [...founder.matchAll(/(--[a-z0-9-]+):/gi)].map((m) => m[1]);
+    expect(keys.length).toBeGreaterThan(10);
+    for (const k of keys) expect(LIGHT[k], `v2 light ${k}`).toBeTruthy();
+  });
+
+  it("founder pages: every Direction B component skin is put back under the new look", () => {
+    const skins = css.slice(css.indexOf("Direction B component skins"), css.indexOf("LP portal print stylesheet"));
+    for (const sel of [".status-dot {", ".tab-bar {", ".tab-bar .tab-link[aria-current=\"page\"] {", ".app-sidebar {", ".app-sidebar .nav-item[aria-current=\"page\"] {"]) {
+      expect(skins, `B skin ${sel}`).toContain(`[data-surface="founder"] ${sel}`);
+      expect(section, `v2 override ${sel}`).toContain(`html[data-look="v2"] [data-v2-scope][data-surface="founder"] ${sel}`);
     }
   });
 

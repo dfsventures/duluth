@@ -13,13 +13,20 @@ import { useEffect } from "react";
  * opened them. /admin pages set "admin", which no B rule matches. The attribute
  * is removed on unmount so unmarked routes (e.g. investor share links) keep the
  * defaults.
+ *
+ * It also mirrors the shell's new-look scope (data-v2-scope), so those layers get the new look on
+ * every page the shell's own content does (admin and founder app pages), and nowhere else.
  */
 export function SurfaceSync({ surface }: { surface: "founder" | "admin" }) {
   useEffect(() => {
     const body = document.body;
     body.setAttribute("data-surface", surface);
+    body.setAttribute("data-v2-scope", "");
     return () => {
-      if (body.getAttribute("data-surface") === surface) body.removeAttribute("data-surface");
+      if (body.getAttribute("data-surface") === surface) {
+        body.removeAttribute("data-surface");
+        body.removeAttribute("data-v2-scope");
+      }
     };
   }, [surface]);
   return null;

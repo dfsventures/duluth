@@ -356,7 +356,7 @@ export function Sidebar({ open = false, onClose, surface }: SidebarProps) {
             })}
           </>
         ) : (
-          <ul className="space-y-1">
+          <ul className="space-y-1 v2:space-y-0 v2:pt-1">
             {/* Part 16, WS40 — surfaced right under Dashboard, only
                 while the founder's selected company is still in
                 due-diligence intake. */}

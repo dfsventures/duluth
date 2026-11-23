@@ -60,7 +60,31 @@ const PAGES: Record<string, string> = {
   // Page types v1: the second tabs of Updates and Funds (the old /admin/templates and /admin/sync).
   templates: "/admin/updates?tab=templates",
   sync: "/admin/funds?tab=sync",
+  // Founder pages (WS165), signed in as a seeded founder (FOUNDER_AS below), not the admin.
+  "f-dashboard": "/dashboard",
+  "f-updates": "/updates",
+  "f-update": "/updates", // the founder's updates list, then the first update's own page
+  "f-update-new": "/updates/new",
+  "f-from-dfs": "/from-dfs",
+  "f-from-dfs-detail": "/from-dfs", // the first message
+  "f-metrics": "/company/metrics",
+  "f-planner": "/planner",
+  "f-planner-detail": "/planner", // the first scenario
+  "f-links": "/links",
+  "f-profile": "/company/profile",
+  "f-documents": "/company/documents",
+  "f-team": "/team",
+  "f-providers": "/providers",
+  "f-diligence": "/diligence", // as the founder of the seeded diligence-stage company
+  "f-setup": "/setup-wizard",
 };
+
+// Founder pages sign in as a founder: the owner of a current company, or of the diligence-stage one.
+const FOUNDER_AS: Record<string, string> = Object.fromEntries(
+  Object.keys(PAGES)
+    .filter((k) => k.startsWith("f-"))
+    .map((k) => [k, k === "f-diligence" ? "amara@piedpiper-cloud.example.com" : "jane@acme-robotics.example.com"])
+);
 
 // Page types v1 (docs/design/page-types-v1.md §10): every page's type, for the alignment check.
 const PAGE_TYPE: Record<string, "list" | "detail" | "editor"> = {
@@ -195,6 +219,9 @@ const FOLLOW: Record<string, { list: string; suffix?: string; last?: boolean }> 
   "report-detail": { list: "/admin/reports/" },
   "report-preview": { list: "/admin/reports/", suffix: "/preview" },
   "update-new": { list: "/admin/companies/", suffix: "/updates/new" },
+  "f-update": { list: "/updates/" },
+  "f-from-dfs-detail": { list: "/from-dfs/" },
+  "f-planner-detail": { list: "/planner/" },
 };
 const VIEWPORTS: Record<string, { width: number; height: number }> = {
   desktop: { width: 1440, height: 900 },
@@ -301,10 +328,10 @@ async function stopServer(): Promise<void> {
   console.log("Stopped the dev server.");
 }
 
-async function mintSessionCookie(user: { id: string; email: string; name: string | null }): Promise<string> {
+async function mintSessionCookie(user: { id: string; email: string; name: string | null }, roles: string[] = ["ADMIN"]): Promise<string> {
   const { encode } = await import("next-auth/jwt");
   return encode({
-    token: { id: user.id, sub: user.id, email: user.email, name: user.name, roles: ["ADMIN"], status: "APPROVED" },
+    token: { id: user.id, sub: user.id, email: user.email, name: user.name, roles, status: "APPROVED" },
     secret: LOCAL_AUTH_SECRET,
     salt: COOKIE_NAME,
     maxAge: 60 * 60, // an hour is plenty
@@ -330,8 +357,13 @@ async function main() {
   let pendingId: string | undefined;
   let behindId: string | undefined;
   let alertId: string | undefined;
+  const founders: Record<string, { id: string; email: string; name: string | null }> = {};
   try {
     admin = await db.user.findUnique({ where: { email: "sam@example.com" }, select: { id: true, email: true, name: true } });
+    for (const email of new Set(pageKeys.map((k) => FOUNDER_AS[k]).filter(Boolean))) {
+      const f = await db.user.findUnique({ where: { email }, select: { id: true, email: true, name: true } });
+      if (f) founders[email] = f;
+    }
     companyId = (await db.company.findFirst({ where: { name: "Acme Robotics" }, select: { id: true } }))?.id;
     pendingId = (await db.user.findUnique({ where: { email: "chidi@dunder-mifflin-paper.example.com" }, select: { id: true } }))?.id;
     behindId = (await db.company.findFirst({ where: { name: "Initech Systems" }, select: { id: true } }))?.id;
@@ -345,6 +377,13 @@ async function main() {
   }
 
   const cookie = await mintSessionCookie(admin);
+  const founderCookies: Record<string, string> = {};
+  for (const [email, f] of Object.entries(founders)) founderCookies[email] = await mintSessionCookie(f, ["FOUNDER"]);
+  const missing = [...new Set(pageKeys.map((k) => FOUNDER_AS[k]).filter((e) => e && !founderCookies[e]))];
+  if (missing.length) {
+    console.error(`Seeded founder(s) not found: ${missing.join(", ")}. Run: npx tsx scripts/visual/setup.ts`);
+    process.exit(1);
+  }
   fs.mkdirSync(outDir, { recursive: true });
   await startServer();
 
@@ -431,7 +470,12 @@ async function main() {
 
       const watch = (page: any, label: string) => {
         page.on("console", (m: any) => {
-          if (m.type() === "error") console.warn(`  [console error] ${label}: ${String(m.text()).slice(0, 300)}`);
+          if (m.type() === "error") {
+            const text = String(m.text());
+            // React's hooks-order warning names the component in its arguments and lists the hooks after
+            // the first 300 characters: print it whole.
+            console.warn(`  [console error] ${label}: ${/order of Hooks/.test(text) ? text.slice(0, 3000) : text.slice(0, 300)}`);
+          }
         });
         page.on("pageerror", (e: Error) => console.warn(`  [page error] ${label}: ${e.message.slice(0, 300)}`));
       };
@@ -439,6 +483,9 @@ async function main() {
       console.log(`\n${tag}`);
       for (const key of pageKeys) {
         if (authBroken) break;
+        // Founder pages sign in as their founder; everything else as the admin.
+        const asCookie = FOUNDER_AS[key] ? founderCookies[FOUNDER_AS[key]] : cookie;
+        await context.addCookies([{ name: COOKIE_NAME, value: asCookie, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
         const page = await context.newPage();
         watch(page, `${key} ${tag}`);
         let ok = await open(page, `${key} ${tag}`, PAGES[key]);
@@ -473,6 +520,8 @@ async function main() {
 
       // States: only in the new look, and only at the first requested size.
       if (withStates && v.look === "new" && vpKey === viewportKeys[0] && !authBroken) {
+        // The states are admin pages: put the admin's cookie back after any founder page.
+        await context.addCookies([{ name: COOKIE_NAME, value: cookie, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
         if (pageKeys.includes("companies") && companyId) {
           let page = await context.newPage();
           watch(page, `companies-pane ${tag}`);

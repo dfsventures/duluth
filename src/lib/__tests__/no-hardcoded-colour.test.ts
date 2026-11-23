@@ -27,6 +27,17 @@ const SCAN_DIRS = [
   "components/admin",
   "components/auth",
   "components/lp",
+  // Founder pages (stage 2 of the new look, PLAN-1 WS165).
+  "app/dashboard",
+  "app/updates",
+  "app/from-dfs",
+  "app/company",
+  "app/planner",
+  "app/links",
+  "app/team",
+  "app/providers",
+  "app/diligence",
+  "app/setup-wizard",
 ];
 
 const FIXED_COLOUR =

@@ -127,7 +127,7 @@ describe("new-look CSS", () => {
     expect(col).toContain("position: sticky");
     // The group (bar, column, panel) is 1056 wide at most and centred: the shared page frame does that
     // (AppShell width="detail"), so the page keeps no centring rule of its own.
-    expect(col).not.toMatch(/\.memo-dossier \{\s*max-width/);    expect(col).toMatch(/html\[data-look="v2"\] \[data-surface="admin"\] \.memo-dossier-grid/);
+    expect(col).not.toMatch(/\.memo-dossier \{\s*max-width/);    expect(col).toMatch(/html\[data-look="v2"\] \[data-v2-scope\] \.memo-dossier-grid/);
     // The fold rule sits in the screen block, so print always shows every section open. No clamp rule.
     const screenBlock = col.slice(0, col.indexOf("@media screen and (hover: none)"));
     expect(screenBlock).toContain('[data-folded="true"]');
@@ -145,7 +145,7 @@ describe("new-look CSS", () => {
   it("printing puts light colour tokens back for the dark theme, inside the print scope only", () => {
     const print = css.slice(css.indexOf("Printing the memo in the dark theme"), css.indexOf("End new look"));
     expect(print).toContain("@media print {");
-    expect(print).toMatch(/\[data-theme="dark"\] \[data-surface="admin"\] \.memo-print-scope \{[^}]*--color-text-primary: #15181D/);
+    expect(print).toMatch(/\[data-theme="dark"\] \[data-v2-scope\] \.memo-print-scope \{[^}]*--color-text-primary: #15181D/);
     expect(print).toContain("--color-bg: #FFFFFF");
   });
 });
