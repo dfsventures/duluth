@@ -15,6 +15,7 @@ import { formatDate, daysSince } from "@/lib/utils";
 import { nextFounderAction } from "@/lib/next-action";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { ORG_NAME } from "@/lib/org";
+import { V2_EYEBROW, V2_LIST, V2_ROW, V2_ROW_FLUSH, V2_SECTION_HEAD, V2_STAT_CAPTION, V2_STAT_VALUE, V2_HEADING, V2_PANEL } from "@/lib/founder-look";
 
 interface Company {
   id: string;
@@ -217,63 +218,65 @@ export default function DashboardPage() {
       />
 
       {/* Next action: the one thing to do, with one button. */}
+      {/* New look: the next action stays the hero (Joseph, WS165), on the raised tier with no edge. */}
       <section
         aria-labelledby="next-action-heading"
-        className="card mb-8 flex flex-wrap items-center justify-between gap-4"
+        className={`card mb-8 flex flex-wrap items-center justify-between gap-4 ${V2_PANEL} v2:mb-10 max-md:v2:gap-3`}
       >
         <div className="min-w-0 flex-1 basis-64">
-          <p className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+          <p className={`font-mono text-label font-semibold uppercase tracking-label text-muted-foreground ${V2_EYEBROW}`}>
             {next.tone === "act" ? "Next step" : "All clear"}
           </p>
-          <h2 id="next-action-heading" className="mt-1 font-display text-title text-foreground">
+          <h2 id="next-action-heading" className="mt-1 font-display text-title text-foreground v2:font-sans v2:text-[20px] v2:leading-7">
             {next.headline}
           </h2>
-          {next.detail && <p className="mt-1 text-body text-secondary">{next.detail}</p>}
+          {next.detail && <p className="mt-1 text-body text-secondary v2:text-row">{next.detail}</p>}
         </div>
         {next.tone === "act" ? (
-          <Button size="lg" onClick={() => router.push(next.href)}>
+          <Button size="lg" className="max-md:v2:w-full" onClick={() => router.push(next.href)}>
             {next.cta}
           </Button>
         ) : (
-          <Button size="lg" variant="secondary" onClick={() => router.push(next.href)}>
+          <Button size="lg" variant="secondary" className="max-md:v2:w-full" onClick={() => router.push(next.href)}>
             {next.cta}
           </Button>
         )}
       </section>
 
-      {/* Quiet stat strip: company, updates, last update, investor views */}
+      {/* Quiet stat strip: company, updates, last update, investor views. New look: no rules, as the
+          admin Stat strip (label 12, figure 20/28, caption 12). */}
       <dl
         aria-label="Company at a glance"
-        className="mb-10 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-border py-4 lg:grid-cols-4"
+        className="mb-10 grid grid-cols-2 gap-x-6 gap-y-4 border-y border-border py-4 lg:grid-cols-4 v2:gap-x-8 v2:border-y-0 v2:py-0"
       >
         <div className="min-w-0">
-          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Company</dt>
-          <dd className="mt-0.5 truncate font-display text-lg font-semibold">{company.name}</dd>
-          <p className="truncate text-sm text-muted-foreground">
+          <dt className={`font-mono text-label font-semibold uppercase tracking-label text-muted-foreground ${V2_EYEBROW}`}>Company</dt>
+          <dd className={`mt-0.5 truncate font-display text-lg font-semibold ${V2_STAT_VALUE}`}>{company.name}</dd>
+          <p className={`truncate text-sm text-muted-foreground ${V2_STAT_CAPTION}`}>
             {company.sector ?? "No sector set"}
             {company.geography ? ` \u00B7 ${company.geography}` : ""}
           </p>
         </div>
         <div>
-          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Updates</dt>
-          <dd className="mt-0.5 font-display text-lg font-semibold">{updates.length}</dd>
-          <p className="text-sm text-muted-foreground">{updates.length === 1 ? "update" : "updates"} submitted</p>
+          <dt className={`font-mono text-label font-semibold uppercase tracking-label text-muted-foreground ${V2_EYEBROW}`}>Updates</dt>
+          <dd className={`mt-0.5 font-display text-lg font-semibold ${V2_STAT_VALUE}`}>{updates.length}</dd>
+          <p className={`text-sm text-muted-foreground ${V2_STAT_CAPTION}`}>{updates.length === 1 ? "update" : "updates"} submitted</p>
         </div>
         <div>
-          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Last update</dt>
-          <dd className="mt-0.5 font-display text-lg font-semibold">
+          <dt className={`font-mono text-label font-semibold uppercase tracking-label text-muted-foreground ${V2_EYEBROW}`}>Last update</dt>
+          <dd className={`mt-0.5 font-display text-lg font-semibold ${V2_STAT_VALUE}`}>
             {lastUpdateDate ? formatDate(lastUpdateDate) : "None yet"}
           </dd>
-          <p className="text-sm text-muted-foreground">
+          <p className={`text-sm text-muted-foreground ${V2_STAT_CAPTION}`}>
             {daysSinceLastUpdate !== null
               ? `${daysSinceLastUpdate} day${daysSinceLastUpdate === 1 ? "" : "s"} ago`
               : "No updates sent"}
           </p>
         </div>
         <div>
-          <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">Investor views</dt>
-          <dd className="mt-0.5 font-display text-lg font-semibold">{engagement.totalViews}</dd>
-          <p className="text-sm text-muted-foreground">
+          <dt className={`font-mono text-label font-semibold uppercase tracking-label text-muted-foreground ${V2_EYEBROW}`}>Investor views</dt>
+          <dd className={`mt-0.5 font-display text-lg font-semibold ${V2_STAT_VALUE}`}>{engagement.totalViews}</dd>
+          <p className={`text-sm text-muted-foreground ${V2_STAT_CAPTION}`}>
             {engagement.recentViews[0]
               ? `Last viewed ${formatDate(engagement.recentViews[0].viewedAt)}`
               : "No views yet"}
@@ -283,35 +286,35 @@ export default function DashboardPage() {
 
       {/* Latest message from DFS: quiet, only when one exists */}
       {latestDfs && (
-        <section aria-labelledby="from-dfs-heading" className="mb-10">
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 id="from-dfs-heading" className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+        <section aria-labelledby="from-dfs-heading" className="mb-10 v2:mb-12">
+          <div className="mb-3 flex items-baseline justify-between v2:items-center">
+            <h2 id="from-dfs-heading" className={`font-mono text-label font-semibold uppercase tracking-label text-muted-foreground ${V2_SECTION_HEAD}`}>
               From {ORG_NAME}
             </h2>
-            <Link href="/from-dfs" className="text-sm text-primary underline-offset-4 hover:underline">
+            <Link href="/from-dfs" className="text-sm text-primary underline-offset-4 hover:underline v2:text-row max-md:v2:inline-flex max-md:v2:min-h-11 max-md:v2:items-center">
               All messages
             </Link>
           </div>
           <Link
             href={`/from-dfs/${latestDfs.id}`}
-            className="flex min-h-[56px] items-center justify-between gap-4 rounded-md border border-edge bg-card px-4 py-3 shadow-soft transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-row-hover hover:shadow-lift focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+            className={`flex min-h-[56px] items-center justify-between gap-4 rounded-md border border-edge bg-card px-4 py-3 shadow-soft transition-[background-color,box-shadow,transform] hover:-translate-y-px hover:bg-row-hover hover:shadow-lift focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${V2_LIST} ${V2_ROW_FLUSH} v2:hover:translate-y-0 v2:hover:shadow-none max-md:v2:flex-col max-md:v2:items-start max-md:v2:justify-center max-md:v2:gap-1`}
           >
-            <span className="min-w-0 flex-1 truncate font-medium">{latestDfs.subject}</span>
+            <span className="min-w-0 flex-1 truncate font-medium v2:text-row max-md:v2:w-full max-md:v2:flex-none">{latestDfs.subject}</span>
             {latestDfs.publishedAt && (
-              <span className="shrink-0 text-sm text-muted-foreground">{formatDate(latestDfs.publishedAt)}</span>
+              <span className="shrink-0 text-sm text-muted-foreground v2:text-row max-md:v2:text-meta">{formatDate(latestDfs.publishedAt)}</span>
             )}
           </Link>
         </section>
       )}
 
       {/* Recent updates */}
-      <section aria-labelledby="recent-updates-heading" className="mb-10">
-        <div className="mb-3 flex items-baseline justify-between">
-          <h2 id="recent-updates-heading" className="font-display text-heading text-foreground">
+      <section aria-labelledby="recent-updates-heading" className="mb-10 v2:mb-12">
+        <div className="mb-3 flex items-baseline justify-between v2:items-center">
+          <h2 id="recent-updates-heading" className={`font-display text-heading text-foreground ${V2_HEADING}`}>
             Recent updates
           </h2>
           {updates.length > 0 && (
-            <Link href="/updates" className="text-sm text-primary underline-offset-4 hover:underline">
+            <Link href="/updates" className="text-sm text-primary underline-offset-4 hover:underline v2:text-row max-md:v2:inline-flex max-md:v2:min-h-11 max-md:v2:items-center">
               All updates
             </Link>
           )}
@@ -325,16 +328,18 @@ export default function DashboardPage() {
             action={<Button onClick={() => router.push("/updates/new")}>Write an update</Button>}
           />
         ) : (
-          <ul className="divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft">
+          // New look: hairline rows. Desktop: one 44px line (title, then period and date, then the
+          // status). Phones: two lines (title, then period and date).
+          <ul className={`divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft ${V2_LIST}`}>
             {updates.map((update) => (
               <li key={update.id}>
                 <Link
                   href={`/updates/${update.id}`}
-                  className="flex min-h-[56px] items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  className={`flex min-h-[56px] items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-row-hover focus-visible:bg-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${V2_ROW}`}
                 >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{update.title}</span>
-                    <span className="block text-sm text-muted-foreground">
+                  <span className="min-w-0 flex-1 md:v2:flex md:v2:items-center md:v2:gap-6">
+                    <span className="block truncate font-medium v2:text-row md:v2:min-w-0 md:v2:flex-1">{update.title}</span>
+                    <span className="block text-sm text-muted-foreground v2:text-row v2:text-secondary md:v2:shrink-0 max-md:v2:mt-1 max-md:v2:text-meta max-md:v2:text-muted-foreground">
                       {update.period} &middot; {formatDate(update.createdAt)}
                     </span>
                   </span>
@@ -350,7 +355,7 @@ export default function DashboardPage() {
 
       {/* Recent investor activity */}
       <section aria-labelledby="investor-activity-heading">
-        <h2 id="investor-activity-heading" className="mb-3 font-display text-heading text-foreground">
+        <h2 id="investor-activity-heading" className={`mb-3 font-display text-heading text-foreground ${V2_HEADING}`}>
           Recent investor activity
         </h2>
         {engagement.recentViews.length === 0 ? (
@@ -366,14 +371,14 @@ export default function DashboardPage() {
             }
           />
         ) : (
-          <ul className="divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft">
+          <ul className={`divide-y divide-row-divider overflow-hidden rounded-md border border-edge bg-card shadow-soft ${V2_LIST}`}>
             {engagement.recentViews.map((view) => (
-              <li key={view.id} className="flex min-h-[56px] items-center justify-between gap-4 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">{view.email}</p>
-                  <p className="text-sm text-muted-foreground">{view.link.label ?? "Investor link"}</p>
+              <li key={view.id} className="flex min-h-[56px] items-center justify-between gap-4 px-4 py-3 v2:min-h-11 v2:px-0 v2:py-0 max-md:v2:min-h-16 max-md:v2:py-3">
+                <div className="min-w-0 flex-1 md:v2:flex md:v2:items-center md:v2:gap-6">
+                  <p className="truncate font-medium v2:text-row md:v2:min-w-0 md:v2:flex-1">{view.email}</p>
+                  <p className="text-sm text-muted-foreground v2:text-row v2:text-secondary md:v2:shrink-0 max-md:v2:mt-1 max-md:v2:text-meta max-md:v2:text-muted-foreground">{view.link.label ?? "Investor link"}</p>
                 </div>
-                <p className="shrink-0 text-sm text-muted-foreground">{formatDate(view.viewedAt)}</p>
+                <p className="shrink-0 text-sm text-muted-foreground v2:text-row max-md:v2:text-meta">{formatDate(view.viewedAt)}</p>
               </li>
             ))}
           </ul>

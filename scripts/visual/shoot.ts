@@ -158,6 +158,48 @@ const MEASURE_JS = `(() => {
   return { m, shape };
 })()`;
 
+// The 390px check (WS165): does the page scroll sideways, and which tap targets are under 44px? A link
+// inside a sentence (its parent is a p, li or span of running text) is listed apart: it is a word in
+// the text, not a control. Plain browser JavaScript, as MEASURE_JS.
+const PHONE_CHECK_JS = `(() => {
+  const main = document.getElementById("main-content");
+  const hscroll = Math.max(
+    main ? main.scrollWidth - main.clientWidth : 0,
+    document.documentElement.scrollWidth - window.innerWidth
+  );
+  const small = [];
+  const inline = [];
+  const sel = 'a[href], button, input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]), select, textarea, summary, [role="button"], label:has(> input[type="checkbox"]), label:has(> input[type="radio"])';
+  for (const el of Array.from(document.querySelectorAll(sel))) {
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    if (r.right <= 0 || el.closest("#app-sidebar")) continue; // the closed phone drawer
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden" || el.closest('[aria-hidden="true"], .sr-only, [hidden]')) continue;
+    if (r.height >= 43.5) continue;
+    const text = ((el.getAttribute("aria-label") || el.textContent || el.getAttribute("placeholder") || el.tagName) + "").trim().replace(/\\s+/g, " ").slice(0, 40);
+    const item = el.tagName.toLowerCase() + " \\"" + text + "\\" " + Math.round(r.width) + "x" + Math.round(r.height);
+    const p = el.parentElement;
+    const inText = el.tagName === "A" && p && /^(P|LI|SPAN|DD|TD)$/.test(p.tagName) && (p.textContent || "").trim().length > (el.textContent || "").trim().length + 3;
+    (inText ? inline : small).push(item);
+  }
+  return { hscroll: Math.round(hscroll), small, inline };
+})()`;
+const phoneRows: { key: string; tag: string; hscroll: number; small: string[]; inline: string[] }[] = [];
+
+// --tall: on phones, let the page grow so the picture holds all of it, not just the first screen (the
+// shell scrolls inside <main>). Only for the picture; the 390 check runs before it.
+const TALL_JS = `(() => {
+  const main = document.getElementById("main-content");
+  const shell = main && main.parentElement;
+  for (const el of [document.documentElement, document.body, shell, main]) {
+    if (!el) continue;
+    el.style.height = "auto";
+    el.style.maxHeight = "none";
+    el.style.overflow = "visible";
+  }
+})()`;
+
 async function measure(page: any): Promise<{ m: Marks; shape: string }> {
   return page.evaluate(MEASURE_JS);
 }
@@ -510,6 +552,14 @@ async function main() {
           ok = href ? await open(page, `${key} ${tag}`, href + suffix) : false;
           if (!href) console.log(`  [skip] ${key} ${tag}: no row link appeared under ${prefix} within ${ROW_WAIT_MS / 1000}s`);
         }
+        if (ok && vpKey === "phone" && v.theme === "light") {
+          const r = await page.evaluate(PHONE_CHECK_JS).catch(() => null);
+          if (r) phoneRows.push({ key, tag, ...r });
+        }
+        if (ok && vpKey === "phone" && process.argv.includes("--tall")) {
+          await page.evaluate(TALL_JS).catch(() => {});
+          await page.waitForTimeout(200);
+        }
         if (ok) await snap(page, `${key}__${tag}.png`);
         if (ok && v.look === "new" && v.theme === "light" && vpKey !== "phone" && PAGE_TYPE[key]) {
           const { m, shape } = await measure(page).catch(() => ({ m: {} as Marks, shape: "error" }));
@@ -637,6 +687,15 @@ async function run() {
   if (alignRows.length) {
     fs.writeFileSync(path.join(outDir, "alignment.json"), JSON.stringify(alignRows, null, 1));
     alignReport();
+  }
+  if (phoneRows.length) {
+    fs.writeFileSync(path.join(outDir, "phone-check.json"), JSON.stringify(phoneRows, null, 1));
+    console.log("\nPhone (390) check: sideways scroll in px, and tap targets under 44px (links inside a sentence listed apart)");
+    for (const r of phoneRows) {
+      console.log(`  ${r.key} ${r.tag}: scroll ${r.hscroll}px, ${r.small.length} small target(s), ${r.inline.length} in-text link(s)`);
+      for (const s of r.small) console.log(`      small: ${s}`);
+      for (const s of r.inline) console.log(`      in text: ${s}`);
+    }
   }
   if (failures.length) {
     console.error(`\nFAILED (${failures.length}):`);
