@@ -131,7 +131,10 @@ export default function NewUpdatePage() {
 
   function addFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
-    setAttachments((prev) => [...prev, ...toPendingAttachments(Array.from(list))]);
+    // Copy the files now: the FileList is live, and clearing the input below empties it before
+    // React runs the state updater.
+    const picked = toPendingAttachments(Array.from(list));
+    setAttachments((prev) => [...prev, ...picked]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
