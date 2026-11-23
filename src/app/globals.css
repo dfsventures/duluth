@@ -134,16 +134,17 @@
 /* ── New look (PLAN-1, WS156) ──
    Opt-in. Nothing here applies unless <html data-look="v2"> is set
    (by src/lib/look.ts / the pre-paint script in layout.tsx), and every selector
-   is scoped to [data-v2-scope], which only AppShell (and <body>, via SurfaceSync)
-   carries: admin pages and, since stage 2 (WS165), the founder app pages. LP,
-   auth, home and share pages, emails and print never match. It redefines the EXISTING token variables, so pages
+   is scoped to [data-v2-scope], which only AppShell, the LP layout, AuthLayout and
+   the home page (and <body>, via SurfaceSync) carry: admin pages, the founder app
+   pages (stage 2, WS165), and the LP portal, sign-in pages and home (WS166). Share
+   pages, the report preview frame and emails never match. It redefines the EXISTING token variables, so pages
    restyle with no component edits. Values: docs/design/redesign-v1.md section 3
    (Molly's own). Contrast is enforced by src/lib/__tests__/design-tokens-v2.test.ts,
    which reads the two blocks below; keep the marker comments. To remove the new
    look, delete everything up to the end marker. */
 html[data-look="v2"] [data-v2-scope],
 html[data-look="v2"] body[data-v2-scope] {
-  /* Type: Inter for every sans use inside the shell (LP and auth pages keep Plex) */
+  /* Type: Inter for every sans use inside the scope (share pages and the preview frame keep Plex) */
   --font-sans: var(--font-inter);
   --font-display: var(--font-inter);
 
@@ -1466,6 +1467,94 @@ html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-i
   html[data-look="v2"] [data-v2-scope][data-surface="founder"] .page-back {
     height: 44px;
     margin-block: -12px;
+  }
+}
+
+/* LP portal, sign-in pages and home (stage 2, PLAN-1 WS166). Their wrappers carry [data-v2-scope]
+   themselves (lp/layout.tsx, auth-layout.tsx, page.tsx), so the token blocks above restyle them; these
+   are the few things tokens can't say. The report preview frame shares the LP markup but carries no
+   scope, so none of this reaches it. Calm reading pages: occasional, often phone, visits. */
+
+/* <body> computes its font and ink from the old tokens before SurfaceSync marks it (and the home page
+   never marks it), so the scoped wrappers set their own, from the first paint. */
+html[data-look="v2"] [data-v2-scope].lp-print-scope,
+html[data-look="v2"] [data-v2-scope].auth-surface,
+html[data-look="v2"] [data-v2-scope].home-surface {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  color: var(--color-text-primary);
+}
+
+/* The report page: a 720px reading column, report prose at 14/22 (text-body), not the 13px admin
+   base. ReportView is shared with the preview frame, so it is styled from the LP page's wrapper. */
+html[data-look="v2"] [data-v2-scope] .lp-report article {
+  max-width: 720px;
+}
+html[data-look="v2"] [data-v2-scope] .lp-report article > p {
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 18px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+html[data-look="v2"] [data-v2-scope] .lp-report article > h1 {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+html[data-look="v2"] [data-v2-scope] .lp-report .report-body {
+  font-size: 14px;
+  line-height: 22px;
+}
+
+/* Phones: every tap target at least 44px. Form fields 44 high (36 in the admin), the footer links
+   a full-height hit area that takes no extra room. */
+@media (max-width: 767px) {
+  html[data-look="v2"] [data-v2-scope].auth-surface input.input-field {
+    height: 44px;
+  }
+  html[data-look="v2"] [data-v2-scope].auth-surface .auth-footer a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+/* Printing an LP report in the dark theme: white pages and dark text, as in the light theme. The
+   colour tokens live on the scope element (the LP wrapper itself), so the light values are put
+   back there for print only. The lp-print-scope rules further down are unchanged. */
+@media print {
+  html[data-look="v2"][data-theme="dark"] [data-v2-scope].lp-print-scope {
+    color-scheme: light;
+    --color-bg: #FFFFFF;
+    --color-surface: #FFFFFF;
+    --color-pane: #FFFFFF;
+    --color-well: #E6E9ED;
+    --color-thead: #FFFFFF;
+    --color-row-divider: rgba(18, 24, 38, 0.09);
+    --color-border: rgba(18, 24, 38, 0.16);
+    --color-edge: rgba(18, 24, 38, 0.09);
+    --color-text-primary: #15181D;
+    --color-text-secondary: #474D57;
+    --color-text-muted: #5A616C;
+    --color-muted-rgb: 230 233 237;
+    --color-accent: #44688E;
+    --color-accent-rgb: 68 104 142;
+    --color-mark: #5B8DC5;
+    --color-primary-50: rgba(91, 141, 197, 0.08);
+    --color-primary-100: rgba(91, 141, 197, 0.15);
+    --color-primary-500: #44688E;
+    --color-primary-600: #3A5876;
+    --color-primary-700: #2C4459;
+    --color-done: #1B7448;
+    --color-stuck: #B3362A;
+    --color-warn: #8A5A0B;
+    --tone-stone-fill: #E7E4DA; --tone-stone-ink: #46443C;
+    --tone-sky-fill: #DCE7F3; --tone-sky-ink: #2C4459;
+    --tone-sage-fill: #E3E8D0; --tone-sage-ink: #4A5524;
+    --tone-clay-fill: #F4E0D6; --tone-clay-ink: #8F4A30;
+    --tone-sand-fill: #F1E4C8; --tone-sand-ink: #6B4A0E;
+    --tone-amber-fill: #F8EBC9; --tone-amber-ink: #6B4A0E;
   }
 }
 /* ── End new look ── */

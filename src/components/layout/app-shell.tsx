@@ -79,7 +79,7 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
     // data-v2-scope: the new look's CSS reaches only what sits inside the app shell (admin and founder
     // pages), never the LP portal, sign-in, home or share pages. Static, so CSS alone decides on load.
     <div className="flex h-dvh overflow-hidden" data-surface={surface} data-v2-scope="" data-drawer-open={sidebarOpen ? "" : undefined}>
-      <SurfaceSync surface={surface} />
+      <SurfaceSync surface={surface} newLookScope />
       {/* Skip link: only exists under the new look, only visible when focused (see globals.css) */}
       <a href={`#${MAIN_ID}`} className="skip-link hidden">
         Skip to main content

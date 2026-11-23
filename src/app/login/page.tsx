@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthLayout, AuthAlert, AuthSkeleton } from "@/components/auth/auth-layout";
 import { ORG_NAME, ADMIN_EMAIL_DOMAINS_LABEL } from "@/lib/org";
+import { V2_SECTION_LABEL } from "@/lib/public-look";
 
 const GoogleIcon = () => (
   <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24">
@@ -60,7 +61,7 @@ function LoginForm() {
       {displayError && <AuthAlert>{displayError}</AuthAlert>}
 
       <section aria-labelledby="team-signin">
-        <h2 id="team-signin" className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">
+        <h2 id="team-signin" className={`font-mono text-label font-semibold uppercase tracking-label text-muted-foreground ${V2_SECTION_LABEL}`}>
           {ORG_NAME} team
         </h2>
         <Button
@@ -78,7 +79,7 @@ function LoginForm() {
 
       <div className="my-8 flex items-center gap-3" aria-hidden="true">
         <div className="h-px flex-1 bg-border" />
-        <span className="font-mono text-label uppercase tracking-label text-muted-foreground">or with email</span>
+        <span className="font-mono text-label uppercase tracking-label text-muted-foreground v2:font-sans v2:text-meta v2:normal-case v2:tracking-normal">or with email</span>
         <div className="h-px flex-1 bg-border" />
       </div>
 

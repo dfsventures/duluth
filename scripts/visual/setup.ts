@@ -598,9 +598,26 @@ async function main() {
     await db.fundReport.create({
       data: { fundId: fund1.id, title: "Example Fund I: H1 Report", periodLabel: "H1", body: "<p>Placeholder report.</p>", status: "DRAFT", createdById: sam.id, createdAt: ago(5) },
     });
+    // WS166: a letter long enough to judge the LP reading column (placeholder words, no real figures).
+    const letter = [
+      "<p>Dear limited partners,</p>",
+      "<p>This is a placeholder letter for the local screenshot toolkit. It is long enough to show how a report reads on the page: a few paragraphs of running text, a heading, a short list and a quotation, at the size and line length an LP sees.</p>",
+      "<h2>The year in brief</h2>",
+      "<p>The example portfolio kept growing through the year. Most companies reported on time, a few were late, and one changed its name. None of these sentences describe a real company or a real result; they are here only to fill the column with ordinary prose.</p>",
+      "<ul><li>New investments: a placeholder count.</li><li>Follow-on rounds: another placeholder.</li><li>Exits: none to report in this example.</li></ul>",
+      "<h2>Looking ahead</h2>",
+      "<p>Next year the example fund expects to keep reserves for follow-ons and to write a small number of new cheques. A longer paragraph follows so the reading measure can be judged across several lines, with enough words that the line breaks fall where they naturally would in a real letter to limited partners.</p>",
+      "<blockquote><p>A short quotation, set apart from the running text.</p></blockquote>",
+      "<p>With thanks,<br>The example team</p>",
+    ].join("");
     await db.fundReport.create({
-      data: { fundId: fund2.id, title: "Example Fund II: Annual Letter to Limited Partners with a Deliberately Long Title", periodLabel: "FY", body: "<p>Placeholder report.</p>", status: "PUBLISHED", publishedAt: ago(40), createdById: riley.id, createdAt: ago(45) },
+      data: { fundId: fund2.id, title: "Example Fund II: Annual Letter to Limited Partners with a Deliberately Long Title", periodLabel: "FY", body: letter, status: "PUBLISHED", publishedAt: ago(40), createdById: riley.id, createdAt: ago(45) },
     });
+    // WS166: a standing session for the first LP, so shoot.ts can open the LP library and report with its
+    // cookie (LP_SESSION_TOKEN there). Local database only. Both dates in the far future: the session never
+    // expires and is never idle (lp-auth.ts measures idle time from lastUsedAt).
+    const farFuture = new Date(NOW + 3650 * DAY);
+    await db.lpSession.create({ data: { token: "local-visual-lp-session", lpId: lpA.id, expiresAt: farFuture, lastUsedAt: farFuture } });
 
     await db.companyBroadcast.create({
       data: { subject: "", body: "<p>Placeholder.</p>", status: "DRAFT", createdById: sam.id, createdAt: ago(3),

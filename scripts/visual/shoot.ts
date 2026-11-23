@@ -77,7 +77,22 @@ const PAGES: Record<string, string> = {
   "f-providers": "/providers",
   "f-diligence": "/diligence", // as the founder of the seeded diligence-stage company
   "f-setup": "/setup-wizard",
+  // LP portal, sign-in pages and home (WS166). The public pages are shot signed out; the LP pages
+  // with the seeded LP's session (LP_SESSION_TOKEN, made by setup.ts).
+  home: "/",
+  login: "/login",
+  signup: "/signup",
+  "set-password": "/set-password", // no token: the "This link isn't valid." state
+  "lp-signin": "/lp",
+  lp: "/lp", // the library
+  "lp-report": "/lp", // the library, then the first report (also shot with print styles)
 };
+
+// WS166: pages shot with no admin or founder session, and the LP pages (the LP's own cookie).
+const SIGNED_OUT = new Set(["home", "login", "signup", "set-password", "lp-signin"]);
+const AS_LP = new Set(["lp", "lp-report"]);
+const LP_COOKIE = "lp_session"; // keep in step with src/lib/lp-auth.ts
+const LP_SESSION_TOKEN = "local-visual-lp-session"; // keep in step with setup.ts
 
 // Founder pages sign in as a founder: the owner of a current company, or of the diligence-stage one.
 const FOUNDER_AS: Record<string, string> = Object.fromEntries(
@@ -264,6 +279,7 @@ const FOLLOW: Record<string, { list: string; suffix?: string; last?: boolean }> 
   "f-update": { list: "/updates/" },
   "f-from-dfs-detail": { list: "/from-dfs/" },
   "f-planner-detail": { list: "/planner/" },
+  "lp-report": { list: "/lp/reports/" },
 };
 // WS165: founder pages that only finish loading when reached in the app (their loader runs once, before
 // the company is known, so a fresh load of the URL stays on the skeleton; a known bug, reported, not
@@ -404,6 +420,7 @@ async function main() {
   let behindId: string | undefined;
   let alertId: string | undefined;
   const founders: Record<string, { id: string; email: string; name: string | null }> = {};
+  let lpSession = false;
   try {
     admin = await db.user.findUnique({ where: { email: "sam@example.com" }, select: { id: true, email: true, name: true } });
     for (const email of new Set(pageKeys.map((k) => FOUNDER_AS[k]).filter(Boolean))) {
@@ -414,6 +431,9 @@ async function main() {
     pendingId = (await db.user.findUnique({ where: { email: "chidi@dunder-mifflin-paper.example.com" }, select: { id: true } }))?.id;
     behindId = (await db.company.findFirst({ where: { name: "Initech Systems" }, select: { id: true } }))?.id;
     alertId = (await db.metricAlert.findFirst({ where: { dedupeKey: "local-alert-initech-mrr" }, select: { id: true } }))?.id;
+    if (pageKeys.some((k) => AS_LP.has(k))) {
+      lpSession = !!(await db.lpSession.findUnique({ where: { token: LP_SESSION_TOKEN }, select: { id: true } }));
+    }
   } finally {
     await db.$disconnect();
   }
@@ -428,6 +448,10 @@ async function main() {
   const missing = [...new Set(pageKeys.map((k) => FOUNDER_AS[k]).filter((e) => e && !founderCookies[e]))];
   if (missing.length) {
     console.error(`Seeded founder(s) not found: ${missing.join(", ")}. Run: npx tsx scripts/visual/setup.ts`);
+    process.exit(1);
+  }
+  if (pageKeys.some((k) => AS_LP.has(k)) && !lpSession) {
+    console.error("The seeded LP session was not found (the LP pages need it). Run: npx tsx scripts/visual/setup.ts");
     process.exit(1);
   }
   fs.mkdirSync(outDir, { recursive: true });
@@ -452,7 +476,7 @@ async function main() {
     await page.waitForFunction("!document.querySelector('.animate-skeleton-pulse')", undefined, { timeout: 20_000 }).catch(() => {});
     await page.waitForTimeout(700);
 
-    if (new URL(page.url()).pathname.startsWith("/login")) {
+    if (new URL(page.url()).pathname.startsWith("/login") && !url.startsWith("/login")) {
       failures.push(`${label}: redirected to /login (sign-in did not work)`);
       authBroken = true;
       return false;
@@ -530,8 +554,14 @@ async function main() {
       for (const key of pageKeys) {
         if (authBroken) break;
         // Founder pages sign in as their founder; everything else as the admin.
-        const asCookie = FOUNDER_AS[key] ? founderCookies[FOUNDER_AS[key]] : cookie;
-        await context.addCookies([{ name: COOKIE_NAME, value: asCookie, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
+        // WS166: public pages signed out, LP pages with only the LP's cookie.
+        if (SIGNED_OUT.has(key) || AS_LP.has(key)) {
+          await context.clearCookies();
+          if (AS_LP.has(key)) await context.addCookies([{ name: LP_COOKIE, value: LP_SESSION_TOKEN, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
+        } else {
+          const asCookie = FOUNDER_AS[key] ? founderCookies[FOUNDER_AS[key]] : cookie;
+          await context.addCookies([{ name: COOKIE_NAME, value: asCookie, url: BASE_URL, httpOnly: true, sameSite: "Lax" }]);
+        }
         const page = await context.newPage();
         watch(page, `${key} ${tag}`);
         let ok = await open(page, `${key} ${tag}`, VIA_DASHBOARD.has(key) ? "/dashboard" : PAGES[key]);
@@ -580,6 +610,13 @@ async function main() {
           await page.waitForTimeout(200);
         }
         if (ok) await snap(page, `${key}__${tag}.png`);
+        // WS166: the LP report as it prints (white pages, dark text, in both themes).
+        if (ok && key === "lp-report" && vpKey !== "phone") {
+          await page.emulateMedia({ media: "print" });
+          await page.waitForTimeout(200);
+          await snap(page, `lp-report-print__${tag}.png`);
+          await page.emulateMedia({ media: "screen" });
+        }
         if (ok && v.look === "new" && v.theme === "light" && vpKey !== "phone" && PAGE_TYPE[key]) {
           const { m, shape } = await measure(page).catch(() => ({ m: {} as Marks, shape: "error" }));
           alignRows.push({ vp: vpKey, key, type: PAGE_TYPE[key], shape, m });

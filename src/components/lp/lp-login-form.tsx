@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { V2_FIELD_LABEL, V2_TAP, V2_TEXT_FIELD } from "@/lib/public-look";
 
 type Step = "email" | "code";
 
@@ -69,9 +70,9 @@ export function LpLoginForm() {
 
   if (step === "code") {
     return (
-      <form onSubmit={handleVerify} className="mt-8 max-w-sm">
-        {info && <p className="mb-4 text-sm text-secondary">{info}</p>}
-        <label htmlFor="lp-otp-code" className="mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-secondary">
+      <form onSubmit={handleVerify} className="mt-8 max-w-sm v2:max-w-none">
+        {info && <p className="mb-4 text-sm text-secondary v2:text-body">{info}</p>}
+        <label htmlFor="lp-otp-code" className={`mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-secondary ${V2_FIELD_LABEL} v2:mb-1`}>
           6-digit code
         </label>
         <input
@@ -84,7 +85,7 @@ export function LpLoginForm() {
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
           placeholder="000000"
-          className="w-full border border-border bg-card px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none"
+          className="w-full border border-border bg-card px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none v2:h-14 v2:rounded-ctl v2:border-[color:var(--color-ctl)] v2:py-0"
         />
         {error && <p className="mt-2 text-sm text-tone-clay-ink">{error}</p>}
         <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">
@@ -98,7 +99,7 @@ export function LpLoginForm() {
             setError(null);
             setInfo(null);
           }}
-          className="mt-3 text-xs text-muted-foreground hover:text-secondary"
+          className={`mt-3 text-xs text-muted-foreground hover:text-secondary v2:text-row ${V2_TAP}`}
         >
           Use a different email
         </button>
@@ -107,8 +108,8 @@ export function LpLoginForm() {
   }
 
   return (
-    <form onSubmit={handleRequest} className="mt-8 max-w-sm">
-      <label htmlFor="lp-email" className="mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-secondary">
+    <form onSubmit={handleRequest} className="mt-8 max-w-sm v2:max-w-none">
+      <label htmlFor="lp-email" className={`mb-2 block font-mono text-xs uppercase tracking-[0.1em] text-secondary ${V2_FIELD_LABEL} v2:mb-1`}>
         Email address
       </label>
       <input
@@ -119,7 +120,7 @@ export function LpLoginForm() {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
-        className="w-full border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none"
+        className={`w-full border border-border bg-card px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none ${V2_TEXT_FIELD}`}
       />
       {error && <p className="mt-2 text-sm text-tone-clay-ink">{error}</p>}
       <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">

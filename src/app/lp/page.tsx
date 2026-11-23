@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { LpLoginForm } from "@/components/lp/lp-login-form";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ORG_NAME } from "@/lib/org";
+import { V2_EYEBROW, V2_LIST, V2_ROW, V2_SECTION_HEAD } from "@/lib/founder-look";
+import { V2_AUTH_TITLE, V2_PAGE_TITLE } from "@/lib/public-look";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +22,12 @@ export default async function LpPortalPage() {
 
   if (!ctx) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">LP Portal</p>
-        <h1 className="mt-3 font-display text-3xl tracking-tight text-foreground sm:text-4xl">
+      <div className="mx-auto max-w-2xl v2:max-w-md">
+        <p className={`font-mono text-xs uppercase tracking-[0.12em] text-primary ${V2_EYEBROW}`}>LP Portal</p>
+        <h1 className={`mt-3 font-display text-3xl tracking-tight text-foreground sm:text-4xl ${V2_AUTH_TITLE}`}>
           Fund reports for our limited partners.
         </h1>
-        <p className="mt-4 max-w-lg text-secondary">
+        <p className="mt-4 max-w-lg text-secondary v2:mt-3 v2:text-body">
           Enter the email address {ORG_NAME} has on file for you and we&rsquo;ll send a one-time access code.
         </p>
         <LpLoginForm />
@@ -47,9 +49,9 @@ export default async function LpPortalPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <p className="font-mono text-xs uppercase tracking-[0.12em] text-primary">LP Portal</p>
-      <h1 className="mt-3 font-display text-3xl tracking-tight text-foreground sm:text-4xl">Your fund reports.</h1>
+    <div className="mx-auto max-w-2xl v2:max-w-[720px]">
+      <p className={`font-mono text-xs uppercase tracking-[0.12em] text-primary ${V2_EYEBROW}`}>LP Portal</p>
+      <h1 className={`mt-3 font-display text-3xl tracking-tight text-foreground sm:text-4xl ${V2_PAGE_TITLE} v2:mt-1`}>Your fund reports.</h1>
 
       {reports.length === 0 ? (
         <EmptyState
@@ -60,24 +62,24 @@ export default async function LpPortalPage() {
           description={`${ORG_NAME} hasn't published any reports for your funds yet — check back soon.`}
         />
       ) : (
-        <div className="mt-10 space-y-10">
+        <div className="mt-10 space-y-10 v2:mt-8">
           {[...byFund.entries()].map(([fundId, bucket]) => (
             <section key={fundId}>
-              <h2 className="border-b border-border pb-2 font-mono text-xs uppercase tracking-[0.1em] text-muted-foreground">
+              <h2 className={`border-b border-border pb-2 font-mono text-xs uppercase tracking-[0.1em] text-muted-foreground ${V2_SECTION_HEAD} v2:border-b-0 v2:pb-0`}>
                 {bucket.fundName}
               </h2>
-              <ul className="mt-3 divide-y divide-row-divider overflow-hidden rounded-md bg-card shadow-soft">
+              <ul className={`mt-3 divide-y divide-row-divider overflow-hidden rounded-md bg-card shadow-soft ${V2_LIST}`}>
                 {bucket.reports.map((r) => (
                   <li key={r.id}>
                     <Link
                       href={`/lp/reports/${r.id}`}
-                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-4 transition-colors hover:bg-row-hover"
+                      className={`flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-4 transition-colors hover:bg-row-hover ${V2_ROW}`}
                     >
-                      <span>
-                        <span className="font-display text-lg tracking-tight">{r.title}</span>
-                        {r.periodLabel && <span className="ml-2 text-sm text-muted-foreground">{r.periodLabel}</span>}
+                      <span className="v2:min-w-0">
+                        <span className="font-display text-lg tracking-tight v2:font-sans v2:text-row v2:font-medium v2:tracking-normal">{r.title}</span>
+                        {r.periodLabel && <span className="ml-2 text-sm text-muted-foreground v2:text-row">{r.periodLabel}</span>}
                       </span>
-                      <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      <span className="shrink-0 font-mono text-xs text-muted-foreground v2:font-sans v2:text-meta v2:tabular-nums">
                         {r.publishedAt
                           ? new Date(r.publishedAt).toLocaleDateString("en-US", {
                               year: "numeric",

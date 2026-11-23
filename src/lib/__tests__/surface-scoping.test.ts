@@ -108,22 +108,41 @@ describe("surface scoping", () => {
     }
   });
 
-  it("new look scope: only the app shell carries it; LP, auth, home and share pages never do", () => {
+  it("new look scope: the app shell, LP, auth and home carry it; share pages and the report preview frame never do", () => {
     const read = (f: string) => readFileSync(join(__dirname, "..", "..", f), "utf-8");
-    expect(read("components/layout/app-shell.tsx")).toContain('data-v2-scope=""');
-    expect(read("components/layout/surface-sync.tsx")).toContain('body.setAttribute("data-v2-scope", "")');
-    for (const f of ["app/lp/layout.tsx", "components/auth/auth-layout.tsx", "app/page.tsx", "app/share/[token]/page.tsx", "app/admin/reports/[id]/preview/frame/page.tsx"]) {
+    // Stage 1 and 2 (WS165, WS166): each wrapper carries the marker, and mirrors it onto <body> for portalled layers.
+    for (const f of ["components/layout/app-shell.tsx", "app/lp/layout.tsx", "components/auth/auth-layout.tsx", "app/page.tsx"]) {
+      expect(read(f), f).toContain('data-v2-scope=""');
+    }
+    for (const f of ["components/layout/app-shell.tsx", "app/lp/layout.tsx", "components/auth/auth-layout.tsx"]) {
+      expect(read(f), f).toMatch(/<SurfaceSync surface=\S+ newLookScope \/>/);
+    }
+    const sync = read("components/layout/surface-sync.tsx");
+    expect(sync).toContain('if (newLookScope) body.setAttribute("data-v2-scope", "")');
+    expect(sync).toContain("newLookScope = false");
+    // Never: investor share links and the report preview frame (it mirrors the surface onto <body>, not the scope).
+    for (const f of ["app/share/[token]/page.tsx", "app/investors/page.tsx", "app/admin/reports/[id]/preview/frame/page.tsx"]) {
       expect(read(f), f).not.toContain("data-v2-scope");
+      expect(read(f), f).not.toContain("newLookScope");
     }
   });
 
-  it("new look scope by path: admin and the founder app pages; never LP, auth, home, share or the print page", () => {
-    for (const p of ["/admin", "/admin/companies", "/dashboard", "/updates", "/updates/new", "/updates/abc", "/from-dfs/x", "/company/profile", "/company/metrics", "/planner/abc", "/links", "/team", "/providers", "/diligence", "/setup-wizard"]) {
+  it("new look scope by path: admin, the founder app pages, LP, auth and home; never share links, the preview frame or the print page", () => {
+    for (const p of ["/admin", "/admin/companies", "/admin/reports/x/preview", "/dashboard", "/updates", "/updates/new", "/updates/abc", "/from-dfs/x", "/company/profile", "/company/metrics", "/planner/abc", "/links", "/team", "/providers", "/diligence", "/setup-wizard", "/", "/lp", "/lp/reports/x", "/login", "/signup", "/set-password"]) {
       expect(inNewLookScope(p), p).toBe(true);
     }
-    for (const p of [null, "/", "/lp", "/lp/reports/x", "/login", "/signup", "/set-password", "/share/abc", "/share/m/abc", "/investors", "/updates/abc/download", "/dashboards", "/linksx"]) {
+    for (const p of [null, "/share/abc", "/share/m/abc", "/investors", "/admin/reports/x/preview/frame", "/updates/abc/download", "/dashboards", "/linksx", "/lpx", "/loginx"]) {
       expect(inNewLookScope(p), String(p)).toBe(false);
     }
+  });
+
+  it("new look on LP and auth: report reading column, prose size and dark-theme print stay inside the scope", () => {
+    expect(v2Section).toMatch(/\[data-v2-scope\] \.lp-report article \{\s*max-width: 720px;/);
+    expect(v2Section).toMatch(/\[data-v2-scope\] \.lp-report \.report-body \{\s*font-size: 14px;\s*line-height: 22px;/);
+    // Printing in the dark theme puts the light text and page colours back on the LP wrapper.
+    expect(v2Section).toMatch(/@media print \{\s*html\[data-look="v2"\]\[data-theme="dark"\] \[data-v2-scope\]\.lp-print-scope \{[^}]*--color-bg: #FFFFFF;[^}]*--color-text-primary: #15181D;/);
+    // The preview frame shares the LP markup but no scope: it carries no lp-report hook either.
+    expect(readFileSync(join(__dirname, "..", "..", "app", "admin", "reports", "[id]", "preview", "frame", "page.tsx"), "utf-8")).not.toContain("lp-report");
   });
 
   it("new look: nothing outside the v2 section mentions data-look or the Inter variable, and the founder block never sets fonts", () => {

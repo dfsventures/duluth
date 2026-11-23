@@ -14,20 +14,22 @@ import { useEffect } from "react";
  * is removed on unmount so unmarked routes (e.g. investor share links) keep the
  * defaults.
  *
- * It also mirrors the shell's new-look scope (data-v2-scope), so those layers get the new look on
- * every page the shell's own content does (admin and founder app pages), and nowhere else.
+ * With `newLookScope`, it also mirrors the new-look scope (data-v2-scope), so those layers get the
+ * new look on the pages whose own wrapper carries it: AppShell (admin and founder app pages) and,
+ * since stage 2 (WS166), the LP portal and the sign-in pages. Pages that must never change (the
+ * report preview frame) leave it off.
  */
-export function SurfaceSync({ surface }: { surface: "founder" | "admin" }) {
+export function SurfaceSync({ surface, newLookScope = false }: { surface: "founder" | "admin"; newLookScope?: boolean }) {
   useEffect(() => {
     const body = document.body;
     body.setAttribute("data-surface", surface);
-    body.setAttribute("data-v2-scope", "");
+    if (newLookScope) body.setAttribute("data-v2-scope", "");
     return () => {
       if (body.getAttribute("data-surface") === surface) {
         body.removeAttribute("data-surface");
-        body.removeAttribute("data-v2-scope");
+        if (newLookScope) body.removeAttribute("data-v2-scope");
       }
     };
-  }, [surface]);
+  }, [surface, newLookScope]);
   return null;
 }
