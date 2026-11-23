@@ -193,7 +193,8 @@ export function UpdateRecord({
       {/* Page types v1, Detail: back above the title, the actions on the title row, a status line under it. */}
       <PageHeader
         type="detail"
-        back={{ href: "/updates", label: "Updates" }}
+        // Admin view only, so back goes to the admin list; /updates is the founder's own list.
+        back={{ href: "/admin/updates", label: "Updates" }}
         title={update.title}
         status={
           filed ? (

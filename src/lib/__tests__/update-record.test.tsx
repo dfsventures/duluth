@@ -64,7 +64,8 @@ const render = (update: Partial<RecordUpdate> = {}, over: { isAdmin?: boolean; c
 describe("update page, new look", () => {
   it("has the back link, one primary, the ⋯ menu, the grid hooks and the panel before the column", () => {
     const html = render();
-    expect(html).toContain('href="/updates"');
+    expect(html).toContain('href="/admin/updates"');
+    expect(html).not.toContain('href="/updates"');
     expect(html).toContain('aria-label="More actions"');
     expect(html).toContain("up-dossier-grid");
     expect(html).toContain("Revenue grew.");
