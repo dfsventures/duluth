@@ -725,6 +725,27 @@ async function main() {
           await snap(page, `lp-report-print__${tag}.png`);
           await page.emulateMedia({ media: "screen" });
         }
+        // B-233: the founder composer with its details open and two files picked (one allowed, one not).
+        if (ok && key === "f-update-new") {
+          const toggle = page.getByRole("button", { name: /Details — metrics & attachments/ });
+          const input = page.locator('input[type="file"][aria-label="Attach files"]');
+          if ((await toggle.count()) > 0) {
+            await toggle.click();
+            await page.waitForTimeout(200);
+            if ((await input.count()) > 0) {
+              await input.setInputFiles([
+                { name: "Q3 board deck.pdf", mimeType: "application/pdf", buffer: Buffer.alloc(48_000, 1) },
+                { name: "logo.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg/>") },
+              ]);
+              await page.waitForTimeout(300);
+              await page.locator('ul[aria-label="Attached files"]').scrollIntoViewIfNeeded().catch(() => {});
+              await page.waitForTimeout(200);
+              await snap(page, `f-update-attach__${tag}.png`, false);
+            }
+          } else {
+            console.warn("  no details toggle found on /updates/new");
+          }
+        }
         if (ok && v.look === "new" && v.theme === "light" && vpKey !== "phone" && PAGE_TYPE[key]) {
           const { m, shape } = await measure(page).catch(() => ({ m: {} as Marks, shape: "error" }));
           alignRows.push({ vp: vpKey, key, type: PAGE_TYPE[key], shape, m });

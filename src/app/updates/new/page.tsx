@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { FileText, Upload, ArrowLeft } from "lucide-react";
+import { FileText, Upload, ArrowLeft, X, AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,20 @@ import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { useNewLook } from "@/lib/use-new-look";
 import { EDITOR_COLUMN } from "@/lib/editor-styles";
+import { uploadDocument } from "@/lib/upload-document";
+import { formatFileSize } from "@/lib/utils";
+import {
+  ATTACH_ACCEPT,
+  attachmentProblem,
+  toPendingAttachments,
+  uploadable,
+  uploadAttachments,
+  type PendingAttachment,
+} from "@/lib/update-attachments";
+
+// An attachment row's icon button: 32px, 44px on phones (both looks: these controls are new).
+const ATTACH_ICON_BTN =
+  "grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 max-md:h-11 max-md:w-11 v2:rounded-ctl v2:hover:bg-row-hover";
 
 interface MetricDefinition {
   id: string;
@@ -54,6 +68,12 @@ export default function NewUpdatePage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [metricInputs, setMetricInputs] = useState<Record<string, string>>({});
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
+  // Set when the update was saved but one or more files failed to upload: the composer stays put
+  // (so nothing is lost) with Retry, and Save/Publish are off so a second update isn't created.
+  const [savedUpdateId, setSavedUpdateId] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (companyLoading) return;
@@ -109,11 +129,56 @@ export default function NewUpdatePage() {
     }
   }
 
+  function addFiles(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    setAttachments((prev) => [...prev, ...toPendingAttachments(Array.from(list))]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function patchAttachment(key: string, patch: Partial<PendingAttachment>) {
+    setAttachments((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+  }
+
+  function removeAttachment(key: string) {
+    setAttachments((prev) => prev.filter((a) => a.key !== key));
+  }
+
+  /** Upload rows to the saved update; true when every one landed. */
+  async function uploadToUpdate(updateId: string, items: PendingAttachment[]): Promise<boolean> {
+    if (!companyId || items.length === 0) return true;
+    const failed = await uploadAttachments(
+      items,
+      (file) => uploadDocument({ companyId, file, updateId }),
+      patchAttachment
+    );
+    return failed === 0;
+  }
+
+  async function retryUploads(items: PendingAttachment[]) {
+    if (!savedUpdateId) return;
+    setRetrying(true);
+    try {
+      const ok = await uploadToUpdate(savedUpdateId, items);
+      const stillFailed = uploadable(attachments).some((a) => !items.some((i) => i.key === a.key));
+      if (ok && !stillFailed) {
+        setMessage({ type: "success", text: "Files attached." });
+        router.push(`/updates/${savedUpdateId}`);
+      }
+    } finally {
+      setRetrying(false);
+    }
+  }
+
   async function handleSubmit(status: "DRAFT" | "SENT", scheduledForISO?: string) {
-    if (!companyId) return;
+    if (!companyId || savedUpdateId) return;
 
     if (!period.trim() || !title.trim()) {
       setMessage({ type: "error", text: "Period and title are required." });
+      return;
+    }
+
+    if (attachments.some((a) => attachmentProblem(a.file) !== null)) {
+      setMessage({ type: "error", text: "Remove the files that can't be attached, then try again." });
       return;
     }
 
@@ -151,6 +216,25 @@ export default function NewUpdatePage() {
       const result = await res.json();
       const newUpdate = result.data ?? result;
 
+      // B-233: the update exists now, so its files can be linked to it.
+      const toUpload = uploadable(attachments);
+      if (newUpdate?.id && toUpload.length > 0) {
+        const allUploaded = await uploadToUpdate(newUpdate.id, toUpload);
+        if (!allUploaded) {
+          setSavedUpdateId(newUpdate.id);
+          setConfirmPublish(false);
+          setShowSchedule(false);
+          setMessage({
+            type: "error",
+            text:
+              status === "SENT"
+                ? "Update published, but some files didn't upload. Retry them below."
+                : "Update saved, but some files didn't upload. Retry them below.",
+          });
+          return;
+        }
+      }
+
       setMessage({
         type: "success",
         text:
@@ -169,6 +253,7 @@ export default function NewUpdatePage() {
       setTitle("");
       setBody("");
       setMetricInputs({});
+      setAttachments([]);
 
       // Redirect to the new update (fall back to the list page)
       router.push(newUpdate?.id ? `/updates/${newUpdate.id}` : "/updates");
@@ -205,6 +290,8 @@ export default function NewUpdatePage() {
 
   const isBodyEmpty = body.replace(/<[^>]*>/g, "").trim() === "";
   const canPublish = period.trim() !== "" && title.trim() !== "";
+  const isSaved = savedUpdateId !== null;
+  const retryable = uploadable(attachments).filter((a) => a.status === "failed");
 
   return (
     // New look (page types v1, editor): the 720 column, with the back link in the editor bar.
@@ -223,15 +310,15 @@ export default function NewUpdatePage() {
         back={{ href: "/updates", label: "Updates" }}
         draftLabel="Draft"
         secondaryActions={
-          <Button variant="secondary" size="sm" disabled={submitting} onClick={() => handleSubmit("DRAFT")}>
+          <Button variant="secondary" size="sm" disabled={submitting || isSaved} onClick={() => handleSubmit("DRAFT")}>
             {submitting ? "Saving..." : "Save as Draft"}
           </Button>
         }
         // Phone, new look (§6): Save as Draft folds into ⋯.
-        phoneMenuItems={[{ label: submitting ? "Saving..." : "Save as Draft", onClick: () => handleSubmit("DRAFT"), disabled: submitting }]}
+        phoneMenuItems={[{ label: submitting ? "Saving..." : "Save as Draft", onClick: () => handleSubmit("DRAFT"), disabled: submitting || isSaved }]}
         publishLabel="Publish"
         onPublishClick={() => setConfirmPublish(true)}
-        publishDisabled={!canPublish}
+        publishDisabled={!canPublish || isSaved}
         publishing={submitting && confirmPublish}
         overflowItems={[{ label: showSchedule ? "Hide schedule" : "Schedule for later", onClick: () => setShowSchedule((v) => !v) }]}
       />
@@ -246,6 +333,34 @@ export default function NewUpdatePage() {
           </Button>
           <Button size="sm" disabled={submitting} onClick={() => handleSubmit("SENT")}>
             {submitting ? "Publishing..." : "Confirm Publish"}
+          </Button>
+        </div>
+      )}
+
+      {/* B-233: saved, but some files didn't upload — retry here or go on without them */}
+      {isSaved && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-md bg-tone-clay px-4 py-3 text-sm text-tone-clay-ink" role="status">
+          <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">
+            Your update is saved.{" "}
+            {retryable.length > 0
+              ? `${retryable.length} ${retryable.length === 1 ? "file" : "files"} didn't upload.`
+              : "Some files didn't upload."}
+          </span>
+          {retryable.length > 0 && (
+            <Button variant="secondary" size="sm" disabled={retrying} onClick={() => retryUploads(retryable)} className="max-md:min-h-11">
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              {retrying ? "Retrying..." : "Retry"}
+            </Button>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={retrying}
+            onClick={() => router.push(`/updates/${savedUpdateId}`)}
+            className="max-md:min-h-11"
+          >
+            Go to update
           </Button>
         </div>
       )}
@@ -310,7 +425,13 @@ export default function NewUpdatePage() {
           companyId={companyId ?? undefined}
         />
 
-        <ComposerDisclosure label="Details — metrics & attachments">
+        <ComposerDisclosure
+          label={
+            attachments.length > 0
+              ? `Details — metrics & attachments · ${attachments.length} ${attachments.length === 1 ? "file" : "files"}`
+              : "Details — metrics & attachments"
+          }
+        >
           <div className="space-y-6">
             {metrics.length > 0 && (
               <div>
@@ -334,15 +455,93 @@ export default function NewUpdatePage() {
 
             <div>
               <p className="mb-2 text-sm font-medium">Attachments</p>
-              <div className="flex items-center gap-3 rounded-md border-2 border-dashed border-muted-foreground/25 p-4">
+              <div className="flex flex-wrap items-center gap-3 rounded-md border-2 border-dashed border-muted-foreground/25 p-4 v2:rounded-ctl v2:border v2:border-[color:var(--color-ctl)]">
                 <Upload className="h-5 w-5 text-muted-foreground" />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={submitting || isSaved}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="max-md:min-h-11"
+                >
+                  Attach files
+                </Button>
+                <span className="text-xs text-muted-foreground v2:text-meta">
+                  PDF, Office documents, images, CSV, TXT, ZIP, MP4/MOV video. They upload when you save or publish.
+                </span>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   multiple
+                  accept={ATTACH_ACCEPT}
                   aria-label="Attach files"
-                  className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary-500"
+                  className="hidden"
+                  onChange={(e) => addFiles(e.target.files)}
                 />
               </div>
+
+              {attachments.length > 0 && (
+                <ul className="mt-3 divide-y rounded-md border v2:rounded-none v2:border-x-0 v2:border-y v2:border-row-divider v2:divide-row-divider" aria-label="Attached files">
+                  {attachments.map((a) => {
+                    const badType = attachmentProblem(a.file) !== null;
+                    return (
+                      <li
+                        key={a.key}
+                        className="flex items-center gap-3 px-3 py-2 text-sm max-md:min-h-11 v2:min-h-11 v2:px-0 v2:py-1 v2:text-row"
+                      >
+                        {a.status === "uploading" ? (
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" aria-hidden />
+                        ) : a.status === "done" ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                        ) : a.status === "failed" ? (
+                          <AlertCircle className="h-4 w-4 shrink-0 text-tone-clay-ink" aria-hidden />
+                        ) : (
+                          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-medium">{a.file.name}</p>
+                          <p
+                            className={`text-xs v2:text-meta ${a.status === "failed" ? "text-tone-clay-ink" : "text-muted-foreground"}`}
+                            role={a.status === "failed" ? "alert" : undefined}
+                          >
+                            {a.status === "failed"
+                              ? a.message
+                              : a.status === "uploading"
+                                ? "Uploading…"
+                                : a.status === "done"
+                                  ? "Attached"
+                                  : formatFileSize(a.file.size)}
+                          </p>
+                        </div>
+                        {a.status === "failed" && !badType && isSaved && (
+                          <button
+                            type="button"
+                            onClick={() => retryUploads([a])}
+                            disabled={retrying}
+                            aria-label={`Retry ${a.file.name}`}
+                            title="Retry"
+                            className={ATTACH_ICON_BTN}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        )}
+                        {a.status !== "uploading" && a.status !== "done" && (
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(a.key)}
+                            disabled={submitting || retrying}
+                            aria-label={`Remove ${a.file.name}`}
+                            title="Remove"
+                            className={ATTACH_ICON_BTN}
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </div>
         </ComposerDisclosure>
