@@ -302,8 +302,9 @@ function AdminFundsPageInner() {
         <Modal title="New Fund" onClose={() => setShowNew(false)}>
           <form onSubmit={handleCreate} className="space-y-4">
             <div>
-              <label className="label mb-1.5 block">Slug *</label>
+              <label htmlFor="new-fund-slug" className="label mb-1.5 block">Slug *</label>
               <Input
+                id="new-fund-slug"
                 autoFocus
                 required
                 value={newSlug}
@@ -313,8 +314,8 @@ function AdminFundsPageInner() {
               <p className="mt-1 text-xs text-muted-foreground">Internal import key — never shown to LPs.</p>
             </div>
             <div>
-              <label className="label mb-1.5 block">Display name *</label>
-              <Input required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={`e.g. ${ORG_NAME} SPV I`} />
+              <label htmlFor="new-fund-name" className="label mb-1.5 block">Display name *</label>
+              <Input id="new-fund-name" required value={newName} onChange={(e) => setNewName(e.target.value)} placeholder={`e.g. ${ORG_NAME} SPV I`} />
             </div>
             {saveError && <p className="text-sm text-tone-clay-ink">{saveError}</p>}
             <div className="flex justify-end gap-3 pt-2">

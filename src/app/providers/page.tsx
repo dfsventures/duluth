@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { cloneElement, useEffect, useId, useState, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import {
   Search,
@@ -334,7 +334,7 @@ export default function ProvidersPage() {
               <Input value={form.contactEmail} onChange={(e) => setForm((f) => ({ ...f, contactEmail: e.target.value }))} placeholder="contact@..." type="email" />
             </Field>
 
-            <Field label="Your experience with them *">
+            <Field label="Your experience with them *" hint="This becomes your endorsement, shown alongside the listing.">
               <textarea
                 required
                 value={form.endorsementNote}
@@ -343,7 +343,6 @@ export default function ProvidersPage() {
                 rows={3}
                 className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
               />
-              <p className="mt-1 text-xs text-muted-foreground">This becomes your endorsement, shown alongside the listing.</p>
             </Field>
 
             {submitError && <p className="text-sm text-tone-clay-ink">{submitError}</p>}
@@ -520,11 +519,15 @@ function StatusBadge({ status }: { status: Provider["status"] }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+// The label is tied to its one field: the field gets a generated id unless it brings its own.
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactElement<{ id?: string }> }) {
+  const autoId = useId();
+  const fieldId = children.props.id ?? autoId;
   return (
     <div>
-      <label className="label mb-1.5 block">{label}</label>
-      {children}
+      <label htmlFor={fieldId} className="label mb-1.5 block">{label}</label>
+      {cloneElement(children, { id: fieldId })}
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }

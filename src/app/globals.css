@@ -208,8 +208,11 @@ html[data-look="v2"] body[data-v2-scope] {
   --r-chip: 6px;
   --r-float: 12px;
   --r-sheet: 0px;
-  --shadow-soft: none;
-  --shadow-lift: none;
+  /* No resting shadow, written as an empty shadow, not `none` (WS167): Tailwind's shadow-soft puts this
+     inside the ring's box-shadow list, and `none` in a list voids the whole value, so a focused Button
+     drew no ring at all. `0 0 #0000` draws nothing and keeps the list valid. */
+  --shadow-soft: 0 0 #0000;
+  --shadow-lift: 0 0 #0000;
   --shadow-float: 0 12px 32px -8px rgb(18 24 38 / 0.22), 0 0 0 1px rgb(18 24 38 / 0.08);
   --scrim: rgb(18 24 38 / 0.30);
   --tracking-label: 0;
@@ -344,6 +347,28 @@ html[data-look="v2"] [data-v2-scope] .seg .seg-on {
 }
 html[data-look="v2"][data-theme="dark"] [data-v2-scope] .seg .seg-on {
   background: var(--color-well);
+}
+/* Phone list rows (WS167, WCAG 2.5.8): the row's title link is stretched over the whole row; a link in
+   the badge or meta line (the Fund in the Deal Ledger, the company in Contacts) is lifted above it and
+   was only 15px high. It gets a 25px tap height; the negative margin takes the padding back, so the
+   line does not move. */
+html[data-look="v2"] [data-v2-scope] [data-datatable] ul > li > div > span.num a,
+html[data-look="v2"] [data-v2-scope] [data-datatable] ul > li > div.mt-1 a {
+  display: inline-block;
+  padding-block: 5px;
+  margin-block: -5px;
+}
+/* Checkboxes and radios (WS167): the base layer's `input:focus-visible { outline: none }` is for text
+   fields, which show a caret and a ring; it left these with no focus at all. */
+html[data-look="v2"] [data-v2-scope] input[type="checkbox"]:focus-visible,
+html[data-look="v2"] [data-v2-scope] input[type="radio"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+/* The lifted segment's own box-shadow replaces the focus ring, so keyboard focus is an outline (WS167). */
+html[data-look="v2"] [data-v2-scope] .seg button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 /* The filter row sticks under the slim bar on list pages with a pane (the list scrolls under it). */
 html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] > .filter-row {
@@ -598,6 +623,15 @@ html[data-look="v2"] [data-v2-scope] .btn-destructive:active {
 html[data-look="v2"] [data-v2-scope] .btn-secondary {
   border-color: var(--color-border-hover);
   box-shadow: none;
+}
+/* Keyboard focus (WS167, WCAG 2.4.7 / 2.4.11): .btn-base turns the outline off and draws nothing
+   instead, so a tabbed-to .btn-* link or button showed no focus at all. The new look gives it the
+   same 2px accent ring as Button (3:1 against every surface, design-tokens-v2.test.ts). */
+html[data-look="v2"] [data-v2-scope] .btn-primary:focus-visible,
+html[data-look="v2"] [data-v2-scope] .btn-secondary:focus-visible,
+html[data-look="v2"] [data-v2-scope] .btn-destructive:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* Badges: a status is a small glyph and a word, coloured by state. The shape differs per
@@ -1348,16 +1382,42 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
 /* Printing the memo in the dark theme: the colour tokens live on the admin surface, so the text
    would print light on white. Put the light values back inside the print scope only. */
 @media print {
+  /* WS167: the full light colour set, as the LP report has (chips, state colours and the primary scale
+     printed in their dark-theme shades before). */
   html[data-look="v2"][data-theme="dark"] [data-v2-scope] .memo-print-scope {
+    color-scheme: light;
+    --color-bg: #FFFFFF;
+    --color-surface: #FFFFFF;
+    --color-pane: #FFFFFF;
+    --color-well: #E6E9ED;
+    --color-thead: #FFFFFF;
+    --color-row-divider: rgba(18, 24, 38, 0.09);
+    --color-border: rgba(18, 24, 38, 0.16);
+    --color-edge: rgba(18, 24, 38, 0.09);
     --color-text-primary: #15181D;
     --color-text-secondary: #474D57;
     --color-text-muted: #5A616C;
     --color-muted-rgb: 230 233 237;
-    --color-bg: #FFFFFF;
-    --color-surface: #FFFFFF;
-    --color-border: rgba(18, 24, 38, 0.16);
     --color-accent: #44688E;
-    color-scheme: light;
+    --color-accent-rgb: 68 104 142;
+    --color-mark: #5B8DC5;
+    --color-primary-50: rgba(91, 141, 197, 0.08);
+    --color-primary-100: rgba(91, 141, 197, 0.15);
+    --color-primary-500: #44688E;
+    --color-primary-600: #3A5876;
+    --color-primary-700: #2C4459;
+    --color-done: #1B7448;
+    --color-stuck: #B3362A;
+    --color-warn: #8A5A0B;
+    --color-ctl: #858C97;
+    --color-destructive-rgb: 143 74 48;
+    --color-destructive-foreground: #FFFFFF;
+    --tone-stone-fill: #E7E4DA; --tone-stone-ink: #46443C;
+    --tone-sky-fill: #DCE7F3; --tone-sky-ink: #2C4459;
+    --tone-sage-fill: #E3E8D0; --tone-sage-ink: #4A5524;
+    --tone-clay-fill: #F4E0D6; --tone-clay-ink: #8F4A30;
+    --tone-sand-fill: #F1E4C8; --tone-sand-ink: #6B4A0E;
+    --tone-amber-fill: #F8EBC9; --tone-amber-ink: #6B4A0E;
   }
 }
 /* Formatted text (memo sections, reports, broadcasts, digests, notes) uses the typography plugin's
@@ -1549,6 +1609,9 @@ html[data-look="v2"] [data-v2-scope] .lp-report .report-body {
     --color-done: #1B7448;
     --color-stuck: #B3362A;
     --color-warn: #8A5A0B;
+    --color-ctl: #858C97;
+    --color-destructive-rgb: 143 74 48;
+    --color-destructive-foreground: #FFFFFF;
     --tone-stone-fill: #E7E4DA; --tone-stone-ink: #46443C;
     --tone-sky-fill: #DCE7F3; --tone-sky-ink: #2C4459;
     --tone-sage-fill: #E3E8D0; --tone-sage-ink: #4A5524;

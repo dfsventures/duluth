@@ -240,6 +240,7 @@ export default function CompanyDocumentsPage() {
           />
         </div>
         <Select
+          aria-label="Document type"
           value={docTypeFilter}
           onChange={(e) => {
             setDocTypeFilter(e.target.value);

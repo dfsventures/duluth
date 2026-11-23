@@ -98,10 +98,12 @@ export function BoardColumn({
             "v2:ml-0 v2:bg-transparent v2:px-0 v2:font-sans v2:text-meta v2:font-normal v2:text-muted-foreground",
             hot && "v2:font-semibold v2:text-[color:var(--color-stuck)]"
           )}
-          aria-label={`${cards.length} ${cards.length === 1 ? "item" : "items"}`}
+          aria-hidden="true"
         >
           {cards.length}
         </span>
+        {/* aria-label on a plain span is ignored by most screen readers: the meaning is sr-only text. */}
+        <span className="sr-only">{`, ${cards.length} ${cards.length === 1 ? "item" : "items"}`}</span>
       </div>
       <div
         ref={bodyRef}

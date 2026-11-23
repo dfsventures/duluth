@@ -11,8 +11,8 @@ import { join, relative } from "node:path";
  *
  * Deliberately NOT scanned: src/app/share/** and components/share/**,
  * company-brand.tsx and company/branding-card.tsx (the company's own theme colours),
- * the print stylesheets (globals.css), emails (src/lib/email*), and the login
- * page (Google's logo colours).
+ * the print stylesheets (globals.css) and emails (src/lib/email*). The login
+ * page is scanned; Google's logo colours are listed exceptions.
  *
  * Each exception below is an exact match in one file, with the reason. A stale
  * exception (the match is gone) fails the test too, so the list can't rot.
@@ -38,7 +38,14 @@ const SCAN_DIRS = [
   "app/providers",
   "app/diligence",
   "app/setup-wizard",
+  // Sign-in pages (stage 2, WS166; widened in WS167). Home is a single file, below.
+  "app/login",
+  "app/signup",
+  "app/set-password",
+  "components/composer",
 ];
+// Single files in the new-look scope that sit next to routes which must not be scanned.
+const SCAN_FILES = ["app/page.tsx"];
 
 const FIXED_COLOUR =
   /\b(?:bg-white|text-white|bg-black|text-black)\b|#[0-9A-Fa-f]{6}\b|\b(?:bg|text|border|ring|outline|fill|stroke|from|to|via|divide|placeholder|decoration|accent|caret)-(?:paper|bone|obsidian|tide|sky)\b/g;
@@ -64,6 +71,12 @@ const EXCEPTIONS: Record<string, Record<string, string>> = {
   "app/admin/reports/[id]/page.tsx": {
     "bg-white": "bg-white/60 input inside an Ochre notice; needs an alpha token (listed for a later pass)",
   },
+  "app/login/page.tsx": {
+    "#4285F4": "Google's logo colours on the Sign in with Google button (Google's brand rules)",
+    "#34A853": "Google's logo colours",
+    "#FBBC05": "Google's logo colours",
+    "#EA4335": "Google's logo colours",
+  },
 };
 
 function walk(dir: string): string[] {
@@ -77,7 +90,7 @@ function walk(dir: string): string[] {
 }
 
 describe("no hard-coded colour in admin, shared UI, layout, auth and LP code", () => {
-  const files = SCAN_DIRS.flatMap((d) => walk(join(ROOT, d)));
+  const files = [...SCAN_DIRS.flatMap((d) => walk(join(ROOT, d))), ...SCAN_FILES.map((f) => join(ROOT, f))];
 
   it("scans a sensible number of files", () => {
     expect(files.length).toBeGreaterThan(50);

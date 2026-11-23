@@ -187,10 +187,11 @@ export function MemoBoard({ rows, me, showOwner, onMove, landedId = null }: Prop
                     TONE_CLASSES[tone].chip,
                     "v2:ml-0 v2:bg-transparent v2:px-0 v2:font-sans v2:text-meta v2:font-normal v2:text-muted-foreground"
                   )}
-                  aria-label={countLabel(cards.length)}
+                  aria-hidden="true"
                 >
                   {cards.length}
                 </span>
+                <span className="sr-only">{`, ${countLabel(cards.length)}`}</span>
                 {(COLLAPSED_BY_DEFAULT.includes(k) || cards.length === 0) && (
                   <button
                     type="button"
@@ -253,9 +254,10 @@ export function MemoBoard({ rows, me, showOwner, onMove, landedId = null }: Prop
             <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-foreground [&::-webkit-details-marker]:hidden v2:min-h-11 v2:px-0 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal">
               <span aria-hidden="true" className={cn("h-2 w-2 shrink-0", TONE_CLASSES[COLUMN_TONE[k]].dot, "v2:hidden")} />
               <span>{COLUMN_LABELS[k]}</span>
-              <span className="ml-auto text-muted-foreground" aria-label={countLabel(grouped[k].length)}>
+              <span className="ml-auto text-muted-foreground" aria-hidden="true">
                 {grouped[k].length}
               </span>
+              <span className="sr-only">{`, ${countLabel(grouped[k].length)}`}</span>
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
             </summary>
             <div className="space-y-2 bg-well p-2 v2:space-y-3 v2:bg-transparent v2:p-0">

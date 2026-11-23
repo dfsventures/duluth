@@ -708,6 +708,7 @@ function DataTableInner<T>({
     // the whole row (its ::after), with the cells' own links lifted above it: the same things are
     // clickable and the card looks the same.
     if (href) {
+      // New look: lifted links get a 25px tap height from globals.css (WS167, "phone list rows").
       const lift = "[&_a]:relative [&_a]:z-[1]";
       return (
         <li
@@ -805,7 +806,12 @@ function DataTableInner<T>({
           <Button variant="secondary" size="sm">
             <Columns3 aria-hidden="true" className="h-3.5 w-3.5" />
             Columns
-            {hidden.length > 0 && <span className="num font-mono text-[11px] text-muted-foreground">{cols.length}/{columns.length}</span>}
+            {hidden.length > 0 && (
+              <>
+                <span aria-hidden="true" className="num font-mono text-[11px] text-muted-foreground">{cols.length}/{columns.length}</span>
+                <span className="sr-only">{`, ${cols.length} of ${columns.length} shown`}</span>
+              </>
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

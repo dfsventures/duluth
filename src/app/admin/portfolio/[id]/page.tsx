@@ -586,6 +586,7 @@ export default function AdminPortfolioCompanyPage() {
             <div className={cn("contents", newLook && !showContactForm && !editingContactId && "hidden")}>
             <input
               type="text"
+              aria-label="Contact name"
               placeholder="Name"
               value={contactForm.name}
               onChange={(e) => setContactForm((f) => ({ ...f, name: e.target.value }))}
@@ -593,6 +594,7 @@ export default function AdminPortfolioCompanyPage() {
             />
             <input
               type="email"
+              aria-label="Contact email"
               placeholder="Email"
               required
               value={contactForm.email}
@@ -601,6 +603,7 @@ export default function AdminPortfolioCompanyPage() {
             />
             <input
               type="text"
+              aria-label="Contact role"
               placeholder="Role (optional)"
               value={contactForm.role}
               onChange={(e) => setContactForm((f) => ({ ...f, role: e.target.value }))}
@@ -734,6 +737,7 @@ export default function AdminPortfolioCompanyPage() {
                     <select
                       value={d.roundId ?? ""}
                       onChange={(e) => handleAssignRound(d.id, e.target.value)}
+                      aria-label={`Round for the ${formatDate(d.dealDate)} deal`}
                       className="rounded-sm border border-input bg-card px-2 py-1 text-xs"
                     >
                       <option value="">Unassigned</option>
@@ -750,6 +754,7 @@ export default function AdminPortfolioCompanyPage() {
                       min={0}
                       max={100}
                       step="0.1"
+                      aria-label={`Ownership % for the ${formatDate(d.dealDate)} deal`}
                       defaultValue={d.ownershipPct ?? ""}
                       onBlur={(e) => {
                         if (e.target.value !== String(d.ownershipPct ?? "")) handleSaveOwnership(d.id, e.target.value);

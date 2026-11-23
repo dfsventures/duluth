@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { cloneElement, useEffect, useId, useState, useCallback } from "react";
 import {
   CheckCircle2,
   XCircle,
@@ -458,8 +458,9 @@ export default function AdminProvidersPage() {
         <Modal title="Add category" onClose={() => setShowAddCategory(false)}>
           <form onSubmit={handleAddCategory} className="space-y-4">
             <div>
-              <label className="label mb-1.5 block">Category name *</label>
+              <label htmlFor="new-category-name" className="label mb-1.5 block">Category name *</label>
               <Input
+                id="new-category-name"
                 autoFocus
                 required
                 value={newCategoryName}
@@ -669,11 +670,14 @@ function StatusBadge({ status }: { status: Provider["status"] }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+// The label is tied to its one field: the field gets a generated id unless it brings its own.
+function Field({ label, children }: { label: string; children: React.ReactElement<{ id?: string }> }) {
+  const autoId = useId();
+  const fieldId = children.props.id ?? autoId;
   return (
     <div>
-      <label className="label mb-1.5 block">{label}</label>
-      {children}
+      <label htmlFor={fieldId} className="label mb-1.5 block">{label}</label>
+      {cloneElement(children, { id: fieldId })}
     </div>
   );
 }

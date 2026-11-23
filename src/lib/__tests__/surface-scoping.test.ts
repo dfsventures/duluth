@@ -161,6 +161,34 @@ describe("surface scoping", () => {
     expect(v2Section).not.toMatch(/(^|[\s,])\[data-surface="founder"\]|:root|(^|\n)\s*body\s*\{/);
   });
 
+  // WS167: the surfaces that must never take the new look, checked at their source. The memo share
+  // link is a route that writes its own HTML; emails are HTML strings built in src/lib.
+  it("the memo share link (/share/m/[token]) and every email builder carry no new-look hook", () => {
+    const read = (f: string) => readFileSync(join(__dirname, "..", "..", f), "utf-8");
+    const hooks = /data-v2-scope|data-look|newLookScope|\bv2:|v2dark:/;
+    for (const f of [
+      "app/share/m/[token]/route.ts",
+      "app/share/[token]/page.tsx",
+      "app/investors/page.tsx",
+      "app/admin/reports/[id]/preview/frame/page.tsx",
+      "lib/email.ts",
+      "lib/digest-html.ts",
+      "lib/broadcast-html.ts",
+    ]) {
+      expect(read(f), f).not.toMatch(hooks);
+    }
+    // Emails inline their styles and never link the app stylesheet, so no v2 selector can reach them.
+    for (const f of ["lib/email.ts", "lib/digest-html.ts", "lib/broadcast-html.ts"]) {
+      expect(read(f), f).not.toMatch(/<link[^>]+stylesheet|globals\.css/);
+    }
+  });
+
+  it("the share and investor paths are outside the new-look scope", () => {
+    for (const p of ["/share/abc", "/share/m/abc", "/share/m/abc/x", "/investors", "/investors/x", "/admin/reports/abc/preview/frame"]) {
+      expect(inNewLookScope(p), p).toBe(false);
+    }
+  });
+
   it("tailwind radii and shadows are token-driven, not literal B values", () => {
     expect(tailwind).toContain('sm: "var(--r-sm)"');
     expect(tailwind).toContain('md: "var(--r-md)"');

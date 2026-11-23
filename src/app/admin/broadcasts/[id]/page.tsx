@@ -120,7 +120,7 @@ function GrowTitle({ value, onChange }: { value: string; onChange: (v: string) =
       placeholder="Subject"
       aria-label="Subject"
       data-align="title"
-      className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 font-sans text-doc-title text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0"
+      className="block w-full resize-none overflow-hidden border-0 bg-transparent p-0 font-sans text-doc-title text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 v2:placeholder:text-muted-foreground"
     />
   );
 }
@@ -533,7 +533,7 @@ export default function AdminBroadcastEditorPage() {
               placeholder="Subject"
               aria-label="Subject"
               disabled={!isDraft}
-              className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title")}
+              className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title v2:placeholder:text-muted-foreground")}
             />
           )}
         </div>
@@ -563,7 +563,12 @@ export default function AdminBroadcastEditorPage() {
                   )}
                 >
                   {t.label}
-                  {"count" in t && <span className="num ml-1.5 font-normal text-muted-foreground">{t.count}</span>}
+                  {"count" in t && (
+                    <>
+                      <span aria-hidden="true" className="num ml-1.5 font-normal text-muted-foreground">{t.count}</span>
+                      <span className="sr-only">{`, ${t.count} ${t.count === 1 ? "recipient" : "recipients"}`}</span>
+                    </>
+                  )}
                 </button>
               ))}
             </div>

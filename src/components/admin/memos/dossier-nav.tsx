@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { prefersReducedMotion } from "@/lib/row-collapse";
 
 export interface NavSection {
   key: string;
@@ -33,7 +34,8 @@ export function useActiveSection(sections: NavSection[], onBeforeJump?: (key: st
   function jump(key: string) {
     setActive(key);
     onBeforeJump?.(key);
-    document.getElementById(`section-${key}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // A script's "smooth" beats the CSS reduced-motion guard, so it is decided here (WS167).
+    document.getElementById(`section-${key}`)?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
     history.replaceState(null, "", `#section-${key}`);
   }
   return { active, jump };

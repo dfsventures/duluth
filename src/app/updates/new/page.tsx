@@ -288,7 +288,8 @@ export default function NewUpdatePage() {
                 if (e.target.value) applyTemplate(e.target.value);
                 e.target.value = "";
               }}
-              className="w-auto max-w-xs border-0 bg-transparent p-0 text-sm text-muted-foreground focus:outline-none focus:ring-0 v2:text-row max-md:v2:min-h-11"
+              aria-label="Start from a template"
+              className="w-auto max-w-xs border-0 bg-transparent p-0 text-sm text-muted-foreground focus:outline-none focus:ring-0 v2:rounded-sm v2:text-row v2:focus-visible:ring-2 v2:focus-visible:ring-ring max-md:v2:min-h-11"
             >
               <option value="">Start from a template</option>
               {templates.map((t) => (
@@ -338,6 +339,7 @@ export default function NewUpdatePage() {
                 <input
                   type="file"
                   multiple
+                  aria-label="Attach files"
                   className="text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary-500"
                 />
               </div>

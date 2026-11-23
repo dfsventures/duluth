@@ -359,7 +359,7 @@ export default function AdminReportEditorPage() {
                 maxLength={500}
                 rows={3}
                 placeholder="A short personal note — appears above the “Read the Report” button. Leave blank to send the standard email."
-                className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50 v2:border-[color:var(--color-ctl)] v2:bg-[var(--color-surface)]"
+                className="w-full rounded-sm border border-ochre/40 bg-white/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ochre/50 v2:placeholder:text-muted-foreground v2:focus:ring-2 v2:focus:ring-ring v2:border-[color:var(--color-ctl)] v2:bg-[var(--color-surface)]"
               />
               <p className="mt-1 text-right text-xs text-muted-foreground">{lpNote.length}/500</p>
             </div>
@@ -376,7 +376,7 @@ export default function AdminReportEditorPage() {
             aria-label="Title"
             disabled={!isDraft}
             data-align="title"
-            className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-doc-title v2:disabled:opacity-100")}
+            className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-doc-title v2:disabled:opacity-100 v2:placeholder:text-muted-foreground")}
           />
           <input
             value={periodLabel}
@@ -385,7 +385,7 @@ export default function AdminReportEditorPage() {
             aria-label="Period label"
             disabled={!isDraft}
             data-align="desc"
-            className="mt-2 w-64 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 v2:font-sans v2:text-row v2:text-secondary"
+            className="mt-2 w-64 border-0 bg-transparent p-0 font-mono text-sm text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 v2:placeholder:text-muted-foreground v2:font-sans v2:text-row v2:text-secondary"
           />
         </div>
 

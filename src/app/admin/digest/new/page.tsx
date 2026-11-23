@@ -244,11 +244,12 @@ export default function NewDigestPage() {
         <Card className={cn(EDITOR_COLUMN, EDITOR_SECTION_CARD)}>
           <CardContent className={cn("pt-6 space-y-4", EDITOR_SECTION_BODY)}>
             <div>
-              <label className="label mb-1.5 block">Meeting notes or Granola links</label>
+              <label htmlFor="digest-notes" className="label mb-1.5 block">Meeting notes or Granola links</label>
               <p className="mb-3 text-xs text-muted-foreground">
                 Paste Granola share links (one per line), raw meeting notes, or a mix of both. Claude will fetch and structure everything into the digest.
               </p>
               <textarea
+                id="digest-notes"
                 className="input-field min-h-[320px] w-full resize-y font-mono text-sm v2:min-h-[192px] v2:font-sans v2:text-row"
                 placeholder={`https://notes.granola.ai/t/...\nhttps://notes.granola.ai/t/...\n\nOr paste raw notes here…`}
                 value={notes}
@@ -295,16 +296,18 @@ export default function NewDigestPage() {
           <Card className={EDITOR_SECTION_CARD}>
             <CardContent className={cn("pt-5 space-y-4", EDITOR_SECTION_BODY)}>
               <div className="space-y-1">
-                <label className="label">Title</label>
+                <label htmlFor="digest-title" className="label">Title</label>
                 <input
+                  id="digest-title"
                   className="input-field w-full"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
               <div className="space-y-1">
-                <label className="label">Week of</label>
+                <label htmlFor="digest-week-of" className="label">Week of</label>
                 <input
+                  id="digest-week-of"
                   type="date"
                   className="input-field"
                   value={weekOf}
@@ -318,8 +321,9 @@ export default function NewDigestPage() {
           {sections.map((section) => (
             <Card key={section.id} className={EDITOR_SECTION_CARD}>
               <CardContent className={cn("pt-5", EDITOR_SECTION_BODY)}>
-                <label className="label mb-2 block">{section.heading}</label>
+                <label htmlFor={`digest-section-${section.id}`} className="label mb-2 block">{section.heading}</label>
                 <textarea
+                  id={`digest-section-${section.id}`}
                   className="input-field min-h-[120px] w-full resize-y text-sm"
                   placeholder={`Write something about ${section.heading.toLowerCase()}…`}
                   value={section.content}
@@ -349,6 +353,7 @@ export default function NewDigestPage() {
                           className="input-field flex-1 text-sm"
                           value={todo.text}
                           onChange={(e) => updateTodo(i, e.target.value)}
+                          aria-label={`Todo ${i + 1}`}
                         />
                         <button
                           onClick={() => removeTodo(i)}
@@ -433,12 +438,13 @@ export default function NewDigestPage() {
                 <input
                   className="input-field flex-1 text-sm"
                   placeholder="Add a todo…"
+                  aria-label="New todo"
                   value={newTodo}
                   onChange={(e) => setNewTodo(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addTodo()}
                 />
-                <Button size="sm" variant="secondary" onClick={addTodo} disabled={!newTodo.trim()}>
-                  <Plus className="h-4 w-4" />
+                <Button size="sm" variant="secondary" onClick={addTodo} disabled={!newTodo.trim()} aria-label="Add todo">
+                  <Plus aria-hidden="true" className="h-4 w-4" />
                 </Button>
               </div>
             </CardContent>

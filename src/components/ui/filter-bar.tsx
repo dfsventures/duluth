@@ -47,6 +47,18 @@ interface FilterBarProps {
 
 const CTL = "h-9 max-md:h-11";
 
+/** A chip's live count: the bare number is drawn, a screen reader hears what it counts (", 4 matching"). */
+function ChipCount({ count, className }: { count: number; className?: string }) {
+  return (
+    <>
+      <span aria-hidden="true" className={cn("num", className)}>
+        {count}
+      </span>
+      <span className="sr-only">{`, ${count} matching`}</span>
+    </>
+  );
+}
+
 export function FilterBar({
   chips,
   onOpen,
@@ -97,7 +109,7 @@ export function FilterBar({
               )}
             >
               {c.label}
-              {c.count !== undefined && <span className="num text-meta font-normal text-muted-foreground">{c.count}</span>}
+              {c.count !== undefined && <ChipCount count={c.count} className="text-meta font-normal text-muted-foreground" />}
             </button>
           ))}
         </div>
@@ -111,7 +123,7 @@ export function FilterBar({
               <button type="button" aria-pressed="true" onClick={() => onOpen(c.key)} className="inline-flex items-center gap-1 whitespace-nowrap">
                 <span className="font-medium text-primary">{c.label}</span>
                 {c.value && <span className="text-foreground">{c.value}</span>}
-                {c.count !== undefined && <span className="num text-secondary">{c.count}</span>}
+                {c.count !== undefined && <ChipCount count={c.count} className="text-secondary" />}
               </button>
               <button
                 type="button"
@@ -135,7 +147,7 @@ export function FilterBar({
             >
               <span aria-hidden="true">+</span>
               {c.label}
-              {c.count !== undefined && <span className="num text-muted-foreground">{c.count}</span>}
+              {c.count !== undefined && <ChipCount count={c.count} className="text-muted-foreground" />}
             </button>
           )
         )

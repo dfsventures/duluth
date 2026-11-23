@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { TONES, type Tone } from "../status-tone";
 import { cn } from "../utils";
@@ -311,6 +311,147 @@ describe("new look core components: the rules are scoped and present", () => {
     expect(empty).toContain("v2:py-3");
     expect(empty).toMatch(/v2:hidden">\s*\{icon\}/);
     expect(empty).toMatch(/v2:hidden">\{eyebrow\}/);
+  });
+});
+
+// WS167 (accessibility pass): the pairs the earlier suites did not name. WCAG 2.2 AA: text 4.5:1,
+// UI parts, glyphs and focus indicators 3:1 (1.4.11). Disabled controls (opacity 0.5) are exempt from
+// 1.4.3 and 1.4.11, so they are not asserted.
+describe.each(THEMES)("new look WS167 pairs, %s theme", (_name, vars) => {
+  const c = (k: string) => parse(vars[k]);
+  const rootAt = css.indexOf(":root {");
+  const rootBody = css.slice(css.indexOf("{", rootAt) + 1, css.indexOf("\n}", rootAt));
+  const fromRoot = (k: string) => new RegExp(`${k}:\\s*([^;]+);`).exec(rootBody)![1].trim();
+  const rgbVar = (k: string): RGBA => {
+    const [r, g, b] = (vars[k] ?? fromRoot(k)).split(/\s+/).map(Number);
+    return { r, g, b, a: 1 };
+  };
+  const bg = () => c("--color-bg");
+  const surfaces: [string, RGBA][] = [
+    ...["--color-bg", "--color-sidebar", "--color-pane", "--color-surface", "--color-well"].map((k): [string, RGBA] => [k, c(k)]),
+    ["sel", over(c("--color-sel"), bg())],
+    ["open", over(c("--color-open"), bg())],
+    ["accent-soft (set chip)", over(c("--color-accent-soft"), bg())],
+  ];
+
+  it("the focus ring (2px accent outline or ring) passes 3:1 on every surface it can sit on", () => {
+    for (const [name, s] of surfaces) expect(ratio(c("--color-accent"), s), name).toBeGreaterThanOrEqual(3);
+    for (const t of ["stone", "sky", "sage", "clay", "sand", "amber"]) {
+      expect(ratio(c("--color-accent"), c(`--tone-${t}-fill`)), `ring on tone ${t}`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("placeholder text (muted) passes 4.5:1 inside a field (bg-card = surface) and on the page", () => {
+    for (const k of ["--color-surface", "--color-bg", "--color-pane"]) {
+      expect(ratio(c("--color-text-muted"), c(k)), k).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("destructive used as text (errors, Delete links) passes 4.5:1 on the page, the pane and the raised tier", () => {
+    for (const k of ["--color-bg", "--color-pane", "--color-surface"]) {
+      expect(ratio(rgbVar("--color-destructive-rgb"), c(k)), k).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("tone inks used as plain text (text-tone-*-ink with no fill) pass 4.5:1 on the page, the pane and the raised tier", () => {
+    for (const t of ["stone", "sky", "sage", "clay", "sand", "amber"]) {
+      for (const k of ["--color-bg", "--color-pane", "--color-surface"]) {
+        expect(ratio(c(`--tone-${t}-ink`), c(k)), `${t} ink on ${k}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("the Sky mark (dots, insertion lines, toast bars) passes 3:1 on the page, the sidebar and the pane", () => {
+    for (const k of ["--color-bg", "--color-sidebar", "--color-pane"]) {
+      expect(ratio(c("--color-mark"), c(k)), k).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("toasts: the text passes 4.5:1 on the toast, the close icon (ink at 70%) 3:1", () => {
+    expect(ratio(c("--color-toast-ink"), c("--color-toast"))).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(over({ ...c("--color-toast-ink"), a: 0.7 }, c("--color-toast")), c("--color-toast"))).toBeGreaterThanOrEqual(3);
+  });
+
+  it("the active tab bar and the row cursor (accent) pass 3:1 against the hairline row they sit on", () => {
+    expect(ratio(c("--color-accent"), bg())).toBeGreaterThanOrEqual(3);
+    expect(ratio(c("--color-accent"), over(c("--color-open"), c("--color-pane")))).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("new look WS167: keyboard focus is drawn", () => {
+  it("the shadow tokens Tailwind's shadow-* utilities read are never `none` (it voids the focus ring's box-shadow list)", () => {
+    for (const k of ["--shadow-soft", "--shadow-lift", "--shadow-float"]) {
+      expect(LIGHT[k], k).not.toMatch(/^none$/);
+      if (DARK[k]) expect(DARK[k], `dark ${k}`).not.toMatch(/^none$/);
+    }
+  });
+
+  it(".btn-* buttons and the segmented control draw a 2px accent outline on keyboard focus", () => {
+    expect(section).toMatch(/\.btn-primary:focus-visible,[\s\S]*?\.btn-destructive:focus-visible \{\s*outline: 2px solid var\(--color-accent\);/);
+    expect(section).toMatch(/\.seg button:focus-visible \{\s*outline: 2px solid var\(--color-accent\);/);
+    expect(section).toMatch(/input\[type="checkbox"\]:focus-visible,[\s\S]*?input\[type="radio"\]:focus-visible \{\s*outline: 2px solid var\(--color-accent\);/);
+  });
+});
+
+describe("new look WS167: placeholder text meets 4.5:1", () => {
+  it("every faded placeholder (placeholder:text-*/NN) is put back to full muted under the new look, on the same line", () => {
+    const root = join(__dirname, "..", "..");
+    const walk = (d: string): string[] =>
+      readdirSync(d).flatMap((n) => {
+        const p = join(d, n);
+        if (statSync(p).isDirectory()) return n === "__tests__" || n === "share" ? [] : walk(p);
+        return /\.tsx$/.test(n) ? [p] : [];
+      });
+    const offenders: string[] = [];
+    for (const f of [...walk(join(root, "app")), ...walk(join(root, "components"))]) {
+      readFileSync(f, "utf-8").split("\n").forEach((line, i) => {
+        if (/placeholder:text-[a-z-]+\/\d+/.test(line) && !line.includes("v2:placeholder:text-muted-foreground")) {
+          offenders.push(`${f.slice(root.length + 1)}:${i + 1}`);
+        }
+      });
+    }
+    expect(offenders).toEqual([]);
+  });
+});
+
+describe("new look WS167: dark-theme printing puts the light colours back (LP report and memo)", () => {
+  const rootAt = css.indexOf(":root {");
+  const rootBody = css.slice(css.indexOf("{", rootAt) + 1, css.indexOf("\n}", rootAt));
+  function printBlock(selector: string): Record<string, string> {
+    const at = section.indexOf(selector);
+    expect(at, selector).toBeGreaterThan(0);
+    const prevMedia = section.lastIndexOf("@media", at);
+    expect(section.startsWith("@media print", prevMedia), `${selector} sits in @media print`).toBe(true);
+    const open = section.indexOf("{", at);
+    const body = section.slice(open + 1, section.indexOf("}", open)).replace(/\/\*[\s\S]*?\*\//g, "");
+    const out: Record<string, string> = {};
+    for (const m of body.matchAll(/(--[a-z0-9-]+):\s*([^;]+);/gi)) out[m[1]] = m[2].trim();
+    return out;
+  }
+  const lp = printBlock('html[data-look="v2"][data-theme="dark"] [data-v2-scope].lp-print-scope {');
+  const memo = printBlock('html[data-look="v2"][data-theme="dark"] [data-v2-scope] .memo-print-scope {');
+  // On paper every surface is white and hairlines are a step darker than on screen, on purpose.
+  const PRINT_ONLY = new Set(["--color-border", "--color-surface", "--color-pane"]);
+
+  it("the memo resets the same colours as the LP report", () => {
+    expect(Object.keys(memo).sort()).toEqual(Object.keys(lp).sort());
+  });
+
+  it.each([
+    ["LP report", lp],
+    ["memo", memo],
+  ])("%s: every reset value is the light theme's own value", (_n, block) => {
+    expect(Object.keys(block).length).toBeGreaterThan(30);
+    for (const [k, v] of Object.entries(block)) {
+      if (PRINT_ONLY.has(k)) continue;
+      const light = LIGHT[k] ?? new RegExp(`${k}:\\s*([^;]+);`).exec(rootBody)?.[1].trim();
+      expect(v.toUpperCase(), k).toBe(String(light).toUpperCase());
+    }
+  });
+
+  it("both reset every dark-theme text, state and tone colour (nothing dark can reach paper)", () => {
+    const must = Object.keys(DARK).filter((k) => /^--(color-(text|done$|stuck$|warn$|accent$|mark|primary|destructive|ctl|bg$|surface|pane|well)|tone-)/.test(k));
+    for (const block of [lp, memo]) for (const k of must) expect(block[k], k).toBeTruthy();
   });
 });
 

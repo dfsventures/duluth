@@ -85,7 +85,7 @@ export function LpLoginForm() {
           value={code}
           onChange={(e) => setCode(e.target.value.replace(/[^0-9]/g, ""))}
           placeholder="000000"
-          className="w-full border border-border bg-card px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none v2:h-14 v2:rounded-ctl v2:border-[color:var(--color-ctl)] v2:py-0"
+          className="w-full border border-border bg-card px-4 py-3 text-center font-mono text-2xl tracking-[0.3em] text-foreground placeholder:text-muted-foreground focus:border-mark focus:outline-none v2:h-14 v2:rounded-ctl v2:border-[color:var(--color-ctl)] v2:py-0 v2:focus-visible:ring-2 v2:focus-visible:ring-ring"
         />
         {error && <p className="mt-2 text-sm text-tone-clay-ink">{error}</p>}
         <Button type="submit" size="lg" disabled={loading} className="mt-4 w-full">

@@ -1116,8 +1116,9 @@ function AdminFundDetailPageInner() {
             </div>
 
             <div>
-              <label className="label mb-1.5 block">Notes</label>
+              <label htmlFor="deal-notes" className="label mb-1.5 block">Notes</label>
               <textarea
+                id="deal-notes"
                 value={dealForm.notes}
                 onChange={(e) => setDealForm((f) => ({ ...f, notes: e.target.value }))}
                 rows={2}

@@ -858,7 +858,8 @@ export default function ApprovalsPage() {
           {pendingApprovals.length > 0 && (
             <h2 className="mx-[var(--row-pad)] mb-3 flex items-baseline gap-1.5 text-row font-medium text-foreground">
               Awaiting approval
-              <span className="text-meta font-normal text-muted-foreground">{shownPending.length}</span>
+              <span aria-hidden="true" className="text-meta font-normal text-muted-foreground">{shownPending.length}</span>
+              <span className="sr-only">{`, ${shownPending.length} waiting`}</span>
             </h2>
           )}
           {pendingApprovals.length > 0 && (
@@ -1306,7 +1307,8 @@ export default function ApprovalsPage() {
                 <div>
                   <h2 id="awaiting-heading" className="text-sm font-semibold text-foreground v2:flex v2:items-baseline v2:gap-1.5 v2:text-row v2:font-medium">
                     Awaiting password setup
-                    <span className="hidden text-meta font-normal text-muted-foreground v2:inline">{activeAwaiting.length}</span>
+                    <span aria-hidden="true" className="hidden text-meta font-normal text-muted-foreground v2:inline">{activeAwaiting.length}</span>
+                    <span className="sr-only">{`, ${activeAwaiting.length} ${activeAwaiting.length === 1 ? "account" : "accounts"}`}</span>
                   </h2>
                   <p className="text-sm text-muted-foreground v2:mt-1 v2:text-meta">
                     Approved accounts that haven&apos;t finished setup. Resend replaces the old link.
@@ -1393,7 +1395,8 @@ export default function ApprovalsPage() {
             {dismissedOrStale.length > 0 && (
               <section aria-labelledby="dismissed-heading" className="space-y-2">
                 <h3 id="dismissed-heading" className="text-sm font-medium text-muted-foreground v2:flex v2:items-baseline v2:gap-1.5 v2:text-row v2:text-foreground">
-                  Dismissed or expired <span className="hidden text-meta font-normal text-muted-foreground v2:inline">{dismissedOrStale.length}</span>
+                  Dismissed or expired <span aria-hidden="true" className="hidden text-meta font-normal text-muted-foreground v2:inline">{dismissedOrStale.length}</span>
+                  <span className="sr-only hidden v2:inline">{`, ${dismissedOrStale.length} ${dismissedOrStale.length === 1 ? "account" : "accounts"}`}</span>
                   <span className="v2:hidden">({dismissedOrStale.length})</span>
                 </h3>
                 <DataTable<AwaitingUser>

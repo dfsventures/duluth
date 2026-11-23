@@ -127,6 +127,7 @@ export function MembersTab({
               <Input
                 id="member-email"
                 label=""
+                aria-label="Member email"
                 type="email"
                 placeholder="founder@example.com"
                 value={addMemberEmail}
@@ -194,6 +195,7 @@ export function MembersTab({
                   {!member.userRoles.includes("ADMIN") && (
                     <Select
                       value={member.membershipRole}
+                      aria-label={`Role for ${member.name ?? member.email}`}
                       disabled={updatingRoleId === member.userId}
                       onChange={(e) =>
                         handleMemberRoleChange(

@@ -21,7 +21,9 @@ export const V2_FIELD_LABEL = V2_SECTION_LABEL;
  * there, so iPhones do not zoom.
  */
 export const V2_TEXT_FIELD =
-  "v2:h-9 v2:rounded-ctl v2:border-[color:var(--color-ctl)] v2:px-3 v2:py-0 v2:text-row max-md:v2:h-11 max-md:v2:text-[16px]";
+  // The new-look border colour outranks the field's own focus:border-mark, so focus is the same 2px
+  // accent ring as .input-field (WS167).
+  "v2:h-9 v2:rounded-ctl v2:border-[color:var(--color-ctl)] v2:px-3 v2:py-0 v2:text-row v2:focus-visible:ring-2 v2:focus-visible:ring-ring max-md:v2:h-11 max-md:v2:text-[16px]";
 
 /** A small text link or button on a phone: a 44px hit area. */
 export const V2_TAP = "max-md:v2:inline-flex max-md:v2:min-h-11 max-md:v2:items-center";

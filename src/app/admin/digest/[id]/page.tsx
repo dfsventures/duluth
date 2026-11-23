@@ -438,6 +438,7 @@ export default function DigestDetailPage() {
                   className="input-field min-h-[120px] w-full resize-y text-sm"
                   value={section.content}
                   onChange={(e) => updateSection(section.id, e.target.value)}
+                  aria-label={section.heading}
                   placeholder={`Write something about ${section.heading.toLowerCase()}…`}
                 />
               ) : (
@@ -479,6 +480,7 @@ export default function DigestDetailPage() {
                               className="input-field flex-1 text-sm"
                               value={todo.text}
                               onChange={(e) => updateTodo(i, e.target.value)}
+                              aria-label={`Todo ${i + 1}`}
                             />
                           )}
                           <button
@@ -496,12 +498,13 @@ export default function DigestDetailPage() {
                     <input
                       className="input-field flex-1 text-sm"
                       placeholder="Add a todo…"
+                      aria-label="New todo"
                       value={newTodo}
                       onChange={(e) => setNewTodo(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && addTodo()}
                     />
-                    <Button size="sm" variant="secondary" onClick={addTodo} disabled={!newTodo.trim()}>
-                      <Plus className="h-4 w-4" />
+                    <Button size="sm" variant="secondary" onClick={addTodo} disabled={!newTodo.trim()} aria-label="Add todo">
+                      <Plus aria-hidden="true" className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -513,6 +516,7 @@ export default function DigestDetailPage() {
                         type="checkbox"
                         checked={todo.completed}
                         onChange={(e) => toggleTodo(todo.id, e.target.checked)}
+                        aria-label={todo.text}
                         className="mt-0.5 h-4 w-4 cursor-pointer accent-primary"
                       />
                       <div className="flex-1 min-w-0">

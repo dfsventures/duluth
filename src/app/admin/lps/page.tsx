@@ -408,6 +408,7 @@ export default function AdminLpsPage() {
                 <div className="mt-2 flex gap-2">
                   <input
                     type="email"
+                    aria-label="Add an address"
                     placeholder="Add an address"
                     value={newAddress}
                     onChange={(e) => setNewAddress(e.target.value)}

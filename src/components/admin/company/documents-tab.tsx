@@ -151,6 +151,7 @@ export function DocumentsTab({
           <input
             type="text"
             placeholder="Search documents..."
+            aria-label="Search documents"
             value={docSearch}
             onChange={(e) => {
               setDocSearch(e.target.value);
@@ -160,6 +161,7 @@ export function DocumentsTab({
           />
         </div>
         <Select
+          aria-label="Document type"
           value={docTypeFilter}
           onChange={(e) => {
             setDocTypeFilter(e.target.value);

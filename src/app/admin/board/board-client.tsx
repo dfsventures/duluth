@@ -635,7 +635,8 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                   >
                     <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-3 font-mono text-xs font-semibold uppercase tracking-widest text-foreground [&::-webkit-details-marker]:hidden v2:min-h-11 v2:px-0 v2:font-sans v2:text-row v2:font-medium v2:normal-case v2:tracking-normal">
                       <span>{BOARD_STATUS_LABELS[s]}</span>
-                      <span className="ml-auto text-muted-foreground">{visible[s].length}</span>
+                      <span aria-hidden="true" className="ml-auto text-muted-foreground">{visible[s].length}</span>
+                      <span className="sr-only">{`, ${visible[s].length} ${visible[s].length === 1 ? "card" : "cards"}`}</span>
                       <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
                     </summary>
                     <div className="space-y-2 bg-well p-2 v2:space-y-3 v2:bg-transparent v2:p-0">

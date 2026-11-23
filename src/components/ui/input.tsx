@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { forwardRef, useState } from "react";
+import { forwardRef, useId, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -21,19 +21,25 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     const [showPassword, setShowPassword] = useState(false);
     const isPassword = type === "password";
     const resolvedType = isPassword ? (showPassword ? "text" : "password") : type;
+    // A label is tied to its field even when the caller passes no id (screen readers read it).
+    const autoId = useId();
+    const fieldId = id ?? autoId;
+    const errorId = `${fieldId}-error`;
 
     return (
       <div className="space-y-1">
         {label && (
-          <label htmlFor={id} className={cn("label", FIELD_LABEL_V2)}>
+          <label htmlFor={fieldId} className={cn("label", FIELD_LABEL_V2)}>
             {label}
           </label>
         )}
         <div className="relative">
           <input
             ref={ref}
-            id={id}
+            id={fieldId}
             type={resolvedType}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? errorId : undefined}
             className={cn(
               "input-field",
               isPassword && "pr-10",
@@ -58,7 +64,11 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             </button>
           )}
         </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && (
+          <p id={errorId} className="text-xs text-destructive">
+            {error}
+          </p>
+        )}
       </div>
     );
   }

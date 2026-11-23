@@ -1,6 +1,8 @@
 // Local visual-check toolkit, step 2: screenshot the admin pages in every look, theme and size.
 // Run: npx tsx scripts/visual/shoot.ts [--pages companies,approvals] [--looks new,old]
-//        [--viewports desktop,wide,phone] [--out /some/dir] [--no-states]
+//        [--viewports desktop,wide,phone] [--out /some/dir] [--no-states] [--focus]
+// --focus: Tab through each page in the new look (first size only) and report invisible or low-contrast
+// focus in focus.json (WS167).
 //
 // Starts its own `next dev -p 3100` against molly_local (unless something already answers there),
 // signs in as the seeded admin by minting a session cookie, takes the pictures, then stops the
@@ -215,6 +217,89 @@ const TALL_JS = `(() => {
   }
 })()`;
 
+// --focus (WS167): in the new look, at the first size only, press Tab through the page (up to
+// FOCUS_TABS stops). At each stop read the focused element's look, then blur it and read it again: if
+// nothing changed, the focus is invisible. When the change is an outline or ring, its colour's contrast
+// against the background behind the element must be 3:1 (WCAG 1.4.11). Rows (a tint plus the accent
+// underscore on the first cell) are read through their first cell's ::after. Runs with reduced motion so
+// transitions don't leave half-drawn values. Writes focus.json and pictures at a few stops.
+const FOCUS_TABS = 40;
+const FOCUS_SNAP_AT = new Set([3, 8, 15]);
+const FOCUS_JS = `((phase) => {
+  const el = phase === "read" ? document.activeElement : window.__focusEl;
+  if (!el || el === document.body || el === document.documentElement) return null;
+  function parse(c) {
+    const m = /rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?\\)/.exec(c || "");
+    return m ? { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] } : null;
+  }
+  function lum(c) {
+    const ch = [c.r, c.g, c.b].map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  }
+  function ratio(a, b) {
+    const x = lum(a), y = lum(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  }
+  function behind(node) {
+    // The first ancestor with a mostly opaque background (the page's own colour as a last resort).
+    for (let n = node.parentElement; n; n = n.parentElement) {
+      const c = parse(getComputedStyle(n).backgroundColor);
+      if (c && c.a > 0.5) return c;
+    }
+    return parse(getComputedStyle(document.body).backgroundColor) || { r: 255, g: 255, b: 255, a: 1 };
+  }
+  function look(node) {
+    const cs = getComputedStyle(node);
+    const cell = node.tagName === "TR" ? node.querySelector("td") : null;
+    const after = cell ? getComputedStyle(cell, "::after") : null;
+    return {
+      outline: cs.outlineStyle + " " + cs.outlineWidth + " " + cs.outlineColor,
+      shadow: cs.boxShadow,
+      bg: cs.backgroundColor,
+      border: cs.borderColor,
+      color: cs.color,
+      deco: cs.textDecorationLine,
+      after: after ? after.content + " " + after.backgroundColor + " " + after.width : "",
+    };
+  }
+  if (phase === "read") {
+    window.__focusEl = el;
+    const r = el.getBoundingClientRect();
+    const name = ((el.getAttribute("aria-label") || el.textContent || el.getAttribute("placeholder") || "") + "").trim().replace(/\\s+/g, " ").slice(0, 40);
+    const on = look(el);
+    const base = behind(el);
+    let ring = null;
+    const cs = getComputedStyle(el);
+    // Tailwind's outline-none is "2px solid transparent": a transparent outline is no outline.
+    if (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) > 0) {
+      const c = parse(cs.outlineColor);
+      if (c && c.a > 0.5) ring = { kind: "outline", width: cs.outlineWidth, ratio: +ratio(c, base).toFixed(2) };
+    }
+    if (!ring && cs.boxShadow && cs.boxShadow !== "none") {
+      let best = 0;
+      for (const m of cs.boxShadow.matchAll(/rgba?\\([^)]*\\)/g)) {
+        const c = parse(m[0]);
+        if (c && c.a > 0.5) best = Math.max(best, ratio(c, base));
+      }
+      if (best > 0) ring = { kind: "ring", ratio: +best.toFixed(2) };
+    }
+    if (!ring && el.tagName === "TR") {
+      const cell = el.querySelector("td");
+      const c = cell ? parse(getComputedStyle(cell, "::after").backgroundColor) : null;
+      if (c && c.a > 0.5) ring = { kind: "row underscore", ratio: +ratio(c, parse(cs.backgroundColor) && parse(cs.backgroundColor).a > 0.5 ? parse(cs.backgroundColor) : base).toFixed(2) };
+    }
+    const desc = el.tagName.toLowerCase() + (el.getAttribute("role") ? "[" + el.getAttribute("role") + "]" : "") + ' "' + name + '"';
+    const inSidebar = !!el.closest("#app-sidebar, .app-sidebar");
+    const visible = r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+    return { desc, on, ring, inSidebar, visible };
+  }
+  const off = (el.blur(), look(el));
+  el.focus({ preventScroll: true });
+  return { off };
+})`;
+type FocusStop = { key: string; tag: string; n: number; desc: string; verdict: "ring" | "changed" | "none" | "low"; detail: string };
+const focusRows: FocusStop[] = [];
+
 async function measure(page: any): Promise<{ m: Marks; shape: string }> {
   return page.evaluate(MEASURE_JS);
 }
@@ -307,6 +392,7 @@ const pageKeys = list("pages", Object.keys(PAGES));
 const looks = list("looks", ["new", "old"]);
 const viewportKeys = list("viewports", Object.keys(VIEWPORTS));
 const withStates = !process.argv.includes("--no-states");
+const withFocus = process.argv.includes("--focus");
 const stamp = new Date().toISOString().replace(/[-:]/g, "").replace("T", "-").slice(0, 15);
 // Default output stays inside the repo, in the git-ignored .visual/ folder.
 const outDir = path.resolve(arg("out") ?? path.join(REPO, ".visual", stamp));
@@ -515,6 +601,46 @@ async function main() {
     console.log(`  ${file}`);
   }
 
+  // --focus: the Tab walk described at FOCUS_JS. The page is left scrolled; it runs after the page's picture.
+  async function focusWalk(page: any, key: string, tag: string) {
+    await page.addStyleTag({ content: "*,*::before,*::after{transition:none!important;animation:none!important}" });
+    await page.evaluate("document.activeElement && document.activeElement.blur()");
+    let lastDesc = "";
+    let repeats = 0;
+    let flaggedShots = 0;
+    for (let n = 1; n <= FOCUS_TABS; n++) {
+      await page.keyboard.press("Tab");
+      await page.waitForTimeout(60);
+      const on = await page.evaluate(`${FOCUS_JS}("read")`).catch(() => null);
+      if (!on) break; // focus left the page
+      const back = await page.evaluate(`${FOCUS_JS}("off")`).catch(() => null);
+      if (on.desc === lastDesc) {
+        if (++repeats > 2) break; // a focus trap or the end of the page
+      } else repeats = 0;
+      lastDesc = on.desc;
+      if (!on.visible) continue; // an element scrolled out of view or a skip link at rest
+      const changed = back ? Object.keys(on.on).filter((k) => on.on[k] !== back.off[k]) : [];
+      let verdict: FocusStop["verdict"];
+      let detail: string;
+      // A ring counts only when it appears on focus (a resting box-shadow edge is not a focus ring).
+      const ringShown = on.ring && changed.some((k) => k === "outline" || k === "shadow" || k === "after");
+      if (ringShown) {
+        verdict = on.ring.ratio >= 3 ? "ring" : "low";
+        detail = `${on.ring.kind} ${on.ring.ratio}:1`;
+      } else if (changed.length) {
+        verdict = "changed";
+        detail = changed.map((k) => `${k}: ${back.off[k]} -> ${on.on[k]}`).join("; ").slice(0, 300);
+      } else {
+        verdict = "none";
+        detail = "nothing changes on focus";
+      }
+      focusRows.push({ key, tag, n, desc: on.desc + (on.inSidebar ? " (sidebar)" : ""), verdict, detail });
+      // Pictures at a few fixed stops, and at the first few stops that need a look.
+      const flagged = verdict !== "ring" && ++flaggedShots <= 4;
+      if (FOCUS_SNAP_AT.has(n) || flagged) await snap(page, `focus-${n}__${key}__${tag}.png`, false);
+    }
+  }
+
   for (const v of variants) {
     for (const vpKey of viewportKeys) {
       if (authBroken) break;
@@ -591,6 +717,7 @@ async function main() {
           await page.waitForTimeout(200);
         }
         if (ok) await snap(page, `${key}__${tag}.png`);
+        if (ok && withFocus && v.look === "new" && vpKey === viewportKeys[0]) await focusWalk(page, key, tag);
         // WS166: the LP report as it prints (white pages, dark text, in both themes).
         if (ok && key === "lp-report" && vpKey !== "phone") {
           await page.emulateMedia({ media: "print" });
@@ -733,6 +860,14 @@ async function run() {
       for (const s of r.small) console.log(`      small: ${s}`);
       for (const s of r.inline) console.log(`      in text: ${s}`);
     }
+  }
+  if (focusRows.length) {
+    fs.writeFileSync(path.join(outDir, "focus.json"), JSON.stringify(focusRows, null, 1));
+    const bad = focusRows.filter((r) => r.verdict === "none" || r.verdict === "low");
+    const changed = focusRows.filter((r) => r.verdict === "changed");
+    console.log(`\nFocus check (Tab walk): ${focusRows.length} stops, ${bad.length} with no visible or a low-contrast focus, ${changed.length} shown by a colour/fill change only (look at those)`);
+    for (const r of bad) console.log(`  ${r.verdict.toUpperCase()} ${r.key} ${r.tag} #${r.n}: ${r.desc} (${r.detail})`);
+    for (const r of changed) console.log(`  changed ${r.key} ${r.tag} #${r.n}: ${r.desc} (${r.detail})`);
   }
   if (failures.length) {
     console.error(`\nFAILED (${failures.length}):`);

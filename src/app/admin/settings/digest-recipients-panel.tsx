@@ -134,9 +134,10 @@ export function DigestRecipientsPanel() {
                 <span className="text-sm text-foreground">{e.email}</span>
                 <button
                   onClick={() => removeExtra(e.id)}
+                  aria-label={`Remove ${e.email}`}
                   className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                 >
-                  <X className="h-4 w-4" />
+                  <X aria-hidden="true" className="h-4 w-4" />
                 </button>
               </li>
             ))}
@@ -147,13 +148,14 @@ export function DigestRecipientsPanel() {
           <input
             type="email"
             className="input-field flex-1 text-sm"
+            aria-label="Add a recipient's email"
             placeholder="name@example.com"
             value={newEmail}
             onChange={(e) => setNewEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addExtra()}
           />
-          <Button size="sm" variant="secondary" onClick={addExtra} disabled={adding || !newEmail.trim()}>
-            <Plus className="h-4 w-4" />
+          <Button size="sm" variant="secondary" onClick={addExtra} disabled={adding || !newEmail.trim()} aria-label="Add recipient">
+            <Plus aria-hidden="true" className="h-4 w-4" />
           </Button>
         </div>
         {addError && <p className="mt-1.5 text-xs text-destructive">{addError}</p>}

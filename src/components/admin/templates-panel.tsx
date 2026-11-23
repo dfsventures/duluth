@@ -164,12 +164,13 @@ export function TemplatesPanel({ newRequest = 0 }: { newRequest?: number } = {})
         <ModalDialog size="lg" title={editTarget === "new" ? "New Template" : `Edit — ${(editTarget as Template).name}`} onClose={() => setEditTarget(null)}>
           <form onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="label mb-1.5 block">Name *</label>
-              <Input required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Quarterly Update" maxLength={120} />
+              <label htmlFor="template-name" className="label mb-1.5 block">Name *</label>
+              <Input id="template-name" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Quarterly Update" maxLength={120} />
             </div>
             <div>
-              <label className="label mb-1.5 block">Description</label>
+              <label htmlFor="template-description" className="label mb-1.5 block">Description</label>
               <Input
+                id="template-description"
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
                 placeholder="One-line hint shown to founders"
