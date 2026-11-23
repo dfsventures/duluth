@@ -88,10 +88,13 @@ const PAGES: Record<string, string> = {
   "lp-signin": "/lp",
   lp: "/lp", // the library
   "lp-report": "/lp", // the library, then the first report (also shot with print styles)
+  // WS168: pages that keep their own look (they must not change when the new look becomes the default)
+  share: "/share/visual-token-active", // the seeded active investor link (setup.ts)
+  investors: "/investors",
 };
 
 // WS166: pages shot with no admin or founder session, and the LP pages (the LP's own cookie).
-const SIGNED_OUT = new Set(["home", "login", "signup", "set-password", "lp-signin"]);
+const SIGNED_OUT = new Set(["home", "login", "signup", "set-password", "lp-signin", "share", "investors"]);
 const AS_LP = new Set(["lp", "lp-report"]);
 const LP_COOKIE = "lp_session"; // keep in step with src/lib/lp-auth.ts
 const LP_SESSION_TOKEN = "local-visual-lp-session"; // keep in step with setup.ts
@@ -857,7 +860,80 @@ async function main() {
   await browser.close();
 }
 
+// --diff <before> --against <after> (WS168): compares two earlier runs, file by file, without shooting
+// anything. Both are folder names under .visual/. For each file in both, it prints how many pixels
+// differ (any channel off by more than 8) and the box they fall in, and writes diff__<file> (changed
+// pixels in red over a faded copy of the after shot) into the after folder. No new package: the
+// comparison runs on a canvas in the same Chromium the shots use.
+const DIFF_JS = `async ([a, b]) => {
+  const load = (src) => new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+  const [ia, ib] = await Promise.all([load(a), load(b)]);
+  const w = Math.max(ia.width, ib.width), h = Math.max(ia.height, ib.height);
+  const draw = (img) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d"); x.drawImage(img, 0, 0); return x.getImageData(0, 0, w, h); };
+  const da = draw(ia), db = draw(ib);
+  const out = new ImageData(w, h);
+  let n = 0, x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let i = 0; i < da.data.length; i += 4) {
+    const off = Math.abs(da.data[i] - db.data[i]) > 8 || Math.abs(da.data[i + 1] - db.data[i + 1]) > 8 || Math.abs(da.data[i + 2] - db.data[i + 2]) > 8 || Math.abs(da.data[i + 3] - db.data[i + 3]) > 8;
+    if (off) {
+      n++;
+      const p = i / 4, x = p % w, y = (p - x) / w;
+      if (x < x0) x0 = x; if (y < y0) y0 = y; if (x > x1) x1 = x; if (y > y1) y1 = y;
+      out.data[i] = 255; out.data[i + 1] = 0; out.data[i + 2] = 0; out.data[i + 3] = 255;
+    } else {
+      out.data[i] = db.data[i]; out.data[i + 1] = db.data[i + 1]; out.data[i + 2] = db.data[i + 2]; out.data[i + 3] = 60;
+    }
+  }
+  let png = null;
+  if (n) { const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").putImageData(out, 0, 0); png = c.toDataURL("image/png"); }
+  return { n, total: w * h, sizeA: [ia.width, ia.height], sizeB: [ib.width, ib.height], box: n ? [x0, y0, x1, y1] : null, png };
+}`;
+
+async function runDiff(before: string, after: string) {
+  const dirA = path.resolve(REPO, ".visual", before);
+  const dirB = path.resolve(REPO, ".visual", after);
+  for (const d of [dirA, dirB]) {
+    if (!d.startsWith(path.join(REPO, ".visual") + path.sep) || !fs.existsSync(d)) {
+      console.error(`No such run under .visual/: ${d}`);
+      process.exit(2);
+    }
+  }
+  const { chromium } = createRequire(path.join(PLAYWRIGHT_DIR, "package.json"))("playwright");
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  const files = fs.readdirSync(dirB).filter((f: string) => f.endsWith(".png") && !f.startsWith("diff__") && fs.existsSync(path.join(dirA, f)));
+  const onlyA = fs.readdirSync(dirA).filter((f: string) => f.endsWith(".png") && !fs.existsSync(path.join(dirB, f)));
+  let changed = 0;
+  console.log(`Diff ${before} -> ${after}: ${files.length} pair(s)`);
+  for (const f of files.sort()) {
+    const url = (d: string) => `data:image/png;base64,${fs.readFileSync(path.join(d, f)).toString("base64")}`;
+    const r = await page.evaluate(`(${DIFF_JS})(${JSON.stringify([url(dirA), url(dirB)])})`);
+    const size = r.sizeA.join("x") === r.sizeB.join("x") ? r.sizeB.join("x") : `${r.sizeA.join("x")} -> ${r.sizeB.join("x")}`;
+    if (!r.n) {
+      console.log(`  same     ${f} (${size})`);
+      continue;
+    }
+    changed++;
+    const pct = ((100 * r.n) / r.total).toFixed(3);
+    console.log(`  CHANGED  ${f} (${size}): ${r.n} px (${pct}%), box x${r.box[0]}-${r.box[2]} y${r.box[1]}-${r.box[3]}`);
+    fs.writeFileSync(path.join(dirB, `diff__${f}`), Buffer.from(r.png.split(",")[1], "base64"));
+  }
+  for (const f of onlyA) console.log(`  missing  ${f} (only in ${before})`);
+  console.log(`${changed} of ${files.length} changed.`);
+  await browser.close();
+}
+
 async function run() {
+  const diffBefore = arg("diff");
+  if (diffBefore) {
+    const after = arg("against");
+    if (!after) {
+      console.error("--diff <before> needs --against <after> (both folder names under .visual/)");
+      process.exit(2);
+    }
+    await runDiff(diffBefore, after);
+    return;
+  }
   try {
     await main();
   } catch (err) {

@@ -28,7 +28,7 @@ describe("founder-look class sets", () => {
 });
 
 describe("founder phone rules (390px: 44px targets)", () => {
-  const scope = 'html[data-look="v2"] [data-v2-scope][data-surface="founder"]';
+  const scope = 'html[data-theme] [data-v2-scope][data-surface="founder"]';
 
   it("form fields are 44 high on founder phones", () => {
     expect(css).toContain(`${scope} .shell-page input.input-field`);

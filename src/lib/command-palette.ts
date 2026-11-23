@@ -24,7 +24,7 @@ export interface PaletteItem {
   href: string;
   keywords: string[];
   /** Set on items that do something in place instead of navigating (href is then empty). */
-  action?: "toggle-look" | "toggle-theme" | "filter-list" | "prefill-filter" | "open-pane";
+  action?: "toggle-theme" | "filter-list" | "prefill-filter" | "open-pane";
   /** filter-list: the text to filter the page's list by ("" clears it). */
   filterText?: string;
   /** open-pane: the record to open in the page's pane (?open=<id>). */
@@ -78,21 +78,10 @@ export function filterListItems(query: string, hasList: boolean): PaletteItem[] 
   ];
 }
 
-/** The new-look switch and, once it is on, the light/dark item (PLAN-1, WS156). */
-export function lookActionItems(look: "v1" | "v2", theme: "light" | "dark"): PaletteItem[] {
-  const items: PaletteItem[] = [
+/** The light/dark item (PLAN-1, WS156). The new-look switch that sat beside it went in WS168. */
+export function themeActionItems(theme: "light" | "dark"): PaletteItem[] {
+  return [
     {
-      id: "action:toggle-look",
-      group: "Actions",
-      label: look === "v2" ? "Use the old look" : "Try the new look",
-      hint: "Action",
-      href: "",
-      keywords: ["design", "theme", "look", "new", "old"],
-      action: "toggle-look",
-    },
-  ];
-  if (look === "v2") {
-    items.push({
       id: "action:toggle-theme",
       group: "Actions",
       label: theme === "dark" ? "Switch to light mode" : "Switch to dark mode",
@@ -100,28 +89,23 @@ export function lookActionItems(look: "v1" | "v2", theme: "light" | "dark"): Pal
       href: "",
       keywords: ["theme", "dark", "light", "mode"],
       action: "toggle-theme",
-    });
-  }
-  return items;
+    },
+  ];
 }
 
 export const GROUP_ORDER: PaletteGroup[] = ["Go to", "Actions", "Companies", "Funds", "Deals", "LPs"];
 
-/** The page whose company rows open in a pane under the new look. */
+/** The page whose company rows open in a pane beside the list. */
 export const COMPANIES_PATH = "/admin/companies";
 
-export function buildPaletteItems(
-  index: SearchIndex | null,
-  look: "v1" | "v2" = "v1",
-  pathname: string | null = null
-): PaletteItem[] {
+export function buildPaletteItems(index: SearchIndex | null, pathname: string | null = null): PaletteItem[] {
   const ix = index ?? EMPTY_INDEX;
-  // New look, on Companies: a company opens in the pane beside the list instead of its page.
-  const companyInPane = look === "v2" && pathname === COMPANIES_PATH;
+  // On Companies: a company opens in the pane beside the list instead of its page.
+  const companyInPane = pathname === COMPANIES_PATH;
   const items: PaletteItem[] = [];
 
   for (const p of ALL_ADMIN_PAGES) {
-    const label = look === "v2" && p.labelV2 ? p.labelV2 : p.label;
+    const label = p.labelV2 ?? p.label;
     items.push({ id: `page:${p.href}`, group: "Go to", label, hint: "Page", href: p.href, keywords: p.keywords ?? [] });
   }
   items.push({

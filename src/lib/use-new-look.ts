@@ -1,18 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useLook } from "./use-look";
 import { inNewLookScope } from "./surface";
 
 /**
- * True only for the new look on a page it reaches: an admin page, or (stage 2, PLAN-1 WS165) a
- * founder page in the app shell. The server and the first client render are the old look (useLook's
- * server snapshot), so markup that exists only in the new look can be gated on this and hydration
- * still matches. Since WS166 the LP portal, sign-in pages and home count too; share pages and the report
- * preview frame are never "new look", whatever is saved in the browser.
+ * True on a page the app's look reaches: every admin page, the founder app pages, the LP portal, the
+ * sign-in pages and home. False on the pages that keep their own look (investor share links,
+ * /investors, the bare update download page). Path only, so the server and the client agree.
  */
 export function useNewLook(): boolean {
-  const { look } = useLook();
-  const pathname = usePathname(); // always called: a hook can't sit behind the && (hooks order)
-  return look === "v2" && inNewLookScope(pathname);
+  return inNewLookScope(usePathname());
 }

@@ -1,9 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { applyLook, readLook, setLook, setTheme, PRE_PAINT_SCRIPT, LOOK_KEY, THEME_KEY } from "../look";
+import { applyTheme, readTheme, setTheme, PRE_PAINT_SCRIPT, THEME_KEY } from "../look";
 
-// New look switch (PLAN-1, WS156): saved in the browser, and any storage trouble
-// means the old look. Node environment, so storage and document are stubbed.
+// Light / dark theme (PLAN-1, WS156; one look since WS168): saved in the browser, and any storage
+// trouble means light. The old "molly.look" key is ignored. Node environment, so storage and
+// document are stubbed.
+
+const OLD_LOOK_KEY = "molly.look";
 
 function fakeStorage(initial: Record<string, string> = {}) {
   const data = { ...initial };
@@ -19,38 +22,40 @@ function fakeRoot() {
   return { dataset: {} as Record<string, string | undefined> } as unknown as HTMLElement;
 }
 
-describe("readLook", () => {
+describe("readTheme", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("is the old look with no storage at all", () => {
-    expect(readLook()).toEqual({ look: "v1", theme: "light" });
+  it("is light with no storage at all", () => {
+    expect(readTheme()).toBe("light");
   });
 
-  it("is the old look when nothing is saved", () => {
+  it("is light when nothing is saved", () => {
     vi.stubGlobal("localStorage", fakeStorage());
-    expect(readLook()).toEqual({ look: "v1", theme: "light" });
+    expect(readTheme()).toBe("light");
   });
 
-  it("reads a saved new look and dark theme", () => {
-    vi.stubGlobal("localStorage", fakeStorage({ [LOOK_KEY]: "v2", [THEME_KEY]: "dark" }));
-    expect(readLook()).toEqual({ look: "v2", theme: "dark" });
+  it("reads a saved dark theme, whatever the old look key says", () => {
+    vi.stubGlobal("localStorage", fakeStorage({ [THEME_KEY]: "dark" }));
+    expect(readTheme()).toBe("dark");
+    vi.stubGlobal("localStorage", fakeStorage({ [OLD_LOOK_KEY]: "v1", [THEME_KEY]: "dark" }));
+    expect(readTheme()).toBe("dark");
   });
 
-  it("treats unexpected values as the old look and light theme", () => {
-    vi.stubGlobal("localStorage", fakeStorage({ [LOOK_KEY]: "v3", [THEME_KEY]: "purple" }));
-    expect(readLook()).toEqual({ look: "v1", theme: "light" });
+  it("treats unexpected values as light", () => {
+    vi.stubGlobal("localStorage", fakeStorage({ [THEME_KEY]: "purple" }));
+    expect(readTheme()).toBe("light");
   });
 
-  it("falls back to the old look when reading throws", () => {
+  it("falls back to light when reading throws", () => {
     vi.stubGlobal("localStorage", {
       getItem: () => {
         throw new Error("blocked");
       },
     });
-    expect(readLook()).toEqual({ look: "v1", theme: "light" });
+    expect(readTheme()).toBe("light");
   });
 
-  it("falls back to the old look when even touching localStorage throws", () => {
+  it("falls back to light when even touching localStorage throws", () => {
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       get() {
@@ -58,7 +63,7 @@ describe("readLook", () => {
       },
     });
     try {
-      expect(readLook()).toEqual({ look: "v1", theme: "light" });
+      expect(readTheme()).toBe("light");
     } finally {
       // @ts-expect-error cleaning the stub up
       delete globalThis.localStorage;
@@ -66,26 +71,17 @@ describe("readLook", () => {
   });
 });
 
-describe("applyLook", () => {
-  it("sets nothing at all for the old look, and clears leftovers", () => {
+describe("applyTheme", () => {
+  it("sets data-theme and nothing else", () => {
     const root = fakeRoot();
-    applyLook({ look: "v1", theme: "dark" }, root);
-    expect(root.dataset).toEqual({});
-    root.dataset.look = "v2";
-    root.dataset.theme = "dark";
-    applyLook({ look: "v1", theme: "light" }, root);
-    expect(root.dataset.look).toBeUndefined();
-    expect(root.dataset.theme).toBeUndefined();
-  });
-
-  it("sets look and theme for the new look", () => {
-    const root = fakeRoot();
-    applyLook({ look: "v2", theme: "dark" }, root);
-    expect(root.dataset).toEqual({ look: "v2", theme: "dark" });
+    applyTheme("dark", root);
+    expect(root.dataset).toEqual({ theme: "dark" });
+    applyTheme("light", root);
+    expect(root.dataset).toEqual({ theme: "light" });
   });
 });
 
-describe("setLook / setTheme", () => {
+describe("setTheme", () => {
   let store: ReturnType<typeof fakeStorage>;
   let root: HTMLElement;
   beforeEach(() => {
@@ -97,29 +93,13 @@ describe("setLook / setTheme", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("turning the new look on saves it and sets the attributes", () => {
-    expect(setLook("v2")).toEqual({ look: "v2", theme: "light" });
-    expect(store.data[LOOK_KEY]).toBe("v2");
-    expect(root.dataset).toEqual({ look: "v2", theme: "light" });
-  });
-
-  it("turning it off removes the saved key and the attributes but keeps the theme choice", () => {
-    setLook("v2");
-    setTheme("dark");
-    setLook("v1");
-    expect(store.data[LOOK_KEY]).toBeUndefined();
+  it("saves the theme and updates the attribute", () => {
+    expect(setTheme("dark")).toBe("dark");
     expect(store.data[THEME_KEY]).toBe("dark");
-    expect(root.dataset).toEqual({});
-    setLook("v2");
-    expect(root.dataset).toEqual({ look: "v2", theme: "dark" });
-  });
-
-  it("changing the theme while the new look is on updates the attribute", () => {
-    setLook("v2");
-    setTheme("dark");
-    expect(root.dataset.theme).toBe("dark");
+    expect(root.dataset).toEqual({ theme: "dark" });
     setTheme("light");
-    expect(root.dataset.theme).toBe("light");
+    expect(store.data[THEME_KEY]).toBe("light");
+    expect(root.dataset).toEqual({ theme: "light" });
   });
 
   it("still applies in this tab when saving throws (private mode)", () => {
@@ -132,10 +112,8 @@ describe("setLook / setTheme", () => {
         throw new Error("quota");
       },
     });
-    expect(() => setLook("v2")).not.toThrow();
-    expect(root.dataset.look).toBe("v2");
-    setTheme("dark"); // storage is dead, so it trusts what is already on <html>
-    expect(root.dataset).toEqual({ look: "v2", theme: "dark" });
+    expect(() => setTheme("dark")).not.toThrow();
+    expect(root.dataset).toEqual({ theme: "dark" });
   });
 });
 
@@ -153,19 +131,22 @@ describe("pre-paint script", () => {
     return root.dataset;
   }
 
-  it("does nothing when the switch is off or nothing is saved", () => {
-    expect(run({})).toEqual({});
-    expect(run({ [THEME_KEY]: "dark" })).toEqual({}); // a saved theme alone never turns the new look on
-    expect(run({ [LOOK_KEY]: "v1", [THEME_KEY]: "dark" })).toEqual({});
+  it("always sets data-theme, light by default", () => {
+    expect(run({})).toEqual({ theme: "light" });
+    expect(run({ [THEME_KEY]: "bogus" })).toEqual({ theme: "light" });
   });
 
-  it("sets look and theme when the new look is on, and defaults to light", () => {
-    expect(run({ [LOOK_KEY]: "v2" })).toEqual({ look: "v2", theme: "light" });
-    expect(run({ [LOOK_KEY]: "v2", [THEME_KEY]: "dark" })).toEqual({ look: "v2", theme: "dark" });
-    expect(run({ [LOOK_KEY]: "v2", [THEME_KEY]: "bogus" })).toEqual({ look: "v2", theme: "light" });
+  it("keeps a saved dark theme, and ignores the old look key either way", () => {
+    expect(run({ [THEME_KEY]: "dark" })).toEqual({ theme: "dark" });
+    expect(run({ [OLD_LOOK_KEY]: "v1", [THEME_KEY]: "dark" })).toEqual({ theme: "dark" });
+    expect(run({ [OLD_LOOK_KEY]: "v2" })).toEqual({ theme: "light" });
   });
 
-  it("swallows storage errors", () => {
-    expect(run({}, true)).toEqual({});
+  it("never sets data-look", () => {
+    expect(run({ [OLD_LOOK_KEY]: "v2", [THEME_KEY]: "dark" }).look).toBeUndefined();
+  });
+
+  it("falls back to light on storage errors", () => {
+    expect(run({}, true)).toEqual({ theme: "light" });
   });
 });

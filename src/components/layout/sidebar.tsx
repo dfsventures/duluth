@@ -7,7 +7,7 @@ import { fetcher, NAV_COUNTS_KEY } from "@/lib/fetcher";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
-import { useLook } from "@/lib/use-look";
+import { useTheme } from "@/lib/use-look";
 import { usePaletteKey } from "@/lib/use-palette-key";
 import { LogoMark } from "@/components/ui/logo-mark";
 import {
@@ -142,12 +142,12 @@ export function Sidebar({ open = false, onClose, surface }: SidebarProps) {
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const { selectedCompany } = useCompany();
-  const { look, theme, toggleLook, toggleTheme } = useLook();
+  const { theme, toggleTheme } = useTheme();
   const paletteKey = usePaletteKey();
 
   const isAdminPath = pathname.startsWith("/admin");
-  // The footer switches (look, theme) belong to the admin surface: an /admin path, or a shared page
-  // that the shell has put on the admin surface for an admin with the new look on.
+  // The theme switch belongs to the admin surface: an /admin path, or a shared page that the shell has
+  // put on the admin surface for an admin.
   const onAdminSurface = isAdminPath || surface === "admin";
   const isAdmin =
     status === "authenticated"
@@ -370,23 +370,6 @@ export function Sidebar({ open = false, onClose, surface }: SidebarProps) {
 
       {/* User footer */}
       <div className="flex flex-col border-t p-4 v2:p-3">
-        {/* New-look switch (PLAN-1, WS156): admin pages only, saved in this browser.
-            Both labels are in the page and CSS shows the right one, so there is no
-            flash of the wrong word on load. Under the new look it sits below the person. */}
-        {onAdminSurface && isAdmin && (
-          <div className="mb-3 flex flex-col items-start gap-1 v2:order-2 v2:mb-0 v2:mt-0.5 v2:items-stretch">
-            <button
-              type="button"
-              onClick={toggleLook}
-              role="switch"
-              aria-checked={look === "v2"}
-              className="text-xs font-medium text-primary hover:underline v2:h-7 v2:rounded v2:px-2 v2:text-left v2:text-meta v2:font-normal v2:text-muted-foreground v2:no-underline v2:hover:bg-row-hover v2:hover:text-secondary v2:hover:no-underline max-md:v2:h-11"
-            >
-              <span className="v2:hidden">Try the new look</span>
-              <span className="hidden v2:inline">Use the old look</span>
-            </button>
-          </div>
-        )}
         <div className="flex items-center gap-3 v2:order-1 v2:h-9 v2:gap-2 v2:pl-2 v2:pr-1 max-md:v2:h-11">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700 text-sm font-semibold font-mono v2:h-6 v2:w-6 v2:font-sans v2:text-meta">
             {session?.user?.name?.[0]?.toUpperCase() || session?.user?.email?.[0]?.toUpperCase() || "?"}

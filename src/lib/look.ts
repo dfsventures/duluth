@@ -1,28 +1,24 @@
-// New look switch (PLAN-1, WS156). The choice is saved in this browser only
-// (localStorage), so there is no schema change and it never follows a person
-// to another device. Pure and safe to import anywhere: every storage and
-// document access is guarded, and any failure falls back to the old look.
+// Light / dark theme (PLAN-1, WS156; one look since WS168). The choice is saved in this browser only
+// (localStorage), so there is no schema change and it never follows a person to another device. Pure
+// and safe to import anywhere: every storage and document access is guarded, and any failure falls
+// back to light.
+//
+// <html data-theme> is always set ("light" or "dark") by the pre-paint script, and the app's styles key
+// off it: the `v2:` variants and the [data-v2-scope] rules in globals.css start with html[data-theme].
+// The old "molly.look" key (the new-look switch, removed in WS168) is ignored.
 
-export type Look = "v1" | "v2";
 export type Theme = "light" | "dark";
 
-export const LOOK_KEY = "molly.look";
 export const THEME_KEY = "molly.theme";
-export const LOOK_CHANGE_EVENT = "molly:look-change";
+export const THEME_CHANGE_EVENT = "molly:theme-change";
 
-export interface LookState {
-  look: Look;
-  theme: Theme;
-}
-
-export const DEFAULT_LOOK: LookState = { look: "v1", theme: "light" };
+export const DEFAULT_THEME: Theme = "light";
 
 /**
- * Runs from layout.tsx before first paint. With the switch off it does nothing
- * at all (no attribute is set), so the page renders exactly as it always has.
- * Keep it in step with applyLook() below.
+ * Runs from layout.tsx before first paint, so the saved theme never flashes. Always sets data-theme,
+ * light when nothing (or anything unexpected) is saved. Keep it in step with applyTheme() below.
  */
-export const PRE_PAINT_SCRIPT = `try{var l=localStorage.getItem("${LOOK_KEY}");var t=localStorage.getItem("${THEME_KEY}");if(l==="v2"){var d=document.documentElement;d.dataset.look="v2";d.dataset.theme=t==="dark"?"dark":"light";}}catch(e){}`;
+export const PRE_PAINT_SCRIPT = `try{document.documentElement.dataset.theme=localStorage.getItem("${THEME_KEY}")==="dark"?"dark":"light";}catch(e){document.documentElement.dataset.theme="light";}`;
 
 function storage(): Storage | null {
   try {
@@ -32,65 +28,42 @@ function storage(): Storage | null {
   }
 }
 
-/** Reads the saved choice. Anything missing, unreadable or unexpected means the old look. */
-export function readLook(): LookState {
+/** Reads the saved theme. Anything missing, unreadable or unexpected means light. */
+export function readTheme(): Theme {
   const s = storage();
-  if (!s) return DEFAULT_LOOK;
+  if (!s) return DEFAULT_THEME;
   try {
-    const look: Look = s.getItem(LOOK_KEY) === "v2" ? "v2" : "v1";
-    const theme: Theme = s.getItem(THEME_KEY) === "dark" ? "dark" : "light";
-    return { look, theme };
+    return s.getItem(THEME_KEY) === "dark" ? "dark" : "light";
   } catch {
-    return DEFAULT_LOOK;
+    return DEFAULT_THEME;
   }
 }
 
-/** Mirrors a state onto <html>. The old look has no attributes at all. */
-export function applyLook(state: LookState, root?: HTMLElement | null): void {
+/** Mirrors a theme onto <html>. */
+export function applyTheme(theme: Theme, root?: HTMLElement | null): void {
   const el = root ?? (typeof document === "undefined" ? null : document.documentElement);
   if (!el) return;
-  if (state.look === "v2") {
-    el.dataset.look = "v2";
-    el.dataset.theme = state.theme;
-  } else {
-    delete el.dataset.look;
-    delete el.dataset.theme;
-  }
+  el.dataset.theme = theme;
 }
 
 function notify() {
   try {
-    if (typeof window !== "undefined") window.dispatchEvent(new Event(LOOK_CHANGE_EVENT));
+    if (typeof window !== "undefined") window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   } catch {
     /* nothing to tell */
   }
 }
 
-function save(key: string, value: string | null) {
+export function setTheme(theme: Theme): Theme {
   const s = storage();
-  if (!s) return;
-  try {
-    if (value === null) s.removeItem(key);
-    else s.setItem(key, value);
-  } catch {
-    /* private mode or full: the choice still applies until reload */
+  if (s) {
+    try {
+      s.setItem(THEME_KEY, theme);
+    } catch {
+      /* private mode or full: the choice still applies until reload */
+    }
   }
-}
-
-export function setLook(look: Look): LookState {
-  save(LOOK_KEY, look === "v2" ? "v2" : null);
-  const next: LookState = { look, theme: readLook().theme };
-  applyLook(next);
+  applyTheme(theme);
   notify();
-  return next;
-}
-
-export function setTheme(theme: Theme): LookState {
-  save(THEME_KEY, theme);
-  // If storage is unavailable, trust what is already on <html>.
-  const live = typeof document !== "undefined" && document.documentElement.dataset.look === "v2";
-  const next: LookState = { look: live ? "v2" : readLook().look, theme };
-  applyLook(next);
-  notify();
-  return next;
+  return theme;
 }

@@ -12,10 +12,11 @@ import tailwindConfig from "../../../tailwind.config";
 const read = (p: string) => readFileSync(join(__dirname, "..", "..", p), "utf-8");
 
 describe("v2 variants", () => {
-  it("only match pages in the app shell (admin and founder) while the switch is on", () => {
+  it("match every page inside the app's scope, with no switch (one look since WS168)", () => {
     const src = read("../tailwind.config.ts");
-    expect(src).toContain(`addVariant("v2", 'html[data-look="v2"] [data-v2-scope] &')`);
-    expect(src).toContain(`[data-theme="dark"] [data-v2-scope] &'`);
+    expect(src).toContain(`addVariant("v2", "html[data-theme] [data-v2-scope] &")`);
+    expect(src).toContain(`addVariant("v2dark", 'html[data-theme][data-theme="dark"] [data-v2-scope] &')`);
+    expect(src).not.toContain("data-look");
     expect(tailwindConfig.plugins?.length).toBeGreaterThanOrEqual(2);
   });
 });
@@ -121,9 +122,10 @@ describe("shell source", () => {
     expect(shell).toContain("<main id={MAIN_ID}");
     expect(shell).toContain("skip-link");
   });
-  it("sidebar keeps the switch, with both labels present and the theme item", () => {
-    expect(sidebar).toContain("Try the new look");
-    expect(sidebar).toContain("Use the old look");
+  it("sidebar keeps the theme switch; the look switch is gone (WS168)", () => {
+    expect(sidebar).not.toContain("Try the new look");
+    expect(sidebar).not.toContain("Use the old look");
+    expect(sidebar).not.toContain("toggleLook");
     expect(sidebar).toContain("Switch to dark mode");
   });
   it("sidebar is 224px, items 32px (44px on phones) with no left rule under the new look", () => {

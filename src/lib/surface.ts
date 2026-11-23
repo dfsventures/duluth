@@ -26,19 +26,20 @@ export const FOUNDER_APP_PREFIXES = [
 
 /**
  * The pages outside the shell that the new look reaches since stage 2 (PLAN-1, WS166): the LP portal,
- * the sign-in pages and the home page ("/" exactly). Investor share links (/share/*, /investors) and the
- * admin report preview frame never do.
+ * the sign-in pages and the home page ("/" exactly). Investor share links (/share/*, /investors) never do.
  */
 export const PUBLIC_NEW_LOOK_PREFIXES = ["/lp", "/login", "/signup", "/set-password"] as const;
 
 /**
- * True for the paths the new look reaches: every /admin page, the founder app pages and the public
+ * True for the paths the app's look reaches (one look since WS168): every /admin page (the report
+ * preview frame included, which shows the LP look since WS168), the founder app pages and the public
  * pages above. CSS decides the same thing with [data-v2-scope], which AppShell, the LP layout,
- * AuthLayout and the home page (and <body>, through SurfaceSync) carry.
+ * AuthLayout, the home page and the preview frame (and <body>, through SurfaceSync) carry. Investor
+ * share links, /investors and the bare update download page keep their own look.
  */
 export function inNewLookScope(pathname: string | null | undefined): boolean {
   if (!pathname) return false;
-  if (surfaceForPath(pathname) === "admin") return !/^\/admin\/reports\/[^/]+\/preview\/frame(\/|$)/.test(pathname);
+  if (surfaceForPath(pathname) === "admin") return true;
   if (pathname === "/") return true;
   if (PUBLIC_NEW_LOOK_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return true;
   // /updates/[id]/download is a bare print page outside the shell.

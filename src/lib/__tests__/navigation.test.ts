@@ -199,13 +199,13 @@ describe("palette actions (WS164)", () => {
     const [empty] = filterListItems("Filter: ", true);
     expect(empty.filterText).toBe("");
   });
-  it("on Companies under the new look, a company opens in the pane", () => {
-    const [c] = buildPaletteItems(index, "v2", "/admin/companies").filter((i) => i.group === "Companies");
+  it("on Companies, a company opens in the pane", () => {
+    const [c] = buildPaletteItems(index, "/admin/companies").filter((i) => i.group === "Companies");
     expect(c).toMatchObject({ label: "Open Example Co", action: "open-pane", openId: "c1", href: "" });
   });
-  it("elsewhere, or under the old look, a company still goes to its page", () => {
-    for (const [look, path] of [["v2", "/admin/funds"], ["v1", "/admin/companies"], ["v2", null]] as const) {
-      const [c] = buildPaletteItems(index, look, path).filter((i) => i.group === "Companies");
+  it("elsewhere, a company still goes to its page", () => {
+    for (const path of ["/admin/funds", null]) {
+      const [c] = buildPaletteItems(index, path).filter((i) => i.group === "Companies");
       expect(c).toMatchObject({ label: "Example Co", href: "/admin/companies/c1" });
       expect(c.action).toBeUndefined();
     }

@@ -51,8 +51,8 @@ export default async function LpReportPage({ params }: { params: Promise<{ id: s
     ? (report.fundSnapshot.snapshot as unknown as FundSnapshotPayload)
     : null;
 
-  // lp-report: the new look's reading column and prose size (globals.css, WS166). ReportView is shared
-  // with the admin preview frame, which must not change, so it is styled from here.
+  // lp-report: the reading column and prose size (globals.css, WS166). The admin preview frame wraps
+  // ReportView in the same class, so the preview matches this page.
   return (
     <div className="lp-report">
       <div className="v2:mx-auto v2:mb-8 v2:max-w-[720px] print:hidden">

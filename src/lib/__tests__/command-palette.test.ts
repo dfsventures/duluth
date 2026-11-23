@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildPaletteItems, newUpdateItems, GROUP_ORDER, type SearchIndex } from "../command-palette";
+import { buildPaletteItems, newUpdateItems, themeActionItems, GROUP_ORDER, type SearchIndex } from "../command-palette";
 import { ALL_ADMIN_PAGES } from "../admin-nav";
 
 const ix: SearchIndex = {
@@ -23,13 +23,15 @@ describe("buildPaletteItems", () => {
     expect(byId["lp:l1"]).toBe("/admin/lps?q=Sam%20Partner%20%26%20Co");
     expect(new Set(items.map((i) => i.id)).size).toBe(items.length);
   });
-  it("names the home page Dashboard in the old look and Needs you in the new look", () => {
-    const home = (look: "v1" | "v2") => buildPaletteItems(null, look).find((i) => i.id === "page:/admin")!;
-    expect(home("v1").label).toBe("Dashboard");
-    expect(buildPaletteItems(null).find((i) => i.id === "page:/admin")!.label).toBe("Dashboard");
-    expect(home("v2").label).toBe("Needs you");
-    // The old name still finds it.
-    expect(home("v2").keywords).toContain("dashboard");
+  it("names the home page Needs you, and the old name Dashboard still finds it", () => {
+    const home = buildPaletteItems(null).find((i) => i.id === "page:/admin")!;
+    expect(home.label).toBe("Needs you");
+    expect(home.keywords).toContain("dashboard");
+  });
+  it("offers the theme switch and no look switch (WS168)", () => {
+    expect(themeActionItems("light").map((i) => i.action)).toEqual(["toggle-theme"]);
+    expect(themeActionItems("light")[0].label).toBe("Switch to dark mode");
+    expect(themeActionItems("dark")[0].label).toBe("Switch to light mode");
   });
   it("only uses groups the UI orders", () => {
     for (const i of buildPaletteItems(ix)) expect(GROUP_ORDER).toContain(i.group);

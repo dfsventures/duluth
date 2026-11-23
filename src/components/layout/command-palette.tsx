@@ -15,15 +15,15 @@ import {
   FILTERABLE_LIST_SELECTOR,
   filterListItems,
   GROUP_ORDER,
-  lookActionItems,
   newUpdateItems,
+  themeActionItems,
   type PaletteItem,
   type SearchIndex,
 } from "@/lib/command-palette";
 import { buildOpenQuery } from "@/lib/split-view";
 import { FILTER_PREFIX } from "@/lib/shortcuts";
 
-import { useLook } from "@/lib/use-look";
+import { useTheme } from "@/lib/use-look";
 import { usePaletteKey } from "@/lib/use-palette-key";
 
 export const OPEN_PALETTE_EVENT = "molly:open-palette";
@@ -87,18 +87,18 @@ export function CommandPalette() {
     };
   }, [open]);
 
-  const { look, theme, toggleLook, toggleTheme } = useLook();
+  const { theme, toggleTheme } = useTheme();
   const paletteKey = usePaletteKey();
 
   const items = useMemo(
     () => [
-      ...buildPaletteItems(index, look, pathname),
-      ...lookActionItems(look, theme),
-      // "Filter: …" is a new-look action (PLAN-1, WS164).
-      ...(look === "v2" ? filterListItems(query, hasList) : []),
+      ...buildPaletteItems(index, pathname),
+      ...themeActionItems(theme),
+      // "Filter: …" (PLAN-1, WS164).
+      ...filterListItems(query, hasList),
       ...newUpdateItems(index, query),
     ],
-    [index, query, look, theme, pathname, hasList]
+    [index, query, theme, pathname, hasList]
   );
 
   const go = useCallback(
@@ -106,7 +106,6 @@ export function CommandPalette() {
       // Stays open: puts "Filter: " in the box so the next words filter the list.
       if (item.action === "prefill-filter") return setQuery(FILTER_PREFIX);
       setOpen(false);
-      if (item.action === "toggle-look") return toggleLook();
       if (item.action === "toggle-theme") return toggleTheme();
       if (item.action === "filter-list") {
         window.dispatchEvent(new CustomEvent(FILTER_LIST_EVENT, { detail: { text: item.filterText ?? "" } }));
@@ -119,7 +118,7 @@ export function CommandPalette() {
       }
       router.push(item.href);
     },
-    [router, pathname, toggleLook, toggleTheme]
+    [router, pathname, toggleTheme]
   );
 
   return (

@@ -232,14 +232,15 @@ const config: Config = {
   },
   plugins: [
     require("@tailwindcss/typography"),
-    // New look (PLAN-1, WS158). `v2:` classes apply only inside the app shell
-    // ([data-v2-scope]: admin pages, and founder pages since WS165) while
-    // <html data-look="v2"> is set, and are decided by CSS alone, so the markup
-    // is the same either way and there is no flash of the old look on load.
-    // `v2dark:` is the same, but only in the dark theme.
+    // The app's look (PLAN-1, WS158; the only look since WS168). `v2:` classes apply inside
+    // [data-v2-scope]: the app shell (admin and founder pages), the LP portal, the sign-in pages, home
+    // and the report preview frame. Investor share links and /investors carry no scope, so the shared
+    // components they use (Button, Input, Dialog…) keep their own look there. `v2dark:` is the same,
+    // in the dark theme only. <html data-theme> is always set by the pre-paint script (src/lib/look.ts);
+    // the html[data-theme] prefix keeps these selectors as specific as they were under the old switch.
     plugin(({ addVariant }) => {
-      addVariant("v2", 'html[data-look="v2"] [data-v2-scope] &');
-      addVariant("v2dark", 'html[data-look="v2"][data-theme="dark"] [data-v2-scope] &');
+      addVariant("v2", "html[data-theme] [data-v2-scope] &");
+      addVariant("v2dark", 'html[data-theme][data-theme="dark"] [data-v2-scope] &');
     }),
   ],
 };

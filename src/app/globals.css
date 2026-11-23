@@ -131,19 +131,17 @@
   --tracking-label: 0.06em;
 }
 
-/* ── New look (PLAN-1, WS156) ──
-   Opt-in. Nothing here applies unless <html data-look="v2"> is set
-   (by src/lib/look.ts / the pre-paint script in layout.tsx), and every selector
-   is scoped to [data-v2-scope], which only AppShell, the LP layout, AuthLayout and
-   the home page (and <body>, via SurfaceSync) carry: admin pages, the founder app
-   pages (stage 2, WS165), and the LP portal, sign-in pages and home (WS166). Share
-   pages, the report preview frame and emails never match. It redefines the EXISTING token variables, so pages
-   restyle with no component edits. Values: docs/design/redesign-v1.md section 3
-   (Molly's own). Contrast is enforced by src/lib/__tests__/design-tokens-v2.test.ts,
-   which reads the two blocks below; keep the marker comments. To remove the new
-   look, delete everything up to the end marker. */
-html[data-look="v2"] [data-v2-scope],
-html[data-look="v2"] body[data-v2-scope] {
+/* ── The app's look (PLAN-1, WS156; the only look since WS168) ──
+   Every selector starts html[data-theme] (always set by the pre-paint script in layout.tsx,
+   src/lib/look.ts) and is scoped to [data-v2-scope], which AppShell, the LP layout, AuthLayout,
+   the home page and the report preview frame (and <body>, via SurfaceSync) carry: admin pages, the
+   founder app pages, the LP portal, sign-in pages and home. Investor share links, /investors and
+   emails never match: they keep the root and Direction B values above. It redefines the EXISTING
+   token variables, so pages restyle with no component edits. Values: docs/design/redesign-v1.md
+   section 3 (Molly's own). Contrast is enforced by src/lib/__tests__/design-tokens.test.ts,
+   which reads the two blocks below; keep the marker comments. */
+html[data-theme] [data-v2-scope],
+html[data-theme] body[data-v2-scope] {
   /* Type: Inter for every sans use inside the scope (share pages and the preview frame keep Plex) */
   --font-sans: var(--font-inter);
   --font-display: var(--font-inter);
@@ -231,28 +229,28 @@ html[data-look="v2"] body[data-v2-scope] {
   --pane-gutter: 32px;
 }
 @media (max-width: 767px) {
-  html[data-look="v2"] [data-v2-scope],
-  html[data-look="v2"] body[data-v2-scope] {
+  html[data-theme] [data-v2-scope],
+  html[data-theme] body[data-v2-scope] {
     --gutter: 20px;
   }
 }
 /* Page gutter from the sidebar (and from the right edge): wider on laptops and wider again on big
    screens. Viewport widths, so the sidebar is included. Phones and tablets keep 20px / 24px. */
 @media (min-width: 1024px) {
-  html[data-look="v2"] [data-v2-scope],
-  html[data-look="v2"] body[data-v2-scope] {
+  html[data-theme] [data-v2-scope],
+  html[data-theme] body[data-v2-scope] {
     --gutter: 48px;
   }
 }
 @media (min-width: 1600px) {
-  html[data-look="v2"] [data-v2-scope],
-  html[data-look="v2"] body[data-v2-scope] {
+  html[data-theme] [data-v2-scope],
+  html[data-theme] body[data-v2-scope] {
     --gutter: 64px;
   }
 }
 
-html[data-look="v2"][data-theme="dark"] [data-v2-scope],
-html[data-look="v2"][data-theme="dark"] body[data-v2-scope] {
+html[data-theme][data-theme="dark"] [data-v2-scope],
+html[data-theme][data-theme="dark"] body[data-v2-scope] {
   color-scheme: dark;
 
   --color-bg: #14171B;
@@ -316,12 +314,12 @@ html[data-look="v2"][data-theme="dark"] body[data-v2-scope] {
 }
 
 /* App shell (PLAN-1, WS158). Geometry that utilities cannot express. Same scope rule:
-   every selector starts html[data-look="v2"] and sits inside [data-v2-scope]. */
+   every selector starts html[data-theme] and sits inside [data-v2-scope]. */
 
 /* The editor bar (page types v1, §4.3; List and Detail pages have an in-page header instead, see
    .page-head): 52px including its hairline, no vertical padding, every item centred on one line,
    40px to the title under it. */
-html[data-look="v2"] [data-v2-scope] .shell-header {
+html[data-theme] [data-v2-scope] .shell-header {
   height: var(--bar-h);
   min-height: var(--bar-h);
   margin-bottom: 40px;
@@ -331,47 +329,47 @@ html[data-look="v2"] [data-v2-scope] .shell-header {
   border-bottom: 1px solid var(--color-border);
 }
 @media (max-width: 767px) {
-  html[data-look="v2"] [data-v2-scope] .shell-header {
+  html[data-theme] [data-v2-scope] .shell-header {
     margin-bottom: 24px;
   }
   /* Phone (§6): bar buttons stay 32, with 10px above and below, instead of the 44 phone button. */
-  html[data-look="v2"] [data-v2-scope] .editor-bar [data-align="actions"] button {
+  html[data-theme] [data-v2-scope] .editor-bar [data-align="actions"] button {
     height: 32px;
   }
 }
 
 /* Segmented control (D9): the selected segment is lifted, lighter than the well in both themes. */
-html[data-look="v2"] [data-v2-scope] .seg .seg-on {
+html[data-theme] [data-v2-scope] .seg .seg-on {
   background: var(--color-bg);
   box-shadow: 0 0 0 1px var(--color-border-hover), 0 1px 2px rgb(18 24 38 / 0.06);
 }
-html[data-look="v2"][data-theme="dark"] [data-v2-scope] .seg .seg-on {
+html[data-theme][data-theme="dark"] [data-v2-scope] .seg .seg-on {
   background: var(--color-well);
 }
 /* Phone list rows (WS167, WCAG 2.5.8): the row's title link is stretched over the whole row; a link in
    the badge or meta line (the Fund in the Deal Ledger, the company in Contacts) is lifted above it and
    was only 15px high. It gets a 25px tap height; the negative margin takes the padding back, so the
    line does not move. */
-html[data-look="v2"] [data-v2-scope] [data-datatable] ul > li > div > span.num a,
-html[data-look="v2"] [data-v2-scope] [data-datatable] ul > li > div.mt-1 a {
+html[data-theme] [data-v2-scope] [data-datatable] ul > li > div > span.num a,
+html[data-theme] [data-v2-scope] [data-datatable] ul > li > div.mt-1 a {
   display: inline-block;
   padding-block: 5px;
   margin-block: -5px;
 }
 /* Checkboxes and radios (WS167): the base layer's `input:focus-visible { outline: none }` is for text
    fields, which show a caret and a ring; it left these with no focus at all. */
-html[data-look="v2"] [data-v2-scope] input[type="checkbox"]:focus-visible,
-html[data-look="v2"] [data-v2-scope] input[type="radio"]:focus-visible {
+html[data-theme] [data-v2-scope] input[type="checkbox"]:focus-visible,
+html[data-theme] [data-v2-scope] input[type="radio"]:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 /* The lifted segment's own box-shadow replaces the focus ring, so keyboard focus is an outline (WS167). */
-html[data-look="v2"] [data-v2-scope] .seg button:focus-visible {
+html[data-theme] [data-v2-scope] .seg button:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
 /* The filter row sticks under the slim bar on list pages with a pane (the list scrolls under it). */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] > .filter-row {
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode] > .filter-row {
   position: sticky;
   top: var(--bar-h);
   z-index: 5;
@@ -381,12 +379,12 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] > .filter-
 /* Hand-built tab rows (Updates, Funds, Portfolio Contacts) drawn like TabBar (D12): 40px tabs 24
    apart on a hairline, the active one primary text with a 2px Sky bar on the hairline, 16 to the
    filter row. */
-html[data-look="v2"] [data-v2-scope] .page-tabs {
+html[data-theme] [data-v2-scope] .page-tabs {
   gap: 24px;
   margin: 0 0 16px;
   border-bottom: 1px solid var(--color-border);
 }
-html[data-look="v2"] [data-v2-scope] .page-tabs > button {
+html[data-theme] [data-v2-scope] .page-tabs > button {
   /* 10 + 20 + 8 + the 2px bar = 40, overlapping the hairline by 1: the row is 40 high like TabBar. */
   margin-bottom: -1px;
   padding: 10px 0 8px;
@@ -395,7 +393,7 @@ html[data-look="v2"] [data-v2-scope] .page-tabs > button {
   font-weight: 500;
   color: var(--color-text-secondary);
 }
-html[data-look="v2"] [data-v2-scope] .page-tabs > button.border-primary {
+html[data-theme] [data-v2-scope] .page-tabs > button.border-primary {
   color: var(--color-text-primary);
   border-color: var(--color-accent);
 }
@@ -404,12 +402,12 @@ html[data-look="v2"] [data-v2-scope] .page-tabs > button.border-primary {
    header row, its chevron's ink on the content edge. */
 /* The back line takes the whole first row of the header (so the title row wraps under it); the link
    inside stays as wide as its text. */
-html[data-look="v2"] [data-v2-scope] .page-back-row {
+html[data-theme] [data-v2-scope] .page-back-row {
   flex-basis: 100%;
   height: 20px;
   margin-bottom: 12px;
 }
-html[data-look="v2"] [data-v2-scope] .page-back {
+html[data-theme] [data-v2-scope] .page-back {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -419,16 +417,16 @@ html[data-look="v2"] [data-v2-scope] .page-back {
   line-height: 20px;
   color: var(--color-text-secondary);
 }
-html[data-look="v2"] [data-v2-scope] .page-back svg {
+html[data-theme] [data-v2-scope] .page-back svg {
   color: var(--color-text-muted);
 }
-html[data-look="v2"] [data-v2-scope] .page-back:hover {
+html[data-theme] [data-v2-scope] .page-back:hover {
   color: var(--color-text-primary);
 }
 
 /* The slim scroll bar (D3): its slot is a sticky zero-height box at the top of the frame; the bar
    bleeds to both edges of the main area like the editor bar, and fades in with a 4px drop. */
-html[data-look="v2"] [data-v2-scope] [data-condensed-slot] {
+html[data-theme] [data-v2-scope] [data-condensed-slot] {
   position: sticky;
   top: 0;
   z-index: 20;
@@ -438,10 +436,10 @@ html[data-look="v2"] [data-v2-scope] [data-condensed-slot] {
 }
 /* On an editor page the slot's margins would collapse with the editor bar's pull-up and leave the
    bar 40px down; the bar sits at the very top (page types v1, §4.3), so the slot gives none back. */
-html[data-look="v2"] [data-v2-scope] [data-condensed-slot]:has(+ .shell-header) {
+html[data-theme] [data-v2-scope] [data-condensed-slot]:has(+ .shell-header) {
   margin-bottom: 0;
 }
-html[data-look="v2"] [data-v2-scope] .condensed-bar {
+html[data-theme] [data-v2-scope] .condensed-bar {
   position: absolute;
   top: 0;
   left: calc((var(--frame-off) + var(--page-pad)) * -1);
@@ -452,19 +450,19 @@ html[data-look="v2"] [data-v2-scope] .condensed-bar {
   border-bottom: 1px solid var(--color-border);
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out), visibility 0s linear 0s;
 }
-html[data-look="v2"] [data-v2-scope] .condensed-bar[data-shown="false"] {
+html[data-theme] [data-v2-scope] .condensed-bar[data-shown="false"] {
   visibility: hidden;
   opacity: 0;
   transform: translateY(-4px);
   transition: opacity 140ms var(--ease-out), transform 140ms var(--ease-out), visibility 0s linear 140ms;
 }
-html[data-look="v2"] [data-v2-scope] .condensed-bar-inner {
+html[data-theme] [data-v2-scope] .condensed-bar-inner {
   display: flex;
   height: 100%;
   align-items: center;
   gap: 12px;
 }
-html[data-look="v2"] [data-v2-scope] .condensed-back {
+html[data-theme] [data-v2-scope] .condensed-back {
   display: grid;
   width: 32px;
   height: 32px;
@@ -474,41 +472,41 @@ html[data-look="v2"] [data-v2-scope] .condensed-back {
   border-radius: var(--r-ctl);
   color: var(--color-text-muted);
 }
-html[data-look="v2"] [data-v2-scope] .condensed-back:hover {
+html[data-theme] [data-v2-scope] .condensed-back:hover {
   color: var(--color-text-primary);
   background: var(--color-row-hover);
 }
 /* Everything in the slim bar is 32 high (D6). */
-html[data-look="v2"] [data-v2-scope] .condensed-actions {
+html[data-theme] [data-v2-scope] .condensed-actions {
   display: flex;
   flex: none;
   align-items: center;
   gap: 8px;
 }
-html[data-look="v2"] [data-v2-scope] .condensed-actions button,
-html[data-look="v2"] [data-v2-scope] .condensed-actions a {
+html[data-theme] [data-v2-scope] .condensed-actions button,
+html[data-theme] [data-v2-scope] .condensed-actions a {
   height: 32px;
   min-height: 32px;
   padding-inline: 12px;
 }
-html[data-look="v2"] [data-v2-scope] .condensed-actions input[type="file"] {
+html[data-theme] [data-v2-scope] .condensed-actions input[type="file"] {
   display: none;
 }
 @media (prefers-reduced-motion: reduce) {
-  html[data-look="v2"] [data-v2-scope] .condensed-bar,
-  html[data-look="v2"] [data-v2-scope] .condensed-bar[data-shown="false"] {
+  html[data-theme] [data-v2-scope] .condensed-bar,
+  html[data-theme] [data-v2-scope] .condensed-bar[data-shown="false"] {
     transform: none;
   }
 }
 @media (max-width: 767px) {
-  html[data-look="v2"] [data-v2-scope] .condensed-bar {
+  html[data-theme] [data-v2-scope] .condensed-bar {
     display: none;
   }
 }
 /* The main area is a size container, so the header can reach its full width (100cqw) even
    when the page sits in the centred column. Nothing inside <main> is position: fixed
    (dialogs, sheets and the toaster portal to <body>), so the containment changes nothing else. */
-html[data-look="v2"] [data-v2-scope] .shell-main {
+html[data-theme] [data-v2-scope] .shell-main {
   container-type: inline-size;
 }
 /* THE PAGE FRAME. One rule for every admin page: a gutter on each side, content at most --frame
@@ -516,7 +514,7 @@ html[data-look="v2"] [data-v2-scope] .shell-main {
    is the space the centring leaves on each side beyond the gutter (0 when the window is narrower than
    the frame, and always 0 on list pages, whose frame has no cap). --page-pad is the page's own side
    padding (the gutter; 0 on a "full" page, which lays itself out). */
-html[data-look="v2"] [data-v2-scope] .shell-page {
+html[data-theme] [data-v2-scope] .shell-page {
   --page-pad: var(--gutter);
   --frame: var(--column);
   --frame-off: max(0px, calc((100cqw - var(--frame) - 2 * var(--gutter)) / 2));
@@ -524,23 +522,23 @@ html[data-look="v2"] [data-v2-scope] .shell-page {
      start on the content edge (D14). */
   --row-pad: 0px;
 }
-html[data-look="v2"] [data-v2-scope] .shell-page[data-width="wide"],
-html[data-look="v2"] [data-v2-scope] .shell-page[data-width="full"] {
+html[data-theme] [data-v2-scope] .shell-page[data-width="wide"],
+html[data-theme] [data-v2-scope] .shell-page[data-width="full"] {
   --frame: var(--column-wide);
 }
-html[data-look="v2"] [data-v2-scope] .shell-page[data-width="narrow"] {
+html[data-theme] [data-v2-scope] .shell-page[data-width="narrow"] {
   --frame: var(--column-narrow);
 }
-html[data-look="v2"] [data-v2-scope] .shell-page[data-width="detail"] {
+html[data-theme] [data-v2-scope] .shell-page[data-width="detail"] {
   --frame: var(--column-detail);
 }
-html[data-look="v2"] [data-v2-scope] .shell-page[data-width="detail-wide"] {
+html[data-theme] [data-v2-scope] .shell-page[data-width="detail-wide"] {
   --frame: var(--column-detail-wide);
 }
 /* Printing a Dossier page: no screen gutter (the page's own print rules add theirs). */
 @media print {
-  html[data-look="v2"] [data-v2-scope] .shell-page[data-width="detail"],
-  html[data-look="v2"] [data-v2-scope] .shell-page[data-width="detail-wide"] {
+  html[data-theme] [data-v2-scope] .shell-page[data-width="detail"],
+  html[data-theme] [data-v2-scope] .shell-page[data-width="detail-wide"] {
     padding-inline: 0;
     max-width: none;
   }
@@ -551,8 +549,8 @@ html[data-look="v2"] [data-v2-scope] .shell-page[data-width="detail-wide"] {
    page's own padding on both sides; the same amount comes back as padding, so the title starts on
    the content's left edge and the actions end on its right edge, whatever the frame. The top
    bleed comes from the shell as --shell-pt. */
-html[data-look="v2"] [data-v2-scope] .shell-page > .shell-header:first-child,
-html[data-look="v2"] [data-v2-scope] .shell-page > [data-condensed-slot] + .shell-header {
+html[data-theme] [data-v2-scope] .shell-page > .shell-header:first-child,
+html[data-theme] [data-v2-scope] .shell-page > [data-condensed-slot] + .shell-header {
   position: sticky;
   top: 0;
   z-index: 10;
@@ -566,13 +564,13 @@ html[data-look="v2"] [data-v2-scope] .shell-page > [data-condensed-slot] + .shel
 
 /* Focus rings inside the sidebar sit inside the item: 28px rows leave no room for the
    usual 3px offset, and the scroll area would clip it. */
-html[data-look="v2"] [data-v2-scope] .app-sidebar :focus-visible {
+html[data-theme] [data-v2-scope] .app-sidebar :focus-visible {
   outline-offset: -2px;
 }
 
 /* Skip link: in the page from the start, but only drawn under the new look, and only
    when it has focus. */
-html[data-look="v2"] [data-v2-scope] .skip-link {
+html[data-theme] [data-v2-scope] .skip-link {
   position: absolute;
   left: -9999px;
   top: 8px;
@@ -586,7 +584,7 @@ html[data-look="v2"] [data-v2-scope] .skip-link {
   line-height: 20px;
   box-shadow: var(--shadow-float);
 }
-html[data-look="v2"] [data-v2-scope] .skip-link:focus {
+html[data-theme] [data-v2-scope] .skip-link:focus {
   left: 8px;
 }
 
@@ -596,9 +594,9 @@ html[data-look="v2"] [data-v2-scope] .skip-link:focus {
    reads them one by one. */
 
 /* Buttons: sentence case, 14px, 36px high, never wrap, icons never shrink, 1px press. */
-html[data-look="v2"] [data-v2-scope] .btn-primary,
-html[data-look="v2"] [data-v2-scope] .btn-secondary,
-html[data-look="v2"] [data-v2-scope] .btn-destructive {
+html[data-theme] [data-v2-scope] .btn-primary,
+html[data-theme] [data-v2-scope] .btn-secondary,
+html[data-theme] [data-v2-scope] .btn-destructive {
   min-height: 36px;
   padding: 0 16px;
   font-family: var(--font-sans), system-ui, sans-serif;
@@ -609,27 +607,27 @@ html[data-look="v2"] [data-v2-scope] .btn-destructive {
   letter-spacing: 0;
   white-space: nowrap;
 }
-html[data-look="v2"] [data-v2-scope] .btn-primary svg,
-html[data-look="v2"] [data-v2-scope] .btn-secondary svg,
-html[data-look="v2"] [data-v2-scope] .btn-destructive svg {
+html[data-theme] [data-v2-scope] .btn-primary svg,
+html[data-theme] [data-v2-scope] .btn-secondary svg,
+html[data-theme] [data-v2-scope] .btn-destructive svg {
   flex-shrink: 0;
 }
-html[data-look="v2"] [data-v2-scope] .btn-primary:active,
-html[data-look="v2"] [data-v2-scope] .btn-secondary:active,
-html[data-look="v2"] [data-v2-scope] .btn-destructive:active {
+html[data-theme] [data-v2-scope] .btn-primary:active,
+html[data-theme] [data-v2-scope] .btn-secondary:active,
+html[data-theme] [data-v2-scope] .btn-destructive:active {
   transform: translateY(1px);
 }
 /* Secondary is a ghost: a hairline edge, no fill, no shadow. */
-html[data-look="v2"] [data-v2-scope] .btn-secondary {
+html[data-theme] [data-v2-scope] .btn-secondary {
   border-color: var(--color-border-hover);
   box-shadow: none;
 }
 /* Keyboard focus (WS167, WCAG 2.4.7 / 2.4.11): .btn-base turns the outline off and draws nothing
    instead, so a tabbed-to .btn-* link or button showed no focus at all. The new look gives it the
    same 2px accent ring as Button (3:1 against every surface, design-tokens-v2.test.ts). */
-html[data-look="v2"] [data-v2-scope] .btn-primary:focus-visible,
-html[data-look="v2"] [data-v2-scope] .btn-secondary:focus-visible,
-html[data-look="v2"] [data-v2-scope] .btn-destructive:focus-visible {
+html[data-theme] [data-v2-scope] .btn-primary:focus-visible,
+html[data-theme] [data-v2-scope] .btn-secondary:focus-visible,
+html[data-theme] [data-v2-scope] .btn-destructive:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
@@ -639,12 +637,12 @@ html[data-look="v2"] [data-v2-scope] .btn-destructive:focus-visible {
    (StageChip, tone pairs).
    The variants are listed by name: no element carries a bare .badge class (the variants
    @apply its utilities), so a rule on .badge alone would match nothing. */
-html[data-look="v2"] [data-v2-scope] .badge,
-html[data-look="v2"] [data-v2-scope] .badge-success,
-html[data-look="v2"] [data-v2-scope] .badge-warning,
-html[data-look="v2"] [data-v2-scope] .badge-danger,
-html[data-look="v2"] [data-v2-scope] .badge-info,
-html[data-look="v2"] [data-v2-scope] .badge-neutral {
+html[data-theme] [data-v2-scope] .badge,
+html[data-theme] [data-v2-scope] .badge-success,
+html[data-theme] [data-v2-scope] .badge-warning,
+html[data-theme] [data-v2-scope] .badge-danger,
+html[data-theme] [data-v2-scope] .badge-info,
+html[data-theme] [data-v2-scope] .badge-neutral {
   gap: 6px;
   padding: 0;
   border-radius: 0;
@@ -654,12 +652,12 @@ html[data-look="v2"] [data-v2-scope] .badge-neutral {
   line-height: 18px;
   font-weight: 500;
 }
-html[data-look="v2"] [data-v2-scope] .badge::before,
-html[data-look="v2"] [data-v2-scope] .badge-success::before,
-html[data-look="v2"] [data-v2-scope] .badge-warning::before,
-html[data-look="v2"] [data-v2-scope] .badge-danger::before,
-html[data-look="v2"] [data-v2-scope] .badge-info::before,
-html[data-look="v2"] [data-v2-scope] .badge-neutral::before {
+html[data-theme] [data-v2-scope] .badge::before,
+html[data-theme] [data-v2-scope] .badge-success::before,
+html[data-theme] [data-v2-scope] .badge-warning::before,
+html[data-theme] [data-v2-scope] .badge-danger::before,
+html[data-theme] [data-v2-scope] .badge-info::before,
+html[data-theme] [data-v2-scope] .badge-neutral::before {
   content: "";
   flex: none;
   width: 6px;
@@ -667,51 +665,51 @@ html[data-look="v2"] [data-v2-scope] .badge-neutral::before {
   border-radius: 9999px;
   background: currentColor;
 }
-html[data-look="v2"] [data-v2-scope] .badge-success { color: var(--color-done); background: transparent; }
-html[data-look="v2"] [data-v2-scope] .badge-warning { color: var(--color-warn); background: transparent; }
-html[data-look="v2"] [data-v2-scope] .badge-danger { color: var(--color-stuck); background: transparent; }
-html[data-look="v2"] [data-v2-scope] .badge-info { color: var(--color-text-secondary); background: transparent; }
-html[data-look="v2"] [data-v2-scope] .badge-neutral { color: var(--color-text-secondary); background: transparent; }
-html[data-look="v2"] [data-v2-scope] .badge-warning::before {
+html[data-theme] [data-v2-scope] .badge-success { color: var(--color-done); background: transparent; }
+html[data-theme] [data-v2-scope] .badge-warning { color: var(--color-warn); background: transparent; }
+html[data-theme] [data-v2-scope] .badge-danger { color: var(--color-stuck); background: transparent; }
+html[data-theme] [data-v2-scope] .badge-info { color: var(--color-text-secondary); background: transparent; }
+html[data-theme] [data-v2-scope] .badge-neutral { color: var(--color-text-secondary); background: transparent; }
+html[data-theme] [data-v2-scope] .badge-warning::before {
   border-radius: 0;
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
 }
-html[data-look="v2"] [data-v2-scope] .badge-danger::before {
+html[data-theme] [data-v2-scope] .badge-danger::before {
   border-radius: 0;
   clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 /* Only success, warning and danger are states, so only they get a glyph. Info and neutral are
    mostly types, counts and tags ("Initial", "Team", "3"), so they get none. */
-html[data-look="v2"] [data-v2-scope] .badge-info::before,
-html[data-look="v2"] [data-v2-scope] .badge-neutral::before {
+html[data-theme] [data-v2-scope] .badge-info::before,
+html[data-theme] [data-v2-scope] .badge-neutral::before {
   display: none;
 }
 
 /* A status is one glyph and a word (audit #3): the dot or triangle above is the glyph, so an icon a
    page puts inside a badge is not drawn. */
-html[data-look="v2"] [data-v2-scope] .badge-success > svg,
-html[data-look="v2"] [data-v2-scope] .badge-warning > svg,
-html[data-look="v2"] [data-v2-scope] .badge-danger > svg,
-html[data-look="v2"] [data-v2-scope] .badge-info > svg,
-html[data-look="v2"] [data-v2-scope] .badge-neutral > svg {
+html[data-theme] [data-v2-scope] .badge-success > svg,
+html[data-theme] [data-v2-scope] .badge-warning > svg,
+html[data-theme] [data-v2-scope] .badge-danger > svg,
+html[data-theme] [data-v2-scope] .badge-info > svg,
+html[data-theme] [data-v2-scope] .badge-neutral > svg {
   display: none;
 }
 
 /* StatusDot: a round 6px marker in the state colour, and the word in meta size. */
-html[data-look="v2"] [data-v2-scope] .status-dot > [aria-hidden="true"] {
+html[data-theme] [data-v2-scope] .status-dot > [aria-hidden="true"] {
   width: 6px;
   height: 6px;
   border-radius: 9999px;
 }
-html[data-look="v2"] [data-v2-scope] .status-dot[data-tone="sage"] > [aria-hidden="true"] { background: var(--color-done); }
-html[data-look="v2"] [data-v2-scope] .status-dot[data-tone="clay"] > [aria-hidden="true"] { background: var(--color-stuck); }
-html[data-look="v2"] [data-v2-scope] .status-dot[data-tone="amber"] > [aria-hidden="true"] { background: var(--color-warn); }
-html[data-look="v2"] [data-v2-scope] .status-dot[data-tone="sky"] > [aria-hidden="true"] { background: var(--color-accent); }
-html[data-look="v2"] [data-v2-scope] .status-dot[data-tone="stone"] > [aria-hidden="true"] { background: var(--color-ctl); }
-html[data-look="v2"] [data-v2-scope] .status-dot[data-tone="sand"] > [aria-hidden="true"] { background: var(--color-ctl); }
+html[data-theme] [data-v2-scope] .status-dot[data-tone="sage"] > [aria-hidden="true"] { background: var(--color-done); }
+html[data-theme] [data-v2-scope] .status-dot[data-tone="clay"] > [aria-hidden="true"] { background: var(--color-stuck); }
+html[data-theme] [data-v2-scope] .status-dot[data-tone="amber"] > [aria-hidden="true"] { background: var(--color-warn); }
+html[data-theme] [data-v2-scope] .status-dot[data-tone="sky"] > [aria-hidden="true"] { background: var(--color-accent); }
+html[data-theme] [data-v2-scope] .status-dot[data-tone="stone"] > [aria-hidden="true"] { background: var(--color-ctl); }
+html[data-theme] [data-v2-scope] .status-dot[data-tone="sand"] > [aria-hidden="true"] { background: var(--color-ctl); }
 
 /* Labels: sentence case, 12px, muted. Not mono caps. */
-html[data-look="v2"] [data-v2-scope] .label {
+html[data-theme] [data-v2-scope] .label {
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;
   line-height: 18px;
@@ -722,7 +720,7 @@ html[data-look="v2"] [data-v2-scope] .label {
 /* A form field's label (a real <label>) is 14/20 (page types v1, §4.3 form variant), the same as the
    shared fields' FIELD_LABEL_V2. Small labels on other elements (a <p> or <span> over a figure, a
    column or a group) keep the 12px above. */
-html[data-look="v2"] [data-v2-scope] label.label {
+html[data-theme] [data-v2-scope] label.label {
   font-size: 14px;
   line-height: 20px;
 }
@@ -730,21 +728,21 @@ html[data-look="v2"] [data-v2-scope] label.label {
 /* Inputs: 14px (16px on phones, so iPhones do not zoom on focus), a visible control border
    (3:1), 36px high for single-line fields. A field in its error state keeps the destructive
    border from the component. */
-html[data-look="v2"] [data-v2-scope] .input-field {
+html[data-theme] [data-v2-scope] .input-field {
   font-size: 14px;
   line-height: 20px;
   border-radius: var(--r-ctl);
 }
 @media (max-width: 767px) {
-  html[data-look="v2"] [data-v2-scope] .input-field {
+  html[data-theme] [data-v2-scope] .input-field {
     font-size: 16px;
   }
 }
-html[data-look="v2"] [data-v2-scope] .input-field:not(.border-destructive) {
+html[data-theme] [data-v2-scope] .input-field:not(.border-destructive) {
   border-color: var(--color-ctl);
 }
-html[data-look="v2"] [data-v2-scope] input.input-field,
-html[data-look="v2"] [data-v2-scope] select.input-field {
+html[data-theme] [data-v2-scope] input.input-field,
+html[data-theme] [data-v2-scope] select.input-field {
   height: 36px;
   padding-block: 0;
 }
@@ -754,123 +752,123 @@ html[data-look="v2"] [data-v2-scope] select.input-field {
    from the density tokens above (docs/design/redesign-v1-density.md section 4). */
 
 /* The list area is a size container: columns drop out by its width. */
-html[data-look="v2"] [data-v2-scope] .list-pane {
+html[data-theme] [data-v2-scope] .list-pane {
   container-type: inline-size;
 }
 /* Page types v1: every list page, with a pane or without, sits in the same frame (AppShell), so a
    list is never inset and never wider than the frame. Inside a table there is no side padding
    (--row-pad is 0), so the filter row, headings, rows and hairlines share the content edges. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] {
   --row-pad: 0px;
 }
 /* The side pane still meets the window's right edge: it reaches past the frame by the centring
    space and the gutter, and the list keeps 24px clear of it. */
-html[data-look="v2"] [data-v2-scope] .shell-page {
+html[data-theme] [data-v2-scope] .shell-page {
   --pane-w: min(58cqw, 620px);
   --pane-bleed: calc(var(--frame-off) + var(--gutter));
 }
-html[data-look="v2"] [data-v2-scope] [data-split-pane] {
+html[data-theme] [data-v2-scope] [data-split-pane] {
   right: calc(var(--pane-bleed) * -1) !important;
   width: var(--pane-w) !important;
 }
 @media (min-width: 768px) {
-  html[data-look="v2"] [data-v2-scope] .list-pane[data-pane-shown] {
+  html[data-theme] [data-v2-scope] .list-pane[data-pane-shown] {
     margin-right: max(0px, calc(var(--pane-w) - var(--pane-bleed) + 24px));
   }
 }
 @media (max-width: 767px) {
-  html[data-look="v2"] [data-v2-scope] [data-split-pane] {
+  html[data-theme] [data-v2-scope] [data-split-pane] {
     right: calc(var(--gutter) * -1) !important;
     width: calc(100% + 2 * var(--gutter)) !important;
   }
 }
-html[data-look="v2"] [data-v2-scope] .shell-main:has([data-list-mode]) {
+html[data-theme] [data-v2-scope] .shell-main:has([data-list-mode]) {
   scroll-padding-top: calc(var(--bar-h) + var(--filter-h) + var(--group-h));
 }
 
 /* The table loses its box: hairlines between rows are the structure. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] .table-scroll-fade,
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] .table-scroll-fade,
+html[data-theme] [data-v2-scope] [data-datatable][data-density] ul {
   border-width: 0;
   background-color: transparent;
   background-image: none;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] table {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] table {
   font-size: 14px;
   line-height: 20px;
 }
 /* In list mode the columns shrink and drop out instead of scrolling sideways. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] .table-scroll-fade {
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode] .table-scroll-fade {
   overflow: visible;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] table {
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode] table {
   min-width: 0 !important;
 }
 
 /* Rows: 44px (compact 36), 24 between metadata columns, the title takes the width. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row] {
   height: var(--list-row-h);
   border-bottom-color: var(--color-row-divider);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density="compact"] tbody tr[data-row] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density="compact"] tbody tr[data-row] {
   height: 36px;
 }
 /* Page types v1, D13: every cell is 14/20; the first column 500 primary, the others 400 secondary. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td {
   padding: 0 0 0 24px;
   font-size: 14px;
   line-height: 20px;
   color: var(--color-text-secondary);
   vertical-align: middle;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td.num {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td.num {
   text-align: right;
 }
 /* One line per cell, so every row is the same height. Text is cut with an ellipsis (the cell's
    title carries the full text), never wrapped. A column says how much room it gets with
    --cell-max (and a width); the default is 240px. Numbers are never cut. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td {
   max-width: var(--cell-max, 240px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td.num {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td.num {
   max-width: none;
   overflow: visible;
 }
 /* Cells that hold controls (the row actions: Resend, Dismiss, Delete, Remind…) are never capped
    or clipped: a cut-off button is worse than a wide column, and clipping would also hide focus rings. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:has(button) {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:has(button) {
   max-width: none;
   overflow: visible;
 }
 /* WS170 (Audit Log): a row whose native <details> is open grows to show the full JSON; the cell wraps
    and is no longer cut. Every other row stays one line. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:has(details[open]) {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:has(details[open]) {
   height: auto;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:has(details[open]) {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:has(details[open]) {
   max-width: none;
   overflow: visible;
   white-space: normal;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:has(details[open]) summary {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:has(details[open]) summary {
   white-space: normal;
   overflow: visible;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:has(details[open]) pre {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:has(details[open]) pre {
   margin-block: 8px;
 }
 /* The row-actions cell has its own space: as wide as its content (a button, or the "No founder in
    Molly" note) and never squeezed, so it cannot print over the last data column. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td[data-actions] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td[data-actions] {
   width: 1%;
   max-width: none;
   overflow: visible;
   white-space: nowrap;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td[data-actions] > div {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td[data-actions] > div {
   min-width: max-content;
 }
 /* Row actions that show on hover take no column: an empty cell reserved ~150px at the end of every
@@ -878,13 +876,13 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td[data-acti
    them is covered, never printed over), and only a row that has an action gets the background.
    Touch screens, and tables whose actions are always visible, keep the column above. */
 @media (hover: hover) {
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-hover-actions] td[data-actions],
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-hover-actions] th[data-actions] {
+  html[data-theme] [data-v2-scope] [data-datatable][data-hover-actions] td[data-actions],
+  html[data-theme] [data-v2-scope] [data-datatable][data-hover-actions] th[data-actions] {
     width: 0;
     padding: 0;
     position: relative;
   }
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-hover-actions] td[data-actions] > div {
+  html[data-theme] [data-v2-scope] [data-datatable][data-hover-actions] td[data-actions] > div {
     position: absolute;
     top: 0;
     right: 0;
@@ -893,67 +891,67 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td[data-acti
     padding-left: 12px;
     pointer-events: none;
   }
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-hover-actions] td[data-actions] > div:not(:empty) {
+  html[data-theme] [data-v2-scope] [data-datatable][data-hover-actions] td[data-actions] > div:not(:empty) {
     background: linear-gradient(var(--color-row-hover), var(--color-row-hover)), var(--color-bg);
   }
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-hover-actions] tbody tr[data-row]:hover td[data-actions] > div,
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-hover-actions] tbody tr[data-row]:focus-within td[data-actions] > div {
+  html[data-theme] [data-v2-scope] [data-datatable][data-hover-actions] tbody tr[data-row]:hover td[data-actions] > div,
+  html[data-theme] [data-v2-scope] [data-datatable][data-hover-actions] tbody tr[data-row]:focus-within td[data-actions] > div {
     pointer-events: auto;
   }
 }
 /* A table that scrolls sideways inside its own box fades out at the right edge while there is more
    to see (DataTable sets data-scroll-more), so a column is never just cut off. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] .table-scroll-fade[data-scroll-more="true"] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] .table-scroll-fade[data-scroll-more="true"] {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 48px), transparent);
 }
 /* The first column is the title: wider, and in list mode it takes whatever the others leave. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:first-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:first-child {
   max-width: 360px;
 }
 /* A first cell that lays itself out as a wrapping flex row (a title and a tag) stays on one line,
    and its title is the part that gives way. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:first-child .flex-wrap {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:first-child .flex-wrap {
   flex-wrap: nowrap;
   min-width: 0;
   overflow: hidden;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:first-child .flex-wrap > :first-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:first-child .flex-wrap > :first-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 /* A sticky first column sits on the page, not on a card-coloured band; a row's hover, open and
    cursor tints are laid over it so they still show. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] thead th.sticky,
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row] > td.sticky {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] thead th.sticky,
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row] > td.sticky {
   background-color: var(--color-bg);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:hover > td.sticky,
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-within > td.sticky {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:hover > td.sticky,
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-within > td.sticky {
   background-image: linear-gradient(var(--color-row-hover), var(--color-row-hover));
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-visible > td.sticky {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-visible > td.sticky {
   background-image: linear-gradient(var(--color-sel), var(--color-sel));
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row][data-open="true"] > td.sticky {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row][data-open="true"] > td.sticky {
   background-image: linear-gradient(var(--color-open), var(--color-open));
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:first-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:first-child {
   padding-left: var(--row-pad, 12px);
   padding-right: 12px;
   font-size: 14px;
   line-height: 20px;
   color: var(--color-text-primary);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:not(.sticky):first-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:not(.sticky):first-child {
   position: relative;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] td:last-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] td:last-child {
   padding-right: var(--row-pad, 12px);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] td:first-child,
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] th:first-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode] td:first-child,
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode] th:first-child {
   width: 100%;
   max-width: 0;
   min-width: min(240px, 40cqw);
@@ -963,18 +961,18 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] th:first-c
 }
 /* With the pane open the list is narrow: the title still keeps about 200px, and the founder tag
    and the low-priority columns give way first (see the container rules below). */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode][data-pane-open] td:first-child,
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode][data-pane-open] th:first-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode][data-pane-open] td:first-child,
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode][data-pane-open] th:first-child {
   min-width: min(200px, 40cqw);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody td:first-child a:hover {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody td:first-child a:hover {
   text-decoration: none;
 }
 /* Column headings: sentence case, 12px, muted (not mono caps). */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] thead tr {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] thead tr {
   border-bottom-width: 0;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] thead th {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] thead th {
   /* Page types v1: a 40px heading row, 16px under the filter controls (the filter row's own 8 plus
      its 8 margin), 12/18 500 secondary. */
   height: 40px;
@@ -988,24 +986,24 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] thead th {
   letter-spacing: 0;
   color: var(--color-text-secondary);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] thead th:first-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] thead th:first-child {
   padding-left: var(--row-pad, 12px);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] thead th:last-child {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] thead th:last-child {
   padding-right: var(--row-pad, 12px);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] thead th button {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] thead th button {
   text-transform: none;
   letter-spacing: 0;
 }
 
 /* Group headings: a 36px tinted band with 24px above it and no hairline. In list mode they
    stick under the filter bar (the 24px of air above hides under it when stuck). */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tr[data-group] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tr[data-group] {
   border-bottom-width: 0;
   background: transparent;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tr[data-group] > th {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tr[data-group] > th {
   height: calc(var(--group-h) + 24px);
   padding: 24px var(--row-pad, 12px) 0;
   background: linear-gradient(var(--color-bg) 0 24px, var(--color-surface) 24px 100%);
@@ -1014,19 +1012,19 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tr[data-grou
   font-weight: 500;
   color: var(--color-text-secondary);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode] tr[data-group] > th {
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode] tr[data-group] > th {
   position: sticky;
   top: calc(var(--bar-h) + var(--filter-h) - 24px);
   z-index: 4;
 }
 /* A list with no filter bar above it (Needs you): its group headings stick right under the header bar. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-list-mode][data-no-toolbar] tr[data-group] > th {
+html[data-theme] [data-v2-scope] [data-datatable][data-list-mode][data-no-toolbar] tr[data-group] > th {
   top: calc(var(--bar-h) - 24px);
 }
-html[data-look="v2"] [data-v2-scope] .shell-main:has([data-list-mode][data-no-toolbar]) {
+html[data-theme] [data-v2-scope] .shell-main:has([data-list-mode][data-no-toolbar]) {
   scroll-padding-top: calc(var(--bar-h) + var(--group-h));
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tr[data-group] > th span.num {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tr[data-group] > th span.num {
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;
   color: var(--color-text-muted);
@@ -1034,17 +1032,17 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tr[data-grou
 
 /* The cursor row (keyboard focus) and the open row: a tint, plus the wordmark's Sky underscore
    at the gutter, on the row's divider. No left-edge bar (the old look's focus bar is cancelled). */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-visible {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-visible {
   background: var(--color-sel);
   box-shadow: none;
   outline: none;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row][data-open="true"],
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data-open="true"] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row][data-open="true"],
+html[data-theme] [data-v2-scope] [data-datatable][data-density] ul > li[data-open="true"] {
   background: var(--color-open);
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-visible > td:first-child::after,
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row][data-open="true"] > td:first-child::after {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row]:focus-visible > td:first-child::after,
+html[data-theme] [data-v2-scope] [data-datatable][data-density] tbody tr[data-row][data-open="true"] > td:first-child::after {
   content: "";
   position: absolute;
   left: var(--row-pad, 12px);
@@ -1057,12 +1055,12 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[dat
 
 /* Columns drop out as the list narrows (about 600 and 480). */
 @container (max-width: 600px) {
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] [data-drop="600"] {
+  html[data-theme] [data-v2-scope] [data-datatable][data-density] [data-drop="600"] {
     display: none;
   }
 }
 @container (max-width: 480px) {
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] [data-drop="480"] {
+  html[data-theme] [data-v2-scope] [data-datatable][data-density] [data-drop="480"] {
     display: none;
   }
 }
@@ -1070,12 +1068,12 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[dat
 /* Pane open: the list is the window less the sidebar and the pane, so the same two groups drop
    earlier (Location and Members first, then Sector and Stage) to leave the name room. */
 @container (max-width: 1100px) {
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-density][data-pane-open] [data-drop="600"] {
+  html[data-theme] [data-v2-scope] [data-datatable][data-density][data-pane-open] [data-drop="600"] {
     display: none;
   }
 }
 @container (max-width: 880px) {
-  html[data-look="v2"] [data-v2-scope] [data-datatable][data-density][data-pane-open] [data-drop="480"] {
+  html[data-theme] [data-v2-scope] [data-datatable][data-density][data-pane-open] [data-drop="480"] {
     display: none;
   }
 }
@@ -1083,16 +1081,16 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] tbody tr[dat
 /* Phone: two-line rows, 64px, padded 12 top and bottom, lines 4 apart. No side padding: the list
    box already sits one gutter in (like the title and the filter), so the row text starts on the
    gutter, directly under the hairlines' left end. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] ul > li {
   min-height: 64px;
   padding: 12px 0;
 }
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data-group] {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] ul > li[data-group] {
   min-height: 0;
   padding-block: 8px;
 }
 /* The phone group heading's count, "2 items": the same quiet 12px as the desktop heading's. */
-html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data-group] span.num {
+html[data-theme] [data-v2-scope] [data-datatable][data-density] ul > li[data-group] span.num {
   font-size: 12px;
   color: var(--color-text-muted);
 }
@@ -1102,39 +1100,39 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
    .shell-main), so a narrow window or a phone puts the panel under the title and swaps the
    contents list for the Jump to menu. Screen only: printing is not touched. */
 @media screen {
-  html[data-look="v2"] [data-v2-scope] .memo-dossier-grid {
+  html[data-theme] [data-v2-scope] .memo-dossier-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
-  html[data-look="v2"] [data-v2-scope] .memo-dossier .memo-contents {
+  html[data-theme] [data-v2-scope] .memo-dossier .memo-contents {
     display: none;
   }
   /* The whole group (header bar, title, reading column, panel) is at most 720 + 40 + 296 wide, so
      the bar ends where the panel ends. The page is AppShell width="detail": the shared page frame
      (see .shell-page) sets that width, centres it and keeps the gutters. */
-  html[data-look="v2"] [data-v2-scope] .memo-dossier .memo-reading {
+  html[data-theme] [data-v2-scope] .memo-dossier .memo-reading {
     max-width: 720px;
   }
   /* Folds: a folded section shows its heading and first sentence only. */
-  html[data-look="v2"] [data-v2-scope] .memo-section[data-folded="true"] .memo-body,
-  html[data-look="v2"] [data-v2-scope] .memo-section[data-folded="true"] .memo-cites {
+  html[data-theme] [data-v2-scope] .memo-section[data-folded="true"] .memo-body,
+  html[data-theme] [data-v2-scope] .memo-section[data-folded="true"] .memo-cites {
     display: none;
   }
-  html[data-look="v2"] [data-v2-scope] .memo-section[data-folded="true"] .memo-fold-sum {
+  html[data-theme] [data-v2-scope] .memo-section[data-folded="true"] .memo-fold-sum {
     display: block;
   }
   /* Edit and History show on hover or keyboard focus of the section, and always on a real touch
      screen (see below). In a narrow reading column one ⋯ button replaces them. */
-  html[data-look="v2"] [data-v2-scope] .memo-section .memo-sact {
+  html[data-theme] [data-v2-scope] .memo-section .memo-sact {
     opacity: 0;
     transition: opacity 120ms;
   }
-  html[data-look="v2"] [data-v2-scope] .memo-section:hover .memo-sact,
-  html[data-look="v2"] [data-v2-scope] .memo-section:focus-within .memo-sact {
+  html[data-theme] [data-v2-scope] .memo-section:hover .memo-sact,
+  html[data-theme] [data-v2-scope] .memo-section:focus-within .memo-sact {
     opacity: 1;
   }
-  html[data-look="v2"] [data-v2-scope] .memo-section .memo-smore {
+  html[data-theme] [data-v2-scope] .memo-section .memo-smore {
     display: none;
   }
 }
@@ -1142,41 +1140,41 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
    some desktop setups (a primary pointer that cannot hover), which showed the buttons on every
    section with no hover. */
 @media screen and (hover: none) and (pointer: coarse) {
-  html[data-look="v2"] [data-v2-scope] .memo-section .memo-sact {
+  html[data-theme] [data-v2-scope] .memo-section .memo-sact {
     opacity: 1;
   }
 }
 @container (max-width: 900px) {
-  html[data-look="v2"] [data-v2-scope] .memo-section .memo-sact {
+  html[data-theme] [data-v2-scope] .memo-section .memo-sact {
     display: none;
   }
-  html[data-look="v2"] [data-v2-scope] .memo-section .memo-smore {
+  html[data-theme] [data-v2-scope] .memo-section .memo-smore {
     display: block;
   }
 }
 @container (min-width: 1040px) {
   @media screen {
-    html[data-look="v2"] [data-v2-scope] .memo-dossier-grid {
+    html[data-theme] [data-v2-scope] .memo-dossier-grid {
       grid-template-columns: minmax(0, 720px) 296px;
       gap: 40px;
       align-items: start;
     }
-    html[data-look="v2"] [data-v2-scope] .memo-dossier .memo-reading {
+    html[data-theme] [data-v2-scope] .memo-dossier .memo-reading {
       grid-column: 1;
       grid-row: 1;
     }
-    html[data-look="v2"] [data-v2-scope] .memo-dossier .memo-aside {
+    html[data-theme] [data-v2-scope] .memo-dossier .memo-aside {
       grid-column: 2;
       grid-row: 1;
       position: sticky;
       top: 76px; /* page types v1, D17: clears the 52px slim bar, plus 24 */
     }
-    html[data-look="v2"] [data-v2-scope] .memo-dossier .memo-contents {
+    html[data-theme] [data-v2-scope] .memo-dossier .memo-contents {
       display: block;
       max-height: max(160px, calc(100vh - 520px));
       overflow: auto;
     }
-    html[data-look="v2"] [data-v2-scope] .memo-dossier .memo-jump {
+    html[data-theme] [data-v2-scope] .memo-dossier .memo-jump {
       display: none;
     }
   }
@@ -1184,41 +1182,41 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
 /* Company page (PLAN-1, WS163; B-133): the same group as the memo page. 720 reading column, 40 gap,
    296 sticky facts panel; the panel sits under the title below 1040px of main width. */
 @media screen {
-  html[data-look="v2"] [data-v2-scope] .co-dossier-grid {
+  html[data-theme] [data-v2-scope] .co-dossier-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
-  html[data-look="v2"] [data-v2-scope] .co-dossier .co-main {
+  html[data-theme] [data-v2-scope] .co-dossier .co-main {
     max-width: 720px;
   }
   /* Per-note History, Edit and Delete show on hover or keyboard focus, and always on touch. */
-  html[data-look="v2"] [data-v2-scope] .co-item .co-act {
+  html[data-theme] [data-v2-scope] .co-item .co-act {
     opacity: 0;
     transition: opacity 120ms;
   }
-  html[data-look="v2"] [data-v2-scope] .co-item:hover .co-act,
-  html[data-look="v2"] [data-v2-scope] .co-item:focus-within .co-act {
+  html[data-theme] [data-v2-scope] .co-item:hover .co-act,
+  html[data-theme] [data-v2-scope] .co-item:focus-within .co-act {
     opacity: 1;
   }
 }
 @media screen and (hover: none) and (pointer: coarse) {
-  html[data-look="v2"] [data-v2-scope] .co-item .co-act {
+  html[data-theme] [data-v2-scope] .co-item .co-act {
     opacity: 1;
   }
 }
 @container (min-width: 1040px) {
   @media screen {
-    html[data-look="v2"] [data-v2-scope] .co-dossier-grid {
+    html[data-theme] [data-v2-scope] .co-dossier-grid {
       grid-template-columns: minmax(0, 720px) 296px;
       gap: 40px;
       align-items: start;
     }
-    html[data-look="v2"] [data-v2-scope] .co-dossier .co-main {
+    html[data-theme] [data-v2-scope] .co-dossier .co-main {
       grid-column: 1;
       grid-row: 1;
     }
-    html[data-look="v2"] [data-v2-scope] .co-dossier .co-aside {
+    html[data-theme] [data-v2-scope] .co-dossier .co-aside {
       grid-column: 2;
       grid-row: 1;
       position: sticky;
@@ -1231,41 +1229,41 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
 /* Update page (PLAN-1, WS163; B-133): the same group again. 720 column, 40 gap, 296 sticky panel; the
    panel sits under the title below 1040px of main width. */
 @media screen {
-  html[data-look="v2"] [data-v2-scope] .up-dossier-grid {
+  html[data-theme] [data-v2-scope] .up-dossier-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
-  html[data-look="v2"] [data-v2-scope] .up-dossier .up-main {
+  html[data-theme] [data-v2-scope] .up-dossier .up-main {
     max-width: 720px;
   }
   /* Per-attachment View and Download show on hover or keyboard focus, and always on touch. */
-  html[data-look="v2"] [data-v2-scope] .up-item .up-act {
+  html[data-theme] [data-v2-scope] .up-item .up-act {
     opacity: 0;
     transition: opacity 120ms;
   }
-  html[data-look="v2"] [data-v2-scope] .up-item:hover .up-act,
-  html[data-look="v2"] [data-v2-scope] .up-item:focus-within .up-act {
+  html[data-theme] [data-v2-scope] .up-item:hover .up-act,
+  html[data-theme] [data-v2-scope] .up-item:focus-within .up-act {
     opacity: 1;
   }
 }
 @media screen and (hover: none) and (pointer: coarse) {
-  html[data-look="v2"] [data-v2-scope] .up-item .up-act {
+  html[data-theme] [data-v2-scope] .up-item .up-act {
     opacity: 1;
   }
 }
 @container (min-width: 1040px) {
   @media screen {
-    html[data-look="v2"] [data-v2-scope] .up-dossier-grid {
+    html[data-theme] [data-v2-scope] .up-dossier-grid {
       grid-template-columns: minmax(0, 720px) 296px;
       gap: 40px;
       align-items: start;
     }
-    html[data-look="v2"] [data-v2-scope] .up-dossier .up-main {
+    html[data-theme] [data-v2-scope] .up-dossier .up-main {
       grid-column: 1;
       grid-row: 1;
     }
-    html[data-look="v2"] [data-v2-scope] .up-dossier .up-aside {
+    html[data-theme] [data-v2-scope] .up-dossier .up-aside {
       grid-column: 2;
       grid-row: 1;
       position: sticky;
@@ -1278,41 +1276,41 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
 /* Deal Ledger company page (PLAN-1, WS163; B-133): the same group again. 720 column, 40 gap, 296 sticky
    panel; the panel sits under the title below 1040px of main width. */
 @media screen {
-  html[data-look="v2"] [data-v2-scope] .dl-dossier-grid {
+  html[data-theme] [data-v2-scope] .dl-dossier-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
-  html[data-look="v2"] [data-v2-scope] .dl-dossier .dl-main {
+  html[data-theme] [data-v2-scope] .dl-dossier .dl-main {
     max-width: 720px;
   }
   /* Per-row Edit and Delete show on hover or keyboard focus, and always on touch. */
-  html[data-look="v2"] [data-v2-scope] .dl-item .dl-act {
+  html[data-theme] [data-v2-scope] .dl-item .dl-act {
     opacity: 0;
     transition: opacity 120ms;
   }
-  html[data-look="v2"] [data-v2-scope] .dl-item:hover .dl-act,
-  html[data-look="v2"] [data-v2-scope] .dl-item:focus-within .dl-act {
+  html[data-theme] [data-v2-scope] .dl-item:hover .dl-act,
+  html[data-theme] [data-v2-scope] .dl-item:focus-within .dl-act {
     opacity: 1;
   }
 }
 @media screen and (hover: none) and (pointer: coarse) {
-  html[data-look="v2"] [data-v2-scope] .dl-item .dl-act {
+  html[data-theme] [data-v2-scope] .dl-item .dl-act {
     opacity: 1;
   }
 }
 @container (min-width: 1040px) {
   @media screen {
-    html[data-look="v2"] [data-v2-scope] .dl-dossier-grid {
+    html[data-theme] [data-v2-scope] .dl-dossier-grid {
       grid-template-columns: minmax(0, 720px) 296px;
       gap: 40px;
       align-items: start;
     }
-    html[data-look="v2"] [data-v2-scope] .dl-dossier .dl-main {
+    html[data-theme] [data-v2-scope] .dl-dossier .dl-main {
       grid-column: 1;
       grid-row: 1;
     }
-    html[data-look="v2"] [data-v2-scope] .dl-dossier .dl-aside {
+    html[data-theme] [data-v2-scope] .dl-dossier .dl-aside {
       grid-column: 2;
       grid-row: 1;
       position: sticky;
@@ -1326,23 +1324,23 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
    Deals table has eleven columns and needs about 900px. 960 + 40 gap + 296 panel = 1296, centred. The
    panel sits under the title below 1424px of main width (the group plus the widest gutters). */
 @media screen {
-  html[data-look="v2"] [data-v2-scope] .fund-dossier-grid {
+  html[data-theme] [data-v2-scope] .fund-dossier-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     gap: 24px;
   }
   /* Per-LP Remove shows on hover or keyboard focus, and always on touch. */
-  html[data-look="v2"] [data-v2-scope] .fund-item .fund-act {
+  html[data-theme] [data-v2-scope] .fund-item .fund-act {
     opacity: 0;
     transition: opacity 120ms;
   }
-  html[data-look="v2"] [data-v2-scope] .fund-item:hover .fund-act,
-  html[data-look="v2"] [data-v2-scope] .fund-item:focus-within .fund-act {
+  html[data-theme] [data-v2-scope] .fund-item:hover .fund-act,
+  html[data-theme] [data-v2-scope] .fund-item:focus-within .fund-act {
     opacity: 1;
   }
 }
 @media screen and (hover: none) and (pointer: coarse) {
-  html[data-look="v2"] [data-v2-scope] .fund-item .fund-act {
+  html[data-theme] [data-v2-scope] .fund-item .fund-act {
     opacity: 1;
   }
 }
@@ -1351,23 +1349,23 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
    Deals table fits. */
 @container (min-width: 1424px) {
   @media screen {
-    html[data-look="v2"] [data-v2-scope] .fund-dossier-grid {
+    html[data-theme] [data-v2-scope] .fund-dossier-grid {
       grid-template-columns: minmax(0, 960px) 296px;
       gap: 40px;
       align-items: start;
     }
-    html[data-look="v2"] [data-v2-scope] .fund-dossier .fund-main {
+    html[data-theme] [data-v2-scope] .fund-dossier .fund-main {
       max-width: 960px;
       grid-column: 1;
       grid-row: 1;
     }
     /* The panel sits beside the Performance strip only (audit #30); it is not sticky past that row. */
-    html[data-look="v2"] [data-v2-scope] .fund-dossier .fund-aside {
+    html[data-theme] [data-v2-scope] .fund-dossier .fund-aside {
       grid-column: 2;
       grid-row: 1;
     }
     /* The tabs and their tables take the whole frame, so a wide table is not clipped by the panel. */
-    html[data-look="v2"] [data-v2-scope] .fund-dossier .fund-tail {
+    html[data-theme] [data-v2-scope] .fund-dossier .fund-tail {
       grid-column: 1 / -1;
       grid-row: 2;
     }
@@ -1375,7 +1373,7 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
 }
 /* The memo page's frame has no print padding (see .shell-page), so print keeps the 24px it had. */
 @media print {
-  html[data-look="v2"] [data-v2-scope] .memo-dossier {
+  html[data-theme] [data-v2-scope] .memo-dossier {
     padding-inline: 24px;
   }
 }
@@ -1384,7 +1382,7 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
 @media print {
   /* WS167: the full light colour set, as the LP report has (chips, state colours and the primary scale
      printed in their dark-theme shades before). */
-  html[data-look="v2"][data-theme="dark"] [data-v2-scope] .memo-print-scope {
+  html[data-theme][data-theme="dark"] [data-v2-scope] .memo-print-scope {
     color-scheme: light;
     --color-bg: #FFFFFF;
     --color-surface: #FFFFFF;
@@ -1423,7 +1421,7 @@ html[data-look="v2"] [data-v2-scope] [data-datatable][data-density] ul > li[data
 /* Formatted text (memo sections, reports, broadcasts, digests, notes) uses the typography plugin's
    fixed greys, which read dark-on-dark in the dark theme. Point them at the theme's own colours so
    both themes work; the memo print scope above resets these tokens to light for printing. */
-html[data-look="v2"] [data-v2-scope] .prose {
+html[data-theme] [data-v2-scope] .prose {
   --tw-prose-body: var(--color-text-primary);
   --tw-prose-headings: var(--color-text-primary);
   --tw-prose-lead: var(--color-text-secondary);
@@ -1445,7 +1443,7 @@ html[data-look="v2"] [data-v2-scope] .prose {
    utilities, further down) set properties the new look leaves to utilities, so they are put back to
    the new look's values here. Only founder pages in the shell match: [data-v2-scope] together with the
    founder surface. Direction B itself is not edited, so the old look stays exactly as it was. */
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .status-dot {
+html[data-theme] [data-v2-scope][data-surface="founder"] .status-dot {
   border-radius: 0;
   padding: 0;
   font-size: 12px;
@@ -1454,7 +1452,7 @@ html[data-look="v2"] [data-v2-scope][data-surface="founder"] .status-dot {
   background: transparent;
   color: var(--color-text-primary);
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .tab-bar {
+html[data-theme] [data-v2-scope][data-surface="founder"] .tab-bar {
   background: transparent;
   border-bottom-color: var(--color-border);
   border-radius: 0;
@@ -1462,27 +1460,27 @@ html[data-look="v2"] [data-v2-scope][data-surface="founder"] .tab-bar {
   width: auto;
   max-width: none;
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .tab-bar > div {
+html[data-theme] [data-v2-scope][data-surface="founder"] .tab-bar > div {
   gap: 24px;
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .tab-bar .tab-link {
+html[data-theme] [data-v2-scope][data-surface="founder"] .tab-bar .tab-link {
   padding: 10px 0 9px;
   border-radius: 0;
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .tab-bar .tab-link[aria-current="page"] {
+html[data-theme] [data-v2-scope][data-surface="founder"] .tab-bar .tab-link[aria-current="page"] {
   background: transparent;
   box-shadow: none;
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .tab-bar .tab-indicator {
+html[data-theme] [data-v2-scope][data-surface="founder"] .tab-bar .tab-indicator {
   display: block;
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar {
+html[data-theme] [data-v2-scope][data-surface="founder"] .app-sidebar {
   border-right-color: var(--color-border);
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-item {
+html[data-theme] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-item {
   border-radius: var(--r-def);
 }
-html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-item[aria-current="page"] {
+html[data-theme] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-item[aria-current="page"] {
   background: var(--color-sel);
   color: var(--color-text-primary);
 }
@@ -1491,40 +1489,40 @@ html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-i
    editor keeps its layout, but its toolbar becomes one row that scrolls sideways (§6), so 44px buttons
    don't stack it three rows deep; the title, period and Details toggle get a 44px tap height. */
 @media (max-width: 767px) {
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .editor-bar [data-align="actions"] button {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .editor-bar [data-align="actions"] button {
     height: 44px;
     min-width: 44px;
   }
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .editor-bar [data-align="actions"] .absolute button {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .editor-bar [data-align="actions"] .absolute button {
     min-height: 44px;
   }
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .rich-toolbar {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .rich-toolbar {
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
   }
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .rich-toolbar > * {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .rich-toolbar > * {
     flex: none;
   }
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .rich-toolbar button {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .rich-toolbar button {
     display: grid;
     place-items: center;
     min-width: 44px;
     min-height: 44px;
   }
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .composer-title input {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .composer-title input {
     min-height: 44px;
   }
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .composer-disclosure > button {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .composer-disclosure > button {
     min-height: 44px;
   }
   /* Form fields: 44 high on founder phones (36 elsewhere), so every field is a full tap target. */
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .shell-page input.input-field,
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .shell-page select.input-field {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .shell-page input.input-field,
+  html[data-theme] [data-v2-scope][data-surface="founder"] .shell-page select.input-field {
     height: 44px;
   }
   /* The Detail back link: a 44px hit area that takes no extra room (its line stays 20px). */
-  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .page-back {
+  html[data-theme] [data-v2-scope][data-surface="founder"] .page-back {
     height: 44px;
     margin-block: -12px;
   }
@@ -1537,32 +1535,32 @@ html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-i
 
 /* <body> computes its font and ink from the old tokens before SurfaceSync marks it (and the home page
    never marks it), so the scoped wrappers set their own, from the first paint. */
-html[data-look="v2"] [data-v2-scope].lp-print-scope,
-html[data-look="v2"] [data-v2-scope].auth-surface,
-html[data-look="v2"] [data-v2-scope].home-surface {
+html[data-theme] [data-v2-scope].lp-print-scope,
+html[data-theme] [data-v2-scope].auth-surface,
+html[data-theme] [data-v2-scope].home-surface {
   font-family: var(--font-sans), system-ui, sans-serif;
   color: var(--color-text-primary);
 }
 
 /* The report page: a 720px reading column, report prose at 14/22 (text-body), not the 13px admin
    base. ReportView is shared with the preview frame, so it is styled from the LP page's wrapper. */
-html[data-look="v2"] [data-v2-scope] .lp-report article {
+html[data-theme] [data-v2-scope] .lp-report article {
   max-width: 720px;
 }
-html[data-look="v2"] [data-v2-scope] .lp-report article > p {
+html[data-theme] [data-v2-scope] .lp-report article > p {
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;
   line-height: 18px;
   text-transform: none;
   letter-spacing: 0;
 }
-html[data-look="v2"] [data-v2-scope] .lp-report article > h1 {
+html[data-theme] [data-v2-scope] .lp-report article > h1 {
   font-size: 28px;
   line-height: 36px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
-html[data-look="v2"] [data-v2-scope] .lp-report .report-body {
+html[data-theme] [data-v2-scope] .lp-report .report-body {
   font-size: 14px;
   line-height: 22px;
 }
@@ -1570,10 +1568,10 @@ html[data-look="v2"] [data-v2-scope] .lp-report .report-body {
 /* Phones: every tap target at least 44px. Form fields 44 high (36 in the admin), the footer links
    a full-height hit area that takes no extra room. */
 @media (max-width: 767px) {
-  html[data-look="v2"] [data-v2-scope].auth-surface input.input-field {
+  html[data-theme] [data-v2-scope].auth-surface input.input-field {
     height: 44px;
   }
-  html[data-look="v2"] [data-v2-scope].auth-surface .auth-footer a {
+  html[data-theme] [data-v2-scope].auth-surface .auth-footer a {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
@@ -1584,7 +1582,7 @@ html[data-look="v2"] [data-v2-scope] .lp-report .report-body {
    colour tokens live on the scope element (the LP wrapper itself), so the light values are put
    back there for print only. The lp-print-scope rules further down are unchanged. */
 @media print {
-  html[data-look="v2"][data-theme="dark"] [data-v2-scope].lp-print-scope {
+  html[data-theme][data-theme="dark"] [data-v2-scope].lp-print-scope {
     color-scheme: light;
     --color-bg: #FFFFFF;
     --color-surface: #FFFFFF;

@@ -26,9 +26,10 @@ function block(source: string, selector: string): string {
 
 const founder = block(css, '[data-surface="founder"]');
 const root = block(css, ":root");
-// The new look (PLAN-1, WS156) is a third, opt-in scope with its own radius scale
-// (it legitimately uses 6/10px). It is checked on its own below.
-const V2_START = css.indexOf("/* ── New look (PLAN-1, WS156)");
+// The app's look (PLAN-1, WS156; the only look since WS168) is a third scope with its own radius
+// scale (it legitimately uses 6/10px). It is checked on its own below. The :root and founder blocks
+// stay for the pages outside its scope (investor share links, /investors).
+const V2_START = css.indexOf("/* ── The app's look (PLAN-1, WS156");
 const V2_END = css.indexOf("/* ── End new look ── */");
 const v2Section = css.slice(V2_START, V2_END);
 const cssWithoutFounderBlock = css.replace(founder, "").replace(v2Section, "");
@@ -89,7 +90,7 @@ describe("surface scoping", () => {
     }
   });
 
-  it("new look: every selector is v2 AND shell scoped; none can match :root, LP, auth or share", () => {
+  it("new look: every selector is theme AND scope prefixed; none can match :root or share", () => {
     expect(V2_START).toBeGreaterThan(0);
     expect(V2_END).toBeGreaterThan(V2_START);
     // @media and @container wrappers (phone-only values, columns dropping out) are skipped; the
@@ -100,7 +101,8 @@ describe("surface scoping", () => {
       for (const part of sel.split(",")) {
         const p = part.trim();
         expect(p).toContain("[data-v2-scope]");
-        expect(p).toMatch(/^html\[data-look="v2"\]/);
+        // html[data-theme] is always set (pre-paint script); it keeps the selectors' specificity.
+        expect(p).toMatch(/^html\[data-theme\]/);
         expect(p).not.toMatch(/^:root/);
         // The founder surface is named only together with the shell scope (the Direction B overrides).
         if (p.includes('[data-surface="founder"]')) expect(p).toContain('[data-v2-scope][data-surface="founder"]');
@@ -108,30 +110,31 @@ describe("surface scoping", () => {
     }
   });
 
-  it("new look scope: the app shell, LP, auth and home carry it; share pages and the report preview frame never do", () => {
+  it("new look scope: the app shell, LP, auth, home and the report preview frame carry it; share pages never do", () => {
     const read = (f: string) => readFileSync(join(__dirname, "..", "..", f), "utf-8");
     // Stage 1 and 2 (WS165, WS166): each wrapper carries the marker, and mirrors it onto <body> for portalled layers.
-    for (const f of ["components/layout/app-shell.tsx", "app/lp/layout.tsx", "components/auth/auth-layout.tsx", "app/page.tsx"]) {
+    // WS168: the preview frame too, so it shows the LP look LPs now see.
+    for (const f of ["components/layout/app-shell.tsx", "app/lp/layout.tsx", "components/auth/auth-layout.tsx", "app/page.tsx", "app/admin/reports/[id]/preview/frame/page.tsx"]) {
       expect(read(f), f).toContain('data-v2-scope=""');
     }
-    for (const f of ["components/layout/app-shell.tsx", "app/lp/layout.tsx", "components/auth/auth-layout.tsx"]) {
+    for (const f of ["components/layout/app-shell.tsx", "app/lp/layout.tsx", "components/auth/auth-layout.tsx", "app/admin/reports/[id]/preview/frame/page.tsx"]) {
       expect(read(f), f).toMatch(/<SurfaceSync surface=\S+ newLookScope \/>/);
     }
     const sync = read("components/layout/surface-sync.tsx");
     expect(sync).toContain('if (newLookScope) body.setAttribute("data-v2-scope", "")');
     expect(sync).toContain("newLookScope = false");
-    // Never: investor share links and the report preview frame (it mirrors the surface onto <body>, not the scope).
-    for (const f of ["app/share/[token]/page.tsx", "app/investors/page.tsx", "app/admin/reports/[id]/preview/frame/page.tsx"]) {
+    // Never: investor share links and /investors.
+    for (const f of ["app/share/[token]/page.tsx", "app/investors/page.tsx"]) {
       expect(read(f), f).not.toContain("data-v2-scope");
       expect(read(f), f).not.toContain("newLookScope");
     }
   });
 
-  it("new look scope by path: admin, the founder app pages, LP, auth and home; never share links, the preview frame or the print page", () => {
-    for (const p of ["/admin", "/admin/companies", "/admin/reports/x/preview", "/dashboard", "/updates", "/updates/new", "/updates/abc", "/from-dfs/x", "/company/profile", "/company/metrics", "/planner/abc", "/links", "/team", "/providers", "/diligence", "/setup-wizard", "/", "/lp", "/lp/reports/x", "/login", "/signup", "/set-password"]) {
+  it("new look scope by path: admin (the preview frame included), the founder app pages, LP, auth and home; never share links or the print page", () => {
+    for (const p of ["/admin", "/admin/companies", "/admin/reports/x/preview", "/admin/reports/x/preview/frame", "/dashboard", "/updates", "/updates/new", "/updates/abc", "/from-dfs/x", "/company/profile", "/company/metrics", "/planner/abc", "/links", "/team", "/providers", "/diligence", "/setup-wizard", "/", "/lp", "/lp/reports/x", "/login", "/signup", "/set-password"]) {
       expect(inNewLookScope(p), p).toBe(true);
     }
-    for (const p of [null, "/share/abc", "/share/m/abc", "/investors", "/admin/reports/x/preview/frame", "/updates/abc/download", "/dashboards", "/linksx", "/lpx", "/loginx"]) {
+    for (const p of [null, "/share/abc", "/share/m/abc", "/investors", "/updates/abc/download", "/dashboards", "/linksx", "/lpx", "/loginx"]) {
       expect(inNewLookScope(p), String(p)).toBe(false);
     }
   });
@@ -140,13 +143,14 @@ describe("surface scoping", () => {
     expect(v2Section).toMatch(/\[data-v2-scope\] \.lp-report article \{\s*max-width: 720px;/);
     expect(v2Section).toMatch(/\[data-v2-scope\] \.lp-report \.report-body \{\s*font-size: 14px;\s*line-height: 22px;/);
     // Printing in the dark theme puts the light text and page colours back on the LP wrapper.
-    expect(v2Section).toMatch(/@media print \{\s*html\[data-look="v2"\]\[data-theme="dark"\] \[data-v2-scope\]\.lp-print-scope \{[^}]*--color-bg: #FFFFFF;[^}]*--color-text-primary: #15181D;/);
-    // The preview frame shares the LP markup but no scope: it carries no lp-report hook either.
-    expect(readFileSync(join(__dirname, "..", "..", "app", "admin", "reports", "[id]", "preview", "frame", "page.tsx"), "utf-8")).not.toContain("lp-report");
+    expect(v2Section).toMatch(/@media print \{\s*html\[data-theme\]\[data-theme="dark"\] \[data-v2-scope\]\.lp-print-scope \{[^}]*--color-bg: #FFFFFF;[^}]*--color-text-primary: #15181D;/);
+    // WS168: the preview frame wraps the report in the LP report page's own hook, so the two match.
+    expect(readFileSync(join(__dirname, "..", "..", "app", "admin", "reports", "[id]", "preview", "frame", "page.tsx"), "utf-8")).toContain('className="lp-report"');
   });
 
-  it("new look: nothing outside the v2 section mentions data-look or the Inter variable, and the founder block never sets fonts", () => {
-    expect(cssWithoutFounderBlock).not.toContain("data-look");
+  it("one look: data-look is gone everywhere, nothing outside the v2 section mentions the Inter variable, and the founder block never sets fonts", () => {
+    expect(css).not.toContain("data-look");
+    expect(tailwind).not.toContain("data-look");
     expect(cssWithoutFounderBlock).not.toContain("--font-inter");
     expect(founder).not.toContain("--font-");
     expect(root).not.toContain("--font-");
@@ -170,7 +174,6 @@ describe("surface scoping", () => {
       "app/share/m/[token]/route.ts",
       "app/share/[token]/page.tsx",
       "app/investors/page.tsx",
-      "app/admin/reports/[id]/preview/frame/page.tsx",
       "lib/email.ts",
       "lib/digest-html.ts",
       "lib/broadcast-html.ts",
@@ -184,7 +187,7 @@ describe("surface scoping", () => {
   });
 
   it("the share and investor paths are outside the new-look scope", () => {
-    for (const p of ["/share/abc", "/share/m/abc", "/share/m/abc/x", "/investors", "/investors/x", "/admin/reports/abc/preview/frame"]) {
+    for (const p of ["/share/abc", "/share/m/abc", "/share/m/abc/x", "/investors", "/investors/x"]) {
       expect(inNewLookScope(p), p).toBe(false);
     }
   });

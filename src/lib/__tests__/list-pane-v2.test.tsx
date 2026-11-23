@@ -331,7 +331,7 @@ describe("list and pane css", () => {
   });
   it("only success, warning and danger badges have a glyph", () => {
     const badges = css.slice(css.indexOf("/* Badges:"), css.indexOf("/* StatusDot:"));
-    expect(badges).toMatch(/\.badge-info::before,\s*html\[data-look="v2"\] \[data-v2-scope\] \.badge-neutral::before \{\s*display: none;/);
+    expect(badges).toMatch(/\.badge-info::before,\s*html\[data-theme\] \[data-v2-scope\] \.badge-neutral::before \{\s*display: none;/);
     expect(badges).not.toContain("1.25px");
   });
   it("the sticky group heading sits under the header bar and filter bar", () => {

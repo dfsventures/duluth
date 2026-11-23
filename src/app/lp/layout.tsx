@@ -19,9 +19,8 @@ const LOGO_REVERSE_PATH = ORG_LOGO_PATH === "/brand/dfs-logo-primary.png" ? "/br
  * www.dfs.vc: Paper canvas, mono eyebrow labels, line dividers, no cards.
  * `lp-print-scope` is targeted by the WS19 print stylesheet in globals.css.
  *
- * data-v2-scope (PLAN-1, WS166): the new look reaches the LP portal under the same switch as the
- * rest of the app (nothing changes unless <html data-look="v2"> is set). Every `v2:` class below
- * applies only then; the old look renders exactly as before.
+ * data-v2-scope (PLAN-1, WS166): the app's look reaches the LP portal (the only look since WS168).
+ * The admin report preview frame copies this wrapper and the main padding, so keep them in step.
  */
 export default async function LpLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getLp();

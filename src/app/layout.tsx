@@ -29,7 +29,8 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-// New look (PLAN-1, WS156): only used inside admin when the switch is on.
+// The app's sans (PLAN-1, WS156): every page inside [data-v2-scope]. Plex, Space Grotesk and JetBrains
+// Mono stay: investor share links and /investors keep their own look, and figures use the mono.
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-inter",
@@ -76,11 +77,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${spaceGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable} ${inter.variable}`}
-      // The pre-paint script below may set data-look / data-theme before hydration.
+      // The pre-paint script below sets data-theme before hydration.
       suppressHydrationWarning
     >
       <body className="min-h-screen bg-background antialiased">
-        {/* Runs before first paint so the saved look and theme never flash. Does nothing unless the switch is on. */}
+        {/* Runs before first paint: sets data-theme (light or dark, as saved), which the app's styles need. */}
         <script dangerouslySetInnerHTML={{ __html: PRE_PAINT_SCRIPT }} />
         <SessionProvider>
           <CompanyProvider>
