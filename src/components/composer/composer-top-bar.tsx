@@ -21,6 +21,8 @@ interface ComposerTopBarProps {
   /** Extra buttons rendered before Publish — e.g. "Save as Draft", "Cancel". */
   secondaryActions?: React.ReactNode;
   publishLabel?: string;
+  /** An icon drawn before the primary button's label (e.g. the digest's sparkle, or a spinner while it works). */
+  publishIcon?: React.ReactNode;
   /** Optional only for a bar with showPublish={false} (a server page can't pass a handler). */
   onPublishClick?: () => void;
   publishDisabled?: boolean;
@@ -54,6 +56,7 @@ export function ComposerTopBar({
   saveStateLabel,
   secondaryActions,
   publishLabel = "Publish",
+  publishIcon,
   onPublishClick,
   publishDisabled,
   publishing,
@@ -128,7 +131,9 @@ export function ComposerTopBar({
             disabled={publishDisabled || publishing}
             onClick={onPublishClick}
             title={publishDisabled && disabledReason ? disabledReason : undefined}
+            className={publishIcon ? "gap-1.5" : undefined}
           >
+            {publishIcon}
             {publishing ? "Publishing..." : publishLabel}
           </Button>
         )}

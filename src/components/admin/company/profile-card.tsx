@@ -5,13 +5,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { Bell, Building2, ExternalLink, Globe, MapPin, Pencil, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { FIELD_LABEL_V2, Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SectorCombobox } from "@/components/ui/sector-combobox";
-import { normalizeUrl } from "@/lib/utils";
+import { cn, normalizeUrl } from "@/lib/utils";
 import type { FlashMessage } from "@/lib/use-flash-message";
 import { FUNDING_STAGES, REMINDER_OPTIONS, type Company } from "./types";
 
@@ -99,7 +99,7 @@ export function ProfileCard({
     <div className="space-y-4">
       <Input
         id="edit-name"
-        label="Company Name"
+        label="Company name"
         value={editForm.name}
         onChange={(e) => updateEditField("name", e.target.value)}
         required
@@ -133,7 +133,7 @@ export function ProfileCard({
         onChange={(e) => updateEditField("geography", e.target.value)}
       />
       <div className="space-y-1">
-        <label htmlFor="edit-aliases" className="label">
+        <label htmlFor="edit-aliases" className={cn("label", FIELD_LABEL_V2)}>
           Aliases
         </label>
         <input
@@ -157,7 +157,7 @@ export function ProfileCard({
         />
         <p className="text-xs text-muted-foreground">Comma-separated alternative names used for Granola matching</p>
       </div>
-      <Select id="edit-fundingStage" label="Funding Stage" value={editForm.fundingStage ?? ""} onChange={(e) => updateEditField("fundingStage", e.target.value)}>
+      <Select id="edit-fundingStage" label="Funding stage" value={editForm.fundingStage ?? ""} onChange={(e) => updateEditField("fundingStage", e.target.value)}>
         <option value="">Select a stage</option>
         {FUNDING_STAGES.map((s) => (
           <option key={s} value={s}>
@@ -168,7 +168,7 @@ export function ProfileCard({
       <div className="space-y-1">
         <Select
           id="edit-reminderFrequency"
-          label="Update Reminder Frequency"
+          label="Update reminder frequency"
           value={editForm.reminderFrequencyDays ?? ""}
           onChange={(e) =>
             updateEditField(

@@ -11,6 +11,9 @@ vi.mock("next/navigation", () => ({
 
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { ComposerTitleField } from "@/components/composer/composer-title-field";
+import { FIELD_LABEL_V2, Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD } from "@/lib/editor-styles";
 
 describe("composer bar", () => {
@@ -39,6 +42,38 @@ describe("composer bar", () => {
     expect(html).toContain("shell-header");
     expect(html).toContain("v2:normal-case");
     expect(html).toContain("v2:font-sans");
+  });
+});
+
+describe("composer bar icon (B-221)", () => {
+  it("draws the primary's icon before its label when given one", () => {
+    const html = renderToStaticMarkup(
+      <ComposerTopBar draftLabel="Not saved yet" publishLabel="Generate digest" publishIcon={<svg data-testid="spark" />} onPublishClick={() => {}} />
+    );
+    expect(html).toMatch(/<svg data-testid="spark"[^>]*><\/svg>Generate digest/);
+  });
+
+  it("draws no icon by default", () => {
+    const html = renderToStaticMarkup(<ComposerTopBar draftLabel="Draft" publishLabel="Send" onPublishClick={() => {}} />);
+    expect(html).toContain(">Send<");
+    expect(html).not.toContain("<svg data-testid");
+  });
+});
+
+describe("field labels (B-221)", () => {
+  it("are 14px under the new look only, and keep the old-look .label class", () => {
+    expect(FIELD_LABEL_V2.split(" ").every((c) => c.startsWith("v2:"))).toBe(true);
+    for (const html of [
+      renderToStaticMarkup(<Input id="f1" label="Company name" />),
+      renderToStaticMarkup(<Textarea id="f2" label="Description" />),
+      renderToStaticMarkup(
+        <Select id="f3" label="Funding stage">
+          <option value="">Select a stage</option>
+        </Select>
+      ),
+    ]) {
+      expect(html).toContain(`class="label ${FIELD_LABEL_V2}"`);
+    }
   });
 });
 

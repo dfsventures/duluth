@@ -9,6 +9,13 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   error?: string;
 }
 
+/**
+ * New look only (admin surface): field labels read at 14px, like the field text. The 12px comes from the
+ * unlayered `.label` rule in globals.css, which a plain utility of equal weight cannot beat, hence `!`.
+ * Shared by Input, Textarea, Select and SectorCombobox; the old look and founder/LP pages are unchanged.
+ */
+export const FIELD_LABEL_V2 = "v2:!text-row";
+
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, id, type, ...props }, ref) => {
     const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +25,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="space-y-1">
         {label && (
-          <label htmlFor={id} className="label">
+          <label htmlFor={id} className={cn("label", FIELD_LABEL_V2)}>
             {label}
           </label>
         )}

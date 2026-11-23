@@ -391,8 +391,9 @@ export default function AdminReportEditorPage() {
 
         {isDraft ? (
           <>
-            {/* New look (audit #28): this help is the empty editor's placeholder instead of a standing paragraph. */}
-            <p className="mb-3 text-xs text-muted-foreground v2:hidden">
+            {/* New look: this help stays visible as a quiet line. Audit #28 had moved it into the empty editor's
+                placeholder, but a placeholder disappears as soon as the report has text, so the hint was lost (B-221). */}
+            <p className="mb-3 text-xs text-muted-foreground v2:text-meta">
               Type <span className="font-mono">@</span> to mention a portfolio company — mentioned companies get a valuation hover card in the LP view.
               Use the chart icon in the toolbar to insert this fund&apos;s performance snapshot.
             </p>
@@ -423,11 +424,7 @@ export default function AdminReportEditorPage() {
               variant="chromeless"
               value={body}
               onChange={setBody}
-              placeholder={
-                newLook
-                  ? "Dear limited partners… Type @ to mention a portfolio company. Use the chart icon in the toolbar to insert this fund’s performance snapshot."
-                  : "Dear limited partners…"
-              }
+              placeholder="Dear limited partners…"
               extraExtensions={extraExtensions}
               fundSnapshot={{ id: report.fund.id, name: report.fund.name }}
             />

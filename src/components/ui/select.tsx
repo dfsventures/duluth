@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { forwardRef } from "react";
+import { FIELD_LABEL_V2 } from "@/components/ui/input";
 
 export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
@@ -15,7 +16,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="space-y-1">
         {label && (
-          <label htmlFor={id} className="label">
+          <label htmlFor={id} className={cn("label", FIELD_LABEL_V2)}>
             {label}
           </label>
         )}

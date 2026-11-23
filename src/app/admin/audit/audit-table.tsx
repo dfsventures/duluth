@@ -138,14 +138,20 @@ function targetTitle(r: AuditRowData): string | null {
   return r.targetType ? `${r.targetType}${r.targetId ? ` · ${r.targetId}` : ""}` : null;
 }
 
+// Phones (B-221): a row's meta line holds long unbroken text (emails, codes, JSON values). Let it break
+// anywhere so a row wraps inside the screen instead of widening the page. Desktop cells stay one line.
+const PHONE_WRAP = "max-md:[overflow-wrap:anywhere]";
+
 // A native <details>, as in the old look: one line closed; open, the row grows (see the WS170 rule in
 // globals.css) and shows the full JSON.
 function DetailsCell({ metadata }: { metadata: unknown }) {
   const entries = metadataEntries(metadata);
   if (entries.length === 0) return <span className="text-muted-foreground">—</span>;
   return (
-    <details>
-      <summary className="cursor-pointer list-none truncate [&::-webkit-details-marker]:hidden">
+    <details className="max-md:min-w-0 max-md:max-w-full">
+      <summary
+        className={`cursor-pointer list-none truncate max-md:whitespace-normal ${PHONE_WRAP} [&::-webkit-details-marker]:hidden`}
+      >
         {entries.map(([key, value], i) => (
           <span key={key}>
             {i > 0 && <span className="mx-1 text-muted-foreground">·</span>}
@@ -170,16 +176,29 @@ const auditColumns: DataTableColumn<AuditRowData>[] = [
     title: (r) => formatTimestamp(r.createdAt),
     cell: (r) => <time dateTime={r.createdAt}>{relativeTime(r.createdAt)}</time>,
   },
-  { key: "actor", header: "Actor", sortValue: (r) => r.actorEmail, mobile: "meta", cell: (r) => r.actorEmail },
+  {
+    key: "actor",
+    header: "Actor",
+    sortValue: (r) => r.actorEmail,
+    mobile: "meta",
+    cell: (r) => <span className={PHONE_WRAP}>{r.actorEmail}</span>,
+  },
   {
     key: "action",
     header: "Action",
     sortValue: (r) => actionLabel(r.action),
     mobile: "meta",
     title: (r) => r.action,
-    cell: (r) => actionLabel(r.action),
+    cell: (r) => <span className={PHONE_WRAP}>{actionLabel(r.action)}</span>,
   },
-  { key: "target", header: "Target", sortValue: (r) => r.targetType, mobile: "meta", title: targetTitle, cell: (r) => targetText(r) },
+  {
+    key: "target",
+    header: "Target",
+    sortValue: (r) => r.targetType,
+    mobile: "meta",
+    title: targetTitle,
+    cell: (r) => <span className={PHONE_WRAP}>{targetText(r)}</span>,
+  },
   {
     key: "details",
     header: "Details",

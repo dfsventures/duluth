@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FIELD_LABEL_V2 } from "@/components/ui/input";
 
 interface Sector {
   id: string;
@@ -137,7 +138,7 @@ export function SectorCombobox({ value, onChange, isAdmin, id, label }: SectorCo
   return (
     <div className="space-y-1" ref={containerRef}>
       {label && (
-        <label htmlFor={id} className="label">
+        <label htmlFor={id} className={cn("label", FIELD_LABEL_V2)}>
           {label}
         </label>
       )}

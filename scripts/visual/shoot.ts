@@ -382,6 +382,27 @@ async function main() {
     return true;
   }
 
+  // Finds the first (or last) row link on a list page: an href under `prefix` with exactly `parts`
+  // slash-separated parts, not ending in any of `exclude`. A slow list can still be fetching its rows
+  // after open() settles, so this waits for one to appear (up to ROW_WAIT_MS) instead of reading the
+  // page once and skipping it (B-221). Returns null only when no row shows up in that time.
+  const ROW_WAIT_MS = 30_000;
+  async function rowHref(page: any, prefix: string, parts: number, exclude: string[] = [], last = false): Promise<string | null> {
+    const handle = await page
+      .waitForFunction(
+        ([p, n, ex, l]: [string, number, string[], boolean]) => {
+          const all = Array.from(document.querySelectorAll("a[href]"))
+            .map((a) => a.getAttribute("href") ?? "")
+            .filter((h) => h.startsWith(p) && h.split("/").length === n && !ex.some((e) => h.endsWith(e)));
+          return (l ? all[all.length - 1] : all[0]) ?? null;
+        },
+        [prefix, parts, exclude, last] as [string, number, string[], boolean],
+        { timeout: ROW_WAIT_MS }
+      )
+      .catch(() => null);
+    return handle ? ((await handle.jsonValue()) as string) : null;
+  }
+
   async function snap(page: any, file: string, fullPage = true) {
     const target = path.join(outDir, file);
     await page.screenshot({ path: target, fullPage });
@@ -421,56 +442,26 @@ async function main() {
         const page = await context.newPage();
         watch(page, `${key} ${tag}`);
         let ok = await open(page, `${key} ${tag}`, PAGES[key]);
-        if (ok && key === "fund") {
-          const href: string | null = await page
-            .$$eval('a[href^="/admin/funds/"]', (as: any[]) => as.map((a) => a.getAttribute("href")).find((h) => h && h.split("/").length === 4) ?? null)
-            .catch(() => null);
+        // Detail pages open their list first, then follow its first row (ids are random).
+        const DETAIL: Record<string, { prefix: string; parts: number; exclude?: string[]; list: string }> = {
+          fund: { prefix: "/admin/funds/", parts: 4, list: "/admin/funds" },
+          company: { prefix: "/admin/companies/", parts: 4, exclude: ["/new"], list: "/admin/companies" },
+          deal: { prefix: "/admin/portfolio/", parts: 4, list: "/admin/portfolio" },
+          memo: { prefix: "/admin/memos/", parts: 4, exclude: ["/template"], list: "/admin/memos" },
+          update: { prefix: "/updates/", parts: 3, exclude: ["/new"], list: "/admin/updates" },
+        };
+        if (ok && DETAIL[key]) {
+          const d = DETAIL[key];
+          const href = await rowHref(page, d.prefix, d.parts, d.exclude);
           ok = href ? await open(page, `${key} ${tag}`, href) : false;
-          if (!href) console.log(`  [skip] ${key} ${tag}: no fund link found on /admin/funds`);
-        }
-        if (ok && key === "company") {
-          const href: string | null = await page
-            .$$eval('a[href^="/admin/companies/"]', (as: any[]) => as.map((a) => a.getAttribute("href")).find((h) => h && h.split("/").length === 4 && !h.endsWith("/new")) ?? null)
-            .catch(() => null);
-          ok = href ? await open(page, `${key} ${tag}`, href) : false;
-          if (!href) console.log(`  [skip] ${key} ${tag}: no company link found on /admin/companies`);
-        }
-        if (ok && key === "deal") {
-          const href: string | null = await page
-            .$$eval('a[href^="/admin/portfolio/"]', (as: any[]) => as.map((a) => a.getAttribute("href")).find((h) => h && h.split("/").length === 4) ?? null)
-            .catch(() => null);
-          ok = href ? await open(page, `${key} ${tag}`, href) : false;
-          if (!href) console.log(`  [skip] ${key} ${tag}: no deal link found on /admin/portfolio`);
-        }
-        if (ok && key === "memo") {
-          const href: string | null = await page
-            .$$eval('a[href^="/admin/memos/"]', (as: any[]) => as.map((a) => a.getAttribute("href")).find((h) => h && h.split("/").length === 4 && !h.endsWith("/template")) ?? null)
-            .catch(() => null);
-          ok = href ? await open(page, `${key} ${tag}`, href) : false;
-          if (!href) console.log(`  [skip] ${key} ${tag}: no memo link found on /admin/memos`);
-        }
-        if (ok && key === "update") {
-          const href: string | null = await page
-            .$$eval('a[href^="/updates/"]', (as: any[]) => as.map((a) => a.getAttribute("href")).find((h) => h && h.split("/").length === 3 && !h.endsWith("/new")) ?? null)
-            .catch(() => null);
-          ok = href ? await open(page, `${key} ${tag}`, href) : false;
-          if (!href) console.log(`  [skip] ${key} ${tag}: no update link found on /admin/updates`);
+          if (!href) console.log(`  [skip] ${key} ${tag}: no ${key} link appeared on ${d.list} within ${ROW_WAIT_MS / 1000}s`);
         }
         if (ok && FOLLOW[key]) {
           const { list: prefix, suffix = "", last = false } = FOLLOW[key];
           const depth = prefix.split("/").length - 1; // "/admin/digest/" -> 3 segments after the first slash
-          const href: string | null = await page
-            .$$eval(
-              "a[href]",
-              (as: any[], [p, d, l]: [string, number, boolean]) => {
-                const all = as.map((a) => a.getAttribute("href") as string).filter((h) => h && h.startsWith(p) && h.split("/").length === d + 1 && !h.endsWith("/new"));
-                return (l ? all[all.length - 1] : all[0]) ?? null;
-              },
-              [prefix, depth, last] as [string, number, boolean]
-            )
-            .catch(() => null);
+          const href = await rowHref(page, prefix, depth + 1, ["/new"], last);
           ok = href ? await open(page, `${key} ${tag}`, href + suffix) : false;
-          if (!href) console.log(`  [skip] ${key} ${tag}: no row link found under ${prefix}`);
+          if (!href) console.log(`  [skip] ${key} ${tag}: no row link appeared under ${prefix} within ${ROW_WAIT_MS / 1000}s`);
         }
         if (ok) await snap(page, `${key}__${tag}.png`);
         if (ok && v.look === "new" && v.theme === "light" && vpKey !== "phone" && PAGE_TYPE[key]) {

@@ -204,6 +204,16 @@ export default function NewDigestPage() {
         publishLabel={
           step === "paste" ? (generating ? "Generating…" : "Generate digest") : saving ? "Saving…" : "Save draft"
         }
+        // The old look's Generate button had a sparkle (a spinner while it works); the bar keeps it.
+        publishIcon={
+          step === "paste" ? (
+            generating ? (
+              <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles aria-hidden="true" className="h-4 w-4" />
+            )
+          ) : undefined
+        }
         onPublishClick={step === "paste" ? handleGenerate : handleSave}
         publishDisabled={step === "paste" ? generating || !notes.trim() : saving || !title.trim()}
         secondaryActions={
