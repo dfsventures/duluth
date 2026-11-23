@@ -84,11 +84,13 @@ export default function TeamPage() {
     } finally {
       setLoading(false);
     }
-  }, [setMessage]);
+  }, [companyLoading, selectedCompany, setMessage]);
 
+  // loadData is rebuilt when the company context settles, so this runs once
+  // the company is known (fresh load/refresh), not just on sidebar navigation.
   useEffect(() => {
     loadData();
-  }, [loadData, companyLoading, selectedCompany?.id]);
+  }, [loadData]);
 
   async function handleInvite() {
     if (!company || !inviteEmail.trim()) return;

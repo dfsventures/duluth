@@ -100,9 +100,11 @@ export default function FounderLinksPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [companyLoading, selectedCompany]);
 
-  useEffect(() => { loadData(); }, [loadData, companyLoading, selectedCompany?.id]);
+  // loadData is rebuilt when the company context settles, so this runs once
+  // the company is known (fresh load/refresh), not just on sidebar navigation.
+  useEffect(() => { loadData(); }, [loadData]);
 
   function toggleUpdate(id: string) {
     setSelectedUpdateIds((prev) =>
