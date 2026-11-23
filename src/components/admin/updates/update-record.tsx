@@ -73,7 +73,9 @@ interface Props {
  * The single update page in the new look (B-133): header bar (back, the one primary, ⋯), then a 720px
  * column (body, figures, attachments, comments) and a sticky 296px panel of the update's properties.
  * Geometry lives in globals.css under `.up-dossier`. Under 1040px the panel sits under the title.
- * Only admins with the new look on get this; everyone else keeps the original page.
+ * Admins and (since stage 2, WS165) founders with the new look on get this; the old look keeps the
+ * original page. Admin-only pieces (figure tags and quotes, the Slack link, Remove, the company link)
+ * are gated on `isAdmin`.
  */
 export function UpdateRecord({
   update,
@@ -107,13 +109,16 @@ export function UpdateRecord({
 
   const rows: { label: string; value: ReactNode }[] = [];
   const companyName = update.company?.name;
+  // A founder sees their own company's name; only an admin gets the link to its admin page.
   if (companyName)
     rows.push({
       label: "Company",
-      value: (
+      value: isAdmin ? (
         <Link href={`/admin/companies/${update.companyId}`} className="text-primary underline-offset-4 hover:underline">
           {companyName}
         </Link>
+      ) : (
+        companyName
       ),
     });
   rows.push({ label: "Period", value: formatPeriod(update.period) });
@@ -193,8 +198,8 @@ export function UpdateRecord({
       {/* Page types v1, Detail: back above the title, the actions on the title row, a status line under it. */}
       <PageHeader
         type="detail"
-        // Admin view only, so back goes to the admin list; /updates is the founder's own list.
-        back={{ href: "/admin/updates", label: "Updates" }}
+        // An admin goes back to the admin list; a founder (stage 2, WS165) to their own list.
+        back={{ href: isAdmin ? "/admin/updates" : "/updates", label: "Updates" }}
         title={update.title}
         status={
           filed ? (
@@ -300,8 +305,9 @@ export function UpdateRecord({
                           href={`/api/documents/${doc.id}/view`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          className="grid h-8 w-8 place-items-center rounded text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:h-11 max-md:w-11"
                           title="View"
+                          aria-label={`View ${doc.name}`}
                         >
                           <Eye className="h-4 w-4" />
                         </a>
@@ -309,8 +315,9 @@ export function UpdateRecord({
                       <button
                         type="button"
                         onClick={() => onDownloadDoc(doc.id, doc.name)}
-                        className="text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        className="grid h-8 w-8 place-items-center rounded text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:h-11 max-md:w-11"
                         title="Download"
+                        aria-label={`Download ${doc.name}`}
                       >
                         <Download className="h-4 w-4" />
                       </button>

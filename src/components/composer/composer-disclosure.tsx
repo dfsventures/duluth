@@ -16,7 +16,8 @@ interface ComposerDisclosureProps {
 export function ComposerDisclosure({ label, defaultOpen = false, children, className }: ComposerDisclosureProps) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className={cn("border-t pt-4", className)}>
+    // composer-disclosure: a hook for the founder phone rule in globals.css (a 44px toggle).
+    <div className={cn("composer-disclosure border-t pt-4", className)}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

@@ -219,7 +219,8 @@ export function RichEditor({
           hides the text scrolling under it. */}
       <div
         className={cn(
-          "sticky top-0 z-10 flex flex-wrap items-center gap-0.5 bg-background",
+          // rich-toolbar: a hook for the founder phone rule in globals.css (one sideways row, 44px buttons).
+          "rich-toolbar sticky top-0 z-10 flex flex-wrap items-center gap-0.5 bg-background",
           chromeless
             ? cn(
                 "mb-3 gap-1 py-1.5 [&>*]:transition-opacity",

@@ -27,7 +27,7 @@ import { PageSkeleton } from "@/components/ui/skeleton";
 import { sanitizeUpdateHtml } from "@/lib/update-html";
 import { metricChipLabel } from "@/lib/metric-origin";
 import { canEditUpdate, buildEditMetricValues } from "@/lib/update-edit-rules";
-import { useLook } from "@/lib/use-look";
+import { useNewLook } from "@/lib/use-new-look";
 import { UpdateRecord } from "@/components/admin/updates/update-record";
 
 interface MetricDefinition {
@@ -199,12 +199,12 @@ export default function UpdateDetailPage() {
 
   const confirm = useConfirm();
   const isAdminUser = Boolean(session?.user?.roles?.includes("ADMIN"));
-  // This route is shared with founders and LPs and sits outside /admin, so useNewLook() (path based)
-  // is always false here. The new look applies only to a signed-in admin whose switch is on; the
-  // shell is then told to use the admin surface. Server and first client render are the old look.
-  const { look } = useLook();
-  const newLook = look === "v2" && isAdminUser;
-  const shellSurface = newLook ? ("admin" as const) : undefined;
+  // This route is shared by founders and admins and sits outside /admin. Since stage 2 (WS165) it is a
+  // founder app page, so the new look reaches everyone here whose switch is on (LPs have no session and
+  // never reach it). An admin's shell is told to use the admin surface; a founder keeps the founder
+  // surface. Server and first client render are the old look.
+  const newLook = useNewLook();
+  const shellSurface = newLook && isAdminUser ? ("admin" as const) : undefined;
   // Part 45 (Q142 A): admins can remove an update filed from email.
   async function handleRemoveFiled() {
     if (!update) return;
@@ -537,7 +537,7 @@ export default function UpdateDetailPage() {
       </section>
     );
     return (
-      <AppShell width="detail" surface="admin">
+      <AppShell width="detail" surface={shellSurface}>
         <UpdateRecord
           update={update}
           isAdmin={isAdminUser}

@@ -1425,6 +1425,44 @@ html[data-look="v2"] [data-v2-scope][data-surface="founder"] .app-sidebar .nav-i
   background: var(--color-sel);
   color: var(--color-text-primary);
 }
+/* Founder phones (Joseph, WS165): every tap target is at least 44px. The editor bar keeps its 52px
+   height with 44px buttons (the admin's bar keeps 32, page types v1 §6); the composer's chromeless
+   editor keeps its layout, but its toolbar becomes one row that scrolls sideways (§6), so 44px buttons
+   don't stack it three rows deep; the title, period and Details toggle get a 44px tap height. */
+@media (max-width: 767px) {
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .editor-bar [data-align="actions"] button {
+    height: 44px;
+    min-width: 44px;
+  }
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .editor-bar [data-align="actions"] .absolute button {
+    min-height: 44px;
+  }
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .rich-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .rich-toolbar > * {
+    flex: none;
+  }
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .rich-toolbar button {
+    display: grid;
+    place-items: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .composer-title input {
+    min-height: 44px;
+  }
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .composer-disclosure > button {
+    min-height: 44px;
+  }
+  /* The Detail back link: a 44px hit area that takes no extra room (its line stays 20px). */
+  html[data-look="v2"] [data-v2-scope][data-surface="founder"] .page-back {
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+}
 /* ── End new look ── */
 
 /* ── Base ─────────────────────────────────────────────────── */

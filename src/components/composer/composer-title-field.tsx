@@ -23,7 +23,8 @@ export function ComposerTitleField({
   periodPlaceholder = "2026-Q3",
 }: ComposerTitleFieldProps) {
   return (
-    <div className="mb-6">
+    // composer-title: a hook for the founder phone rule in globals.css (44px tap height on both fields).
+    <div className="composer-title mb-6">
       <input
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}

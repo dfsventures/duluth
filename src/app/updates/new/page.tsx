@@ -18,6 +18,8 @@ import { ORG_NAME } from "@/lib/org";
 import { toast } from "@/lib/toast";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
+import { useNewLook } from "@/lib/use-new-look";
+import { EDITOR_COLUMN } from "@/lib/editor-styles";
 
 interface MetricDefinition {
   id: string;
@@ -45,6 +47,7 @@ export default function NewUpdatePage() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [, setMessage] = useFlashMessage();
+  const newLook = useNewLook();
 
   // Form state
   const [period, setPeriod] = useState("");
@@ -204,22 +207,28 @@ export default function NewUpdatePage() {
   const canPublish = period.trim() !== "" && title.trim() !== "";
 
   return (
-    <AppShell>
-      <button
-        onClick={() => router.push("/updates")}
-        className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Updates
-      </button>
+    // New look (page types v1, editor): the 720 column, with the back link in the editor bar.
+    <AppShell width="narrow">
+      {!newLook && (
+        <button
+          onClick={() => router.push("/updates")}
+          className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Updates
+        </button>
+      )}
 
       <ComposerTopBar
+        back={{ href: "/updates", label: "Updates" }}
         draftLabel="Draft"
         secondaryActions={
           <Button variant="secondary" size="sm" disabled={submitting} onClick={() => handleSubmit("DRAFT")}>
             {submitting ? "Saving..." : "Save as Draft"}
           </Button>
         }
+        // Phone, new look (§6): Save as Draft folds into ⋯.
+        phoneMenuItems={[{ label: submitting ? "Saving..." : "Save as Draft", onClick: () => handleSubmit("DRAFT"), disabled: submitting }]}
         publishLabel="Publish"
         onPublishClick={() => setConfirmPublish(true)}
         publishDisabled={!canPublish}
@@ -243,7 +252,7 @@ export default function NewUpdatePage() {
 
       {/* Schedule for later — slim panel under the top bar, opened from the overflow menu */}
       {showSchedule && !confirmPublish && (
-        <div className="mb-6 flex flex-wrap items-end gap-3 rounded-md border border-edge bg-card px-4 py-3 shadow-soft">
+        <div className="mb-6 flex flex-wrap items-end gap-3 rounded-md border border-edge bg-card px-4 py-3 shadow-soft v2:border-0 v2:shadow-none">
           <Input
             id="schedule-date"
             label="Publish date"
@@ -268,7 +277,7 @@ export default function NewUpdatePage() {
         </div>
       )}
 
-      <div className="mx-auto max-w-3xl">
+      <div className={`mx-auto max-w-3xl ${EDITOR_COLUMN}`}>
         <ComposerTitleField title={title} onTitleChange={setTitle} period={period} onPeriodChange={setPeriod} />
 
         {templates.length > 0 && isBodyEmpty && (
@@ -279,7 +288,7 @@ export default function NewUpdatePage() {
                 if (e.target.value) applyTemplate(e.target.value);
                 e.target.value = "";
               }}
-              className="w-auto max-w-xs border-0 bg-transparent p-0 text-sm text-muted-foreground focus:outline-none focus:ring-0"
+              className="w-auto max-w-xs border-0 bg-transparent p-0 text-sm text-muted-foreground focus:outline-none focus:ring-0 v2:text-row max-md:v2:min-h-11"
             >
               <option value="">Start from a template</option>
               {templates.map((t) => (

@@ -131,6 +131,14 @@ describe("update page, new look", () => {
     expect(html).not.toContain("Open in Slack");
   });
 
+  it("founders (stage 2, WS165): back goes to their own list and the company is not an admin link", () => {
+    const html = render({}, { isAdmin: false });
+    expect(html).toContain('href="/updates"');
+    expect(html).not.toContain('href="/admin/updates"');
+    expect(html).not.toContain("/admin/companies/");
+    expect(html).toContain("Example Co");
+  });
+
   it("attachment View and Download are hover-only (up-act) and counts are not shown next to headings", () => {
     const html = render({
       documents: [{ id: "f1", name: "deck.pdf", mimeType: "application/pdf", size: 2048, docType: null }],
