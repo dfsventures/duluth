@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import type { BrandTheme, LogoPlate } from "@/lib/brand-theme";
 import { BrandButton, CompanyChip, CompanyLogo, Monogram, ThemeBand, ThemeScope } from "@/components/share/company-brand";
 import { sanitizeUpdateHtml } from "@/lib/update-html";
+import { sharePeriodLabel } from "@/lib/share-period";
 
 interface MetricSnapshot {
   name: string;
@@ -73,8 +74,9 @@ interface UpdateItem {
 interface ShareData {
   id: string;
   label: string | null;
-  periodStart: string;
-  periodEnd: string;
+  /** Null for links made from hand-picked updates (B-252). */
+  periodStart: string | null;
+  periodEnd: string | null;
   expiresAt: string | null;
   /** Page-level theme: only set when the link covers exactly one company. */
   theme: BrandTheme | null;
@@ -197,6 +199,7 @@ export default function SharePage() {
   const pageTheme = data!.theme;
   const soleCompany = data!.companies.length === 1 ? data!.companies[0] : null;
   const themeByCompany = new Map(data!.companies.map((c) => [c.id, c.theme]));
+  const periodLabel = sharePeriodLabel(data!);
 
   return (
     <ThemeScope theme={pageTheme} className="min-h-screen bg-background">
@@ -257,11 +260,7 @@ export default function SharePage() {
           <h1 className="mt-2 text-2xl font-bold">
             {data!.label || "Portfolio Update"}
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {new Date(data!.periodStart).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-            {" – "}
-            {new Date(data!.periodEnd).toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-          </p>
+          {periodLabel && <p className="mt-1 text-sm text-muted-foreground">{periodLabel}</p>}
         </div>
 
         {/* Portfolio snapshot strip */}
