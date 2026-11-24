@@ -65,9 +65,6 @@ const EXCEPTIONS: Record<string, Record<string, string>> = {
   "components/admin/memos/memo-board-card.tsx": {
     "#8C897B": "outline of the Draft status dot: a neutral grey that reads on both light and dark tiles",
   },
-  "app/admin/providers/page.tsx": {
-    "text-obsidian": "dark text on a solid Ochre pill; Ochre is a fixed fill, so its text must be fixed too",
-  },
   "app/admin/reports/[id]/page.tsx": {
     "bg-white": "bg-white/60 input inside an Ochre notice; needs an alpha token (listed for a later pass)",
   },

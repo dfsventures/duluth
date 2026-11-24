@@ -15,13 +15,11 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useFlashMessage } from "@/lib/use-flash-message";
-import { useNewLook } from "@/lib/use-new-look";
 import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD, segmentClass } from "@/lib/editor-styles";
 
 const FUNDING_STAGES = ["Pre-seed", "Seed", "Series A", "Series B+"];
 
 export default function NewCompanyPage() {
-  const newLook = useNewLook();
   const router = useRouter();
   const { data: session } = useSession();
   const [saving, setSaving] = useState(false);
@@ -115,10 +113,9 @@ export default function NewCompanyPage() {
 
   return (
     <AppShell width="narrow">
-      {/* New look (page types v1, §4.3 form variant): the editor bar holds the way back and the actions;
+      {/* Page types v1, §4.3 form variant: the editor bar holds the way back and the actions;
           the heading opens the content. */}
       <ComposerTopBar
-        newLookOnly
         back={{ href: "/admin/companies", label: "Companies" }}
         draftLabel="Not saved yet"
         showPublish={false}
@@ -221,34 +218,34 @@ export default function NewCompanyPage() {
           </CardHeader>
           <CardContent className={cn("space-y-4", EDITOR_SECTION_BODY)}>
             <div className="space-y-1">
-              {/* New look: the chosen option is marked, not made a second primary button. */}
+              {/* The chosen option is marked, not made a second primary button. */}
               <div role="group" aria-label="Assign a user" className="flex flex-wrap gap-3">
                 <Button
                   type="button"
-                  variant={assignUser === "none" && !newLook ? "primary" : "secondary"}
+                  variant="secondary"
                   size="sm"
-                  aria-pressed={newLook ? assignUser === "none" : undefined}
-                  className={newLook ? segmentClass(assignUser === "none") : undefined}
+                  aria-pressed={assignUser === "none"}
+                  className={segmentClass(assignUser === "none")}
                   onClick={() => setAssignUser("none")}
                 >
                   None
                 </Button>
                 <Button
                   type="button"
-                  variant={assignUser === "existing" && !newLook ? "primary" : "secondary"}
+                  variant="secondary"
                   size="sm"
-                  aria-pressed={newLook ? assignUser === "existing" : undefined}
-                  className={newLook ? segmentClass(assignUser === "existing") : undefined}
+                  aria-pressed={assignUser === "existing"}
+                  className={segmentClass(assignUser === "existing")}
                   onClick={() => setAssignUser("existing")}
                 >
                   Existing user
                 </Button>
                 <Button
                   type="button"
-                  variant={assignUser === "new" && !newLook ? "primary" : "secondary"}
+                  variant="secondary"
                   size="sm"
-                  aria-pressed={newLook ? assignUser === "new" : undefined}
-                  className={newLook ? segmentClass(assignUser === "new") : undefined}
+                  aria-pressed={assignUser === "new"}
+                  className={segmentClass(assignUser === "new")}
                   onClick={() => setAssignUser("new")}
                 >
                   New user

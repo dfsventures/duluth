@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { DataTable } from "@/components/ui/data-table";
-import { useNewLook } from "@/lib/use-new-look";
 
 interface OrphanedDoc {
   id: string;
@@ -17,7 +16,6 @@ interface OrphanedDoc {
 }
 
 export function OrphanedDocumentsPanel() {
-  const newLook = useNewLook();
   const [scanning, setScanning] = useState(false);
   const [scanned, setScanned] = useState<number | null>(null);
   const [orphaned, setOrphaned] = useState<OrphanedDoc[]>([]);
@@ -75,7 +73,7 @@ export function OrphanedDocumentsPanel() {
           {error}
         </p>
       )}
-      {orphaned.length > 0 && newLook && (
+      {orphaned.length > 0 && (
         <div className="mt-4">
           <DataTable<OrphanedDoc>
             label="Orphaned documents"
@@ -110,42 +108,6 @@ export function OrphanedDocumentsPanel() {
               </Button>
             )}
           />
-        </div>
-      )}
-      {orphaned.length > 0 && !newLook && (
-        <div className="mt-4 overflow-x-auto rounded-md border border-border">
-          <table className="w-full min-w-[640px] text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-                <th className="px-3 py-2 font-medium">Name</th>
-                <th className="px-3 py-2 font-medium">Company</th>
-                <th className="px-3 py-2 font-medium">Uploaded by</th>
-                <th className="px-3 py-2 font-medium">Created</th>
-                <th className="px-3 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {orphaned.map((doc) => (
-                <tr key={doc.id} className="border-b last:border-0">
-                  <td className="px-3 py-2">{doc.name}</td>
-                  <td className="px-3 py-2">{doc.company.name}</td>
-                  <td className="px-3 py-2">{doc.uploadedBy.email}</td>
-                  <td className="px-3 py-2">{formatDate(doc.createdAt)}</td>
-                  <td className="px-3 py-2 text-right">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleDelete(doc.id)}
-                      disabled={deletingId === doc.id}
-                    >
-                      <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                      {deletingId === doc.id ? "Deleting..." : "Delete"}
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       )}
       <p className="mt-2 text-xs text-muted-foreground">

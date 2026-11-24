@@ -67,7 +67,6 @@ export default function FromDfsMessagePage() {
       ) : (
         <>
         <PageHeader
-          newLookOnly
           type="detail"
           back={{ href: "/from-dfs", label: `From ${ORG_NAME}` }}
           title={message.subject}

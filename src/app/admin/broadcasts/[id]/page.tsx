@@ -3,7 +3,6 @@
 import { useEffect, useLayoutEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, ChevronDown, ChevronRight } from "lucide-react";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,11 +14,9 @@ import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { noticeClasses } from "@/components/ui/notice";
 import { PickerList } from "@/components/ui/picker-list";
-import { Table, TableHead, Th, TableRow } from "@/components/ui/table";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { cn, formatDate } from "@/lib/utils";
-import { useNewLook } from "@/lib/use-new-look";
-import { EDITOR_COLUMN, EDITOR_TITLE } from "@/lib/editor-styles";
+import { EDITOR_COLUMN } from "@/lib/editor-styles";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -62,7 +59,7 @@ interface RecipientPreview {
   recipients: { email: string; name: string | null; portfolioCompanyNames?: string[] }[];
 }
 
-// New look (WS172): the delivery list as the shared table. Same three columns as the old one.
+// WS172: the delivery list as the shared table (contact, status, sent).
 const deliveryColumns: DataTableColumn<DeliveryRow>[] = [
   {
     key: "contact",
@@ -128,7 +125,6 @@ function GrowTitle({ value, onChange }: { value: string; onChange: (v: string) =
 const SEND_DISABLED_REASON = "Add a subject, a message and at least one company to send.";
 
 export default function AdminBroadcastEditorPage() {
-  const newLook = useNewLook();
   const [sentTab, setSentTab] = useState<"message" | "delivery">("message");
   const params = useParams();
   const router = useRouter();
@@ -400,10 +396,8 @@ export default function AdminBroadcastEditorPage() {
 
   return (
     <AppShell width="narrow">
-      {!newLook && <Breadcrumb items={[{ label: "Broadcasts", href: "/admin/broadcasts" }, { label: subject.trim() || "Untitled broadcast" }]} />}
-
       {/* Page types v1: a sent broadcast is a Detail page (no panel, 720); a draft keeps the editor bar. */}
-      {newLook && !isDraft && (
+      {!isDraft && (
         <PageHeader
           type="detail"
           back={{ href: "/admin/broadcasts", label: "Broadcasts" }}
@@ -442,61 +436,42 @@ export default function AdminBroadcastEditorPage() {
           }
         />
       )}
-      {(isDraft || !newLook) && (
+      {/* A draft: the editor bar. Audit #22: a sent broadcast has nothing left to send, so it has no bar
+          and no Send (its header is the Detail header above). */}
+      {isDraft && (
       <ComposerTopBar
         back={{ href: "/admin/broadcasts", label: "Broadcasts" }}
         statusExtra={dirty ? <span className="hidden text-tone-amber-ink v2:inline">Unsaved changes</span> : undefined}
-        // New look (audit #22): a sent broadcast has nothing left to send, so no Send, not even a disabled one.
-        showPublish={isDraft || !newLook}
-        disabledReason={newLook ? SEND_DISABLED_REASON : undefined}
-        draftLabel={
-          isDraft
-            ? "Draft"
-            : newLook
-              ? "Sent"
-              : `Sent ${data.publishedAt ? formatDate(data.publishedAt) : ""}${data.senderLabel ? ` by ${data.senderLabel}` : ""}`
-        }
+        showPublish
+        disabledReason={SEND_DISABLED_REASON}
+        draftLabel="Draft"
         secondaryActions={
-          isDraft ? (
-            <>
-              <Button variant="secondary" size="sm" disabled={saving} onClick={handleSave}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-              <Button variant="secondary" size="sm" disabled={testSending || !subject.trim() || !body.trim()} onClick={handleSendTest}>
-                {testSending ? "Sending test..." : "Send test to me"}
-              </Button>
-            </>
-          ) : (
-            <Button variant="secondary" size="sm" disabled={duplicating} onClick={handleDuplicate}>
-              {duplicating ? "Duplicating..." : "Duplicate as draft"}
+          <>
+            <Button variant="secondary" size="sm" disabled={saving} onClick={handleSave}>
+              {saving ? "Saving..." : "Save"}
             </Button>
-          )
+            <Button variant="secondary" size="sm" disabled={testSending || !subject.trim() || !body.trim()} onClick={handleSendTest}>
+              {testSending ? "Sending test..." : "Send test to me"}
+            </Button>
+          </>
         }
-        // Phone, new look (§6): Save and Send test fold into ⋯.
-        phoneMenuItems={
-          isDraft
-            ? [
-                { label: saving ? "Saving..." : "Save", onClick: handleSave, disabled: saving },
-                {
-                  label: testSending ? "Sending test..." : "Send test to me",
-                  onClick: handleSendTest,
-                  disabled: testSending || !subject.trim() || !body.trim(),
-                },
-              ]
-            : undefined
-        }
+        // Phone (§6): Save and Send test fold into ⋯.
+        phoneMenuItems={[
+          { label: saving ? "Saving..." : "Save", onClick: handleSave, disabled: saving },
+          {
+            label: testSending ? "Sending test..." : "Send test to me",
+            onClick: handleSendTest,
+            disabled: testSending || !subject.trim() || !body.trim(),
+          },
+        ]}
         publishLabel="Send"
         onPublishClick={() => setConfirmSend(true)}
-        publishDisabled={!isDraft || !canSend}
+        publishDisabled={!canSend}
         publishing={sending}
-        overflowItems={
-          isDraft
-            ? [
-                { label: deleting ? "Deleting..." : "Delete draft", onClick: handleDeleteDraft, disabled: deleting, danger: true },
-                { label: duplicating ? "Duplicating..." : "Duplicate as draft", onClick: handleDuplicate, disabled: duplicating },
-              ]
-            : undefined
-        }
+        overflowItems={[
+          { label: deleting ? "Deleting..." : "Delete draft", onClick: handleDeleteDraft, disabled: deleting, danger: true },
+          { label: duplicating ? "Duplicating..." : "Duplicate as draft", onClick: handleDuplicate, disabled: duplicating },
+        ]}
       />
       )}
 
@@ -520,27 +495,14 @@ export default function AdminBroadcastEditorPage() {
       )}
 
       <div className={cn("mx-auto max-w-3xl", EDITOR_COLUMN)}>
-        <div className={cn("mb-6 v2:mb-4", newLook && !isDraft && "hidden")}>
-          {newLook ? (
-            // New look (audit #23): the subject wraps instead of being cut off. A sent one's title is the page header.
-            isDraft ? (
-              <GrowTitle value={subject} onChange={setSubject} />
-            ) : null
-          ) : (
-            <input
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Subject"
-              aria-label="Subject"
-              disabled={!isDraft}
-              className={cn("w-full border-0 bg-transparent p-0 font-display text-3xl tracking-tight text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-0 disabled:opacity-80 sm:text-4xl", EDITOR_TITLE, "sm:v2:text-title v2:placeholder:text-muted-foreground")}
-            />
-          )}
+        <div className={cn("mb-6 v2:mb-4", !isDraft && "hidden")}>
+          {/* Audit #23: the subject wraps instead of being cut off. A sent one's title is the page header. */}
+          {isDraft ? <GrowTitle value={subject} onChange={setSubject} /> : null}
         </div>
 
-        {newLook && isDraft && !canSend && <p className="-mt-2 mb-4 text-meta text-muted-foreground">{SEND_DISABLED_REASON}</p>}
+        {isDraft && !canSend && <p className="-mt-2 mb-4 text-meta text-muted-foreground">{SEND_DISABLED_REASON}</p>}
 
-        {newLook && !isDraft && (
+        {!isDraft && (
           <>
             {/* Audit #24 (who it reached) is now the header's status line; Retry unsent is a header action. */}
             {/* Audit #25: Message / Delivery. */}
@@ -579,8 +541,7 @@ export default function AdminBroadcastEditorPage() {
           <>
             <RichEditor variant="chromeless" value={body} onChange={setBody} placeholder="Write to your portfolio…" />
 
-            {newLook ? (
-              // New look (audit #1, #2): a heading row, one control row, one hairline list, two summary lines.
+            {/* Audit #1, #2: a heading row, one control row, one hairline list, two summary lines. */}
               <section aria-labelledby="audience-heading" className="mt-8 border-t border-border pt-6">
                 <div className="flex items-baseline justify-between gap-3">
                   <h2 id="audience-heading" className="text-row font-medium text-foreground">
@@ -665,111 +626,16 @@ export default function AdminBroadcastEditorPage() {
                   </div>
                 )}
               </section>
-            ) : (
-            <div className="mt-6 rounded-md border border-border bg-card p-4 v2:mt-8 v2:rounded-none v2:border-0 v2:border-t v2:bg-transparent v2:p-0 v2:pt-6">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <label className="label">Audience</label>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Input
-                    value={pickerSearch}
-                    onChange={(e) => setPickerSearch(e.target.value)}
-                    placeholder="Search companies..."
-                    className="w-48"
-                  />
-                  <Button type="button" variant="secondary" size="sm" onClick={() => setSelectedCompanyIds(companies.map((c) => c.id))}>
-                    Select all
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedCompanyIds([])}>
-                    Clear
-                  </Button>
-                </div>
-              </div>
-              <label className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={hideEmpty}
-                  onChange={(e) => setHideEmpty(e.target.checked)}
-                  className="h-4 w-4 rounded border-border accent-primary"
-                />
-                Hide companies with no contacts
-              </label>
-
-              {filteredCompanies.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No portfolio companies match.</p>
-              ) : (
-                <div className="max-h-72 overflow-y-auto rounded-md border divide-y v2:rounded-none v2:border-x-0">
-                  {filteredCompanies.map((c) => (
-                    <label
-                      key={c.id}
-                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors ${
-                        selectedCompanyIds.includes(c.id) ? "bg-primary/5" : ""
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedCompanyIds.includes(c.id)}
-                        onChange={() => toggleCompany(c.id)}
-                        className="h-4 w-4 rounded border-border accent-primary"
-                      />
-                      <span className="flex-1 min-w-0 text-sm font-medium">{c.name}</span>
-                      <span className={`shrink-0 text-xs ${c.contactCount === 0 ? "text-tone-amber-ink" : "text-muted-foreground"}`}>
-                        {c.contactCount} contact{c.contactCount === 1 ? "" : "s"}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-
-              <p className="mt-3 text-sm text-muted-foreground">
-                {selectedCompanyIds.length} compan{selectedCompanyIds.length === 1 ? "y" : "ies"} selected ·{" "}
-                {previewLoading ? "…" : preview?.recipientCount ?? 0} contact{preview?.recipientCount === 1 ? "" : "s"} will receive this
-              </p>
-              {preview && preview.companiesWithNoContacts !== null && preview.companiesWithNoContacts > 0 && (
-                <p className="mt-1 text-sm text-foreground">
-                  {preview.companiesWithNoContacts} selected compan{preview.companiesWithNoContacts === 1 ? "y has" : "ies have"} no contacts and will
-                  receive nothing.
-                </p>
-              )}
-
-              {preview && preview.recipients.length > 0 && (
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowRecipientList((v) => !v)}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {showRecipientList ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                    Who will receive this
-                  </button>
-                  {showRecipientList && (
-                    <div className="mt-2 max-h-56 overflow-y-auto rounded-md border divide-y text-sm">
-                      {preview.recipients.map((r) => (
-                        <div key={r.email} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                          <span>
-                            {r.name && <span className="font-medium">{r.name} </span>}
-                            <span className="font-mono text-xs text-muted-foreground">{r.email}</span>
-                          </span>
-                          {r.portfolioCompanyNames && (
-                            <span className="text-xs text-muted-foreground">{r.portfolioCompanyNames.join(", ")}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            )}
           </>
         ) : (
           <>
             <div
-              hidden={newLook && sentTab !== "message"}
+              hidden={sentTab !== "message"}
               className="prose prose-sm max-w-none leading-relaxed"
               dangerouslySetInnerHTML={{ __html: body }}
             />
 
-            <div hidden={newLook && sentTab !== "delivery"} className="mt-8 v2:mt-0">
+            <div hidden={sentTab !== "delivery"} className="mt-8 v2:mt-0">
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="font-semibold v2:text-meta">Delivery</h3>
                 {hasUnsent && (
@@ -778,42 +644,17 @@ export default function AdminBroadcastEditorPage() {
                   </Button>
                 )}
               </div>
-              {newLook ? (
-                <DataTable<DeliveryRow>
-                  label="Delivery"
-                  noun="recipient"
-                  rows={data.recipients}
-                  rowKey={(r) => r.id}
-                  columns={deliveryColumns}
-                  defaultSort={{ key: "contact", dir: "asc" }}
-                  urlState={false}
-                  minWidth={480}
-                  empty={<p className="py-6 text-sm text-muted-foreground">No recipients.</p>}
-                />
-              ) : (
-              <Table tableClassName="min-w-[560px]">
-                <TableHead>
-                  <Th>Contact</Th>
-                  <Th>Status</Th>
-                  <Th>Sent</Th>
-                </TableHead>
-                <tbody>
-                  {data.recipients.map((r) => (
-                    <TableRow key={r.id}>
-                      <td className="px-4 py-2.5">
-                        {r.name && <span className="font-medium">{r.name} </span>}
-                        <span className="font-mono text-xs text-muted-foreground">{r.email}</span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <Badge variant={r.status === "SENT" ? "success" : r.status === "FAILED" ? "danger" : "warning"}>{r.status}</Badge>
-                        {r.error && <span className="ml-2 text-xs text-tone-clay-ink">{r.error}</span>}
-                      </td>
-                      <td className="px-4 py-2.5 whitespace-nowrap text-xs text-muted-foreground">{r.sentAt ? formatDate(r.sentAt) : "—"}</td>
-                    </TableRow>
-                  ))}
-                </tbody>
-              </Table>
-              )}
+              <DataTable<DeliveryRow>
+                label="Delivery"
+                noun="recipient"
+                rows={data.recipients}
+                rowKey={(r) => r.id}
+                columns={deliveryColumns}
+                defaultSort={{ key: "contact", dir: "asc" }}
+                urlState={false}
+                minWidth={480}
+                empty={<p className="py-6 text-sm text-muted-foreground">No recipients.</p>}
+              />
             </div>
           </>
         )}

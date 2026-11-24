@@ -2,7 +2,6 @@
 
 import { Suspense, useCallback, useEffect, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useNewLook } from "@/lib/use-new-look";
 import { buildOpenQuery, escapeBelongsToField, parseOpenParam } from "@/lib/split-view";
 import { isTopEscLayer, readEscLayers } from "@/lib/shortcuts";
 import { cn } from "@/lib/utils";
@@ -63,16 +62,14 @@ interface SplitViewProps {
 }
 
 /**
- * List and detail pane (PLAN-1, WS160, pattern 1). Under the old look it is just the list.
- * Under the new look the pane is min(58%, 620px) wide on the `pane` surface and slides in over
+ * List and detail pane (PLAN-1, WS160, pattern 1). The pane is min(58%, 620px) wide on the `pane` surface and slides in over
  * 160ms; the list stays beside it (on a phone the pane covers it, with a Back button). Esc closes
  * the pane first, so it is one layer at a time: a dialog or menu that is open handles its own Esc,
  * and a text field keeps it. Opening from the keyboard or a click moves focus into the pane, so
  * its buttons are a Tab away; reopening from a reload does not take focus.
  */
 export function SplitView({ list, pane, open, onClose, paneLabel }: SplitViewProps) {
-  const newLook = useNewLook();
-  const showPane = newLook && open != null && pane != null;
+  const showPane = open != null && pane != null;
   const asideRef = useRef<HTMLElement>(null);
   const wasShown = useRef(false);
 
@@ -97,8 +94,6 @@ export function SplitView({ list, pane, open, onClose, paneLabel }: SplitViewPro
     }
     wasShown.current = showPane;
   }, [showPane]);
-
-  if (!newLook) return <>{list}</>;
 
   return (
     <div className={cn("relative", showPane && "min-h-[calc(100dvh-var(--bar-h))]")}>

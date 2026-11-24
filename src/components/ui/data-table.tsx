@@ -13,13 +13,12 @@
 import { Fragment, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Columns3, Download, Search } from "lucide-react";
+import { AlertCircle, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, Columns3, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { isTopEscLayer, isTypingTarget, readEscLayers, rememberExpandReturn } from "@/lib/shortcuts";
 import { FILTER_LIST_EVENT, FILTERABLE_LIST_SELECTOR } from "@/lib/command-palette";
-import { useNewLook } from "@/lib/use-new-look";
 import { escapeBelongsToField, stepCursor } from "@/lib/split-view";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -62,15 +61,15 @@ export interface DataTableColumn<T> {
   /** Set false to keep the column out of the Columns menu. The first column is never hideable. */
   hideable?: boolean;
   /**
-   * New look, list beside a pane (WS160): the column drops out when the list is narrower than
+   * List beside a pane (WS160): the column drops out when the list is narrower than
    * this many px (600 goes first, 480 next). Without it the column always shows. The first
-   * column never drops. No effect under the old look.
+   * column never drops.
    */
   dropBelow?: 600 | 480;
   /**
-   * New look: every cell is one line and is cut with an ellipsis where it is too narrow. A cell that
+   * Every cell is one line and is cut with an ellipsis where it is too narrow. A cell that
    * renders plain text gets that text as its title automatically; set this for a cell that renders
-   * markup (a chip, say) so the full text is still there on hover. No effect under the old look.
+   * markup (a chip, say) so the full text is still there on hover.
    */
   title?: (row: T) => string | null | undefined;
 }
@@ -83,7 +82,7 @@ export interface DataTableGroupBy<T> {
   /** Label in the first cell of the subtotal row. Default "Subtotal". */
   subtotalLabel?: string;
   /**
-   * New look (WS161): always group by this option key, with no "Group by" select and nothing in the
+   * WS161: always group by this option key, with no "Group by" select and nothing in the
    * URL. The groups stay in the order their first row appears (the rows arrive in the order that
    * means something).
    */
@@ -106,7 +105,7 @@ export interface DataTableProps<T> {
   rowActions?: (row: T) => React.ReactNode;
   /** Accessible name for the actions column header. */
   actionsLabel?: string;
-  /** New look only: show the row actions all the time instead of on hover (small tables whose rows exist to be acted on). */
+  /** Show the row actions all the time instead of on hover (small tables whose rows exist to be acted on). */
   actionsAlwaysVisible?: boolean;
   /** Extra classes per row, e.g. the row-removal animation. Applied to the table row and the mobile list item. */
   rowClassName?: (row: T) => string | undefined;
@@ -141,7 +140,7 @@ export interface DataTableProps<T> {
   groupBy?: DataTableGroupBy<T>;
   className?: string;
 
-  // ── New look (PLAN-1, WS160). All of these are ignored under the old look. ──
+  // ── PLAN-1, WS160. ──
   /**
    * Row height. "comfortable" (default) is 44px; "compact" is 36px, chosen per page for long
    * tables (never by the user).
@@ -155,17 +154,17 @@ export interface DataTableProps<T> {
   onOpenRow?: (row: T) => void;
   /** Key of the record open in the pane. That row is marked, and j / k step from it. */
   openKey?: string | null;
-  /** New look: keep the column headings for screen readers only (a list whose rows speak for themselves). */
+  /** Keep the column headings for screen readers only (a list whose rows speak for themselves). */
   hideHeader?: boolean;
   /**
-   * New look: below this many rows (default 8) the search box and filter chips are not drawn. Set 0 to
+   * Below this many rows (default 8) the search box and filter chips are not drawn. Set 0 to
    * always show them. Rows are counted before any filter, so the bar never vanishes while in use.
    */
   minRowsForFilter?: number;
   /**
-   * New look: one fixed layout for stacked tables, so their columns line up. One entry per shown
+   * One fixed layout for stacked tables, so their columns line up. One entry per shown
    * column, then one for the actions column when there is one (px number, CSS width, or null for the
-   * flexible column). Nothing happens under the old look.
+   * flexible column).
    */
   columnWidths?: (number | string | null)[];
 }
@@ -227,9 +226,7 @@ function DataTableInner<T>({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  // New look: false on the server and the first render, so the old markup is what hydrates.
-  const v2 = useNewLook();
-  const listMode = v2 && Boolean(onOpenRow);
+  const listMode = Boolean(onOpenRow);
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   // The key handler is installed once; it reads the latest of these.
   const live = useRef({ listMode, onOpenRow, openKey, rowKey, rowHref, router, rows: [] as T[] });
@@ -347,12 +344,11 @@ function DataTableInner<T>({
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // New look (PLAN-1, WS164). "Filter: …" in the palette lands in the first list on the page
+  // PLAN-1, WS164. "Filter: …" in the palette lands in the first list on the page
   // that shows its search box; and Esc, when nothing above it is open (palette, menu, drawer,
   // full page, pane), clears this list's search and chip. The latest state is read through a ref.
-  const filterLive = useRef({ v2, filtersActive: false, clear: () => {} });
+  const filterLive = useRef({ filtersActive: false, clear: () => {} });
   useEffect(() => {
-    if (!v2) return;
     function isFirstFilterable() {
       return Boolean(wrapRef.current) && document.querySelector(FILTERABLE_LIST_SELECTOR) === wrapRef.current;
     }
@@ -366,7 +362,7 @@ function DataTableInner<T>({
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape" || e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
       const L = filterLive.current;
-      if (!L.v2 || !L.filtersActive) return;
+      if (!L.filtersActive) return;
       if (!wrapRef.current || wrapRef.current.offsetParent === null) return;
       // The search box has its own Esc (clear, then leave the box).
       if (escapeBelongsToField(document.activeElement)) return;
@@ -380,7 +376,7 @@ function DataTableInner<T>({
       window.removeEventListener(FILTER_LIST_EVENT, onFilter);
       document.removeEventListener("keydown", onKey);
     };
-  }, [v2]);
+  }, []);
 
   // j / k move through rows, Enter opens one (spec 6.9). Works when focus is in
   // this table, or on the page body for the first table on the page.
@@ -480,11 +476,11 @@ function DataTableInner<T>({
     [visible, activeGroup, keepGroupOrder]
   );
 
-  // New look, table that scrolls sideways inside its own box (not a list beside a pane): say so when
-  // more is off to the right, so a column is never just cut off. Nothing happens under the old look.
+  // A table that scrolls sideways inside its own box (not a list beside a pane): say so when
+  // more is off to the right, so a column is never just cut off.
   const scrollRef = useRef<HTMLDivElement>(null);
   const [moreRight, setMoreRight] = useState(false);
-  const watchScroll = v2 && !listMode;
+  const watchScroll = !listMode;
   const tableShown = !loading && !error && visible.length > 0;
   useEffect(() => {
     const el = scrollRef.current;
@@ -548,10 +544,10 @@ function DataTableInner<T>({
     onVisibleRowsChange?.(visible);
   }, [visible, onVisibleRowsChange]);
 
-  // New look (audit #14): a short list has nothing to find, so the search box and chips stay away.
+  // Audit #14: a short list has nothing to find, so the search box and chips stay away.
   // The other controls (extras, export, columns) are unaffected. Never applied to a filtered view
-  // that already has a search or chip set, and never under the old look.
-  const tooShort = v2 && rows.length < minRowsForFilter && state.q.trim() === "" && state.filter === "all";
+  // that already has a search or chip set.
+  const tooShort = rows.length < minRowsForFilter && state.q.trim() === "" && state.filter === "all";
   const showSearch = !tooShort;
   const showChips = !tooShort;
   const hasToolbar = Boolean(
@@ -563,7 +559,7 @@ function DataTableInner<T>({
       (tableId && hideableCols.length > 0)
   );
   const filtersActive = state.q.trim() !== "" || state.filter !== "all";
-  filterLive.current = { v2, filtersActive, clear: clearFilters };
+  filterLive.current = { filtersActive, clear: clearFilters };
 
   if (loading) {
     return <TableSkeleton rows={6} cols={Math.min(columns.length, 5)} className={className} />;
@@ -649,9 +645,9 @@ function DataTableInner<T>({
               <td
                 key={c.key}
                 role={listMode ? "presentation" : undefined}
-                data-drop={v2 && i > 0 ? c.dropBelow : undefined}
-                // New look: one line per cell, so the full text is the tooltip where it is cut.
-                title={v2 ? (c.title?.(row) ?? (plain ? String(content) : undefined)) : undefined}
+                data-drop={i > 0 ? c.dropBelow : undefined}
+                // One line per cell, so the full text is the tooltip where it is cut.
+                title={c.title?.(row) ?? (plain ? String(content) : undefined)}
                 className={cn(
                   "px-3 py-1",
                   c.align === "num" ? "num whitespace-nowrap" : "",
@@ -664,14 +660,10 @@ function DataTableInner<T>({
                   <Link
                     href={href}
                     onClick={listMode ? (e) => paneClick(e, row) : undefined}
-                    className={
-                      v2
-                        ? // A block flex row that may shrink, so the text inside can truncate.
-                          "flex min-w-0 items-center hover:underline focus-visible:underline focus-visible:outline-none"
-                        : "inline-flex items-center hover:underline focus-visible:underline focus-visible:outline-none"
-                    }
+                    // A block flex row that may shrink, so the text inside can truncate.
+                    className="flex min-w-0 items-center hover:underline focus-visible:underline focus-visible:outline-none"
                   >
-                    {v2 && plain ? <span className="min-w-0 truncate">{content}</span> : content}
+                    {plain ? <span className="min-w-0 truncate">{content}</span> : content}
                   </Link>
                 ) : (
                   content
@@ -682,12 +674,12 @@ function DataTableInner<T>({
             {rowActions && (
               <td
                 role={listMode ? "presentation" : undefined}
-                {...(v2 ? { "data-actions": "" } : {})}
+                data-actions=""
                 className="px-3 py-1 text-right"
               >
                 <div
                   className={
-                    v2 && actionsAlwaysVisible
+                    actionsAlwaysVisible
                       ? "flex items-center justify-end gap-1"
                       : "flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
                   }
@@ -835,9 +827,9 @@ function DataTableInner<T>({
     </Button>
   ) : null;
 
-  // New look: the search box, the chips and the extras sit in one filter bar (ui/filter-bar.tsx).
+  // The search box, the chips and the extras sit in one filter bar (ui/filter-bar.tsx).
   // The chips stay single-choice: picking one sets it (tinted, with an x), the x puts it back to "all".
-  const v2Toolbar = (
+  const toolbar = (
     <FilterBar
       label={`Filter ${label.toLowerCase()}`}
       segmented
@@ -918,132 +910,27 @@ function DataTableInner<T>({
     <div
       ref={wrapRef}
       data-datatable=""
-      {...(v2
-        ? {
-            "data-density": density,
-            "data-list-mode": listMode ? "" : undefined,
-            // Hover-revealed row actions take no column of their own (they overlay the row's end).
-            "data-hover-actions": rowActions && !actionsAlwaysVisible ? "" : undefined,
-            // With the pane open the list is narrower, so its low-priority columns drop earlier.
-            "data-pane-open": listMode && openKey != null ? "" : undefined,
-            // No filter bar above the list, so its sticky group headings sit right under the header.
-            "data-no-toolbar": hasToolbar ? undefined : "",
-            // "Filter: …" in the palette can act on this list (its search box is showing).
-            "data-filterable": searchText && showSearch ? "" : undefined,
-          }
-        : {})}
+      data-density={density}
+      data-list-mode={listMode ? "" : undefined}
+      // Hover-revealed row actions take no column of their own (they overlay the row's end).
+      data-hover-actions={rowActions && !actionsAlwaysVisible ? "" : undefined}
+      // With the pane open the list is narrower, so its low-priority columns drop earlier.
+      data-pane-open={listMode && openKey != null ? "" : undefined}
+      // No filter bar above the list, so its sticky group headings sit right under the header.
+      data-no-toolbar={hasToolbar ? undefined : ""}
+      // "Filter: …" in the palette can act on this list (its search box is showing).
+      data-filterable={searchText && showSearch ? "" : undefined}
       className={className}
     >
-      {hasToolbar && (v2 ? v2Toolbar : (
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          {searchText && (
-            <div className="relative min-w-[200px] max-w-sm flex-1 basis-56">
-              <label htmlFor={`dt-search-${label}`} className="sr-only">
-                {searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
-              </label>
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-              />
-              <input
-                id={`dt-search-${label}`}
-                ref={searchRef}
-                value={qInput}
-                onChange={(e) => setQInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") {
-                    if (qInput) setQInput("");
-                    else (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                placeholder={searchPlaceholder ?? `Filter ${label.toLowerCase()}`}
-                autoComplete="off"
-                className="h-8 w-full rounded-ctl border border-input bg-card pl-8 pr-8 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              />
-              <kbd
-                aria-hidden="true"
-                className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded-sm border border-border bg-background px-1.5 font-mono text-[10px] text-muted-foreground sm:block"
-              >
-                /
-              </kbd>
-            </div>
-          )}
-          {chips && chips.length > 0 && (
-            <div role="group" aria-label={`Filter ${label.toLowerCase()}`} className="flex flex-wrap gap-1.5">
-              {[{ key: "all", label: "All" } as FilterChipDef<T>, ...chips].map((c) => {
-                const pressed = state.filter === c.key;
-                return (
-                  <button
-                    key={c.key}
-                    type="button"
-                    aria-pressed={pressed}
-                    onClick={() => writeState({ ...state, filter: c.key })}
-                    className={cn(
-                      "inline-flex h-8 items-center gap-1.5 rounded-chip border px-2.5 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      pressed
-                        ? "border-foreground bg-foreground text-background"
-                        : "border-border bg-card text-secondary hover:border-[var(--color-border-hover)] hover:text-foreground"
-                    )}
-                  >
-                    {c.label}
-                    <span className={cn("num font-mono text-[11px]", pressed ? "opacity-80" : "text-muted-foreground")}>
-                      {counts[c.key] ?? 0}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {toolbarExtra}
-          {groupBy && groupPicker && (
-            <>
-              <label htmlFor={`dt-group-${label}`} className="sr-only">
-                Group {label.toLowerCase()} by
-              </label>
-              <select
-                id={`dt-group-${label}`}
-                value={activeGroup?.key ?? ""}
-                onChange={(e) => setGroupKey(e.target.value)}
-                className="h-8 w-auto rounded-ctl border border-input bg-card py-0 text-[13px] text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <option value="">No grouping</option>
-                {groupBy.options.map((o) => (
-                  <option key={o.key} value={o.key}>
-                    Group by {o.label.toLowerCase()}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-          {(exportCsv || (tableId && hideableCols.length > 0)) && (
-            <div className="ml-auto flex items-center gap-1.5">
-              {columnsMenu}
-              {exportButton}
-            </div>
-          )}
-        </div>
-      ))}
+      {hasToolbar && toolbar}
 
-      {visible.length === 0 && v2 ? (
-        // New look, pattern 12: two plain lines, left to the gutter, and the one action.
+      {visible.length === 0 ? (
+        // Pattern 12: two plain lines, left to the gutter, and the one action.
         <div className="px-[var(--row-pad)] py-6">
           <p className="text-row font-medium text-foreground">No {pluralNoun ?? `${noun}s`} match these filters.</p>
           <p className="mt-1 text-meta text-muted-foreground">Clear filters to see everything.</p>
           {filtersActive && (
             <Button variant="secondary" size="sm" className="mt-3" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          )}
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="flex flex-col items-center justify-center border border-border bg-card py-12 text-center">
-          <p className="text-sm font-medium text-foreground">No {pluralNoun ?? `${noun}s`} match</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {state.q.trim() ? `Nothing matches "${state.q.trim()}"` : "Nothing matches this filter"}
-            {state.q.trim() && state.filter !== "all" ? " with this filter" : ""}.
-          </p>
-          {filtersActive && (
-            <Button variant="secondary" size="sm" className="mt-4" onClick={clearFilters}>
               Clear filters
             </Button>
           )}
@@ -1058,17 +945,17 @@ function DataTableInner<T>({
           >
             <table
               className="w-full text-[13px]"
-              style={{ ...(minWidth ? { minWidth } : {}), ...(v2 && columnWidths ? { tableLayout: "fixed" } : {}) }}
+              style={{ ...(minWidth ? { minWidth } : {}), ...(columnWidths ? { tableLayout: "fixed" } : {}) }}
             >
               <caption className="sr-only">{label}</caption>
-              {v2 && columnWidths && (
+              {columnWidths && (
                 <colgroup>
                   {columnWidths.map((w, i) => (
                     <col key={i} style={w == null ? undefined : { width: typeof w === "number" ? `${w}px` : w }} />
                   ))}
                 </colgroup>
               )}
-              <thead className={v2 && hideHeader ? "sr-only" : undefined} {...(v2 ? { "data-align": "thead" } : {})}>
+              <thead className={hideHeader ? "sr-only" : undefined} data-align="thead">
                 <tr className="border-b border-border text-left">
                   {cols.map((c, i) => {
                     const sortable = Boolean(c.sortValue);
@@ -1078,7 +965,7 @@ function DataTableInner<T>({
                         key={c.key}
                         scope="col"
                         aria-sort={sortable ? ariaSort(active, state.dir) : undefined}
-                        data-drop={v2 && i > 0 ? c.dropBelow : undefined}
+                        data-drop={i > 0 ? c.dropBelow : undefined}
                         className={cn(
                           "h-[34px] whitespace-nowrap px-3 font-mono text-label font-semibold uppercase tracking-label text-muted-foreground",
                           c.align === "num" && "text-right",
@@ -1106,7 +993,7 @@ function DataTableInner<T>({
                     );
                   })}
                   {rowActions && (
-                    <th scope="col" {...(v2 ? { "data-actions": "" } : {})} className="w-px px-3">
+                    <th scope="col" data-actions="" className="w-px px-3">
                       <span className="sr-only">{actionsLabel}</span>
                     </th>
                   )}
@@ -1114,8 +1001,8 @@ function DataTableInner<T>({
               </thead>
               <tbody {...(listMode ? { role: "listbox", "aria-label": label } : {})}>
                 {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => {
-                  // New look: a group heading collapses on click.
-                  const collapsed = v2 && collapsedGroups.includes(g.id);
+                  // A group heading collapses on click.
+                  const collapsed = collapsedGroups.includes(g.id);
                   const countText = `${g.rows.length} ${g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}`;
                   return (
                   <Fragment key={g.id || "all"}>
@@ -1127,27 +1014,20 @@ function DataTableInner<T>({
                           colSpan={cols.length + (rowActions ? 1 : 0)}
                           className={cn("h-8 px-3 text-left font-semibold text-foreground", cols[0].sticky && "sticky left-0")}
                         >
-                          {v2 ? (
-                            <button
-                              type="button"
-                              aria-expanded={!collapsed}
-                              onClick={() => toggleGroup(g.id)}
-                              className="inline-flex items-center gap-1 rounded-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                            >
-                              <ChevronRight
-                                aria-hidden="true"
-                                className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
-                              />
-                              {g.label}
-                              {/* New look (audit #39): with one group the footer already says how many. */}
-                              {groups.length > 1 && <span className="num ml-1 font-normal text-muted-foreground">{countText}</span>}
-                            </button>
-                          ) : (
-                            <>
-                              {g.label}
-                              <span className="num ml-2 font-mono text-[11px] font-normal text-muted-foreground">{countText}</span>
-                            </>
-                          )}
+                          <button
+                            type="button"
+                            aria-expanded={!collapsed}
+                            onClick={() => toggleGroup(g.id)}
+                            className="inline-flex items-center gap-1 rounded-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          >
+                            <ChevronRight
+                              aria-hidden="true"
+                              className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
+                            />
+                            {g.label}
+                            {/* Audit #39: with one group the footer already says how many. */}
+                            {groups.length > 1 && <span className="num ml-1 font-normal text-muted-foreground">{countText}</span>}
+                          </button>
                         </th>
                       </tr>
                     )}
@@ -1179,37 +1059,33 @@ function DataTableInner<T>({
             className="divide-y divide-row-divider border border-border bg-card md:hidden"
           >
             {(groups ?? [{ id: "", label: "", rows: visible }]).map((g) => {
-              const collapsed = v2 && collapsedGroups.includes(g.id);
+              const collapsed = collapsedGroups.includes(g.id);
               return (
                 <Fragment key={g.id || "all"}>
                   {groups && (
                     <li
-                      {...(v2 ? { "data-group": "", role: listMode ? "presentation" : undefined } : {})}
+                      data-group=""
+                      role={listMode ? "presentation" : undefined}
                       className="flex items-baseline justify-between bg-well px-4 py-2 text-sm font-semibold text-foreground"
                     >
-                      {v2 ? (
-                        <button
-                          type="button"
-                          aria-expanded={!collapsed}
-                          onClick={() => toggleGroup(g.id)}
-                          className="inline-flex items-center gap-1 rounded-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          <ChevronRight
-                            aria-hidden="true"
-                            className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
-                          />
-                          {g.label}
-                          {/* New look: the count sits beside the label, "2 items", as on desktop. */}
-                          {groups.length > 1 && (
-                            <span className="num ml-1 font-normal text-muted-foreground">
-                              {g.rows.length} {g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}
-                            </span>
-                          )}
-                        </button>
-                      ) : (
-                        g.label
-                      )}
-                      {!v2 && <span className="num font-mono text-[11px] font-normal text-muted-foreground">{g.rows.length}</span>}
+                      <button
+                        type="button"
+                        aria-expanded={!collapsed}
+                        onClick={() => toggleGroup(g.id)}
+                        className="inline-flex items-center gap-1 rounded-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <ChevronRight
+                          aria-hidden="true"
+                          className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", !collapsed && "rotate-90")}
+                        />
+                        {g.label}
+                        {/* The count sits beside the label, "2 items", as on desktop. */}
+                        {groups.length > 1 && (
+                          <span className="num ml-1 font-normal text-muted-foreground">
+                            {g.rows.length} {g.rows.length === 1 ? noun : (pluralNoun ?? `${noun}s`)}
+                          </span>
+                        )}
+                      </button>
                     </li>
                   )}
                   {!collapsed && g.rows.map((row) => renderMobileRow(row))}
@@ -1226,7 +1102,7 @@ function DataTableInner<T>({
           "mt-2 font-mono text-[11px] text-muted-foreground",
           // Page types v1: the count is drawn at the right end of the filter row (or in a section's heading);
           // this stays as the live region that announces it.
-          v2 && "sr-only"
+          "sr-only"
         )}
       >
         {resultSummary(visible.length, rows.length, noun, pluralNoun)}

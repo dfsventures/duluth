@@ -89,9 +89,8 @@ describe("the three pages", () => {
     expect(updates).not.toContain("v2:max-w-[var(--column-wide)]");
     expect(updates).toContain('data-align="tabs" className="page-tabs');
   });
-  it("Companies: the CSV format note leaves the list under the new look (header button and dialog); the old look keeps the disclosure", () => {
-    expect(companies).toContain("{!v2 && (");
-    expect(companies).toContain('<ComposerDisclosure label="CSV format">{csvFormatNote}</ComposerDisclosure>');
+  it("Companies: the CSV format note is a header button and a dialog, not a disclosure in the list", () => {
+    expect(companies).not.toContain("ComposerDisclosure");
     expect(companies).toContain("setCsvHelpOpen(true)");
     expect(companies).toContain('<DialogContent title="CSV format"');
   });

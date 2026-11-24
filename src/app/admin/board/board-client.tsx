@@ -8,16 +8,14 @@ import { AlertCircle, ChevronDown, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { noticeClasses } from "@/components/ui/notice";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/board";
 import { cn } from "@/lib/utils";
 import { BoardCard } from "@/components/admin/board/board-card";
 import { BoardColumn } from "@/components/admin/board/board-column";
-import { CardPane, CardSheet } from "@/components/admin/board/card-sheet";
+import { CardPane } from "@/components/admin/board/card-sheet";
 import { SplitView } from "@/components/layout/split-view";
-import { useNewLook } from "@/lib/use-new-look";
 import { crumbLabel } from "@/lib/split-view";
 import { CardDialog } from "@/components/admin/board/card-dialog";
 import { ResolveDialog } from "@/components/admin/board/resolve-dialog";
@@ -60,7 +58,6 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const newLook = useNewLook();
 
   const [data, setData] = useState<BoardPayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -368,7 +365,6 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
   const needsReviewCount = data?.needsReviewCount ?? 0;
   const FILTER_SELECT =
     "h-9 max-w-[15rem] flex-none rounded-ctl border border-[var(--color-ctl)] bg-transparent pl-3 text-row text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring max-md:text-base";
-  const selectCls = "h-9 w-full rounded-sm border border-input bg-card pl-3 text-sm text-foreground sm:w-44";
 
   // Apply a saved/created/resolved card immediately, then reconcile with the
   // server (a resolve can fix sibling cards; ordering may change).
@@ -386,7 +382,7 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
     if (reviewOnly && data && needsReviewCount === 0) setFilter("review", "");
   }, [reviewOnly, data, needsReviewCount, setFilter]);
 
-  // New look: the card opens in the side pane (WS160 DetailPane) beside the board, not in a sheet.
+  // The card opens in the side pane (WS160 DetailPane) beside the board, not in a sheet.
   const viewedCard = viewing && data && !editing ? (data.cards.find((c) => c.id === viewing.id) ?? null) : null;
   const paneKeys = viewedCard ? visible[viewedCard.status].map((c) => c.id) : [];
   const paneAt = viewedCard ? paneKeys.indexOf(viewedCard.id) : -1;
@@ -485,9 +481,8 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
           ) : (
             <>
               {/* Filter row: Pattern D */}
-              {newLook && (
-                // New look (audit #10, #36): the same filter bar as every list: outlined selects with the
-                // label inside as the first option, and the search field, in one 44px bar.
+              {/* Audit #10, #36: the same filter bar as every list: outlined selects with the
+                  label inside as the first option, and the search field, in one 44px bar. */}
                 <FilterBar
                   label="Filter the board"
                   chips={[]}
@@ -536,54 +531,6 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
                     </>
                   }
                 />
-              )}
-              <div className={cn("mb-4 flex flex-wrap items-end gap-x-4 gap-y-3 v2:mb-4 v2:gap-x-3", newLook && "hidden")}>
-                <label className="flex w-full flex-col gap-1 sm:w-auto">
-                  <span className="label">Project</span>
-                  <select
-                    aria-label="Filter by project"
-                    value={projectFilter}
-                    onChange={(e) => setFilter("project", e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">All projects</option>
-                    <option value="none">No project</option>
-                    {data.projects.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex w-full flex-col gap-1 sm:w-auto">
-                  <span className="label">Owner</span>
-                  <select
-                    aria-label="Filter by owner"
-                    value={ownerFilter}
-                    onChange={(e) => setFilter("owner", e.target.value)}
-                    className={selectCls}
-                  >
-                    <option value="">All owners</option>
-                    {myPersonId && <option value="me">Me</option>}
-                    <option value="none">Unassigned</option>
-                    {activePeople.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex w-full flex-col gap-1 sm:w-auto">
-                  <span className="label">Search</span>
-                  <Input
-                    aria-label="Search items"
-                    placeholder="Search titles…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="h-9 w-full sm:w-56"
-                  />
-                </label>
-              </div>
 
               {needsReviewCount > 0 && (
                 <div
@@ -667,30 +614,6 @@ function BoardPageInner({ granolaIntake }: { granolaIntake: boolean }) {
         }
       />
 
-      {!newLook && viewing && data && (() => {
-        const vc = data.cards.find((c) => c.id === viewing.id);
-        if (!vc || editing) return null;
-        return (
-          <CardSheet
-            key={vc.id}
-            card={vc}
-            ownerLabels={vc.ownerIds.map((id) => personById.get(id)?.label).filter((l): l is string => !!l)}
-            projectName={vc.projectId ? (projectById.get(vc.projectId)?.name ?? null) : null}
-            userLabel={(uid) => (uid ? (personByUserId.get(uid)?.label ?? null) : null)}
-            focusProof={viewing.focusProof}
-            onEdit={() => {
-              setEditFromView(true);
-              setViewing({ id: vc.id, focusProof: false });
-              setEditing(vc);
-            }}
-            onClose={() => setViewing(null)}
-            onLinksChanged={(cardId, links: BoardCardLinkData[]) => {
-              loadSeq.current.invalidate();
-              setData((cur) => (cur ? { ...cur, cards: cur.cards.map((c) => (c.id === cardId ? { ...c, links } : c)) } : cur));
-            }}
-          />
-        );
-      })()}
       {editing && data && (
         <CardDialog
           card={editing === "new" ? null : editing}

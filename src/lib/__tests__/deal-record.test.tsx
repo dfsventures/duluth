@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // B-133 (Deal Ledger company page in the new look). Placeholder data only.
-vi.mock("@/lib/use-new-look", () => ({ useNewLook: () => true }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }),
   usePathname: () => "/admin/portfolio/p1",

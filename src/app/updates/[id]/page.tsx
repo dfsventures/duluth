@@ -2,20 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { Globe, Download, FileText, MessageSquare, ArrowLeft, Paperclip, Pencil, X, Calendar, ChevronDown, ChevronUp, Trash2, Eye } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { RichEditor } from "@/components/ui/rich-editor";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatDate, formatPeriod } from "@/lib/utils";
-import { DOC_TYPES } from "@/lib/constants";
-import { isInlineViewable } from "@/lib/documents";
 import { ORG_NAME } from "@/lib/org";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
 import { ComposerTitleField } from "@/components/composer/composer-title-field";
@@ -24,10 +20,7 @@ import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
-import { sanitizeUpdateHtml } from "@/lib/update-html";
-import { metricChipLabel } from "@/lib/metric-origin";
 import { canEditUpdate, buildEditMetricValues } from "@/lib/update-edit-rules";
-import { useNewLook } from "@/lib/use-new-look";
 import { UpdateRecord } from "@/components/admin/updates/update-record";
 
 interface MetricDefinition {
@@ -47,7 +40,7 @@ interface UpdateDetail {
   createdAt: string;
   updatedAt: string;
   companyId: string;
-  // Already returned by GET /api/updates/[id]; used by the new look's details panel.
+  // Already returned by GET /api/updates/[id]; used by the details panel.
   company?: { id: string; name: string } | null;
   // Part 45 (WS151): email-filed updates. sourceRef is sent to admins only.
   source?: "FOUNDER" | "EMAIL_VIA_MARGE";
@@ -199,12 +192,9 @@ export default function UpdateDetailPage() {
 
   const confirm = useConfirm();
   const isAdminUser = Boolean(session?.user?.roles?.includes("ADMIN"));
-  // This route is shared by founders and admins and sits outside /admin. Since stage 2 (WS165) it is a
-  // founder app page, so the new look reaches everyone here whose switch is on (LPs have no session and
-  // never reach it). An admin's shell is told to use the admin surface; a founder keeps the founder
-  // surface. Server and first client render are the old look.
-  const newLook = useNewLook();
-  const shellSurface = newLook && isAdminUser ? ("admin" as const) : undefined;
+  // This route is shared by founders and admins and sits outside /admin. An admin's shell is told to use
+  // the admin surface; a founder keeps the founder surface (LPs have no session and never reach it).
+  const shellSurface = isAdminUser ? ("admin" as const) : undefined;
   // Part 45 (Q142 A): admins can remove an update filed from email.
   async function handleRemoveFiled() {
     if (!update) return;
@@ -460,7 +450,7 @@ export default function UpdateDetailPage() {
     );
   }
 
-  if (newLook && !editing) {
+  if (!editing) {
     const notices = (
       <>
         {update.status === "DRAFT" && update.scheduledFor && (
@@ -560,147 +550,7 @@ export default function UpdateDetailPage() {
 
   return (
     <AppShell surface={shellSurface}>
-      {/* Edit mode replaces the page header with the composer top bar below
-          (Part 8, WS20.4) — view mode keeps the original header untouched. */}
-      {!editing && (
-        <PageHeader
-          title={update.title}
-          description={`${formatPeriod(update.period)} · Created ${formatDate(update.createdAt)}`}
-          action={
-            <div className="flex flex-wrap items-center gap-3">
-              <Badge variant={update.status === "SENT" ? "success" : "warning"}>
-                {update.status === "SENT"
-                  ? "Published"
-                  : update.scheduledFor
-                    ? `Scheduled · ${formatDate(update.scheduledFor)}`
-                    : "Draft"}
-              </Badge>
-              {canEdit && (
-                <Button variant="secondary" size="sm" onClick={enterEditMode}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-              <Link href={`/updates/${updateId}/download`}>
-                <Button variant="secondary" size="sm">
-                  <Download className="mr-2 h-4 w-4" />
-                  Download PDF
-                </Button>
-              </Link>
-              {isAdminUser && update.status === "SENT" && update.source === "EMAIL_VIA_MARGE" && (
-                <Button variant="secondary" size="sm" disabled={deleting} onClick={handleRemoveFiled}>
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Remove
-                </Button>
-              )}
-            </div>
-          }
-        />
-      )}
-      {!editing && update.source === "EMAIL_VIA_MARGE" && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          From email &middot; added by {update.createdBy?.name ?? "a teammate"} via Marge
-          {isAdminUser && update.sourceRef?.permalink && /^https:\/\//.test(update.sourceRef.permalink) && (
-            <>
-              {" "}
-              &middot;{" "}
-              <a href={update.sourceRef.permalink} target="_blank" rel="noopener noreferrer" className="underline">
-                Open in Slack
-              </a>
-            </>
-          )}
-        </p>
-      )}
-
-
-      {/* Scheduled banner (view mode only) */}
-      {!editing && update.status === "DRAFT" && update.scheduledFor && (
-        <div className="mb-3 flex flex-col gap-3 rounded-md bg-tone-sky px-4 py-3 text-tone-sky-ink sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-primary-600">
-            Scheduled to publish on {formatDate(update.scheduledFor)}.
-          </p>
-          <Button variant="secondary" size="sm" disabled={scheduling} onClick={handleCancelSchedule}>
-            {scheduling ? "Canceling..." : "Cancel schedule"}
-          </Button>
-        </div>
-      )}
-
-      {/* Publish banner (view mode only) */}
-      {!editing && update.status === "DRAFT" && (
-        <div className="mb-6 flex flex-col gap-3 rounded-md bg-tone-amber px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-foreground">
-            This update is still a draft. Publish it when ready.
-          </p>
-          {confirmPublish ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-foreground">Publish and notify the {ORG_NAME} team?</span>
-              <Button variant="secondary" size="sm" disabled={sending} onClick={() => setConfirmPublish(false)}>
-                Cancel
-              </Button>
-              <Button size="sm" disabled={sending} onClick={handleSendToDFS}>
-                {sending ? "Publishing..." : "Confirm Publish"}
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleDeleteDraft}
-                disabled={deleting}
-                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
-                title="Delete draft"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-              <Button size="sm" disabled={sending || deleting} onClick={() => setConfirmPublish(true)}>
-                <Globe className="mr-2 h-4 w-4" />
-                Publish
-              </Button>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Schedule for later (collapsed by default; only offered when not already scheduled) */}
-      {!editing && update.status === "DRAFT" && !update.scheduledFor && (
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={() => setShowSchedule((v) => !v)}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <Calendar className="h-3.5 w-3.5" />
-            Schedule for later
-            {showSchedule ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-          </button>
-
-          {showSchedule && (
-            <div className="mt-3 flex flex-wrap items-end gap-3">
-              <Input
-                id="schedule-date"
-                label="Publish date"
-                type="date"
-                min={new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
-                value={scheduleDate}
-                onChange={(e) => setScheduleDate(e.target.value)}
-              />
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={!scheduleDate || scheduling}
-                onClick={handleSchedule}
-              >
-                {scheduling ? "Scheduling..." : "Schedule"}
-              </Button>
-              <p className="w-full text-xs text-muted-foreground">
-                Publishes on the morning of the selected date (UTC). You can keep editing until then.
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── EDIT MODE ─────────────────────────────────── */}
-      {editing ? (
+      {/* Edit mode: the composer top bar replaces the page header (Part 8, WS20.4). */}
         <div>
           <ComposerTopBar
             draftLabel={
@@ -762,191 +612,6 @@ export default function UpdateDetailPage() {
             )}
           </div>
         </div>
-      ) : (
-        /* ── VIEW MODE ─────────────────────────────────── */
-        <>
-          {/* Update body */}
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Update Content</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {update.body ? (
-                <div
-                  className="prose prose-sm max-w-none text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: sanitizeUpdateHtml(update.body) }}
-                />
-              ) : (
-                <span className="text-sm italic text-muted-foreground">
-                  No content provided.
-                </span>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Metric values */}
-          {update.metricValues && update.metricValues.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle>Metrics</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left text-muted-foreground">
-                      <th className="pb-2 font-medium">Metric</th>
-                      <th className="pb-2 font-medium">Value</th>
-                      <th className="pb-2 font-medium">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {update.metricValues.map((mv) => (
-                      <tr key={mv.id} className="border-b last:border-0">
-                        <td className="py-2 font-medium">
-                          {mv.metricDefinition.name}
-                          {isAdminUser && metricChipLabel(mv) && (
-                            <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
-                              {metricChipLabel(mv)}
-                            </span>
-                          )}
-                          {isAdminUser && metricChipLabel(mv) && mv.quote && (
-                            <p className="mt-0.5 line-clamp-2 max-w-prose text-xs font-normal leading-snug text-muted-foreground" title={mv.quote}>
-                              “{mv.quote}”
-                            </p>
-                          )}
-                        </td>
-                        <td className="py-2">
-                          {mv.value}
-                          {mv.metricDefinition.unit ? ` ${mv.metricDefinition.unit}` : ""}
-                        </td>
-                        <td className="py-2">{formatDate(mv.date)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Attachments */}
-          {update.documents && update.documents.length > 0 && (
-            <Card className="mb-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Paperclip className="h-4 w-4" />
-                  Attachments
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {update.documents.map((doc) => (
-                    <li key={doc.id} className="flex items-center gap-3 rounded-md border px-3 py-2">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-medium">{doc.name}</p>
-                          {doc.docType && (
-                            <Badge variant="neutral">
-                              {DOC_TYPES.find((t) => t.value === doc.docType)?.label ?? doc.docType}
-                            </Badge>
-                          )}
-                        </div>
-                        {doc.size && (
-                          <p className="text-xs text-muted-foreground">
-                            {(doc.size / 1024).toFixed(1)} KB
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {isInlineViewable(doc.mimeType) && (
-                          <a
-                            href={`/api/documents/${doc.id}/view`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-muted-foreground hover:text-primary"
-                            title="View"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </a>
-                        )}
-                        <button
-                          onClick={() => handleDownloadDoc(doc.id, doc.name)}
-                          className="text-muted-foreground hover:text-primary"
-                          title="Download"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Comments */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Comments
-                {update.comments && update.comments.length > 0 && (
-                  <span className="text-sm font-normal text-muted-foreground">
-                    ({update.comments.length})
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {update.comments && update.comments.length > 0 ? (
-                <div className="mb-6 space-y-4">
-                  {update.comments.map((comment) => (
-                    <div key={comment.id} className="rounded-md border bg-muted/30 px-4 py-3">
-                      <div className="mb-1 flex items-center gap-2">
-                        <span className="text-sm font-medium">
-                          {comment.author.name ?? comment.author.email}
-                        </span>
-                        {comment.author.roles.includes("ADMIN") && (
-                          <Badge variant="info">{ORG_NAME}</Badge>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {formatDate(comment.createdAt)}
-                        </span>
-                      </div>
-                      <p className="whitespace-pre-wrap text-sm">{comment.body}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mb-6 text-sm text-muted-foreground">No comments yet.</p>
-              )}
-
-              <form onSubmit={handleAddComment}>
-                <Textarea
-                  id="newComment"
-                  label="Add a Comment"
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Write your comment..."
-                  rows={3}
-                />
-                <div className="mt-3 flex justify-end">
-                  <Button type="submit" size="sm" disabled={postingComment || !newComment.trim()}>
-                    {postingComment ? "Posting..." : "Post Comment"}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-
-          <div className="mt-6">
-            <Button variant="ghost" onClick={() => router.push("/updates")}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Updates
-            </Button>
-          </div>
-        </>
-      )}
     </AppShell>
   );
 }

@@ -155,7 +155,8 @@ describe("sanitizeUpdateHtml: what the update editor produces comes through unch
 describe("the render sites use it", () => {
   const read = (p: string) => readFileSync(p, "utf8");
   it("the public share page and the update page sanitize update.body before rendering it", () => {
-    for (const f of ["src/app/share/[token]/page.tsx", "src/app/updates/[id]/page.tsx"]) {
+    // Since WS168 the update page renders its body only through UpdateRecord.
+    for (const f of ["src/app/share/[token]/page.tsx", "src/components/admin/updates/update-record.tsx"]) {
       const src = read(f);
       expect(src, f).toContain("sanitizeUpdateHtml(update.body)");
       expect(src, f).not.toMatch(/__html:\s*update\.body/);
@@ -163,7 +164,7 @@ describe("the render sites use it", () => {
   });
   it("no page renders update.body raw anywhere under src/app", () => {
     // allowed: the editor's own value / onChange plumbing; never dangerouslySetInnerHTML with a bare update body
-    const files = ["src/app/share/[token]/page.tsx", "src/app/updates/[id]/page.tsx", "src/app/updates/page.tsx", "src/app/admin/updates/page.tsx"];
+    const files = ["src/app/share/[token]/page.tsx", "src/app/updates/[id]/page.tsx", "src/components/admin/updates/update-record.tsx", "src/app/updates/page.tsx", "src/app/admin/updates/page.tsx"];
     for (const f of files) expect(read(f), f).not.toMatch(/__html:\s*(update|u)\.body\b(?!\))/);
   });
 });

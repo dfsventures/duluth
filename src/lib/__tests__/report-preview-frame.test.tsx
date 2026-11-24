@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-// WS172 (B-171): the report preview keeps the LP look in the new look by showing it in a
-// same-origin frame. Placeholder data only; db and auth are mocked.
+// WS172 (B-171): the report preview shows the report as LPs see it, in a same-origin frame. Since
+// WS168 the frame takes the LP portal's new look. Placeholder data only; db and auth are mocked.
 
 const auth = vi.fn();
 const redirect = vi.fn((to: string) => {
@@ -57,9 +57,12 @@ describe("report preview frame route", () => {
     await expect(AdminReportPreviewFramePage(props)).rejects.toThrow("NOT_FOUND");
   });
 
-  it("renders the report in the LP wrapper with no admin shell", async () => {
+  it("renders the report in the LP wrapper with no admin shell, in the LP look and light theme (WS168)", async () => {
     const html = renderToStaticMarkup(await AdminReportPreviewFramePage(props));
     expect(html).toContain('data-surface="founder"');
+    expect(html).toContain('data-v2-scope=""');
+    expect(html).toContain('class="lp-report"');
+    expect(html).toContain('dataset.theme="light"');
     expect(html).toContain("lp-print-scope");
     expect(html).toContain('data-sync="founder"');
     expect(html).toContain("Example Fund I: H1 Report");
@@ -74,13 +77,11 @@ describe("report preview page", () => {
     await expect(AdminReportPreviewPage(props)).rejects.toThrow("REDIRECT:/login");
   });
 
-  it("keeps the in-place report for the old look and adds a hidden-by-default same-origin frame for the new look", async () => {
+  it("shows the report only in the same-origin frame (the old look's in-place copy is gone, WS168)", async () => {
     const html = renderToStaticMarkup(await AdminReportPreviewPage(props));
-    // Old look: the report is there, inside a wrapper the new look hides.
-    expect(html).toMatch(/<div class="v2:hidden"><article data-testid="report">/);
-    // New look: the frame points at the frame route; the old look never displays it.
+    expect(html).not.toContain('data-testid="report"');
     expect(html).toContain('src="/admin/reports/r1/preview/frame"');
     expect(html).toContain('loading="lazy"');
-    expect(html).toMatch(/<iframe[^>]*class="hidden [^"]*v2:block/);
+    expect(html).toMatch(/<iframe[^>]*class="[^"]*v2:block/);
   });
 });

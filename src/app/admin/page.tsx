@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from "react";
 import useSWR from "swr";
-import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { AlertCircle, Bell, CheckCircle2 } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -21,16 +20,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Stat } from "@/components/ui/stat";
 import { EmptyState } from "@/components/ui/empty-state";
-import { StatusDot } from "@/components/ui/status-dot";
 import { NeedsYouInbox } from "@/components/admin/needs-you-inbox";
 import { buildAttention } from "@/lib/attention";
 import { buildInboxRows } from "@/lib/needs-you";
-import { useNewLook } from "@/lib/use-new-look";
 import { toast } from "@/lib/toast";
 import { fetcher, NAV_COUNTS_KEY } from "@/lib/fetcher";
 import { useRowCollapse } from "@/lib/use-row-collapse";
 import { RefreshIndicator, StaleRegion } from "@/components/ui/stale";
-import { cn } from "@/lib/utils";
 import { Skeleton, KpiSkeleton, TableSkeleton } from "@/components/ui/skeleton";
 
 interface OverdueCompany {
@@ -63,18 +59,12 @@ interface MetricAlert {
   metricDefinition: { name: string; unit: string | null } | null;
 }
 
-// Rows of "behind on updates" shown before the toggle; queues and alerts always show.
-const OVERDUE_VISIBLE = 5;
-
 export default function AdminDashboardPage() {
   const { data: session, status: sessionStatus } = useSession();
   const authed = sessionStatus === "authenticated";
-  const [showAllOverdue, setShowAllOverdue] = useState(false);
   const [reminding, setReminding] = useState<Record<string, boolean>>({});
   const [remindedAt, setRemindedAt] = useState<Record<string, string>>({});
   const rowCollapse = useRowCollapse();
-  // False on the server and the first render, so the old markup is what hydrates.
-  const v2 = useNewLook();
 
   // SWR keeps the last data on screen during a refetch (spec 6.6) and shares the
   // nav-counts key with the sidebar, so one fetch feeds both.
@@ -152,14 +142,6 @@ export default function AdminDashboardPage() {
     }
   }
 
-  function alertAgo(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime();
-    const days = Math.floor(diff / 86_400_000);
-    if (days === 0) return "Today";
-    if (days === 1) return "Yesterday";
-    return `${days}d ago`;
-  }
-
   if (sessionStatus === "loading" || loading) {
     return (
       <AppShell width="full">
@@ -210,15 +192,7 @@ export default function AdminDashboardPage() {
     }
   }
 
-  function timeAgo(iso: string): string {
-    const diff = Date.now() - new Date(iso).getTime();
-    const days = Math.floor(diff / 86_400_000);
-    if (days === 0) return "Today";
-    if (days === 1) return "Yesterday";
-    return `${days}d ago`;
-  }
-
-  // The chart and the sector list: the same in both looks (only the spacing around them differs).
+  // The chart and the sector list.
   function renderCharts(className: string) {
     return (
       <div className={className}>
@@ -233,8 +207,8 @@ export default function AdminDashboardPage() {
             ) : (
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={d.updatesByMonth} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  {/* New look: hairline horizontal gridlines only, no dashes (audit #15). */}
-                  <CartesianGrid strokeDasharray={v2 ? undefined : "3 3"} vertical={!v2} stroke="var(--color-border)" />
+                  {/* Hairline horizontal gridlines only, no dashes (audit #15). */}
+                  <CartesianGrid vertical={false} stroke="var(--color-border)" />
                   <XAxis
                     dataKey="month"
                     tick={{ fontSize: 11, fill: "var(--color-text-muted)" }}
@@ -290,194 +264,53 @@ export default function AdminDashboardPage() {
 
   const welcome = `Welcome back${session?.user?.name ? `, ${session.user.name}` : ""}. Here is what needs you today.`;
 
-  // New look (PLAN-1, WS161): "Needs you", an inbox of what is waiting on the team, with the
-  // portfolio numbers and the chart below it. The inbox is the same attention items as the old
-  // "Needs attention" list; nothing is fetched that was not already.
-  if (v2) {
-    const stats = [
-      { label: "Companies", value: d.totalCompanies },
-      { label: "Updates this month", value: d.updatesThisMonth },
-      { label: "Behind on updates", value: d.companiesOverdue },
-      { label: "Awaiting approval", value: d.pendingApprovals },
-    ];
-    return (
-      <AppShell width="full">
-        <PageHeader title="Needs you" description={welcome} indicator={<RefreshIndicator active={refreshing} />} />
-
-        <StaleRegion refreshing={refreshing}>
-          {attention.length === 0 ? (
-            <div className="mx-[var(--row-pad)] max-w-[var(--column-wide)]">
-              <EmptyState
-                title="Nothing needs you right now."
-                description="When someone signs up or an update runs late, it shows here."
-              />
-            </div>
-          ) : (
-            <NeedsYouInbox
-              rows={inboxRows}
-              counts={{ approvals: d.pendingApprovals, diligence: queues.diligence, board: queues.boardReview }}
-              alerts={alerts}
-              overdue={d.overdueCompanies}
-              remindedAt={remindedAt}
-              reminding={reminding}
-              onRemind={(id) => {
-                if (!reminding[id]) void sendReminder(id);
-              }}
-              onDismiss={(id) => void dismissAlert(id, null)}
-              rowClassName={(id) => rowCollapse.className(id, "fade")}
-            />
-          )}
-
-          <section aria-labelledby="portfolio-heading" className="mx-[var(--row-pad)] mt-12 max-w-[var(--column-wide)] pb-12">
-            <h2 id="portfolio-heading" className="mb-3 text-meta font-medium text-muted-foreground">
-              Portfolio
-            </h2>
-            <dl aria-label="Portfolio totals" className="grid grid-cols-2 gap-x-8 gap-y-4 lg:grid-cols-4">
-              {stats.map((k) => (
-                <Stat key={k.label} semantic label={k.label} value={k.value} />
-              ))}
-            </dl>
-            {renderCharts("mt-4 grid gap-4 lg:grid-cols-3")}
-          </section>
-        </StaleRegion>
-      </AppShell>
-    );
-  }
-
+  // "Needs you" (PLAN-1, WS161): an inbox of what is waiting on the team, with the portfolio numbers
+  // and the chart below it.
+  const stats = [
+    { label: "Companies", value: d.totalCompanies },
+    { label: "Updates this month", value: d.updatesThisMonth },
+    { label: "Behind on updates", value: d.companiesOverdue },
+    { label: "Awaiting approval", value: d.pendingApprovals },
+  ];
   return (
     <AppShell width="full">
-      <PageHeader
-        title="Dashboard"
-        description={welcome}
-        indicator={<RefreshIndicator active={refreshing} />}
-      />
+      <PageHeader title="Needs you" description={welcome} indicator={<RefreshIndicator active={refreshing} />} />
 
       <StaleRegion refreshing={refreshing}>
-
-      {/* Quiet stat strip: numbers and mono labels, no icons or boxes. */}
-      <dl
-        aria-label="Portfolio totals"
-        className="mb-8 grid grid-cols-2 gap-x-6 gap-y-3 border-y border-border py-3 lg:grid-cols-4 v2:border-t-0 v2:pt-0"
-      >
-        {[
-          { label: "Companies", value: d.totalCompanies, hint: undefined as string | undefined },
-          { label: "Updates this month", value: d.updatesThisMonth, hint: undefined },
-          { label: "Behind on updates", value: d.companiesOverdue, hint: undefined },
-          { label: "Awaiting approval", value: d.pendingApprovals, hint: undefined },
-        ].map((k) => (
-          <div key={k.label}>
-            <dt className="font-mono text-label font-semibold uppercase tracking-label text-muted-foreground">{k.label}</dt>
-            <dd className="mt-0.5 font-display text-xl font-semibold text-foreground">{k.value}</dd>
-          </div>
-        ))}
-      </dl>
-
-      {/* Needs attention: the job of this page is "what needs me today". */}
-      <section aria-labelledby="attention-heading" className="mb-10">
-        <div className="mb-3 flex items-baseline gap-3">
-          <h2 id="attention-heading" className="font-display text-heading text-foreground">
-            Needs attention
-          </h2>
-          {attention.length > 0 && <Badge variant="neutral">{attention.length}</Badge>}
-        </div>
-
         {attention.length === 0 ? (
-          <div className="flex items-center gap-3 border border-border bg-card px-4 py-5 text-sm">
-            <CheckCircle2 aria-hidden="true" className="h-5 w-5 shrink-0 text-tone-sage-ink" />
-            <div>
-              <p className="font-medium text-foreground">Nothing needs you right now.</p>
-              <p className="text-muted-foreground">Approvals, diligence, alerts and company updates are all clear.</p>
-            </div>
+          <div className="mx-[var(--row-pad)] max-w-[var(--column-wide)]">
+            <EmptyState
+              title="Nothing needs you right now."
+              description="When someone signs up or an update runs late, it shows here."
+            />
           </div>
         ) : (
-          <ul className="divide-y divide-row-divider border border-border bg-card">
-            {(() => {
-              const overdueItems = attention.filter((i) => i.kind === "overdue");
-              const hiddenOverdue = new Set(showAllOverdue ? [] : overdueItems.slice(OVERDUE_VISIBLE).map((i) => i.id));
-              return attention
-                .filter((i) => !hiddenOverdue.has(i.id))
-                .map((item) => {
-                  const company = item.kind === "overdue" ? d.overdueCompanies.find((c) => c.id === item.companyId) : null;
-                  const remindedTs = company ? (remindedAt[company.id] ?? company.lastReminderSentAt) : null;
-                  return (
-                    <li key={item.id} className={cn("flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3", rowCollapse.className(item.id))}>
-                      <div className="min-w-0 flex-1 basis-64">
-                        <StatusDot tone={item.tone} className="items-start font-medium">
-                          <span>
-                            {item.kind === "overdue" || item.kind === "alert" ? (
-                              <Link href={item.href} className="hover:underline">
-                                {item.title}
-                              </Link>
-                            ) : (
-                              item.title
-                            )}
-                          </span>
-                        </StatusDot>
-                        {(item.detail || remindedTs) && (
-                          <p className="ml-[15px] text-xs text-muted-foreground">
-                            {item.detail}
-                            {item.detail && remindedTs ? " · " : ""}
-                            {remindedTs ? `Reminded ${timeAgo(remindedTs).toLowerCase()}` : ""}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        {item.action === "remind" && company && company.hasFounder === false && (
-                          <span className="text-xs text-muted-foreground">No founder in Molly</span>
-                        )}
-                        {item.action === "remind" && company && company.hasFounder !== false && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            loading={reminding[company.id]}
-                            onClick={() => sendReminder(company.id)}
-                          >
-                            <Bell className="h-3.5 w-3.5" />
-                            Remind
-                            <span className="sr-only"> {company.name}</span>
-                          </Button>
-                        )}
-                        {item.action === "dismiss" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => dismissAlert(item.id.replace("alert:", ""), e.currentTarget.closest("li"))}
-                          >
-                            Dismiss
-                            <span className="sr-only">: {item.title}</span>
-                          </Button>
-                        )}
-                        {!item.action && (
-                          <Link
-                            href={item.href}
-                            className="inline-flex h-8 items-center border border-border px-3 text-[13px] font-medium text-foreground transition-colors hover:border-[var(--color-border-hover)] hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          >
-                            Review
-                            <span className="sr-only">: {item.title}</span>
-                          </Link>
-                        )}
-                      </div>
-                    </li>
-                  );
-                });
-            })()}
-          </ul>
+          <NeedsYouInbox
+            rows={inboxRows}
+            counts={{ approvals: d.pendingApprovals, diligence: queues.diligence, board: queues.boardReview }}
+            alerts={alerts}
+            overdue={d.overdueCompanies}
+            remindedAt={remindedAt}
+            reminding={reminding}
+            onRemind={(id) => {
+              if (!reminding[id]) void sendReminder(id);
+            }}
+            onDismiss={(id) => void dismissAlert(id, null)}
+            rowClassName={(id) => rowCollapse.className(id, "fade")}
+          />
         )}
 
-        {attention.filter((i) => i.kind === "overdue").length > OVERDUE_VISIBLE && (
-          <button
-            type="button"
-            onClick={() => setShowAllOverdue((v) => !v)}
-            className="mt-2 text-sm text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {showAllOverdue
-              ? "Show fewer companies"
-              : `Show all ${attention.filter((i) => i.kind === "overdue").length} companies behind on updates`}
-          </button>
-        )}
-      </section>
-
-      {renderCharts("mt-6 grid gap-6 lg:grid-cols-3")}
+        <section aria-labelledby="portfolio-heading" className="mx-[var(--row-pad)] mt-12 max-w-[var(--column-wide)] pb-12">
+          <h2 id="portfolio-heading" className="mb-3 text-meta font-medium text-muted-foreground">
+            Portfolio
+          </h2>
+          <dl aria-label="Portfolio totals" className="grid grid-cols-2 gap-x-8 gap-y-4 lg:grid-cols-4">
+            {stats.map((k) => (
+              <Stat key={k.label} semantic label={k.label} value={k.value} />
+            ))}
+          </dl>
+          {renderCharts("mt-4 grid gap-4 lg:grid-cols-3")}
+        </section>
       </StaleRegion>
     </AppShell>
   );

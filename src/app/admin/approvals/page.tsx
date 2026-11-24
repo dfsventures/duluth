@@ -3,18 +3,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
-  Shield,
   CheckCircle2,
   XCircle,
   AlertCircle,
   Inbox,
-  UserPlus,
-  Clock,
   Send,
   EyeOff,
   Eye,
   MoreHorizontal,
-  Search,
   Trash2,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -39,7 +35,6 @@ import { useRowCollapse } from "@/lib/use-row-collapse";
 import { OpenParam, SplitView } from "@/components/layout/split-view";
 import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
 import { NameTile } from "@/components/ui/name-tile";
-import { useNewLook } from "@/lib/use-new-look";
 import { crumbLabel, nextAfterRemoval, stepCursor } from "@/lib/split-view";
 import { isTypingTarget } from "@/lib/shortcuts";
 import { TONE_CLASSES } from "@/lib/status-tone";
@@ -104,7 +99,7 @@ function isStale(u: AwaitingUser): boolean {
   );
 }
 
-// New look (WS160): watches the per-signup results. When one lands (from Approve, Reject, Link &
+// WS160: watches the per-signup results. When one lands (from Approve, Reject, Link &
 // approve or Add-to-company, whichever path produced it) it keeps the row on screen while it
 // fades, says what happened, and moves the open pane on to the next signup. It renders nothing.
 // It runs in a layout effect so the row never leaves the screen for a frame before it fades.
@@ -115,8 +110,7 @@ function LeaveWatcher({
   results: Record<string, { result?: "approved" | "rejected" }>;
   onNew: (id: string, result: "approved" | "rejected") => void;
 }) {
-  // Results that were already there when this mounted (approved under the old look, then the
-  // switch was flipped) are not news.
+  // Results that were already there when this mounted are not news.
   const seen = useRef<Set<string> | null>(null);
   if (seen.current === null) {
     seen.current = new Set(Object.entries(results).filter(([, s]) => s.result).map(([id]) => id));
@@ -133,7 +127,7 @@ function LeaveWatcher({
   return null;
 }
 
-// New look (PLAN-1, WS164): `a` approves the signup open in the pane, the same as its Approve
+// PLAN-1, WS164: `a` approves the signup open in the pane, the same as its Approve
 // button (which shows the A hint). Off while that signup is busy or done, while typing in a field
 // or a select, inside a dialog or menu, and with a modifier held. Renders nothing.
 function ApproveKey({ onApprove }: { onApprove: (() => void) | null }) {
@@ -171,10 +165,9 @@ export default function ApprovalsPage() {
   >({});
   const confirm = useConfirm();
   const rowCollapse = useRowCollapse();
-  // New look (WS160): the pending list shows as dense rows beside a pane. `visibleRows` is the
+  // WS160: the pending list shows as dense rows beside a pane. `visibleRows` is the
   // list as shown (it gives the pane its position and previous / next).
-  const newLook = useNewLook();
-  // New look (audit #18): one filter at the top of the page narrows all three tables.
+  // Audit #18: one filter at the top of the page narrows all three tables.
   const [pageQuery, setPageQuery] = useState("");
   const [visibleRows, setVisibleRows] = useState<Approval[]>([]);
   const visibleKeys = useMemo(() => visibleRows.map((a) => a.id), [visibleRows]);
@@ -524,24 +517,24 @@ export default function ApprovalsPage() {
     );
   }
 
-  // New look: a row that was just approved or rejected stays (fading) until its fade ends.
+  // A row that was just approved or rejected stays (fading) until its fade ends.
   const pendingApprovals = approvals.filter(
-    (a) => !actionStates[a.id]?.result || (newLook && rowCollapse.isCollapsing(a.id))
+    (a) => !actionStates[a.id]?.result || rowCollapse.isCollapsing(a.id)
   );
   const processedApprovals = approvals.filter(
-    (a) => actionStates[a.id]?.result && !(newLook && rowCollapse.isCollapsing(a.id))
+    (a) => actionStates[a.id]?.result && !rowCollapse.isCollapsing(a.id)
   );
-  // New look: the page-level filter (audit #18) narrows the signups here and the two account tables below.
-  const shownPending = newLook && pageQuery.trim()
+  // The page-level filter (audit #18) narrows the signups here and the two account tables below.
+  const shownPending = pageQuery.trim()
     ? pendingApprovals.filter((a) => matchesQuery([a.name, a.email, a.companyName], pageQuery))
     : pendingApprovals;
-  const matchesPageQuery = (...fields: (string | null | undefined)[]) => !newLook || !pageQuery.trim() || matchesQuery(fields, pageQuery);
+  const matchesPageQuery = (...fields: (string | null | undefined)[]) => !pageQuery.trim() || matchesQuery(fields, pageQuery);
   // The filter shows only when there is enough to narrow (audit #14).
-  const showPageFilter = newLook && approvals.length + awaitingUsers.length >= 8;
+  const showPageFilter = approvals.length + awaitingUsers.length >= 8;
 
   // Part 31, WS77 / Part 45, WS153 — the per-signup view of the portfolio-company suggestion
   // (STRONG/MEDIUM show by default (D2); WEAK sits behind the per-row toggle) and of the
-  // unclaimed-company match. Shared by the old card and the new pane, so they cannot drift.
+  // unclaimed-company match, as the pane shows it.
   function suggestionView(approval: Approval) {
     const state = actionStates[approval.id];
     const matches = matchStates[approval.id] ?? [];
@@ -575,7 +568,7 @@ export default function ApprovalsPage() {
   }
 
   // The three suggestion blocks (add to an existing company, "show weaker", the portfolio match
-  // with its picker, contact checkbox and errors). Same markup in the card and in the pane.
+  // with its picker, contact checkbox and errors), shown in the pane.
   function renderSuggestion(approval: Approval, v: ReturnType<typeof suggestionView>) {
     const { state, matches, weakShown, visibleMatches, selectedId, selected, addContact, linkState, unclaimedAll, unclaimed, joinState, topReasonCopy } = v;
     return (
@@ -682,7 +675,7 @@ export default function ApprovalsPage() {
     );
   }
 
-  // The "Recently Processed" and "All caught up" blocks, shared by both looks.
+  // The "Recently Processed" and "All caught up" blocks.
   const processedBlock = processedApprovals.length > 0 && (
     <div className="space-y-2">
       <h3 className="text-sm font-medium text-muted-foreground">
@@ -726,9 +719,8 @@ export default function ApprovalsPage() {
     />
   );
 
-  // New look: the pane for one signup. Approve is the primary and uses the same handler as the
-  // card; "Link & approve" (when there is a match) and "Add to the unclaimed company" are the same
-  // functions the card calls, so the order (link, then contact, then approve) is unchanged.
+  // The pane for one signup. Approve is the primary; "Link & approve" (when there is a match) and
+  // "Add to the unclaimed company" keep the order link, then contact, then approve.
   function renderApprovalPane(
     approval: Approval,
     nav: { crumb: string; onPrev?: () => void; onNext?: () => void; onClose: () => void }
@@ -853,7 +845,7 @@ export default function ApprovalsPage() {
             description="All sign-up requests have been reviewed. New requests will appear here."
           />
         </div>
-      ) : newLook ? (
+      ) : (
         <>
           {pendingApprovals.length > 0 && (
             <h2 className="mx-[var(--row-pad)] mb-3 flex items-baseline gap-1.5 text-row font-medium text-foreground">
@@ -975,230 +967,6 @@ export default function ApprovalsPage() {
             </div>
           )}
         </>
-      ) : (
-        <div className="space-y-6">
-          {/* Pending */}
-          {pendingApprovals.length > 0 && (
-            <div className="space-y-4">
-              {pendingApprovals.map((approval) => {
-                const {
-                  state,
-                  matches,
-                  weakShown,
-                  visibleMatches,
-                  selectedId,
-                  selected,
-                  addContact,
-                  linkState,
-                  unclaimedAll,
-                  unclaimed,
-                  joinState,
-                  topReasonCopy,
-                } = suggestionView(approval);
-
-                return (
-                  <Card key={approval.id}>
-                    <CardContent className="flex flex-wrap items-center gap-2 py-4">
-                      <div className="min-w-48 flex-1">
-                        <div className="flex items-center gap-2">
-                          <UserPlus className="h-4 w-4 text-muted-foreground" />
-                          <p className="font-medium">{approval.name}</p>
-                        </div>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {approval.email}
-                          {approval.companyName && (
-                            <> &middot; {approval.companyName}</>
-                          )}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Signed up {formatDate(approval.createdAt)}
-                        </p>
-                        {state?.error && (
-                          <p className="mt-1 text-xs text-destructive">
-                            {state.error}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 flex-wrap items-center gap-2">
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={state?.loading}
-                          onClick={() => handleAction(approval.id, "reject")}
-                        >
-                          <XCircle className="mr-1 h-3.5 w-3.5" />
-                          {state?.loading ? "..." : "Reject"}
-                        </Button>
-                        {selected && visibleMatches.length > 0 && (
-                          <Button
-                            size="sm"
-                            disabled={state?.loading || linkState?.loading || selected.alreadyLinked}
-                            onClick={() => handleLinkAndApprove(approval, selected.portfolioCompanyId, addContact)}
-                          >
-                            {linkState?.loading ? "..." : "Link & approve"}
-                          </Button>
-                        )}
-                        <Button
-                          variant={selected && visibleMatches.length > 0 ? "secondary" : "primary"}
-                          size="sm"
-                          disabled={state?.loading}
-                          onClick={() => handleAction(approval.id, "approve")}
-                        >
-                          <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                          {state?.loading ? "..." : "Approve"}
-                        </Button>
-                      </div>
-
-                      {unclaimed && (
-                        <div className="w-full rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
-                          <p className="text-foreground">
-                            Molly already has a page for <strong>{unclaimed.name}</strong> with no founder. Add{" "}
-                            {approval.name} to it instead of approving a second company?
-                          </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              disabled={state?.loading || joinState?.loading}
-                              onClick={() => handleJoinAndApprove(approval, unclaimed.id)}
-                            >
-                              {joinState?.loading ? "..." : `Add ${approval.name} to ${unclaimed.name} instead`}
-                            </Button>
-                          </div>
-                          {joinState?.error && <p className="mt-1 text-xs text-destructive">{joinState.error}</p>}
-                        </div>
-                      )}
-
-                      {!unclaimed && unclaimedAll.length > 0 && matches.length === 0 && (
-                        <button
-                          type="button"
-                          className="w-full text-left text-xs text-muted-foreground underline hover:text-foreground"
-                          onClick={() => setWeakShownStates((prev) => ({ ...prev, [approval.id]: true }))}
-                        >
-                          Show weaker matches
-                        </button>
-                      )}
-
-                      {matches.length > 0 && (
-                        <div className={noticeClasses("amber", "w-full px-3 py-2")}>
-                          {selected && visibleMatches.length > 0 ? (
-                            <>
-                              <p className="text-foreground">
-                                Looks like <strong>{selected.portfolioCompanyName}</strong> in the portfolio —{" "}
-                                {topReasonCopy}.
-                              </p>
-                              {selected.alreadyLinked && (
-                                <p className="mt-1 text-xs text-tone-clay-ink">
-                                  Already linked to another company — pick a different match, or just Approve.
-                                </p>
-                              )}
-                              {visibleMatches.length > 1 && (
-                                <div className="mt-2 max-w-xs">
-                                  <Select
-                                    value={selectedId}
-                                    onChange={(e) =>
-                                      setSelectedIds((prev) => ({ ...prev, [approval.id]: e.target.value }))
-                                    }
-                                  >
-                                    {visibleMatches.map((m) => (
-                                      <option key={m.portfolioCompanyId} value={m.portfolioCompanyId}>
-                                        {m.portfolioCompanyName} ({m.tier.toLowerCase()}
-                                        {m.alreadyLinked ? ", already linked" : ""})
-                                      </option>
-                                    ))}
-                                  </Select>
-                                </div>
-                              )}
-                              {!selected.signupEmailIsAlreadyContact && (
-                                <label className="mt-2 flex items-center gap-2 text-xs text-foreground">
-                                  <input
-                                    type="checkbox"
-                                    checked={addContact}
-                                    onChange={(e) =>
-                                      setAddContactStates((prev) => ({ ...prev, [approval.id]: e.target.checked }))
-                                    }
-                                    className="h-3.5 w-3.5 rounded-sm border-ochre/50"
-                                  />
-                                  Also add {approval.email} as a contact on {selected.portfolioCompanyName}
-                                </label>
-                              )}
-                            </>
-                          ) : (
-                            <p className="text-muted-foreground">
-                              No strong matches — {matches.length} weaker match{matches.length === 1 ? "" : "es"} found.
-                            </p>
-                          )}
-                          {matches.some((m) => m.tier === "WEAK") && (
-                            <button
-                              type="button"
-                              className="mt-2 text-xs text-muted-foreground underline hover:text-foreground"
-                              onClick={() =>
-                                setWeakShownStates((prev) => ({ ...prev, [approval.id]: !weakShown }))
-                              }
-                            >
-                              {weakShown ? "Hide weaker matches" : "Show weaker matches"}
-                            </button>
-                          )}
-                          {linkState?.error && (
-                            <p className="mt-1 text-xs text-destructive">{linkState.error}</p>
-                          )}
-                          {linkState?.contactNote && (
-                            <p className="mt-1 text-xs text-muted-foreground">{linkState.contactNote}</p>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Processed feedback */}
-          {processedApprovals.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                Recently Processed
-              </h3>
-              {processedApprovals.map((approval) => {
-                const state = actionStates[approval.id];
-                return (
-                  <Card key={approval.id} className="opacity-60">
-                    <CardContent className="flex items-center justify-between py-3">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium">{approval.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {approval.email}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        {state?.result === "approved" ? (
-                          <>
-                            <CheckCircle2 className="h-4 w-4 text-tone-sage-ink" />
-                            <span className="text-tone-sage-ink">Approved</span>
-                          </>
-                        ) : (
-                          <>
-                            <XCircle className="h-4 w-4 text-tone-clay-ink" />
-                            <span className="text-tone-clay-ink">Rejected</span>
-                          </>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-
-          {pendingApprovals.length === 0 && processedApprovals.length > 0 && (
-            <EmptyState
-              icon={<CheckCircle2 className="h-10 w-10" />}
-              title="All caught up"
-              description="You've reviewed all pending approvals in this session."
-            />
-          )}
-        </div>
       )}
 
       {/* Awaiting password setup — independent of the pending-queue empty
@@ -1212,7 +980,7 @@ export default function ApprovalsPage() {
         const dismissedOrStale = awaitingUsers.filter(
           (u) => (u.setupQueueDismissedAt || isStale(u)) && inFilter(u)
         );
-        // New look (audit #16): the two account tables share one column template, so their right-hand
+        // Audit #16: the two account tables share one column template, so their right-hand
         // actions end at the same x. Person (flexible), Company 240, Detail 200, Actions 280.
         const TEMPLATE = [null, 240, 200, 280];
 
@@ -1321,7 +1089,6 @@ export default function ApprovalsPage() {
                   rowKey={(u) => u.id}
                   columns={activeColumns}
                   defaultSort={{ key: "person", dir: "asc" }}
-                  searchText={newLook ? undefined : (u) => [u.name, u.email, u.memberships?.[0]?.company?.name]}
                   searchPlaceholder="Filter accounts"
                   urlState={false}
                   minWidth={680}
@@ -1332,59 +1099,29 @@ export default function ApprovalsPage() {
                   rowClassName={(u) => rowCollapse.className(u.id, "fade")}
                   rowActions={(u) => {
                     const isCompanyCreator = u.memberships.some((m) => m.company.createdById === u.id);
-                    if (newLook) {
-                      // New look (audit #17): Resend link stays; Dismiss and Delete go in a menu, Delete last in clay.
-                      return (
-                        <>
-                          {resendButton(u)}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label={`More actions for ${u.name ?? u.email}`}>
-                                <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onSelect={() => handleDismissToggle(u.id, true)}>
-                                <EyeOff aria-hidden className="h-3.5 w-3.5" />
-                                Dismiss
-                              </DropdownMenuItem>
-                              {!isCompanyCreator && (
-                                <DropdownMenuItem onSelect={() => requestDelete(u)} className="text-tone-clay-ink">
-                                  <Trash2 aria-hidden className="h-3.5 w-3.5" />
-                                  Delete
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </>
-                      );
-                    }
+                    // Audit #17: Resend link stays; Dismiss and Delete go in a menu, Delete last in clay.
                     return (
                       <>
                         {resendButton(u)}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          loading={dismissStates[u.id]?.loading}
-                          onClick={() => handleDismissToggle(u.id, true)}
-                        >
-                          <EyeOff className="h-3.5 w-3.5" />
-                          Dismiss
-                          <span className="sr-only"> {u.name ?? u.email}</span>
-                        </Button>
-                        {!isCompanyCreator && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            loading={deleteStates[u.id]?.loading}
-                            className="hover:text-tone-clay-ink"
-                            onClick={() => requestDelete(u)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                            Delete
-                            <span className="sr-only"> account for {u.name ?? u.email}</span>
-                          </Button>
-                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={`More actions for ${u.name ?? u.email}`}>
+                              <MoreHorizontal aria-hidden="true" className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => handleDismissToggle(u.id, true)}>
+                              <EyeOff aria-hidden className="h-3.5 w-3.5" />
+                              Dismiss
+                            </DropdownMenuItem>
+                            {!isCompanyCreator && (
+                              <DropdownMenuItem onSelect={() => requestDelete(u)} className="text-tone-clay-ink">
+                                <Trash2 aria-hidden className="h-3.5 w-3.5" />
+                                Delete
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </>
                     );
                   }}

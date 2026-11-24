@@ -4,11 +4,9 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Eye } from "lucide-react";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { noticeClasses } from "@/components/ui/notice";
-import { useNewLook } from "@/lib/use-new-look";
 import { RichEditor } from "@/components/ui/rich-editor";
 import { portcoMention } from "@/components/ui/portco-mention";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
@@ -40,7 +38,6 @@ interface ReportDetail {
 }
 
 export default function AdminReportEditorPage() {
-  const newLook = useNewLook();
   const params = useParams();
   const router = useRouter();
   const reportId = params.id as string;
@@ -266,12 +263,10 @@ export default function AdminReportEditorPage() {
 
   return (
     <AppShell width="narrow">
-      {!newLook && <Breadcrumb items={[{ label: "Fund Reports", href: "/admin/reports" }, { label: title.trim() || "Untitled report" }]} />}
-
       <ComposerTopBar
         back={{ href: "/admin/reports", label: "Fund Reports" }}
-        // New look (audit #26): a published report has no primary; "Unpublish to edit" is a secondary button.
-        showPublish={isDraft || !newLook}
+        // Audit #26: a published report has no primary; "Unpublish to edit" is a secondary button.
+        showPublish={isDraft}
         draftLabel={`${isDraft ? "Draft" : "Published"} in ${report.fund.name}`}
         secondaryActions={
           <>
@@ -281,7 +276,7 @@ export default function AdminReportEditorPage() {
                 Preview
               </Button>
             </Link>
-            {!isDraft && newLook && (
+            {!isDraft && (
               <Button variant="secondary" size="sm" disabled={unpublishing} onClick={handleUnpublish}>
                 {unpublishing ? "Unpublishing..." : "Unpublish to edit"}
               </Button>
@@ -293,10 +288,10 @@ export default function AdminReportEditorPage() {
             )}
           </>
         }
-        // Phone, new look (§6): Preview and Save (or Unpublish) fold into ⋯.
+        // Phone (§6): Preview and Save (or Unpublish) fold into ⋯.
         phoneMenuItems={[
           { label: "Preview", onClick: () => router.push(`/admin/reports/${reportId}/preview`) },
-          ...(!isDraft && newLook
+          ...(!isDraft
             ? [{ label: unpublishing ? "Unpublishing..." : "Unpublish to edit", onClick: handleUnpublish, disabled: unpublishing }]
             : []),
           ...(isDraft ? [{ label: saving ? "Saving..." : "Save", onClick: handleSave, disabled: saving }] : []),

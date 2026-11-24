@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { LayoutGrid, List, Plus, Search, Settings2 } from "lucide-react";
+import { LayoutGrid, List, Plus, Settings2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,6 @@ import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { TabBar } from "@/components/ui/tab-bar";
 import { FilterBar, FilterSearch } from "@/components/ui/filter-bar";
 import { toast } from "@/lib/toast";
-import { useNewLook } from "@/lib/use-new-look";
 import { cn } from "@/lib/utils";
 import { parseTab } from "@/lib/url-tab";
 import { relativeTime } from "@/lib/relative-time";
@@ -78,7 +77,6 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
   const [unlinked, setUnlinked] = useState(false);
 
   // JC-MB-A: ?view= wins, then the stored choice, then Board. Null until resolved, so no Board-then-List flash.
-  const newLook = useNewLook();
   const [view, setView] = useState<MemoView | null>(null);
   const viewParam = searchParams.get("view");
   useEffect(() => {
@@ -287,7 +285,7 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
     [me]
   );
 
-  // "6 memos · 1 in review · 2 idle". Under the new look it is the filter bar's right-hand meta.
+  // "6 memos · 1 in review · 2 idle": the filter bar's right-hand meta.
   const countsLine =
     !(loading && rows.length === 0) && !error && boardRows.length > 0 ? (
       <p className="mb-3 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground v2:mb-0 v2:ml-auto v2:text-meta">
@@ -382,75 +380,43 @@ function MemosInner({ targets }: { targets: LinkTargets }) {
 
       {view === "board" ? (
         <>
-          {newLook ? (
-            // Page types v1: the shared filter row (search 320, filters left, counts at the right end).
-            <FilterBar
-              label="Filter memos"
-              chips={[]}
-              onOpen={() => {}}
-              onRemove={() => {}}
-              onClearAll={() => {
-                clearFilters();
-                setQInput("");
-              }}
-              showClear={false}
-              leading={
-                <FilterSearch
-                  id="memo-board-search"
-                  label="Search memos"
-                  value={qInput}
-                  onChange={setQInput}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape" && qInput) setQInput("");
-                  }}
-                  placeholder="Search memos"
-                  hint={false}
-                />
-              }
-              filters={
-                <MemoFilters
-                  targets={targets}
-                  companyId={companyId}
-                  status={status}
-                  decision={decision}
-                  unlinked={unlinked}
-                  showDecision={false}
-                  onChange={applyFilters}
-                />
-              }
-              trailing={countsLine}
-            />
-          ) : (
-          <div className="mb-3 flex flex-wrap items-center gap-2 lg:flex-nowrap v2:mb-4 v2:min-h-11">
-            <div className="relative min-w-[200px] flex-1 basis-56 v2:w-56 v2:flex-none v2:basis-auto">
-              <label htmlFor="memo-board-search" className="sr-only">
-                Search memos
-              </label>
-              <Search aria-hidden="true" className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <input
+          {/* Page types v1: the shared filter row (search 320, filters left, counts at the right end). */}
+          <FilterBar
+            label="Filter memos"
+            chips={[]}
+            onOpen={() => {}}
+            onRemove={() => {}}
+            onClearAll={() => {
+              clearFilters();
+              setQInput("");
+            }}
+            showClear={false}
+            leading={
+              <FilterSearch
                 id="memo-board-search"
+                label="Search memos"
                 value={qInput}
-                onChange={(e) => setQInput(e.target.value)}
+                onChange={setQInput}
                 onKeyDown={(e) => {
                   if (e.key === "Escape" && qInput) setQInput("");
                 }}
                 placeholder="Search memos"
-                autoComplete="off"
-                className="h-8 w-full rounded-ctl border border-input bg-card pl-8 pr-2 text-[13px] text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring v2:h-9 v2:border-[color:var(--color-ctl)] v2:bg-transparent v2:pl-9 v2:text-row"
+                hint={false}
               />
-            </div>
-            <MemoFilters
-              targets={targets}
-              companyId={companyId}
-              status={status}
-              decision={decision}
-              unlinked={unlinked}
-              showDecision={false}
-              onChange={applyFilters}
-            />
-          </div>
-          )}
-          {!newLook && countsLine}
+            }
+            filters={
+              <MemoFilters
+                targets={targets}
+                companyId={companyId}
+                status={status}
+                decision={decision}
+                unlinked={unlinked}
+                showDecision={false}
+                onChange={applyFilters}
+              />
+            }
+            trailing={countsLine}
+          />
           {loading && rows.length === 0 ? (
             <p role="status" className="py-10 text-center text-sm text-muted-foreground">
               Loading memos…

@@ -33,8 +33,6 @@ interface PageHeaderProps {
    * under the old look (the page keeps its own breadcrumb).
    */
   back?: { href: string; label: string };
-  /** The header is drawn only under the new look (a page that had no header in the old look). */
-  newLookOnly?: boolean;
   /**
    * Page type (page types v1): a Detail header has 32px under it (a List header 24). A Form header
    * (§4.3, form variant) sits under the page's editor bar (ComposerTopBar), which holds the back link and
@@ -86,7 +84,6 @@ export function PageHeader({
   secondaryActions,
   indicator,
   back,
-  newLookOnly,
   type = "list",
 }: PageHeaderProps) {
   const folded = !!secondaryActions?.length;
@@ -102,7 +99,7 @@ export function PageHeader({
         id={id}
         data-page-head=""
         data-type={type}
-        className={`page-head mb-8 ${newLookOnly ? "hidden v2:flex" : "flex"} flex-col gap-4 sm:flex-row sm:items-start sm:justify-between ${type === "list" ? "v2:mb-6" : "v2:mb-8"} v2:flex-row v2:items-start v2:justify-between v2:gap-x-4 v2:gap-y-0 ${
+        className={`page-head mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between ${type === "list" ? "v2:mb-6" : "v2:mb-8"} v2:flex-row v2:items-start v2:justify-between v2:gap-x-4 v2:gap-y-0 ${
           folded && !back ? "v2:flex-nowrap" : "v2:flex-wrap"
         }`}
       >

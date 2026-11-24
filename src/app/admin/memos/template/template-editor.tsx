@@ -6,7 +6,6 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -15,7 +14,6 @@ import { toast } from "@/lib/toast";
 import { MEMO_LIMITS, type MemoTemplateSection } from "@/lib/memos";
 import { readError } from "@/components/admin/memos/types";
 import { cn } from "@/lib/utils";
-import { useNewLook } from "@/lib/use-new-look";
 import { EDITOR_COLUMN } from "@/lib/editor-styles";
 
 interface Row extends MemoTemplateSection {
@@ -25,7 +23,6 @@ interface Row extends MemoTemplateSection {
 
 export default function TemplateEditor({ version, sections }: { version: number; sections: MemoTemplateSection[] }) {
   const router = useRouter();
-  const newLook = useNewLook();
   const [rows, setRows] = useState<Row[]>(() => sections.map((s, i) => ({ ...s, rid: i })));
   const [nextId, setNextId] = useState(sections.length);
   const [saving, setSaving] = useState(false);
@@ -72,11 +69,8 @@ export default function TemplateEditor({ version, sections }: { version: number;
 
   return (
     <AppShell width="narrow">
-      {/* New look (audit #8): the Form header replaces the breadcrumb row. */}
-      {!newLook && <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "Memo template" }]} />}
-      {/* New look (page types v1, §4.3 form variant): the editor bar holds the way back and the action. */}
+      {/* Page types v1, §4.3 form variant: the editor bar holds the way back and the action. */}
       <ComposerTopBar
-        newLookOnly
         back={{ href: "/admin/memos", label: "Memos" }}
         draftLabel={`Version ${version}`}
         showPublish={false}
@@ -131,7 +125,7 @@ export default function TemplateEditor({ version, sections }: { version: number;
             <Textarea
               aria-label={`Guidance for ${r.title || "section"}`}
               className="min-h-[72px] v2:resize-none"
-              rows={newLook ? Math.max(2, Math.ceil(r.guidance.length / 90) + (r.guidance.split("\n").length - 1)) : undefined}
+              rows={Math.max(2, Math.ceil(r.guidance.length / 90) + (r.guidance.split("\n").length - 1))}
               value={r.guidance}
               maxLength={2000}
               onChange={(e) => patch(r.rid, { guidance: e.target.value })}

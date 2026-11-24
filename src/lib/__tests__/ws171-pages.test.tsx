@@ -56,17 +56,12 @@ describe("Service Providers", () => {
     const actions = providers.slice(providers.indexOf("const providerActions"), providers.indexOf("const PROVIDER_CHIPS"));
     expect(actions).toContain("openEdit(p)");
     expect(actions).toContain("handleDelete(p.id)");
-    const table = providers.slice(providers.indexOf("{newLook && ("), providers.indexOf("{/* Filters */}"));
+    const table = providers.slice(providers.indexOf("<DataTable"));
     expect(table).toContain('setStatus(p.id, "VETTED")');
     expect(table).toContain('setStatus(p.id, "REJECTED")');
     expect(table).toContain("actionsAlwaysVisible");
     // One table (admin audit #40): Pending review and Directory are groups of the same table.
     expect(table.match(/urlState=\{false\}/g)).toHaveLength(1);
-  });
-
-  it("keeps the old filters and cards for the old look", () => {
-    expect(providers).toContain("{!newLook && <div");
-    expect(providers).toContain("Pending Review (");
   });
 });
 
@@ -83,7 +78,7 @@ describe("Investor Links", () => {
   });
 
   it("lays out full width with the list and pane", () => {
-    expect(links).toContain('width={newLook ? "full" : undefined}');
+    expect(links).toContain('width="full"');
     expect(links).toContain("<SplitView");
     expect(links).toContain("<OpenParam");
   });

@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Ban, Circle, Clock, Eye, Link2, MoreHorizontal, Pencil, SearchCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useNewLook } from "@/lib/use-new-look";
 import { BOARD_STATUSES, BOARD_STATUS_LABELS, type BoardStatus } from "@/lib/board";
 import { adjacentStatus, initials, ownerTileModel } from "@/lib/board-client";
 import { statusTone, tileTone, TONE_CLASSES } from "@/lib/status-tone";
@@ -64,7 +63,6 @@ export function BoardCard({
   onDragEnd,
 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const newLook = useNewLook();
   const overdue = isOverdue(card.dueDate, card.status);
   const heard = [...card.unmatchedOwnerNames, card.rawProjectName].filter(Boolean).map((s) => `'${s}'`);
   const tiles = ownerTileModel(ownerLabels);
@@ -101,7 +99,7 @@ export function BoardCard({
     }
   }
 
-  // The card menu, shared by both looks; only the trigger's classes differ.
+  // The card menu; the caller passes the trigger's classes.
   const menu = (triggerClass: string) => (
     <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <DropdownMenuTrigger asChild>
@@ -193,11 +191,10 @@ export function BoardCard({
     </div>
   );
 
-  // New look (PLAN-1, WS162, density doc section 4 "Board"): a tile is a title and one marker line
+  // PLAN-1, WS162, density doc section 4 "Board": a tile is a title and one marker line
   // on the raised surface, no border, 8px radius, 12 x 16 padding. Only Blocked is loud: a red
   // dog-ear (top-right corner) and a stuck-coloured marker. The cursor (focus) is the Sky
-  // underscore block on the tile's lower edge. No left-edge bar. Handlers are the old look's.
-  if (newLook) {
+  // underscore block on the tile's lower edge. No left-edge bar.
     const blocked = card.status === "BLOCKED";
     const proofCount = card.status === "DONE" ? (card.links?.length ?? 0) : 0;
     const hasMarker = blocked || overdue || card.needsReview || !!projectName || proofCount > 0;
@@ -338,135 +335,5 @@ export function BoardCard({
         {!desktop && mobileControls}
       </div>
     );
-  }
-
-  return (
-    <div
-      data-card-id={card.id}
-      draggable={desktop}
-      onDragStart={onDragStart}
-      onDragEnd={onDragEnd}
-      onKeyDown={onKeyDown}
-      title={tooltip || undefined}
-      className={cn(
-        "group relative border border-border bg-card px-3 py-2.5 rounded-sm transition-[border-color,opacity] hover:border-cocoa",
-        desktop && "cursor-grab active:cursor-grabbing",
-        dragging && "opacity-35",
-        landed && "animate-land motion-reduce:outline motion-reduce:outline-2 motion-reduce:outline-mark"
-      )}
-    >
-      <div className="flex items-start gap-2">
-        <button
-          type="button"
-          data-card-title
-          onClick={onOpen}
-          className="min-w-0 flex-1 break-words text-left text-sm text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {card.title}
-        </button>
-        {card.needsReview && (
-          <button
-            type="button"
-            onClick={onResolve}
-            title={heard.length ? `Heard as ${heard.join(", ")}` : "Needs review"}
-            aria-label="Needs review: resolve names"
-            className="-m-1.5 flex h-6 w-6 shrink-0 items-center justify-center hover:bg-attention-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <span aria-hidden="true" className="h-[7px] w-[7px] bg-ochre" />
-          </button>
-        )}
-        {desktop &&
-          menu(
-            cn(
-              "-m-1 flex h-7 w-7 shrink-0 items-center justify-center text-muted-foreground transition-opacity hover:bg-muted hover:text-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100",
-              menuOpen && "opacity-100"
-            )
-          )}
-      </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground">
-        {ownerLabels.length === 0 ? (
-          <span
-            title="Unassigned"
-            aria-label="Unassigned"
-            role="img"
-            className="inline-grid h-5 w-5 shrink-0 place-items-center border border-dashed border-border font-display text-[10px] text-muted-foreground"
-          >
-            ?
-          </span>
-        ) : ownerLabels.length === 1 ? (
-          <span
-            title={ownerLabels[0]}
-            aria-label={`Owner: ${ownerLabels[0]}`}
-            role="img"
-            className={cn(
-              "inline-grid h-5 w-5 shrink-0 place-items-center font-display text-[10px] font-semibold",
-              TONE_CLASSES[tileTone(ownerLabels[0])].chip
-            )}
-          >
-            {initials(ownerLabels[0])}
-          </span>
-        ) : (
-          <span
-            role="img"
-            aria-label={`Owners: ${ownerLabels.join(", ")}`}
-            title={ownerLabels.join(", ")}
-            className="inline-flex shrink-0 items-center"
-          >
-            {tiles.shown.map((label) => (
-              <span
-                key={label}
-                aria-hidden="true"
-                className={cn(
-                  "-ml-1.5 inline-grid h-5 w-5 place-items-center font-display text-[10px] font-semibold ring-1 ring-card first:ml-0",
-                  TONE_CLASSES[tileTone(label)].chip
-                )}
-              >
-                {initials(label)}
-              </span>
-            ))}
-            {tiles.extra > 0 && (
-              <span
-                aria-hidden="true"
-                className="-ml-1.5 inline-grid h-5 min-w-5 place-items-center bg-muted px-1 font-display text-[10px] font-semibold text-foreground ring-1 ring-card"
-              >
-                +{tiles.extra}
-              </span>
-            )}
-          </span>
-        )}
-        {projectName && (
-          <span className="bg-tone-stone px-1.5 py-0.5 font-mono text-[11px] text-tone-stone-ink">{projectName}</span>
-        )}
-        {card.status === "DONE" && (card.links?.length ?? 0) > 0 && (
-          <span
-            title={`${card.links!.length} proof link${card.links!.length === 1 ? "" : "s"}`}
-            aria-label={`${card.links!.length} proof link${card.links!.length === 1 ? "" : "s"}`}
-            role="img"
-            className="inline-flex items-center gap-1 font-mono text-[11px]"
-          >
-            <Link2 aria-hidden="true" className="h-3 w-3" />
-            {card.links!.length}
-          </span>
-        )}
-        {card.dueDate && (
-          <span
-            className={cn(
-              "font-mono text-[11px]",
-              overdue && "bg-tone-clay px-1.5 py-0.5 text-tone-clay-ink"
-            )}
-          >
-            {overdue ? "Overdue " : "Due "}
-            {dueLabel(card.dueDate)}
-          </span>
-        )}
-      </div>
-
-      {/* Touch / narrow layout: the accessible path, since there is no drag. */}
-      {!desktop && mobileControls}
-    </div>
-  );
 }
 

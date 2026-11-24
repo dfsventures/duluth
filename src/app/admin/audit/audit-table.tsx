@@ -1,8 +1,8 @@
 "use client";
 
-// New look (PLAN-1, WS170): the Audit Log as one-line rows in the shared table. The page stays a
+// PLAN-1, WS170: the Audit Log as one-line rows in the shared table. The page stays a
 // Server Component (it keeps its query and its five counts); it passes the rows here as plain data
-// (dates as ISO strings), plus its own old markup, which `AuditLook` shows unless the new look is on.
+// (dates as ISO strings).
 // DataTable's columns are functions, which a Server Component cannot pass down, hence this file.
 //
 // Filters stay on the server: the chips are a FilterBar whose picks navigate to ?filter=<key>, so the
@@ -15,7 +15,6 @@ import { ScrollText } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FilterBar } from "@/components/ui/filter-bar";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { useNewLook } from "@/lib/use-new-look";
 import { relativeTime } from "@/lib/relative-time";
 
 export interface AuditRowData {
@@ -34,13 +33,13 @@ export interface AuditFilterDef {
 }
 
 // Sign-in events are recorded by src/lib/signin-audit.ts. Other actions are free strings and shown
-// as-is; only these get a friendly label (same map as the old markup in page.tsx).
+// as-is; only these get a friendly label.
 const ACTION_LABELS: Record<string, string> = {
   SIGN_IN_SUCCEEDED: "Sign-in succeeded",
   SIGN_IN_FAILED: "Sign-in failed",
 };
 
-// New look only (the old markup keeps raw codes). Words match what the screens call things
+// Words match what the screens call things
 // (docs/design/admin-audit-v1-copy.md, Audit Log overrides).
 const ACTION_OVERRIDES: Record<string, string> = {
   MEMO_DECISION_CHANGED: "Memo stage changed",
@@ -94,7 +93,7 @@ function metadataEntries(metadata: unknown): [string, unknown][] {
   return Object.entries(metadata as Record<string, unknown>).filter(([, v]) => v !== null && v !== undefined);
 }
 
-// New look (audit #41): actions read as sentences. Any code gets sentence-cased (FUND_UPDATED → "Fund
+// Audit #41: actions read as sentences. Any code gets sentence-cased (FUND_UPDATED → "Fund
 // updated"), so a code added later reads fine without touching this file; the raw code is the cell's tooltip.
 export function actionLabel(action: string): string {
   if (ACTION_LABELS[action]) return ACTION_LABELS[action];
@@ -142,7 +141,7 @@ function targetTitle(r: AuditRowData): string | null {
 // anywhere so a row wraps inside the screen instead of widening the page. Desktop cells stay one line.
 const PHONE_WRAP = "max-md:[overflow-wrap:anywhere]";
 
-// A native <details>, as in the old look: one line closed; open, the row grows (see the WS170 rule in
+// A native <details>: one line closed; open, the row grows (see the WS170 rule in
 // globals.css) and shows the full JSON.
 function DetailsCell({ metadata }: { metadata: unknown }) {
   const entries = metadataEntries(metadata);
@@ -209,26 +208,19 @@ const auditColumns: DataTableColumn<AuditRowData>[] = [
   },
 ];
 
-/**
- * Shows `oldLook` (the page's existing markup, rendered on the server) unless the new look is on,
- * in which case it shows the shared table. The first render is always the old look, so hydration matches.
- */
+/** The filter bar and the shared table. */
 export function AuditLook({
-  oldLook,
   rows,
   counts,
   filters,
   filter,
 }: {
-  oldLook: React.ReactNode;
   rows: AuditRowData[];
   counts: Record<string, number>;
   filters: readonly AuditFilterDef[];
   filter: string;
 }) {
   const router = useRouter();
-  const newLook = useNewLook();
-  if (!newLook) return <>{oldLook}</>;
 
   const go = (key: string) => router.push(key === "all" ? "/admin/audit" : `/admin/audit?filter=${key}`);
   // Page types v1 (D9): one choice out of several, so one segmented control with "All" first.

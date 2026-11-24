@@ -17,7 +17,6 @@ import { rememberExpandReturn } from "@/lib/shortcuts";
 import { statusTone, TONE_CLASSES } from "@/lib/status-tone";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ComposerDisclosure } from "@/components/composer/composer-disclosure";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { StatusDot } from "@/components/ui/status-dot";
 import { NameTile, StageChip } from "@/components/ui/name-tile";
@@ -26,7 +25,6 @@ import { formatDate } from "@/lib/utils";
 import { cadenceStatus } from "@/lib/update-cadence";
 import { parseCompanyCsv, type CompanyCsvRow } from "@/lib/company-csv";
 import { toast } from "@/lib/toast";
-import { useNewLook } from "@/lib/use-new-look";
 import type { FilterChipDef } from "@/lib/data-table";
 
 interface Company {
@@ -190,8 +188,6 @@ function CompanyPane({
 
 export default function AdminCompaniesPage() {
   const router = useRouter();
-  // False on the server and the first render, so the old markup is what hydrates.
-  const v2 = useNewLook();
   const fileInputRef = useRef<HTMLInputElement>(null);
   // New look (WS160): the list as shown, for the pane's previous / next and its position.
   const [visibleRows, setVisibleRows] = useState<Row[]>([]);
@@ -290,50 +286,37 @@ export default function AdminCompaniesPage() {
     }
   }
 
-  // New look: one line per cell. Status and Stage get a width that fits their longest normal value
+  // One line per cell. Status and Stage get a width that fits their longest normal value
   // ("No updates yet", "Pre-seed" / "Series A"); Sector and Location are cut with an ellipsis.
-  // Under the old look none of this is added, so its markup is unchanged.
-  const colClass = (cls: string) => (v2 ? cls : undefined);
   const columns: DataTableColumn<Row>[] = [
     {
       key: "name",
       header: "Company",
       sortValue: (r) => r.name,
-      cell: (r) =>
-        v2 ? (
-          <>
-            <NameTile name={r.name} className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
-            <span className="min-w-0 truncate" title={r.name}>
-              {r.name}
-            </span>
-            {r.hasFounder === false && (
-              // Quiet words after the name; they give way first. The pane has the full wording.
-              <span
-                className="ml-2 min-w-0 shrink-[1000] truncate text-meta font-normal text-muted-foreground"
-                title={r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
-              >
-                No founder yet
-              </span>
-            )}
-          </>
-        ) : (
-          <>
-            <NameTile name={r.name} className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
+      cell: (r) => (
+        <>
+          <NameTile name={r.name} className="v2:mr-3 v2:h-5 v2:w-5 v2:text-[10px]" />
+          <span className="min-w-0 truncate" title={r.name}>
             {r.name}
-            {r.hasFounder === false && (
-              <span className="ml-2 rounded-sm bg-muted px-1.5 py-0.5 text-[11px] font-normal text-muted-foreground">
-                {r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
-              </span>
-            )}
-          </>
-        ),
+          </span>
+          {r.hasFounder === false && (
+            // Quiet words after the name; they give way first. The pane has the full wording.
+            <span
+              className="ml-2 min-w-0 shrink-[1000] truncate text-meta font-normal text-muted-foreground"
+              title={r.createdVia === "marge" ? "Added via Marge · No founder yet" : "No founder yet"}
+            >
+              No founder yet
+            </span>
+          )}
+        </>
+      ),
     },
     {
       key: "status",
       header: "Status",
       sortValue: (r) => CADENCE_ORDER[r.cadence],
       mobile: "badge",
-      className: colClass("w-[136px] [--cell-max:136px]"),
+      className: "w-[136px] [--cell-max:136px]",
       cell: (r) => <StatusDot status={r.cadence}>{r.statusLabel}</StatusDot>,
     },
     {
@@ -342,7 +325,7 @@ export default function AdminCompaniesPage() {
       sortValue: (r) => r.sector,
       dropBelow: 480,
       mobile: "meta",
-      className: colClass("[--cell-max:184px]"),
+      className: "[--cell-max:184px]",
       cell: (r) => r.sector ?? <span className="text-muted-foreground">—</span>,
     },
     {
@@ -350,7 +333,7 @@ export default function AdminCompaniesPage() {
       header: "Stage",
       sortValue: (r) => r.fundingStage,
       dropBelow: 480,
-      className: colClass("w-[112px] [--cell-max:112px]"),
+      className: "w-[112px] [--cell-max:112px]",
       title: (r) => r.fundingStage,
       cell: (r) => <StageChip stage={r.fundingStage} />,
     },
@@ -360,7 +343,7 @@ export default function AdminCompaniesPage() {
       sortValue: (r) => r.geography,
       dropBelow: 600,
       mobile: "meta",
-      className: colClass("[--cell-max:224px]"),
+      className: "[--cell-max:224px]",
       cell: (r) => r.geography ?? <span className="text-muted-foreground">—</span>,
     },
     {
@@ -414,28 +397,18 @@ export default function AdminCompaniesPage() {
             Add company
           </Button>
         }
-        // New look: CSV format and Import CSV are secondary actions (a "⋯" menu on phones, so the
-        // title and Add Company keep one row). Old look keeps Import CSV as a header button.
-        secondaryActions={
-          v2
-            ? [
-                { label: "CSV format", variant: "ghost", onSelect: () => setCsvHelpOpen(true) },
-                {
-                  label: "Import CSV",
-                  icon: <Upload className="h-4 w-4" />,
-                  onSelect: () => fileInputRef.current?.click(),
-                },
-              ]
-            : undefined
-        }
+        // CSV format and Import CSV are secondary actions (a "⋯" menu on phones, so the title and
+        // Add Company keep one row).
+        secondaryActions={[
+          { label: "CSV format", variant: "ghost", onSelect: () => setCsvHelpOpen(true) },
+          {
+            label: "Import CSV",
+            icon: <Upload className="h-4 w-4" />,
+            onSelect: () => fileInputRef.current?.click(),
+          },
+        ]}
         action={
           <div className="flex flex-wrap gap-2">
-            {!v2 && (
-              <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="h-4 w-4" />
-                Import CSV
-              </Button>
-            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -455,19 +428,12 @@ export default function AdminCompaniesPage() {
         }
       />
 
-      {/* Old look keeps the disclosure here; the new look has a "CSV format" button in the header instead. */}
-      {!v2 && (
-        <div className="mb-4">
-          <ComposerDisclosure label="CSV format">{csvFormatNote}</ComposerDisclosure>
-        </div>
-      )}
-      {v2 && (
-        <Dialog open={csvHelpOpen} onOpenChange={setCsvHelpOpen}>
-          <DialogContent title="CSV format" size="sm">
-            <DialogBody>{csvFormatNote}</DialogBody>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* The "CSV format" header button opens this. */}
+      <Dialog open={csvHelpOpen} onOpenChange={setCsvHelpOpen}>
+        <DialogContent title="CSV format" size="sm">
+          <DialogBody>{csvFormatNote}</DialogBody>
+        </DialogContent>
+      </Dialog>
 
       <OpenParam fallback={<TableSkeleton rows={6} cols={5} />}>
       {(openId, setOpenId) => {

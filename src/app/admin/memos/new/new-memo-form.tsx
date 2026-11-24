@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { ComposerTopBar } from "@/components/composer/composer-top-bar";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,14 +12,12 @@ import { Select } from "@/components/ui/select";
 import { MEMO_LIMITS } from "@/lib/memos";
 import { readError, targetValue, type LinkTargets } from "@/components/admin/memos/types";
 import { cn } from "@/lib/utils";
-import { useNewLook } from "@/lib/use-new-look";
 import { EDITOR_COLUMN, EDITOR_SECTION_CARD } from "@/lib/editor-styles";
 
 const NOT_IN_MOLLY = "__pending__";
 
 export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
   const router = useRouter();
-  const newLook = useNewLook();
   const [title, setTitle] = useState("");
   const [company, setCompany] = useState("");
   const [pending, setPending] = useState("");
@@ -52,11 +49,8 @@ export default function NewMemoForm({ targets }: { targets: LinkTargets }) {
 
   return (
     <AppShell width="narrow">
-      {/* New look (audit #8): the Form header replaces the breadcrumb row. */}
-      {!newLook && <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: "New memo" }]} />}
-      {/* New look (page types v1, §4.3 form variant): the editor bar holds the way back and the actions. */}
+      {/* Page types v1, §4.3 form variant: the editor bar holds the way back and the actions. */}
       <ComposerTopBar
-        newLookOnly
         back={{ href: "/admin/memos", label: "Memos" }}
         draftLabel="Not saved yet"
         showPublish={false}

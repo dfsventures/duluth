@@ -11,7 +11,6 @@ import { Shortcuts } from "./shortcuts";
 import { SurfaceSync } from "./surface-sync";
 import { surfaceForPath, type Surface } from "@/lib/surface";
 import { cn } from "@/lib/utils";
-import { useNewLook } from "@/lib/use-new-look";
 
 export const MAIN_ID = "main-content";
 
@@ -19,22 +18,20 @@ interface AppShellProps {
   children: React.ReactNode;
   /**
    * "page" (default) is today's centred column. "full" is for pages that lay out their own
-   * list and pane (PLAN-1, WS160): under the new look it drops the column and the padding.
-   * Under the old look both are the same box, so a page can pass "full" before it is ready.
-   * "wide" is for pages whose main content is a wide table: under the new look the content fills the
+   * list and pane (PLAN-1, WS160).
+   * "wide" is for pages whose main content is a wide table: the content fills the
    * space between the two gutters (--column-wide has no cap). "narrow" (720) is for editors, forms and
    * Settings: the header bar, the Save / Send buttons and the content share one narrow column.
    * "detail" and "detail-wide" are for the
    * Dossier pages (main column plus panel; 1056 and 1296 wide, the fund page being the wide one).
-   * Under the new look every width except "full" is the same frame: a gutter each side, a content width
-   * (--frame), centred in the main area, with the header bar on the same column. Under the old look all
-   * of them, "full" included, are the same box as "page".
+   * Every width is the same frame: a gutter each side, a content width (--frame), centred in the
+   * main area, with the header bar on the same column.
    */
   width?: "page" | "narrow" | "wide" | "full" | "detail" | "detail-wide";
   /**
    * Overrides the surface the path would give. For a page shared with founders and LPs (outside
-   * /admin) that shows an admin the new look: it passes "admin" only for an admin with the new look
-   * on, and nothing otherwise, so every other viewer keeps the surface the path gives.
+   * /admin) that shows an admin the admin view: it passes "admin" only for an admin, and nothing
+   * otherwise, so every other viewer keeps the surface the path gives.
    */
   surface?: Surface;
 }
@@ -48,7 +45,6 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
   // The palette and shortcuts are admin only in v1 (spec decision 3).
   const { data: session } = useSession();
   const isAdmin = session?.user?.roles?.includes("ADMIN") ?? false;
-  const newLook = useNewLook();
 
   // Phone drawer: Esc closes it, focus moves into it on open and back to the
   // menu button on close, so keyboard and screen reader users are not stranded.
@@ -58,13 +54,10 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
     document.getElementById(SIDEBAR_ID)?.querySelector<HTMLElement>("a[href], button")?.focus();
     function onKey(e: KeyboardEvent) {
       if (e.key !== "Escape") return;
-      // New look, layered Esc (PLAN-1, WS164): a menu or dialog open on top closes first (it
-      // marks the event handled), and the drawer then takes this Esc so the pane or filters
-      // under it stay put. The old look keeps closing the drawer on any Esc.
-      if (newLook) {
-        if (e.defaultPrevented) return;
-        e.preventDefault();
-      }
+      // Layered Esc (PLAN-1, WS164): a menu or dialog open on top closes first (it marks the
+      // event handled), and the drawer then takes this Esc so the pane or filters under it stay put.
+      if (e.defaultPrevented) return;
+      e.preventDefault();
       setSidebarOpen(false);
     }
     document.addEventListener("keydown", onKey);
@@ -72,15 +65,15 @@ export function AppShell({ children, width = "page", surface: surfaceOverride }:
       document.removeEventListener("keydown", onKey);
       button?.focus();
     };
-  }, [sidebarOpen, newLook]);
+  }, [sidebarOpen]);
 
   return (
     // h-dvh, not h-screen — see the note in sidebar.tsx
-    // data-v2-scope: the new look's CSS reaches only what sits inside the app shell (admin and founder
-    // pages), never the LP portal, sign-in, home or share pages. Static, so CSS alone decides on load.
+    // data-v2-scope: the app look's CSS reaches what sits inside the app shell (admin and founder
+    // pages); the LP layout, AuthLayout and home carry their own; share pages never do.
     <div className="flex h-dvh overflow-hidden" data-surface={surface} data-v2-scope="" data-drawer-open={sidebarOpen ? "" : undefined}>
       <SurfaceSync surface={surface} newLookScope />
-      {/* Skip link: only exists under the new look, only visible when focused (see globals.css) */}
+      {/* Skip link: only visible when focused (see globals.css) */}
       <a href={`#${MAIN_ID}`} className="skip-link hidden">
         Skip to main content
       </a>

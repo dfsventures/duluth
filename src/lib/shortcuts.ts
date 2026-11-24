@@ -7,7 +7,7 @@
 //   /  focus the table filter (DataTable)
 //   j / k / Enter  move through and open table rows (DataTable)
 //   m / e / Alt+arrows  Team Board card menu, edit, move (BoardCard)
-//   New look only (PLAN-1, WS164): f  palette on "Filter: "; Esc  one layer at a time
+//   PLAN-1, WS164: f  palette on "Filter: "; Esc  one layer at a time
 //   (palette → menu → drawer → full page back to the list → pane → filters)
 //
 // Shortcuts never fire while typing in a field or when a modifier is held.
@@ -186,13 +186,13 @@ export function stepShortcut(
 
   if (key === "g") return { state: { armedAt: now }, result: { type: "armed" } };
   if (key === "?") return { state: { armedAt: null }, result: { type: "help" } };
-  // `f` opens the palette on "Filter: " (new look only; the caller decides).
+  // `f` opens the palette on "Filter: ".
   if (key === "f") return { state: { armedAt: null }, result: { type: "filter" } };
   return { state: { armedAt: null }, result: { type: "none" } };
 }
 
-/** Rows for the cheat sheet. `newLookOnly` rows show only under the new look. */
-export const SHORTCUT_HELP: { keys: string[]; label: string; newLookOnly?: boolean }[] = [
+/** Rows for the cheat sheet. */
+export const SHORTCUT_HELP: { keys: string[]; label: string }[] = [
   { keys: ["Ctrl/⌘", "K"], label: "Search and jump to anything" },
   { keys: ["?"], label: "Show this list" },
   { keys: ["/"], label: "Filter the table on this page" },
@@ -204,16 +204,16 @@ export const SHORTCUT_HELP: { keys: string[]; label: string; newLookOnly?: boole
   { keys: ["e"], label: "Team Board: edit the card" },
   { keys: ["Alt", "↑", "↓"], label: "Team Board: move the card up or down its column" },
   { keys: ["Alt", "←", "→"], label: "Team Board: move the card to the next column" },
-  // New look (PLAN-1, WS164).
-  { keys: ["Esc"], label: "Close one layer: palette, menu, panel, full page, pane, then filters", newLookOnly: true },
-  { keys: ["f"], label: "Filter the list on this page from the palette", newLookOnly: true },
-  { keys: ["a"], label: "Approvals pane: approve the signup", newLookOnly: true },
-  { keys: ["r"], label: "Needs you pane: send a reminder", newLookOnly: true },
-  { keys: ["d"], label: "Needs you pane: dismiss the alert", newLookOnly: true },
-  { keys: ["u"], label: "Team Board card: mark as unblocked", newLookOnly: true },
+  // PLAN-1, WS164.
+  { keys: ["Esc"], label: "Close one layer: palette, menu, panel, full page, pane, then filters" },
+  { keys: ["f"], label: "Filter the list on this page from the palette" },
+  { keys: ["a"], label: "Approvals pane: approve the signup" },
+  { keys: ["r"], label: "Needs you pane: send a reminder" },
+  { keys: ["d"], label: "Needs you pane: dismiss the alert" },
+  { keys: ["u"], label: "Team Board card: mark as unblocked" },
 ];
 
-/** The cheat sheet's rows for this look. */
-export function shortcutHelpRows(newLook: boolean): { keys: string[]; label: string }[] {
-  return SHORTCUT_HELP.filter((r) => newLook || !r.newLookOnly);
+/** The cheat sheet's rows (one look since WS168, so every row). */
+export function shortcutHelpRows(): { keys: string[]; label: string }[] {
+  return SHORTCUT_HELP;
 }

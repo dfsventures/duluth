@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/toast";
 import { MEMO_LIMITS } from "@/lib/memos";
 import { cn } from "@/lib/utils";
-import { useNewLook } from "@/lib/use-new-look";
 import { firstSentence } from "./dossier-utils";
 import { CitationChips } from "./citation-chips";
 import { CitationsEditor } from "./citations-editor";
@@ -43,7 +42,7 @@ export function SectionCard({
   onChanged: () => void;
   /** Opens the Share panel from the "Hidden from share links" note. */
   onOpenShare?: () => void;
-  /** New look only: the section is folded (the page owns the state so a jump to the section can unfold it). */
+  /** The section is folded (the page owns the state so a jump to the section can unfold it). */
   folded?: boolean;
   onToggleFold?: () => void;
 }) {
@@ -170,9 +169,8 @@ export function SectionCard({
       )
     : null;
 
-  // New look (direction B): fold, Edit/History on hover or focus.
-  const newLook = useNewLook();
-  const isFolded = newLook && !!folded && !editing;
+  // Direction B (memo page): fold, Edit/History on hover or focus.
+  const isFolded = !!folded && !editing;
 
   function startEditUnfolded() {
     if (folded) onToggleFold?.();
@@ -182,10 +180,9 @@ export function SectionCard({
   return (
     <section
       id={`section-${section.key}`}
-      data-folded={newLook ? String(isFolded) : undefined}
+      data-folded={String(isFolded)}
       className="memo-section scroll-mt-24 lg:scroll-mt-6 border-t border-border pt-6 first:border-t-0 first:pt-0 v2:border-t-0 v2:pt-0"
     >
-      {newLook ? (
         <div className="mb-2 flex min-h-9 items-center gap-3">
           <h2 className="min-w-0 font-sans text-heading font-semibold text-foreground">
             <button
@@ -237,33 +234,9 @@ export function SectionCard({
             </>
           )}
         </div>
-      ) : (
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="font-display text-lg font-semibold text-foreground v2:font-sans v2:text-heading">{section.title}</h2>
-            {hiddenMarker}
-          </div>
-          {!editing && (
-            <div className="memo-no-print flex gap-1">
-              <Button variant="ghost" size="sm" onClick={() => setShowHistory(true)} aria-label={`History of ${section.title}`}>
-                <History className="h-4 w-4" />
-                History
-              </Button>
-              {canEdit && (
-                <Button variant="ghost" size="sm" onClick={startEdit} aria-label={`Edit ${section.title}`}>
-                  <Pencil className="h-4 w-4" />
-                  Edit
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-      {newLook && (
         <p className="memo-fold-sum memo-no-print ml-6 hidden truncate text-body text-muted-foreground" >
           {firstSentence(section.markdown) || "No text yet."}
         </p>
-      )}
 
       {editing ? (
         <div className="memo-no-print space-y-4">

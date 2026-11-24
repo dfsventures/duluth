@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
-import { Megaphone, Plus, X, Trash2 } from "lucide-react";
+import { Megaphone, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { useNewLook } from "@/lib/use-new-look";
 
 interface Broadcast {
   id: string;
@@ -32,7 +30,7 @@ interface PortfolioCompanyOption {
   contactCount: number;
 }
 
-// New look (WS169): one-line rows in the shared table. The old look keeps its boxes below.
+// WS169: one-line rows in the shared table.
 const broadcastColumns: DataTableColumn<Broadcast>[] = [
   { key: "subject", header: "Subject", sortValue: (b) => b.subject || "Untitled", cell: (b) => b.subject || "Untitled" },
   {
@@ -67,7 +65,6 @@ const broadcastColumns: DataTableColumn<Broadcast>[] = [
 ];
 
 export default function AdminBroadcastsPage() {
-  const newLook = useNewLook();
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [companies, setCompanies] = useState<PortfolioCompanyOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +75,6 @@ export default function AdminBroadcastsPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -132,10 +128,6 @@ export default function AdminBroadcastsPage() {
     }
   }
 
-  const filteredBroadcasts = broadcasts.filter((b) =>
-    (b.subject || "").toLowerCase().includes(search.trim().toLowerCase())
-  );
-
   const confirm = useConfirm();
   async function handleDeleteDraft(e: React.MouseEvent, id: string) {
     e.preventDefault();
@@ -163,8 +155,7 @@ export default function AdminBroadcastsPage() {
         }
       />
 
-      {newLook ? (
-        <DataTable<Broadcast>
+      <DataTable<Broadcast>
           label="Broadcasts"
           noun="broadcast"
           rows={broadcasts}
@@ -199,63 +190,6 @@ export default function AdminBroadcastsPage() {
           }
           empty={<EmptyState eyebrow="Broadcasts" icon={<Megaphone className="h-8 w-8" />} title="No broadcasts yet" description="Write the first email to your portfolio companies." />}
         />
-      ) : loading ? (
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
-          ))}
-        </div>
-      ) : broadcasts.length === 0 ? (
-        <EmptyState eyebrow="Broadcasts" icon={<Megaphone className="h-8 w-8" />} title="No broadcasts yet" description="Write the first email to your portfolio companies." />
-      ) : (
-        <>
-          <div className="mb-6">
-            <Input
-              placeholder="Search by subject..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          {filteredBroadcasts.length === 0 ? (
-            <EmptyState icon={<Megaphone className="h-8 w-8" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
-          ) : (
-        <div className="space-y-2">
-          {filteredBroadcasts.map((b) => (
-            <Link
-              key={b.id}
-              href={`/admin/broadcasts/${b.id}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3 hover:border-primary/40 transition-colors"
-            >
-              <div className="min-w-48 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-foreground text-sm">{b.subject || "Untitled"}</span>
-                  <Badge variant={b.status === "PUBLISHED" ? "success" : "warning"}>
-                    {b.status === "PUBLISHED" ? "Sent" : "Draft"}
-                  </Badge>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span>{b.targetCount} compan{b.targetCount === 1 ? "y" : "ies"}</span>
-                  {b.status === "PUBLISHED" && <span>Sent to {b.recipientCount} contact{b.recipientCount === 1 ? "" : "s"}</span>}
-                  {b.publishedAt && <span>{formatDate(b.publishedAt)}</span>}
-                  {b.senderLabel && <span>{b.status === "PUBLISHED" ? "Sent by" : "By"} {b.senderLabel}</span>}
-                </div>
-              </div>
-              {b.status === "DRAFT" && (
-                <button
-                  onClick={(e) => handleDeleteDraft(e, b.id)}
-                  disabled={deletingId === b.id}
-                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
-                  title="Delete draft"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </Link>
-          ))}
-        </div>
-          )}
-        </>
-      )}
 
       {showNew && (
         <Modal title="New Broadcast" onClose={() => setShowNew(false)}>

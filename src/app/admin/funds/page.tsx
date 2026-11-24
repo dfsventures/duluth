@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Landmark, Plus, X, FileText, Handshake, Layers, RefreshCw } from "lucide-react";
+import { Landmark, Plus, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,6 @@ import { formatDate } from "@/lib/utils";
 import { ORG_NAME } from "@/lib/org";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { useNewLook } from "@/lib/use-new-look";
 
 type FundsTab = "funds" | "sync";
 
@@ -31,7 +29,7 @@ interface Fund {
   reportCount: number;
 }
 
-// New look (WS169): one-line rows in the shared table. The old look keeps its cards below.
+// WS169: one-line rows in the shared table.
 const fundColumns: DataTableColumn<Fund>[] = [
   {
     key: "name",
@@ -82,13 +80,11 @@ export default function AdminFundsPage() {
 
 function AdminFundsPageInner() {
   const router = useRouter();
-  const newLook = useNewLook();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab") === "sync" ? "sync" : "funds";
 
   const [funds, setFunds] = useState<Fund[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [newSlug, setNewSlug] = useState("");
   const [newName, setNewName] = useState("");
@@ -117,10 +113,6 @@ function AdminFundsPageInner() {
       setActiveTab("funds");
     }
   }, [requestedTab, syncEnabled]);
-
-  const filteredFunds = funds.filter((f) =>
-    f.name.toLowerCase().includes(search.trim().toLowerCase())
-  );
 
   function selectTab(tab: FundsTab) {
     setActiveTab(tab);
@@ -222,7 +214,7 @@ function AdminFundsPageInner() {
             <FundMetricsSyncPanel />
           </div>
         </div>
-      ) : newLook ? (
+      ) : (
         <DataTable<Fund>
           label="Funds"
           noun="fund"
@@ -237,65 +229,6 @@ function AdminFundsPageInner() {
           minWidth={720}
           empty={<EmptyState eyebrow="Funds" icon={<Landmark className="h-8 w-8" />} title="No funds yet" description="Create a fund to start recording deals." />}
         />
-      ) : loading ? (
-        <div className="space-y-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-20 rounded-md bg-muted animate-pulse" />
-          ))}
-        </div>
-      ) : funds.length === 0 ? (
-        <EmptyState eyebrow="Funds" icon={<Landmark className="h-8 w-8" />} title="No funds yet" description="Create a fund to start recording deals." />
-      ) : (
-        <>
-          <div className="mb-6">
-            <Input
-              placeholder="Search by fund name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          {filteredFunds.length === 0 ? (
-            <EmptyState icon={<Landmark className="h-8 w-8" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
-          ) : (
-            <div className="space-y-4">
-              {filteredFunds.map((f) => (
-                <Link
-                  key={f.id}
-                  href={`/admin/funds/${f.id}`}
-                  className="block rounded-md border border-border bg-card p-4 hover:border-primary/40 transition-colors"
-                >
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary">
-                      <Landmark className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-48 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-foreground text-sm">{f.name}</span>
-                        <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">{f.slug}</span>
-                        {f.groupLabel && <span className="text-xs text-muted-foreground">{f.groupLabel}</span>}
-                      </div>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-                        {f.aumUsd !== null && <span>AUM ${f.aumUsd.toLocaleString()}</span>}
-                        {f.firstDealDate && <span>First deal {formatDate(f.firstDealDate)}</span>}
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1.5">
-                        <Layers className="h-3.5 w-3.5" /> {f.dealCount} deal{f.dealCount !== 1 ? "s" : ""}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Handshake className="h-3.5 w-3.5" /> {f.lpCount} LP{f.lpCount !== 1 ? "s" : ""}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <FileText className="h-3.5 w-3.5" /> {f.reportCount} report{f.reportCount !== 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
-        </>
       )}
 
       {showNew && (

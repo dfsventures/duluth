@@ -21,7 +21,6 @@ import {
   type GotoState,
 } from "@/lib/shortcuts";
 import { escapeBelongsToField } from "@/lib/split-view";
-import { useNewLook } from "@/lib/use-new-look";
 import { FILTERABLE_LIST_SELECTOR } from "@/lib/command-palette";
 import { openCommandPalette, openCommandPaletteWith } from "./command-palette";
 
@@ -51,11 +50,10 @@ function Keys({ keys }: { keys: string[] }) {
 export function Shortcuts() {
   const router = useRouter();
   const pathname = usePathname();
-  const newLook = useNewLook();
   const [helpOpen, setHelpOpen] = useState(false);
   const state = useRef<GotoState>({ armedAt: null });
-  const live = useRef({ newLook, pathname });
-  live.current = { newLook, pathname };
+  const live = useRef({ pathname });
+  live.current = { pathname };
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -65,11 +63,11 @@ export function Shortcuts() {
         return;
       }
       if (e.metaKey || e.ctrlKey || e.altKey || e.defaultPrevented) return;
-      const { newLook: v2, pathname: path } = live.current;
-      // New look: Esc on a full page opened from a pane goes back to the list with that pane
-      // open, once nothing above it (palette, menu, drawer) is open. A text field keeps its Esc.
-      // Only the new-look pane (and its `o` key) writes the return entry, so this needs no look
-      // check of its own, and it also works on /updates/[id], which sits outside /admin.
+      const { pathname: path } = live.current;
+      // Esc on a full page opened from a pane goes back to the list with that pane open, once
+      // nothing above it (palette, menu, drawer) is open. A text field keeps its Esc. Only the
+      // pane (and its `o` key) writes the return entry, so this also works on /updates/[id],
+      // which sits outside /admin.
       if (e.key === "Escape") {
         if (escapeBelongsToField(document.activeElement)) return;
         if (!isTopEscLayer("full-page", readEscLayers(document))) return;
@@ -94,8 +92,8 @@ export function Shortcuts() {
         e.preventDefault();
         setHelpOpen(true);
       } else if (step.result.type === "filter") {
-        // Only under the new look, and only where there is a list to filter.
-        if (!v2 || !document.querySelector(FILTERABLE_LIST_SELECTOR)) return;
+        // Only where there is a list to filter.
+        if (!document.querySelector(FILTERABLE_LIST_SELECTOR)) return;
         e.preventDefault();
         openCommandPaletteWith(FILTER_PREFIX);
       }
@@ -118,7 +116,7 @@ export function Shortcuts() {
   }, [pathname]);
 
   const gotoRows = ALL_ADMIN_PAGES.filter((p) => p.goto);
-  const helpRows = shortcutHelpRows(newLook);
+  const helpRows = shortcutHelpRows();
 
   return (
     <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
@@ -141,7 +139,7 @@ export function Shortcuts() {
             <ul className="grid grid-cols-1 gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
               {gotoRows.map((p) => (
                 <li key={p.href} className="flex items-center justify-between gap-3">
-                  <span>{newLook && p.labelV2 ? p.labelV2 : p.label}</span>
+                  <span>{p.labelV2 ?? p.label}</span>
                   <Keys keys={["g", p.goto!]} />
                 </li>
               ))}

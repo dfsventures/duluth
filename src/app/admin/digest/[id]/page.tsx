@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, ChevronLeft, Send, CheckCircle2, Clock, AlertCircle,
-  Loader2, Pencil, Trash2, X, Plus, Save,
+  ChevronLeft, AlertCircle, Pencil, Trash2, X, Plus,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -14,9 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { CondensedBar } from "@/components/layout/condensed-bar";
 import { DetailMenu } from "@/components/layout/page-header-menu";
-import { useNewLook } from "@/lib/use-new-look";
 import { cn, formatDate } from "@/lib/utils";
-import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD, EDITOR_TITLE } from "@/lib/editor-styles";
+import { EDITOR_COLUMN, EDITOR_SECTION_BODY, EDITOR_SECTION_CARD } from "@/lib/editor-styles";
 import { plainToDigestHtml, digestHtmlToPlain, sanitizeDigestHtml } from "@/lib/digest-html";
 import { PageSkeleton } from "@/components/ui/skeleton";
 
@@ -51,7 +49,6 @@ const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 export default function DigestDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const newLook = useNewLook();
   const [digest, setDigest] = useState<Digest | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -230,10 +227,10 @@ export default function DigestDetailPage() {
 
   return (
     <AppShell width="narrow">
-      {/* New look (audit #46): the Record header. Back link, title, a status line, and the actions at the top
+      {/* Audit #46: the Record header. Back link, title, a status line, and the actions at the top
           right: the primary and a ⋯ menu that holds Edit and Delete, so the row never wraps. */}
       {/* Page types v1, Detail: the shared header geometry (drawn here because the title turns into an input while editing). */}
-      {newLook && !editing && (
+      {!editing && (
         <CondensedBar
           headId="digest-head"
           title={digest.title}
@@ -247,8 +244,7 @@ export default function DigestDetailPage() {
           }
         />
       )}
-      {newLook && (
-        <div id="digest-head" data-page-head="" data-type="detail" className="page-head mb-8 flex flex-wrap items-start justify-between gap-x-4">
+      <div id="digest-head" data-page-head="" data-type="detail" className="page-head mb-8 flex flex-wrap items-start justify-between gap-x-4">
           <div className="page-back-row">
             <Link href="/admin/digest" data-align="back" className="page-back focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <ChevronLeft aria-hidden="true" className="h-4 w-4" />
@@ -315,96 +311,6 @@ export default function DigestDetailPage() {
             )}
           </div>
         </div>
-      )}
-
-      {/* Header */}
-      <div className={cn("mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between", newLook && "hidden")}>
-        <div>
-          <Link
-            href="/admin/digest"
-            className="mb-2 inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            All digests
-          </Link>
-          {editing ? (
-            <input
-              className="input-field w-full text-xl font-bold"
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value)}
-            />
-          ) : (
-            <h1 className={cn("text-xl font-bold text-foreground", EDITOR_TITLE)}>{digest.title}</h1>
-          )}
-          {editing ? (
-            <input
-              type="date"
-              className="input-field mt-1 text-sm"
-              value={editWeekOf}
-              onChange={(e) => setEditWeekOf(e.target.value)}
-            />
-          ) : (
-            <p className="mt-1 text-sm text-muted-foreground">Week of {formatDate(digest.weekOf)}</p>
-          )}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {digest.sentAt ? (
-            <Badge variant="success" className="flex items-center gap-1">
-              <CheckCircle2 className="h-3 w-3" />
-              Sent {formatDate(digest.sentAt)}
-            </Badge>
-          ) : (
-            <Badge variant="warning" className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              Draft
-            </Badge>
-          )}
-
-          {editing ? (
-            <>
-              <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>Cancel</Button>
-              <Button size="sm" onClick={handleSave} disabled={saving} className="flex items-center gap-1.5">
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </>
-          ) : (
-            <>
-              {isEditWindow && (
-                <Button variant="secondary" size="sm" onClick={startEditing} className="flex items-center gap-1.5">
-                  <Pencil className="h-4 w-4" />
-                  Edit
-                  {editHoursLeft !== null && (
-                    <span className="text-xs text-muted-foreground ml-1">({editHoursLeft}h left)</span>
-                  )}
-                </Button>
-              )}
-              {isDraft && !confirmDelete && (
-                <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(true)} className="flex items-center gap-1.5 text-destructive hover:text-destructive">
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </Button>
-              )}
-              {isDraft && confirmDelete && (
-                <>
-                  <span className="text-xs text-muted-foreground">Are you sure?</span>
-                  <Button variant="secondary" size="sm" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-                  <Button size="sm" onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
-                  </Button>
-                </>
-              )}
-              {isEditWindow && (
-                <Button onClick={handleSend} disabled={sending} size="sm" className="flex items-center gap-1.5">
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {sending ? "Sending…" : digest.sentAt ? "Resend" : "Send to team"}
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
 
       {isDraft && reviewCount > 0 && !editing && (
         <p className={cn("mb-4 text-sm text-foreground", EDITOR_COLUMN)}>

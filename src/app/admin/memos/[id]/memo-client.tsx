@@ -2,20 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/lib/toast";
-import { SectionCard } from "@/components/admin/memos/section-card";
 import { MetaSheet } from "@/components/admin/memos/meta-sheet";
 import { SharePanel } from "@/components/admin/memos/share-panel";
 import { LinkCompanyDialog } from "@/components/admin/memos/link-company-dialog";
-import { MemoHeader } from "@/components/admin/memos/memo-header";
-import { MemoDetails } from "@/components/admin/memos/memo-details";
 import { MemoDossier } from "@/components/admin/memos/memo-dossier";
-import { useNewLook } from "@/lib/use-new-look";
-import { SectionNav } from "@/components/admin/memos/section-nav";
 import { readError, refValue, type LinkTargets, type MemoView } from "@/components/admin/memos/types";
 
 type Suggestion = { id: string; name: string; kind?: "ledger" };
@@ -23,7 +17,6 @@ type Suggestion = { id: string; name: string; kind?: "ledger" };
 export default function MemoClient({ memo, targets }: { memo: MemoView; targets: LinkTargets }) {
   const router = useRouter();
   const confirm = useConfirm();
-  const newLook = useNewLook();
   const [showMeta, setShowMeta] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [linking, setLinking] = useState(false);
@@ -70,7 +63,6 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
 
   const ref = memo.companyRef;
   const linked = ref.kind === "company" || ref.kind === "ledger";
-  const sections = memo.sections.map((s) => ({ key: s.key, title: s.title }));
 
   const banner =
     suggestion && !dismissed ? (
@@ -105,62 +97,21 @@ export default function MemoClient({ memo, targets }: { memo: MemoView; targets:
     </>
   );
 
-  // New look: direction B "Dossier" (B-175). The server and first client render are the old look.
-  if (newLook) {
-    return (
-      <AppShell width="detail">
-        <div className="memo-print-scope">
-          <MemoDossier
-            memo={memo}
-            linked={linked}
-            banner={banner}
-            onOpenShare={() => setShowShare(true)}
-            onArchive={archive}
-            onChanged={refresh}
-            onEditDetails={() => setShowMeta(true)}
-            onChangeCompany={() => setLinking(true)}
-          />
-        </div>
-        {overlays}
-      </AppShell>
-    );
-  }
-
+  // Direction B "Dossier" (B-175).
   return (
-    <AppShell>
+    <AppShell width="detail">
       <div className="memo-print-scope">
-        <MemoHeader memo={memo} onOpenShare={() => setShowShare(true)} onArchive={archive} onChanged={refresh} />
-
-        {banner}
-
-        <MemoDetails memo={memo} linked={linked} onEditDetails={() => setShowMeta(true)} onChangeCompany={() => setLinking(true)} />
-
-        <div className="grid gap-8 lg:grid-cols-[200px_minmax(0,1fr)]">
-          <SectionNav sections={sections} />
-          <div className="min-w-0 space-y-8">
-            {memo.sections.map((s) => (
-              <SectionCard
-                key={s.key}
-                memoId={memo.id}
-                section={s}
-                canEdit={memo.canEdit}
-                canManage={memo.canManage}
-                onChanged={refresh}
-                onOpenShare={() => setShowShare(true)}
-              />
-            ))}
-            {memo.canManage && (
-              <div className="memo-no-print border-t border-border pt-6">
-                <Button variant="ghost" onClick={archive}>
-                  <Archive className="h-4 w-4" />
-                  Archive memo
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
+        <MemoDossier
+          memo={memo}
+          linked={linked}
+          banner={banner}
+          onOpenShare={() => setShowShare(true)}
+          onArchive={archive}
+          onChanged={refresh}
+          onEditDetails={() => setShowMeta(true)}
+          onChangeCompany={() => setLinking(true)}
+        />
       </div>
-
       {overlays}
     </AppShell>
   );

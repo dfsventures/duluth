@@ -65,7 +65,8 @@ describe("DataTable", () => {
         subtotal: (rs) => ({ amount: `$${rs.reduce((n, r) => n + r.amount, 0)}` }),
       },
     });
-    expect((html.match(/data-group/g) ?? []).length).toBe(2);
+    // A heading per group in the table and again in the phone list.
+    expect((html.match(/data-group/g) ?? []).length).toBe(4);
     expect((html.match(/data-subtotal/g) ?? []).length).toBe(2);
     expect(html.indexOf("Fund A")).toBeLessThan(html.indexOf("Fund B"));
     expect(html).toContain("$25"); // Fund A subtotal

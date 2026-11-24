@@ -2,15 +2,12 @@
 
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { FileText, BarChart3, FolderOpen, Users, AlertCircle, ArrowLeft, Trash2, NotebookPen, ClipboardCheck } from "lucide-react";
+import { FileText, BarChart3, FolderOpen, Users, AlertCircle, ArrowLeft, NotebookPen, ClipboardCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
-import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { TabBar } from "@/components/ui/tab-bar";
 import { parseTab } from "@/lib/url-tab";
 import {
   TABS,
@@ -23,7 +20,6 @@ import {
   type Note,
   type Update,
 } from "@/components/admin/company/types";
-import { ProfileCard } from "@/components/admin/company/profile-card";
 import { UpdatesTab } from "@/components/admin/company/updates-tab";
 import { MetricsTab } from "@/components/admin/company/metrics-tab";
 import { DocumentsTab, type DocumentLoadOpts } from "@/components/admin/company/documents-tab";
@@ -31,7 +27,6 @@ import { MembersTab } from "@/components/admin/company/members-tab";
 import { NotesTab } from "@/components/admin/company/notes-tab";
 import { DiligenceTab } from "@/components/admin/company/diligence-tab";
 import { CompanyRecord } from "@/components/admin/company/company-record";
-import { useNewLook } from "@/lib/use-new-look";
 
 // UI overhaul phase 7: this page used to be 1,812 lines. Data loading, the
 // header and the URL tabs stay here; each tab and the profile card live in
@@ -43,7 +38,6 @@ function AdminCompanyDetailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const confirm = useConfirm();
-  const newLook = useNewLook();
   const companyId = params.id as string;
 
   // The tab lives in the URL (?tab=): back button, shared links and the
@@ -273,7 +267,7 @@ function AdminCompanyDetailPageInner() {
     </>
   );
 
-  // Part 45 (WS151) note, shown under the title in both looks.
+  // Part 45 (WS151) note, shown under the title.
   const founderNote =
     adminMeta.hasFounder === false ? (
       <p className="mb-4 text-sm text-muted-foreground v2:mb-0">
@@ -284,56 +278,23 @@ function AdminCompanyDetailPageInner() {
       </p>
     ) : null;
 
-  // New look (B-133): the memo page's Dossier layout. The server and first client render are the old look.
-  if (newLook) {
-    return (
-      <AppShell width="detail">
-        <CompanyRecord
-          companyId={companyId}
-          company={company}
-          portfolioCompany={portfolioCompany}
-          founderNote={founderNote}
-          tabs={tabs}
-          activeTab={activeTab}
-          deleting={deleting}
-          onDelete={handleDeleteCompany}
-          onSaved={setCompany}
-          setMessage={setMessage}
-        >
-          {tabContent}
-        </CompanyRecord>
-      </AppShell>
-    );
-  }
-
+  // B-133: the memo page's Dossier layout.
   return (
-    <AppShell>
-      <Breadcrumb items={[{ label: "Companies", href: "/admin/companies" }, { label: company.name }]} />
-      <PageHeader
-        title={company.name}
-        description="Company detail view"
-        action={
-          <Button variant="secondary" size="sm" disabled={deleting} onClick={handleDeleteCompany}>
-            <Trash2 className="mr-2 h-3.5 w-3.5" />
-            {deleting ? "Deleting..." : "Delete"}
-          </Button>
-        }
-      />
-
-      {founderNote}
-
-      <ProfileCard
+    <AppShell width="detail">
+      <CompanyRecord
         companyId={companyId}
         company={company}
         portfolioCompany={portfolioCompany}
+        founderNote={founderNote}
+        tabs={tabs}
+        activeTab={activeTab}
+        deleting={deleting}
+        onDelete={handleDeleteCompany}
         onSaved={setCompany}
         setMessage={setMessage}
-      />
-
-      {/* Tab navigation (URL tabs) */}
-      <TabBar<Tab> label="Company sections" tabs={tabs} active={activeTab} fallback="updates" />
-
-      {tabContent}
+      >
+        {tabContent}
+      </CompanyRecord>
     </AppShell>
   );
 }

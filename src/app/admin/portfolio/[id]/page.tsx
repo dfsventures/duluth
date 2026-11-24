@@ -17,10 +17,8 @@ import { PortcoLinkDialog } from "@/components/admin/portco-link-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { ModalDialog } from "@/components/ui/dialog";
 import { DealRecord } from "@/components/admin/portfolio/deal-record";
-import { useNewLook } from "@/lib/use-new-look";
 import { noticeClasses } from "@/components/ui/notice";
 
 const ROUND_KINDS = ["UNKNOWN", "PRICED", "SAFE", "CONVERSION", "OTHER"];
@@ -114,7 +112,6 @@ export default function AdminPortfolioCompanyPage() {
   const params = useParams();
   const router = useRouter();
   const companyId = params.id as string;
-  const newLook = useNewLook();
 
   const [data, setData] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -419,103 +416,43 @@ export default function AdminPortfolioCompanyPage() {
     );
   }
 
-  // New look (B-133): header bar, 720 column of sections and a properties panel. The server and first
-  // client render are the old look.
-  if (newLook) {
-    return (
-      <AppShell width="detail">
-        <DealRecord
-          name={data.name}
-          country={data.country}
-          latestValuation={data.latestValuation}
-          linked={data.company}
-          onNewRound={openNewRound}
-          onLink={() => setShowLinkModal(true)}
-          onUnlink={() => setShowUnlinkConfirm(true)}
-          notices={
-            showUnlinkConfirm && (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm text-foreground">
-                <span>Unlink {data.company?.name} from this portfolio company?</span>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" disabled={unlinking} onClick={() => setShowUnlinkConfirm(false)}>
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" size="sm" disabled={unlinking} onClick={handleUnlink}>
-                    {unlinking ? "Unlinking..." : "Confirm Unlink"}
-                  </Button>
-                </div>
-              </div>
-            )
-          }
-        >
-          {renderSections(data)}
-        </DealRecord>
-        {renderModals(data)}
-      </AppShell>
-    );
-  }
-
+  // B-133: header bar, 720 column of sections and a properties panel.
   return (
-    <AppShell>
-      <Breadcrumb items={[{ label: "Deal Ledger", href: "/admin/portfolio" }, { label: data.name }]} />
-
-
-      <div className="mb-6 rounded-md border border-border bg-card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h1 className="text-lg font-semibold text-foreground">{data.name}</h1>
-            <div className="mt-1 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-              {data.country && <span>{data.country}</span>}
-              {data.latestValuation !== null && <span>Latest valuation ${data.latestValuation.toLocaleString()}</span>}
-              {data.company ? (
-                <span className="flex flex-wrap items-center gap-2">
-                  <span>Molly account: {data.company.name}</span>
-                  <Link href={`/admin/companies/${data.company.id}`} className="text-primary hover:underline">
-                    View operational company profile
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setShowUnlinkConfirm(true)}
-                    className="text-tone-clay-ink hover:underline"
-                  >
-                    Unlink
-                  </button>
-                </span>
-              ) : (
-                <span className="flex flex-wrap items-center gap-2">
-                  <span>Molly account: not linked</span>
-                  <button type="button" onClick={() => setShowLinkModal(true)} className="text-primary hover:underline">
-                    Link…
-                  </button>
-                </span>
-              )}
-            </div>
-            {showUnlinkConfirm && (
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm text-foreground">
-                <span>Unlink {data.company?.name} from this portfolio company?</span>
-                <div className="flex gap-2">
-                  <Button variant="secondary" size="sm" disabled={unlinking} onClick={() => setShowUnlinkConfirm(false)}>
-                    Cancel
-                  </Button>
-                  <Button variant="destructive" size="sm" disabled={unlinking} onClick={handleUnlink}>
-                    {unlinking ? "Unlinking..." : "Confirm Unlink"}
-                  </Button>
-                </div>
+    <AppShell width="detail">
+      <DealRecord
+        name={data.name}
+        country={data.country}
+        latestValuation={data.latestValuation}
+        linked={data.company}
+        onNewRound={openNewRound}
+        onLink={() => setShowLinkModal(true)}
+        onUnlink={() => setShowUnlinkConfirm(true)}
+        notices={
+          showUnlinkConfirm && (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-ochre/30 bg-ochre/10 px-3 py-2 text-sm text-foreground">
+              <span>Unlink {data.company?.name} from this portfolio company?</span>
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" disabled={unlinking} onClick={() => setShowUnlinkConfirm(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" size="sm" disabled={unlinking} onClick={handleUnlink}>
+                  {unlinking ? "Unlinking..." : "Confirm Unlink"}
+                </Button>
               </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {renderSections(data)}
+            </div>
+          )
+        }
+      >
+        {renderSections(data)}
+      </DealRecord>
       {renderModals(data)}
     </AppShell>
   );
 
-  // The record's sections (contacts, positions, deals, rounds, valuation history), shared by both looks.
-  // Declared after the return (function declarations are hoisted) so the old look's markup stays put.
+  // The record's sections (contacts, positions, deals, rounds, valuation history).
+  // Declared after the return (function declarations are hoisted).
   function renderSections(data: CompanyDetail) {
-    // New look (audit #33): numbers first, people last (CSS order; the old look keeps its markup order).
+    // Audit #33: numbers first, people last (CSS order).
     return (
       <div className="v2:flex v2:flex-col">
       {/* Contacts (Part 30, WS70.4) — people first, then numbers */}
@@ -582,8 +519,8 @@ export default function AdminPortfolioCompanyPage() {
         <form onSubmit={handleSaveContact} className="rounded-md border border-border bg-card p-3 v2:rounded-none v2:border-0 v2:bg-transparent v2:p-0">
           {/* New look: Name, Email, Role and Add on one row from md up (they stack on a phone); Import CSV drops to its own line. */}
           <div className="flex flex-wrap items-end gap-2">
-            {/* New look (audit #33): the inputs appear after "Add contact" (or while editing a contact). */}
-            <div className={cn("contents", newLook && !showContactForm && !editingContactId && "hidden")}>
+            {/* Audit #33: the inputs appear after "Add contact" (or while editing a contact). */}
+            <div className={cn("contents", !showContactForm && !editingContactId && "hidden")}>
             <input
               type="text"
               aria-label="Contact name"
@@ -618,7 +555,7 @@ export default function AdminPortfolioCompanyPage() {
               </Button>
             )}
             </div>
-            {newLook && !showContactForm && !editingContactId && (
+            {!showContactForm && !editingContactId && (
               <Button type="button" variant="secondary" size="sm" onClick={() => setShowContactForm(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add contact
@@ -626,7 +563,7 @@ export default function AdminPortfolioCompanyPage() {
             )}
             <span
               aria-hidden="true"
-              className={cn("hidden h-0 basis-full v2:order-1 v2:block", newLook && !showContactForm && !editingContactId && "v2:hidden")}
+              className={cn("hidden h-0 basis-full v2:order-1 v2:block", !showContactForm && !editingContactId && "v2:hidden")}
             />
             <Button
               type="button"
@@ -679,7 +616,7 @@ export default function AdminPortfolioCompanyPage() {
                 <div className="mt-1.5 flex flex-wrap gap-3 text-xs text-muted-foreground v2:mt-0 v2:text-meta">
                   <span>${p.invested.toLocaleString()} invested</span>
                   <span>{p.dealCount} deal{p.dealCount !== 1 ? "s" : ""}</span>
-                  <span>{p.latestMultiple === null && newLook ? "—" : multipleLabel(p.latestMultiple)}</span>
+                  <span>{p.latestMultiple === null ? "—" : multipleLabel(p.latestMultiple)}</span>
                   <span className="inline-flex items-center gap-1.5">
                     ${Math.round(p.impliedValue).toLocaleString()} implied
                     {!p.dilutionAware && <span className="h-1.5 w-1.5 rounded-full bg-ochre" title="No dilution data recorded" />}
@@ -885,7 +822,7 @@ export default function AdminPortfolioCompanyPage() {
     );
   }
 
-  // The round and link dialogs, shared by both looks.
+  // The round and link dialogs.
   function renderModals(data: CompanyDetail) {
     return (
       <>

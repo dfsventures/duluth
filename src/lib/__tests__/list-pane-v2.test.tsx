@@ -3,10 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-// PLAN-1, WS160. The new look's list and pane. useNewLook is mocked so both looks can be rendered
-// on the server (the real hook reads localStorage after hydration).
-const look = vi.hoisted(() => ({ v2: true }));
-vi.mock("@/lib/use-new-look", () => ({ useNewLook: () => look.v2 }));
+// PLAN-1, WS160. The list and pane (the only look since WS168).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   usePathname: () => "/admin/companies",
@@ -56,7 +53,6 @@ const base = {
 };
 
 describe("DataTable under the new look", () => {
-  look.v2 = true;
   const html = renderToStaticMarkup(<DataTable<Row> {...base} onOpenRow={() => {}} openKey="c2" />);
 
   it("marks the wrapper with the density and list mode", () => {
@@ -105,7 +101,6 @@ describe("DataTable cells are one line under the new look (WS160 follow-up)", ()
   ];
 
   it("new look: the title text is a shrinking span inside a flex link, and plain cells carry their text as the title", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(<DataTable<Row> {...base} rows={longRows} chips={undefined} />);
     expect(html).toContain('<span class="min-w-0 truncate">' + long + "</span>");
     expect(html).toContain('class="flex min-w-0 items-center');
@@ -113,17 +108,8 @@ describe("DataTable cells are one line under the new look (WS160 follow-up)", ()
     expect(html).toContain('title="Ghana, SA, Nigeria, Egypt"');
   });
   it("a column's own title wins for a cell that renders markup", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(<DataTable<Row> {...base} rows={longRows} chips={undefined} columns={withTitle} />);
     expect(html).toContain('title="2 people"');
-  });
-  it("old look: no title, no wrapper span, the link stays inline-flex", () => {
-    look.v2 = false;
-    const html = renderToStaticMarkup(<DataTable<Row> {...base} rows={longRows} chips={undefined} columns={withTitle} />);
-    expect(html).not.toContain("title=");
-    expect(html).not.toContain("truncate");
-    expect(html).toContain('class="inline-flex items-center');
-    look.v2 = true;
   });
 });
 
@@ -143,7 +129,6 @@ describe("SplitView and DetailPane", () => {
   );
 
   it("under the new look with an open record: list beside a labelled complementary pane", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(<SplitView list={<p>LIST</p>} pane={pane} open="c2" onClose={() => {}} paneLabel="Example Co" />);
     expect(html).toContain("LIST");
     expect(html).toContain("<aside");
@@ -153,7 +138,6 @@ describe("SplitView and DetailPane", () => {
     expect(html).toContain("animate-pane-in");
   });
   it("pane order: crumb, title, chips, the action card, then the sections", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(<SplitView list={null} pane={pane} open="c2" onClose={() => {}} />);
     const at = (s: string) => html.indexOf(s);
     expect(at("Companies · 2 of 3")).toBeGreaterThan(-1);
@@ -163,7 +147,6 @@ describe("SplitView and DetailPane", () => {
     expect(at("Up to date")).toBeLessThan(at("Details"));
   });
   it("crumb buttons are named for screen readers; a disabled step is disabled", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(<SplitView list={null} pane={pane} open="c2" onClose={() => {}} />);
     for (const name of ["Previous", "Next", "Open full page", "Close", "Back to the list"]) {
       expect(html).toContain(`aria-label="${name}"`);
@@ -172,17 +155,10 @@ describe("SplitView and DetailPane", () => {
     expect(html).toMatch(/disabled=""[^>]*aria-label="Next"/);
   });
   it("shows no pane when nothing is open or there is no record", () => {
-    look.v2 = true;
     expect(renderToStaticMarkup(<SplitView list={<p>LIST</p>} pane={pane} open={null} onClose={() => {}} />)).not.toContain("<aside");
     expect(renderToStaticMarkup(<SplitView list={<p>LIST</p>} pane={null} open="c9" onClose={() => {}} />)).not.toContain("<aside");
   });
-  it("under the old look it is only the list, even with a record open", () => {
-    look.v2 = false;
-    const html = renderToStaticMarkup(<SplitView list={<p>LIST</p>} pane={pane} open="c2" onClose={() => {}} />);
-    expect(html).toBe("<p>LIST</p>");
-  });
   it("the dog-ear is only on a card that asks for it", () => {
-    look.v2 = true;
     const hot = renderToStaticMarkup(<PaneCard heading="Blocked" hot>x</PaneCard>);
     const calm = renderToStaticMarkup(<PaneCard heading="Up to date">x</PaneCard>);
     expect(hot).toContain("var(--color-stuck)");
@@ -207,25 +183,21 @@ describe("DataTable with a fixed grouping and no filter bar (WS161, Needs you)",
   };
 
   it("shows the groups in the order the rows arrive, not by name", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(<DataTable<Row> {...props} />);
     expect(html.indexOf("Current")).toBeGreaterThan(-1);
     expect(html.indexOf("Current")).toBeLessThan(html.indexOf("Behind"));
   });
   it("has no Group by select, and marks the table as having no filter bar", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(<DataTable<Row> {...props} />);
     expect(html).not.toContain("Group by");
     expect(html).not.toContain("No grouping");
     expect(html).toContain("data-no-toolbar");
   });
   it("hideHeader keeps the headings for screen readers only, under the new look", () => {
-    look.v2 = true;
     expect(renderToStaticMarkup(<DataTable<Row> {...props} hideHeader />)).toContain('<thead class="sr-only" data-align="thead">');
     expect(renderToStaticMarkup(<DataTable<Row> {...props} />)).toContain('<thead data-align="thead">');
   });
   it("an ordinary table with a group select is unchanged", () => {
-    look.v2 = true;
     const html = renderToStaticMarkup(
       <DataTable<Row> {...base} groupBy={{ options: byStatus.options }} />
     );

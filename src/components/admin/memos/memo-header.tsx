@@ -4,10 +4,8 @@ import Link from "next/link";
 import { companyIconNode, companyLineNode } from "@/components/admin/memos/memo-company-bits";
 import { ArrowLeft, Lock, MoreHorizontal, Printer, Archive, Share2, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useNewLook } from "@/lib/use-new-look";
 import {
   MEMO_DECISIONS,
   MEMO_DECISION_LABELS,
@@ -33,7 +31,6 @@ interface Props {
 
 // Part 44 (WS146.2): title row, controls row (Stage, Memo status, Visibility) and a facts line.
 export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
-  const newLook = useNewLook();
   const { stage, savingStage, savingStatus, changeStage, changeStatus } = useMemoControls(memo, onChanged);
 
   const ref = memo.companyRef;
@@ -48,18 +45,14 @@ export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
   return (
     <header className="mb-6 v2:mb-8">
       <div className="memo-no-print">
-        {newLook ? (
-          // New look (WS163): the crumb is a back link to the list, like the pane's crumb bar.
-          <Link
-            href="/admin/memos"
-            className="mb-4 inline-flex h-8 items-center gap-1.5 rounded-ctl text-meta text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
-            Memos
-          </Link>
-        ) : (
-          <Breadcrumb items={[{ label: "Memos", href: "/admin/memos" }, { label: memo.title }]} />
-        )}
+        {/* WS163: the crumb is a back link to the list, like the pane's crumb bar. */}
+        <Link
+          href="/admin/memos"
+          className="mb-4 inline-flex h-8 items-center gap-1.5 rounded-ctl text-meta text-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+          Memos
+        </Link>
       </div>
 
       <div className="flex items-start justify-between gap-4">
@@ -75,8 +68,8 @@ export function MemoHeader({ memo, onOpenShare, onArchive, onChanged }: Props) {
             <Printer className="h-4 w-4" />
             Print or save as PDF
           </Button>
-          {/* One primary action per view in the new look: Share. */}
-          <Button variant={newLook ? "primary" : "secondary"} onClick={onOpenShare}>
+          {/* One primary action per view: Share. */}
+          <Button variant="primary" onClick={onOpenShare}>
             <Share2 className="h-4 w-4" />
             Share
           </Button>

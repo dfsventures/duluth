@@ -5,15 +5,11 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  Search,
   Plus,
-  X,
   Building2,
   User,
   ExternalLink,
   Linkedin,
-  MapPin,
-  ThumbsUp,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -27,7 +23,6 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
 import { ModalSheet } from "@/components/ui/sheet";
 import { DataTable, type DataTableColumn, type DataTableGroupBy } from "@/components/ui/data-table";
-import { useNewLook } from "@/lib/use-new-look";
 import type { FilterChipDef } from "@/lib/data-table";
 
 interface Category {
@@ -53,12 +48,9 @@ interface Provider {
 }
 
 export default function AdminProvidersPage() {
-  const newLook = useNewLook();
   const [providers, setProviders] = useState<Provider[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"" | "PENDING" | "VETTED" | "REJECTED">("");
   const [actionStates, setActionStates] = useState<Record<string, { loading: boolean }>>({});
 
   // Add category modal
@@ -76,13 +68,8 @@ export default function AdminProvidersPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (statusFilter) params.set("status", statusFilter);
-      else params.set("status", "ALL");
-
       const [provRes, catRes] = await Promise.all([
-        fetch(`/api/providers?${params}`),
+        fetch("/api/providers?status=ALL"),
         fetch("/api/providers/categories"),
       ]);
       if (provRes.ok) {
@@ -93,7 +80,7 @@ export default function AdminProvidersPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -180,10 +167,7 @@ export default function AdminProvidersPage() {
     }
   }
 
-  const pending = providers.filter((p) => p.status === "PENDING");
-  const rest = providers.filter((p) => p.status !== "PENDING");
-
-  // New look: the directory is small, so the status chips and the search run in the browser over
+  // The directory is small, so the status chips and the search run in the browser over
   // everything the page loads (status=ALL). The two tables are the Pending queue and the rest.
   const providerColumns = (): DataTableColumn<Provider>[] => [
     {
@@ -302,23 +286,13 @@ export default function AdminProvidersPage() {
   };
 
   return (
-    <AppShell width={newLook ? "wide" : undefined}>
+    <AppShell width="wide">
       <PageHeader
         title="Service Providers"
         description="Review submissions and manage the provider directory."
-        secondaryActions={
-          newLook
-            ? [{ label: "Add category", icon: <Plus className="h-4 w-4" />, onSelect: () => setShowAddCategory(true) }]
-            : undefined
-        }
+        secondaryActions={[{ label: "Add category", icon: <Plus className="h-4 w-4" />, onSelect: () => setShowAddCategory(true) }]}
         action={
           <div className="flex flex-wrap gap-3">
-            {!newLook && (
-              <Button variant="secondary" onClick={() => setShowAddCategory(true)}>
-                <Plus className="h-4 w-4" />
-                Add category
-              </Button>
-            )}
             <Button onClick={openNew}>
               <Plus className="h-4 w-4" />
               Add provider
@@ -327,9 +301,8 @@ export default function AdminProvidersPage() {
         }
       />
 
-      {/* New look (audit #40): one table, "Pending review" first and "Directory" below it. */}
-      {newLook && (
-        <DataTable<Provider>
+      {/* Audit #40: one table, "Pending review" first and "Directory" below it. */}
+      <DataTable<Provider>
           label="Service providers"
           noun="provider"
           rows={providers}
@@ -363,95 +336,6 @@ export default function AdminProvidersPage() {
             />
           }
         />
-      )}
-
-      {/* Filters */}
-      {!newLook && <div className="mb-6 flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Search providers..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <div className="flex rounded-md border border-border overflow-hidden text-sm font-medium">
-          {([
-            { value: "", label: "All" },
-            { value: "PENDING", label: "Pending" },
-            { value: "VETTED", label: "Vetted" },
-            { value: "REJECTED", label: "Rejected" },
-          ] as const).map(({ value, label }) => (
-            <button
-              key={value}
-              onClick={() => setStatusFilter(value)}
-              className={`px-3 py-2 transition-colors ${statusFilter === value ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground hover:bg-muted"}`}
-            >
-              {label}
-              {value === "PENDING" && pending.length > 0 && (
-                <span className="ml-1.5 rounded-full bg-ochre text-obsidian text-xs px-1.5 py-0.5">{pending.length}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>}
-
-      {newLook ? null : loading ? (
-        <div className="space-y-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-24 rounded-md bg-muted animate-pulse" />)}
-        </div>
-      ) : providers.length === 0 ? (
-        <EmptyState eyebrow="Service Providers" icon={<Building2 className="h-8 w-8" />} title="No providers found" description="Adjust filters or wait for submissions." />
-      ) : (
-        <div className="space-y-6">
-          {/* Pending queue */}
-          {(statusFilter === "" || statusFilter === "PENDING") && pending.length > 0 && (
-            <section>
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                Pending Review ({pending.length})
-              </h2>
-              <div className="space-y-4">
-                {pending.map((p) => (
-                  <ProviderRow
-                    key={p.id}
-                    provider={p}
-                    loading={!!actionStates[p.id]?.loading}
-                    onApprove={() => setStatus(p.id, "VETTED")}
-                    onReject={() => setStatus(p.id, "REJECTED")}
-                    onEdit={() => openEdit(p)}
-                    onDelete={() => handleDelete(p.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Vetted + rejected */}
-          {(statusFilter === "" || statusFilter !== "PENDING") && rest.length > 0 && (
-            <section>
-              {statusFilter === "" && (
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-                  All Providers ({rest.length})
-                </h2>
-              )}
-              <div className="space-y-4">
-                {rest.map((p) => (
-                  <ProviderRow
-                    key={p.id}
-                    provider={p}
-                    loading={!!actionStates[p.id]?.loading}
-                    onApprove={p.status === "REJECTED" ? () => setStatus(p.id, "VETTED") : undefined}
-                    onReject={p.status === "VETTED" ? () => setStatus(p.id, "REJECTED") : undefined}
-                    onEdit={() => openEdit(p)}
-                    onDelete={() => handleDelete(p.id)}
-                  />
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-      )}
 
       {/* Add category modal */}
       {showAddCategory && (
@@ -556,93 +440,6 @@ export default function AdminProvidersPage() {
         </ModalSheet>
       )}
     </AppShell>
-  );
-}
-
-// ─── Provider Row ──────────────────────────────────────────
-
-function ProviderRow({
-  provider: p,
-  loading,
-  onApprove,
-  onReject,
-  onEdit,
-  onDelete,
-}: {
-  provider: Provider;
-  loading: boolean;
-  onApprove?: () => void;
-  onReject?: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <div className="rounded-md border border-border bg-card p-4">
-      <div className="flex flex-wrap items-start gap-3">
-        {/* Icon */}
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary-50 text-primary">
-          {p.type === "FIRM" ? <Building2 className="h-4 w-4" /> : <User className="h-4 w-4" />}
-        </div>
-
-        {/* Info — min-w keeps the text column readable on phones: instead of
-            being squeezed to one word per line by the shrink-0 action cluster,
-            the cluster wraps onto its own row (the parent is flex-wrap) */}
-        <div className="min-w-48 flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span className="font-semibold text-foreground text-sm">{p.name}</span>
-            <span className="text-xs text-muted-foreground">{p.category.name}</span>
-            <StatusBadge status={p.status} />
-          </div>
-          {(p.city || p.country) && (
-            <p className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-              <MapPin className="h-3 w-3" />
-              {[p.city, p.country].filter(Boolean).join(", ")}
-            </p>
-          )}
-          {p.description && <p className="text-xs text-muted-foreground line-clamp-2">{p.description}</p>}
-          <div className="mt-2 flex flex-wrap items-center gap-3">
-            {p.website && (
-              <a href={p.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                <ExternalLink className="h-3 w-3" /> Website
-              </a>
-            )}
-            {p.linkedin && (
-              <a href={p.linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
-                <Linkedin className="h-3 w-3" /> LinkedIn
-              </a>
-            )}
-            {p.submittedBy && (
-              <span className="text-xs text-muted-foreground">Submitted by {p.submittedBy.name ?? "a founder"}</span>
-            )}
-            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <ThumbsUp className="h-3 w-3" /> {p.endorsementCount ?? p.endorsements?.length ?? 0} endorsement{(p.endorsementCount ?? p.endorsements?.length ?? 0) !== 1 ? "s" : ""}
-            </span>
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={onEdit} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" title="Edit">
-            <Pencil className="h-4 w-4" />
-          </button>
-          <button onClick={onDelete} className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-tone-clay-ink transition-colors" title="Delete">
-            <Trash2 className="h-4 w-4" />
-          </button>
-          {onApprove && (
-            <Button size="sm" onClick={onApprove} disabled={loading}>
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              {p.status === "REJECTED" ? "Restore" : "Approve"}
-            </Button>
-          )}
-          {onReject && (
-            <Button size="sm" variant="secondary" onClick={onReject} disabled={loading} className="text-tone-clay-ink border-laterite/30 hover:bg-laterite/10">
-              <XCircle className="h-3.5 w-3.5" />
-              Reject
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 

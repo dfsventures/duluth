@@ -5,26 +5,15 @@ import { DataTable, type DataTableColumn, type DataTableGroupBy } from "@/compon
 import { OpenParam, SplitView } from "@/components/layout/split-view";
 import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
 import { NameTile } from "@/components/ui/name-tile";
-import { useNewLook } from "@/lib/use-new-look";
 import { crumbLabel, stepCursor } from "@/lib/split-view";
 import { TONE_CLASSES } from "@/lib/status-tone";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
-import {
-  AlertCircle,
-  CheckCircle2,
-  ClipboardCheck,
-  Clock,
-  Inbox,
-  UserPlus,
-  XCircle,
-} from "lucide-react";
+import { AlertCircle, Inbox } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { noticeClasses } from "@/components/ui/notice";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { DD_DOC_TYPES } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
@@ -55,7 +44,7 @@ interface DiligenceItem {
   progress: { done: number; total: number };
 }
 
-// New look: two groups under sticky headings, "Ready for review" first (same split as the old page).
+// Two groups under sticky headings, "Ready for review" first.
 const DD_GROUP_BY: DataTableGroupBy<DiligenceItem> = {
   fixed: "stage",
   options: [
@@ -71,7 +60,6 @@ const DD_GROUP_BY: DataTableGroupBy<DiligenceItem> = {
 };
 
 export default function AdminDiligencePage() {
-  const newLook = useNewLook();
   const [visibleRows, setVisibleRows] = useState<DiligenceItem[]>([]);
   const visibleKeys = useMemo(() => visibleRows.map((i) => i.id), [visibleRows]);
   const [items, setItems] = useState<DiligenceItem[]>([]);
@@ -183,99 +171,7 @@ export default function AdminDiligencePage() {
   const awaitingFounder = items.filter((i) => !i.diligence?.completedAt);
   const readyForReview = items.filter((i) => i.diligence?.completedAt);
 
-  function ItemCard({ item, ready }: { item: DiligenceItem; ready: boolean }) {
-    const state = actionStates[item.id];
-
-    return (
-      <Card>
-        <CardContent className="flex flex-wrap items-start gap-3 py-4">
-          <div className="min-w-48 flex-1">
-            <div className="flex items-center gap-2">
-              <UserPlus className="h-4 w-4 text-muted-foreground" />
-              <p className="font-medium">{item.name}</p>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {item.founder ? (item.founder.name ? `${item.founder.name} · ${item.founder.email}` : item.founder.email) : "No founder assigned"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Created {formatDate(item.createdAt)} ·{" "}
-              {/* Part 34, WS92 (F82) — the only navigation path to a
-                  DILIGENCE-stage company's page (and its Documents tab)
-                  while it's still in the queue; approvedCompanyFilter hides
-                  it from /admin/companies until it's promoted. */}
-              <Link href={`/admin/companies/${item.id}?tab=diligence`} className="text-primary hover:underline">
-                Open company →
-              </Link>
-            </p>
-
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-              <Badge variant={item.diligence?.isUsIncorporated == null ? "neutral" : "info"}>
-                {item.diligence?.isUsIncorporated == null
-                  ? "Incorporation: unanswered"
-                  : item.diligence.isUsIncorporated
-                    ? "US-incorporated"
-                    : "Not US-incorporated"}
-              </Badge>
-              {item.diligence?.isStellarEcosystem && (
-                <Badge variant={item.diligence.stellarWhyText && item.diligence.stellarTimelineText ? "info" : "warning"}>
-                  Stellar essays {item.diligence.stellarWhyText && item.diligence.stellarTimelineText ? "present" : "missing"}
-                </Badge>
-              )}
-              <span className="text-xs text-muted-foreground">
-                {item.progress.done} of {item.progress.total} required items done
-              </span>
-            </div>
-
-            {/* Part 34, WS92 (D2, F80) — the answers themselves, one click away.
-                Same idiom as the Audit Log's Details column (Part 32, D3/WS87):
-                summary visible, full content behind a native <details>, no state. */}
-            {item.diligence?.isStellarEcosystem && (
-              <details className="mt-3">
-                <summary className="cursor-pointer list-none text-xs text-primary hover:underline [&::-webkit-details-marker]:hidden">
-                  Read the Stellar answers
-                </summary>
-                <div className="mt-2 space-y-3 border-l-2 border-border pl-3">
-                  <DiligenceAnswers diligence={item.diligence} variant="compact" />
-                </div>
-              </details>
-            )}
-
-            <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-muted-foreground">
-              {DD_DOC_TYPES.map((docType) => (
-                <span key={docType.value} className="rounded-sm border border-border px-1.5 py-0.5">
-                  {docType.label}: {item.documentCounts[docType.value] ?? 0}
-                </span>
-              ))}
-            </div>
-
-            {state?.error && <p className="mt-2 text-xs text-destructive">{state.error}</p>}
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={state?.loading}
-                  onClick={() => askDecline(item)}
-                >
-                  <XCircle className="mr-1 h-3.5 w-3.5" />
-                  Decline
-                </Button>
-                {ready && (
-                  <Button size="sm" disabled={state?.loading} onClick={() => handlePromote(item.id)}>
-                    <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                    {state?.loading ? "..." : "Promote"}
-                  </Button>
-                )}
-            </>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // New look: the pane for one item. Same handlers and confirm as the old card.
+  // The pane for one item.
   function renderPane(
     item: DiligenceItem,
     ready: boolean,
@@ -415,7 +311,7 @@ export default function AdminDiligencePage() {
   ];
 
   return (
-    <AppShell width={newLook ? "full" : undefined}>
+    <AppShell width="full">
       <PageHeader
         title="Due Diligence"
         description="Companies invited for due diligence, awaiting paperwork before they join the portfolio."
@@ -434,7 +330,7 @@ export default function AdminDiligencePage() {
           title="No companies in due diligence"
           description="Nothing is waiting on you right now. Turn on due diligence when you add a company to route it into this queue."
         />
-      ) : newLook ? (
+      ) : (
         <OpenParam fallback={<TableSkeleton rows={4} cols={4} />}>
           {(openId, setOpenId) => {
             const closePane = () => setOpenId(null);
@@ -481,36 +377,6 @@ export default function AdminDiligencePage() {
             );
           }}
         </OpenParam>
-      ) : (
-        <div className="space-y-6">
-          {readyForReview.length > 0 && (
-            <div>
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                <ClipboardCheck className="h-4 w-4" />
-                Ready for review ({readyForReview.length})
-              </h2>
-              <div className="space-y-3">
-                {readyForReview.map((item) => (
-                  <ItemCard key={item.id} item={item} ready />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {awaitingFounder.length > 0 && (
-            <div>
-              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                Awaiting founder ({awaitingFounder.length})
-              </h2>
-              <div className="space-y-3">
-                {awaitingFounder.map((item) => (
-                  <ItemCard key={item.id} item={item} ready={false} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
       )}
     </AppShell>
   );

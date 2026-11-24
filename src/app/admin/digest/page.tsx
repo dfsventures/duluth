@@ -3,17 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { BookOpen, CheckCircle2, Clock, AlertCircle, Plus } from "lucide-react";
+import { BookOpen, AlertCircle, Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { useNewLook } from "@/lib/use-new-look";
 
 interface DigestSummary {
   id: string;
@@ -25,7 +22,7 @@ interface DigestSummary {
   todos: { completed: boolean }[];
 }
 
-// New look (WS169): one-line rows in the shared table. The old look keeps its cards below.
+// WS169: one-line rows in the shared table.
 function todoCounts(d: DigestSummary) {
   return { total: d.todos.length, done: d.todos.filter((t) => t.completed).length };
 }
@@ -72,7 +69,6 @@ const digestColumns: DataTableColumn<DigestSummary>[] = [
 
 export default function DigestListPage() {
   const { status: sessionStatus } = useSession();
-  const newLook = useNewLook();
   const [digests, setDigests] = useState<DigestSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -112,25 +108,15 @@ export default function DigestListPage() {
         title="Weekly Digest"
         description="AI-generated weekly summaries from your Granola meetings."
         action={
-          newLook ? (
-            // New look: the link itself is the button (no button inside a link).
-            <Link href="/admin/digest/new" className="btn-primary">
-              <Plus className="h-4 w-4" />
-              New Digest
-            </Link>
-          ) : (
-            <Link href="/admin/digest/new">
-              <Button size="sm" className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                New Digest
-              </Button>
-            </Link>
-          )
+          // The link itself is the button (no button inside a link).
+          <Link href="/admin/digest/new" className="btn-primary">
+            <Plus className="h-4 w-4" />
+            New Digest
+          </Link>
         }
       />
 
-      {newLook ? (
-        <DataTable<DigestSummary>
+      <DataTable<DigestSummary>
           label="Weekly digests"
           noun="digest"
           rows={digests}
@@ -149,58 +135,6 @@ export default function DigestListPage() {
             />
           }
         />
-      ) : digests.length === 0 ? (
-        <EmptyState eyebrow="Weekly Digest"
-          icon={<BookOpen className="h-8 w-8" />}
-          title="No digests yet"
-          description="Ask Claude to generate this week's digest from your Granola meetings."
-        />
-      ) : (
-        <div className="space-y-4">
-          {digests.map((d) => {
-            const total = d.todos.length;
-            const done = d.todos.filter((t) => t.completed).length;
-            return (
-              <Card key={d.id} className="hover:border-primary/40 transition-colors">
-                <CardHeader className="pb-3">
-                  <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div className="min-w-48 flex-1">
-                      <CardTitle className="text-base font-semibold truncate">{d.title}</CardTitle>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        Week of {formatDate(d.weekOf)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {d.sentAt ? (
-                        <Badge variant="success" className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Sent
-                        </Badge>
-                      ) : (
-                        <Badge variant="warning" className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          Draft
-                        </Badge>
-                      )}
-                      {d.source === "GRANOLA" && <Badge variant="info">From Granola</Badge>}
-                      <Link href={`/admin/digest/${d.id}`}>
-                        <Button size="sm" variant="secondary">View</Button>
-                      </Link>
-                    </div>
-                  </div>
-                </CardHeader>
-                {total > 0 && (
-                  <CardContent className="pt-0">
-                    <p className="text-xs text-muted-foreground">
-                      {done}/{total} todos completed
-                    </p>
-                  </CardContent>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      )}
     </AppShell>
   );
 }

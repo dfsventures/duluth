@@ -195,10 +195,9 @@ export default function NewDigestPage() {
 
   return (
     <AppShell width="narrow">
-      {/* New look (audit #8): the Form header. The old heading block below is not drawn. */}
+      {/* Audit #8: the Form header. The heading block below is hidden by CSS (v2:hidden). */}
       {/* Page types v1 (§4.3 form variant): the editor bar holds the way back and each step's actions. */}
       <ComposerTopBar
-        newLookOnly
         back={{ href: "/admin/digest", label: "All digests" }}
         draftLabel="Not saved yet"
         publishLabel={
@@ -226,7 +225,7 @@ export default function NewDigestPage() {
         // Phones (§6): Back to notes folds into ⋯.
         phoneMenuItems={step === "edit" ? [{ label: "Back to notes", onClick: () => setStep("paste") }] : undefined}
       />
-      <PageHeader newLookOnly type="form" title="New weekly digest" />
+      <PageHeader type="form" title="New weekly digest" />
       <div className="mb-6 flex items-center justify-between gap-4 v2:hidden">
         <div>
           <Link

@@ -902,7 +902,7 @@ async function runDiff(before: string, after: string) {
   const browser = await chromium.launch();
   const page = await browser.newPage();
   const files = fs.readdirSync(dirB).filter((f: string) => f.endsWith(".png") && !f.startsWith("diff__") && fs.existsSync(path.join(dirA, f)));
-  const onlyA = fs.readdirSync(dirA).filter((f: string) => f.endsWith(".png") && !fs.existsSync(path.join(dirB, f)));
+  const onlyA = fs.readdirSync(dirA).filter((f: string) => f.endsWith(".png") && !f.startsWith("diff__") && !fs.existsSync(path.join(dirB, f)));
   let changed = 0;
   console.log(`Diff ${before} -> ${after}: ${files.length} pair(s)`);
   for (const f of files.sort()) {

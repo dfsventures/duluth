@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback, Suspense } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FileText, Plus, X, Trash2 } from "lucide-react";
+import { FileText, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,6 @@ import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
-import { useNewLook } from "@/lib/use-new-look";
 
 interface FundOption {
   id: string;
@@ -34,7 +32,7 @@ interface Report {
   mentionCount: number;
 }
 
-// New look (WS169): one-line rows in the shared table. The old look keeps its boxes below.
+// WS169: one-line rows in the shared table.
 const reportColumns: DataTableColumn<Report>[] = [
   { key: "title", header: "Title", sortValue: (r) => r.title, cell: (r) => r.title },
   {
@@ -70,12 +68,10 @@ export default function AdminReportsPage() {
 
 function AdminReportsPageInner() {
   const searchParams = useSearchParams();
-  const newLook = useNewLook();
   const [reports, setReports] = useState<Report[]>([]);
   const [funds, setFunds] = useState<FundOption[]>([]);
   const [fundFilter, setFundFilter] = useState(searchParams.get("fundId") ?? "");
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
 
   const [showNew, setShowNew] = useState(false);
   const [newFundId, setNewFundId] = useState("");
@@ -118,12 +114,6 @@ function AdminReportsPageInner() {
   useEffect(() => {
     loadData();
   }, [loadData]);
-
-  const filteredReports = reports.filter((r) => {
-    const term = search.trim().toLowerCase();
-    if (!term) return true;
-    return r.title.toLowerCase().includes(term) || r.fund.name.toLowerCase().includes(term);
-  });
 
   function openNew() {
     setNewFundId(fundFilter || funds[0]?.id || "");
@@ -169,8 +159,7 @@ function AdminReportsPageInner() {
         }
       />
 
-      {newLook ? (
-        <DataTable<Report>
+      <DataTable<Report>
           label="Fund reports"
           noun="report"
           rows={reports}
@@ -218,81 +207,6 @@ function AdminReportsPageInner() {
           }
           empty={<EmptyState eyebrow="Fund Reports" icon={<FileText className="h-8 w-8" />} title="No reports yet" description="Create the first fund report." />}
         />
-      ) : (
-        <>
-      <div className="mb-6">
-        <Select
-          value={fundFilter}
-          onChange={(e) => setFundFilter(e.target.value)}
-          className="max-w-xs"
-        >
-          <option value="">All funds</option>
-          {funds.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </Select>
-      </div>
-
-      {!loading && reports.length > 0 && (
-        <div className="mb-6">
-          <Input
-            placeholder="Search by report title or fund..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      )}
-
-      {loading ? (
-        <div className="space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-16 rounded-md bg-muted animate-pulse" />
-          ))}
-        </div>
-      ) : reports.length === 0 ? (
-        <EmptyState eyebrow="Fund Reports" icon={<FileText className="h-8 w-8" />} title="No reports yet" description="Create the first fund report." />
-      ) : filteredReports.length === 0 ? (
-        <EmptyState icon={<FileText className="h-8 w-8" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
-      ) : (
-        <div className="space-y-2">
-          {filteredReports.map((r) => (
-            <Link
-              key={r.id}
-              href={`/admin/reports/${r.id}`}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3 hover:border-primary/40 transition-colors"
-            >
-              <div className="min-w-48 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-foreground text-sm">{r.title}</span>
-                  <Badge variant={r.status === "PUBLISHED" ? "success" : "warning"}>
-                    {r.status === "PUBLISHED" ? "Published" : "Draft"}
-                  </Badge>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span>{r.fund.name}</span>
-                  {r.periodLabel && <span>{r.periodLabel}</span>}
-                  <span>{r.mentionCount} mention{r.mentionCount !== 1 ? "s" : ""}</span>
-                  {r.publishedAt && <span>Published {formatDate(r.publishedAt)}</span>}
-                </div>
-              </div>
-              {r.status === "DRAFT" && (
-                <button
-                  onClick={(e) => handleDeleteDraft(e, r.id)}
-                  disabled={deletingId === r.id}
-                  className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive disabled:opacity-50"
-                  title="Delete draft"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </Link>
-          ))}
-        </div>
-      )}
-        </>
-      )}
 
       {showNew && (
         <Modal title="New Report" onClose={() => setShowNew(false)}>

@@ -167,13 +167,10 @@ describe("layered Esc (WS164)", () => {
 });
 
 describe("the ? sheet (WS164)", () => {
-  it("lists the new keys under the new look only", () => {
-    const v2 = shortcutHelpRows(true).map((r) => r.keys.join("+"));
-    for (const k of ["Esc", "f", "a", "r", "d", "u"]) expect(v2).toContain(k);
-    const v1 = shortcutHelpRows(false);
-    expect(v1).toEqual(SHORTCUT_HELP.filter((r) => !r.newLookOnly));
-    expect(v1.map((r) => r.keys.join("+"))).not.toContain("Esc");
-    expect(v1.map((r) => r.keys.join("+"))).not.toContain("f");
+  it("lists every key, the WS164 ones included", () => {
+    const keys = shortcutHelpRows().map((r) => r.keys.join("+"));
+    for (const k of ["Esc", "f", "a", "r", "d", "u"]) expect(keys).toContain(k);
+    expect(shortcutHelpRows()).toEqual(SHORTCUT_HELP);
   });
 });
 

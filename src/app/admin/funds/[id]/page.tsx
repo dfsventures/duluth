@@ -10,7 +10,6 @@ import {
   FileText,
   Plus,
   X,
-  Pencil,
   Trash2,
   Check,
   DollarSign,
@@ -29,12 +28,9 @@ import { formatDate } from "@/lib/utils";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
-import { Breadcrumb } from "@/components/ui/breadcrumb";
-import { TabBar } from "@/components/ui/tab-bar";
 import { parseTab } from "@/lib/url-tab";
 import { ModalDialog as Modal } from "@/components/ui/dialog";
 import { FundRecord, type FundTab } from "@/components/admin/funds/fund-record";
-import { useNewLook } from "@/lib/use-new-look";
 
 type Tab = FundTab;
 
@@ -158,7 +154,6 @@ function AdminFundDetailPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const fundId = params.id as string;
-  const newLook = useNewLook();
 
   const [fund, setFund] = useState<FundDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -654,131 +649,58 @@ function AdminFundDetailPageInner() {
     { key: "notes", header: "Notes", mobile: "meta", cell: (c) => c.notes ?? <span className="text-muted-foreground">—</span> },
   ];
 
-  // New look (B-133): header bar, a wider main column and a facts panel. The server and first client
-  // render are the old look.
-  if (newLook) {
-    const detailsForm = (
-      <div className="space-y-3">
-        <Input label="Name" value={headerName} onChange={(e) => setHeaderName(e.target.value)} />
-        <Input label="Group label" value={headerGroupLabel} onChange={(e) => setHeaderGroupLabel(e.target.value)} />
-        <Input label="AUM (USD)" type="number" value={headerAum} onChange={(e) => setHeaderAum(e.target.value)} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setEditingHeader(false)} disabled={savingHeader}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={handleSaveHeader} disabled={savingHeader}>
-            {savingHeader ? "Saving..." : "Save"}
-          </Button>
-        </div>
+  // B-133: header bar, a wider main column and a facts panel.
+  const detailsForm = (
+    <div className="space-y-3">
+      <Input label="Name" value={headerName} onChange={(e) => setHeaderName(e.target.value)} />
+      <Input label="Group label" value={headerGroupLabel} onChange={(e) => setHeaderGroupLabel(e.target.value)} />
+      <Input label="AUM (USD)" type="number" value={headerAum} onChange={(e) => setHeaderAum(e.target.value)} />
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" size="sm" onClick={() => setEditingHeader(false)} disabled={savingHeader}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={handleSaveHeader} disabled={savingHeader}>
+          {savingHeader ? "Saving..." : "Save"}
+        </Button>
       </div>
-    );
-    return (
-      <AppShell width="detail-wide">
-        <FundRecord
-          fund={fund}
-          editingDetails={editingHeader}
-          detailsForm={detailsForm}
-          onEditDetails={() => setEditingHeader(true)}
-          onAddDeal={openAddDeal}
-          editingPerformance={editingOverrides}
-          onEditPerformance={openEditOverrides}
-          performance={
-            <FundPerformanceCard
-              performance={fund.performance}
-              overrides={{
-                grossMoic: fund.grossMoicOverride,
-                netTvpi: fund.netTvpiOverride,
-                netDpi: fund.netDpiOverride,
-                netIrr: fund.netIrrOverride,
-                netNav: fund.netNavOverride,
-                showGrossMoic: fund.showGrossMoic,
-                showNetTvpi: fund.showNetTvpi,
-                showNetIrr: fund.showNetIrr,
-                showNetNav: fund.showNetNav,
-              }}
-            />
-          }
-          performanceForm={renderOverrides()}
-          tabs={tabs}
-          activeTab={activeTab}
-        >
-          {renderTail(fund)}
-        </FundRecord>
-      </AppShell>
-    );
-  }
-
+    </div>
+  );
   return (
-    <AppShell>
-      <Breadcrumb items={[{ label: "Funds", href: "/admin/funds" }, { label: fund.name }]} />
-
-
-      <div className="mb-6 rounded-md border border-border bg-card p-4">
-        {editingHeader ? (
-          <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input label="Name" value={headerName} onChange={(e) => setHeaderName(e.target.value)} />
-              <Input label="Group label" value={headerGroupLabel} onChange={(e) => setHeaderGroupLabel(e.target.value)} />
-            </div>
-            <Input label="AUM (USD)" type="number" value={headerAum} onChange={(e) => setHeaderAum(e.target.value)} />
-            <div className="flex justify-end gap-2">
-              <Button variant="secondary" size="sm" onClick={() => setEditingHeader(false)} disabled={savingHeader}>
-                Cancel
-              </Button>
-              <Button size="sm" onClick={handleSaveHeader} disabled={savingHeader}>
-                {savingHeader ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-semibold text-foreground">{fund.name}</h1>
-                <span className="rounded-sm bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">{fund.slug}</span>
-              </div>
-              <div className="mt-1 flex flex-wrap gap-4 text-xs text-muted-foreground">
-                {fund.groupLabel && <span>{fund.groupLabel}</span>}
-                {fund.aumUsd !== null && <span>AUM ${fund.aumUsd.toLocaleString()}</span>}
-                {fund.firstDealDate && <span>First deal {formatDate(fund.firstDealDate)}</span>}
-              </div>
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => setEditingHeader(true)}>
-              <Pencil className="mr-2 h-3.5 w-3.5" />
-              Edit
-            </Button>
-          </div>
-        )}
-      </div>
-
-      {/* Performance (WS26, admin-only estimate — Q23). Part 14, WS36.1:
-          extracted into FundPerformanceCard — byte-identical output, no
-          `deals` prop here so this page's own Deals tab below (with the
-          sheet-sync column and sortable headers) is unaffected. */}
-      <FundPerformanceCard
-        performance={fund.performance}
-        overrides={{
-          grossMoic: fund.grossMoicOverride,
-          netTvpi: fund.netTvpiOverride,
-          netDpi: fund.netDpiOverride,
-          netIrr: fund.netIrrOverride,
-          netNav: fund.netNavOverride,
-          showGrossMoic: fund.showGrossMoic,
-          showNetTvpi: fund.showNetTvpi,
-          showNetIrr: fund.showNetIrr,
-          showNetNav: fund.showNetNav,
-        }}
-      />
-
-      {renderOverrides()}
-
-      <TabBar<Tab> label="Fund sections" tabs={tabs} active={activeTab} fallback="deals" />
-
-      {renderTail(fund)}
+    <AppShell width="detail-wide">
+      <FundRecord
+        fund={fund}
+        editingDetails={editingHeader}
+        detailsForm={detailsForm}
+        onEditDetails={() => setEditingHeader(true)}
+        onAddDeal={openAddDeal}
+        editingPerformance={editingOverrides}
+        onEditPerformance={openEditOverrides}
+        performance={
+          <FundPerformanceCard
+            performance={fund.performance}
+            overrides={{
+              grossMoic: fund.grossMoicOverride,
+              netTvpi: fund.netTvpiOverride,
+              netDpi: fund.netDpiOverride,
+              netIrr: fund.netIrrOverride,
+              netNav: fund.netNavOverride,
+              showGrossMoic: fund.showGrossMoic,
+              showNetTvpi: fund.showNetTvpi,
+              showNetIrr: fund.showNetIrr,
+              showNetNav: fund.showNetNav,
+            }}
+          />
+        }
+        performanceForm={renderOverrides()}
+        tabs={tabs}
+        activeTab={activeTab}
+      >
+        {renderTail(fund)}
+      </FundRecord>
     </AppShell>
   );
 
-  // The performance-override form (or its Edit button in the old look), shared by both looks.
+  // The performance-override form (FundRecord shows it while editing).
   function renderOverrides() {
     return (
       <>
@@ -862,8 +784,7 @@ function AdminFundDetailPageInner() {
     );
   }
 
-  // The tab content and the Add Deal modal, shared by both looks. Declared after the return (function
-  // declarations are hoisted) so the old look's markup stays exactly where it was.
+  // The tab content and the Add Deal modal. Declared after the return (function declarations are hoisted).
   function renderTail(fund: FundDetail) {
     return (
       <>

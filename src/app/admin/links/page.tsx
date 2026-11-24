@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Link2, Plus, Trash2, Eye, Copy, CheckCircle2, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { Link2, Plus, Copy, CheckCircle2, AlertCircle } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { OpenParam, SplitView } from "@/components/layout/split-view";
 import { DetailPane, PaneCard, PaneChip, PaneDetails, PaneSection } from "@/components/layout/detail-pane";
-import { useNewLook } from "@/lib/use-new-look";
 import { crumbLabel, stepCursor } from "@/lib/split-view";
 import { TONE_CLASSES } from "@/lib/status-tone";
 import { TableSkeleton } from "@/components/ui/skeleton";
@@ -17,7 +16,6 @@ import { noticeClasses } from "@/components/ui/notice";
 import { PickerList } from "@/components/ui/picker-list";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils";
 import { useFlashMessage } from "@/lib/use-flash-message";
@@ -62,7 +60,7 @@ function shareUrl(token: string): string {
   return `${window.location.origin}/share/${token}`;
 }
 
-// New look: the pane's view log, read from the same GET /api/links/:id the old inline log uses.
+// The pane's view log, read from GET /api/links/:id.
 function LinkViews({ id, onError }: { id: string; onError: () => void }) {
   const [views, setViews] = useState<ViewLog[] | null>(null);
   useEffect(() => {
@@ -119,13 +117,9 @@ export default function AdminLinksPage() {
   const [bulkTo, setBulkTo] = useState("");
   const [limitMetricsToPeriod, setLimitMetricsToPeriod] = useState(false);
 
-  const [expandedViews, setExpandedViews] = useState<string | null>(null);
-  const [viewLogs, setViewLogs] = useState<Record<string, ViewLog[]>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [search, setSearch] = useState("");
-  const newLook = useNewLook();
   const [visibleRows, setVisibleRows] = useState<LinkItem[]>([]);
   const visibleKeys = useMemo(() => visibleRows.map((l) => l.id), [visibleRows]);
 
@@ -240,31 +234,11 @@ export default function AdminLinksPage() {
     }
   }
 
-  async function loadViews(linkId: string) {
-    if (expandedViews === linkId) { setExpandedViews(null); return; }
-    try {
-      const res = await fetch(`/api/links/${linkId}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setViewLogs((prev) => ({ ...prev, [linkId]: data.views ?? [] }));
-      setExpandedViews(linkId);
-    } catch {
-      setMessage({ type: "error", text: "Failed to load view log." });
-    }
-  }
-
   function copyLink(token: string, id: string) {
     navigator.clipboard.writeText(shareUrl(token));
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
   }
-
-  const filteredLinks = links.filter((link) => {
-    const term = search.trim().toLowerCase();
-    if (!term) return true;
-    if ((link.label ?? "").toLowerCase().includes(term)) return true;
-    return link.companies.some((c) => c.company.name.toLowerCase().includes(term));
-  });
 
   // Group updates by company for display in the picker
   const updatesByCompany = publishedUpdates.reduce<Record<string, { company: PublishedUpdate["company"]; updates: PublishedUpdate[] }>>(
@@ -399,7 +373,7 @@ export default function AdminLinksPage() {
   ];
 
   return (
-    <AppShell width={newLook ? "full" : undefined}>
+    <AppShell width="full">
       <PageHeader
         title="Investor Links"
         description="Generate read-only shareable links for LPs across portfolio companies."
@@ -596,7 +570,7 @@ export default function AdminLinksPage() {
           description="Create a shareable link to give LPs read-only access to portfolio updates and metrics."
           action={<Button size="sm" onClick={() => setShowForm(true)}><Plus className="mr-2 h-4 w-4" />New link</Button>}
         />
-      ) : newLook ? (
+      ) : (
         <OpenParam fallback={<TableSkeleton rows={4} cols={4} />}>
           {(openId, setOpenId) => {
             const closePane = () => setOpenId(null);
@@ -663,103 +637,6 @@ export default function AdminLinksPage() {
             );
           }}
         </OpenParam>
-      ) : (
-        <>
-          <div className="mb-6">
-            <Input
-              placeholder="Search by label or company..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          {filteredLinks.length === 0 ? (
-            <EmptyState icon={<Link2 className="h-10 w-10" />} title="No matches" description={search.trim() ? `Nothing matches "${search.trim()}".` : "Nothing matches the current search."} action={<Button variant="secondary" size="sm" onClick={() => setSearch("")}>Clear search</Button>} />
-          ) : (
-        <div className="space-y-4">
-          {filteredLinks.map((link) => {
-            const expired = link.expiresAt ? new Date(link.expiresAt) < new Date() : false;
-            return (
-              <Card key={link.id} className={expired ? "opacity-60" : ""}>
-                <CardContent className="py-4">
-                  <div className="flex flex-wrap items-start gap-4">
-                    <div className="min-w-48 flex-1 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-                        <p className="font-medium">{link.label || "Untitled link"}</p>
-                        {expired && <Badge variant="neutral">Expired</Badge>}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {link.companies.map((c) => (
-                          <Badge key={c.company.id} variant="info" className="text-xs">
-                            {c.company.name}
-                          </Badge>
-                        ))}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {expiryLabel(link.expiresAt)}
-                        {" · "}
-                        Created {formatDate(link.createdAt)}
-                      </p>
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap items-center gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => loadViews(link.id)}>
-                        <Eye className="mr-1.5 h-3.5 w-3.5" />
-                        {link._count.views} {link._count.views === 1 ? "view" : "views"}
-                        {expandedViews === link.id ? <ChevronUp className="ml-1 h-3.5 w-3.5" /> : <ChevronDown className="ml-1 h-3.5 w-3.5" />}
-                      </Button>
-
-                      <Button variant="secondary" size="sm" onClick={() => copyLink(link.token, link.id)}>
-                        {copiedId === link.id ? (
-                          <><CheckCircle2 className="mr-1.5 h-3.5 w-3.5 text-tone-sage-ink" />Copied</>
-                        ) : (
-                          <><Copy className="mr-1.5 h-3.5 w-3.5" />Copy Link</>
-                        )}
-                      </Button>
-
-                      {confirmDeleteId === link.id ? (
-                        <>
-                          <span className="text-sm text-muted-foreground">Revoke?</span>
-                          <Button variant="destructive" size="sm" disabled={deleting} onClick={() => handleDelete(link.id)}>
-                            {deleting ? "..." : "Confirm"}
-                          </Button>
-                          <Button variant="secondary" size="sm" onClick={() => setConfirmDeleteId(null)}>Cancel</Button>
-                        </>
-                      ) : (
-                        <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteId(link.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* View log */}
-                  {expandedViews === link.id && (
-                    <div className="mt-4 rounded-md border bg-muted/30 p-3">
-                      {!viewLogs[link.id] || viewLogs[link.id].length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No views yet.</p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          <p className="text-xs font-medium text-muted-foreground">View history</p>
-                          {viewLogs[link.id].map((v) => (
-                            <div key={v.id} className="flex items-center justify-between text-xs">
-                              <span className="font-medium">{v.email}</span>
-                              <span className="text-muted-foreground">
-                                {new Date(v.viewedAt).toLocaleString()}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-          )}
-        </>
       )}
     </AppShell>
   );

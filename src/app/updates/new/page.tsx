@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { FileText, Upload, ArrowLeft, X, AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { FileText, Upload, X, AlertCircle, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ import { ORG_NAME } from "@/lib/org";
 import { toast } from "@/lib/toast";
 import { useFlashMessage } from "@/lib/use-flash-message";
 import { PageSkeleton } from "@/components/ui/skeleton";
-import { useNewLook } from "@/lib/use-new-look";
 import { EDITOR_COLUMN } from "@/lib/editor-styles";
 import { uploadDocument } from "@/lib/upload-document";
 import { formatFileSize } from "@/lib/utils";
@@ -31,7 +30,7 @@ import {
   type PendingAttachment,
 } from "@/lib/update-attachments";
 
-// An attachment row's icon button: 32px, 44px on phones (both looks: these controls are new).
+// An attachment row's icon button: 32px, 44px on phones.
 const ATTACH_ICON_BTN =
   "grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 max-md:h-11 max-md:w-11 v2:rounded-ctl v2:hover:bg-row-hover";
 
@@ -61,7 +60,6 @@ export default function NewUpdatePage() {
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("");
   const [, setMessage] = useFlashMessage();
-  const newLook = useNewLook();
 
   // Form state
   const [period, setPeriod] = useState("");
@@ -297,18 +295,8 @@ export default function NewUpdatePage() {
   const retryable = uploadable(attachments).filter((a) => a.status === "failed");
 
   return (
-    // New look (page types v1, editor): the 720 column, with the back link in the editor bar.
+    // Page types v1, editor: the 720 column, with the back link in the editor bar.
     <AppShell width="narrow">
-      {!newLook && (
-        <button
-          onClick={() => router.push("/updates")}
-          className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Updates
-        </button>
-      )}
-
       <ComposerTopBar
         back={{ href: "/updates", label: "Updates" }}
         draftLabel="Draft"
@@ -317,7 +305,7 @@ export default function NewUpdatePage() {
             {submitting ? "Saving..." : "Save as Draft"}
           </Button>
         }
-        // Phone, new look (§6): Save as Draft folds into ⋯.
+        // Phone (§6): Save as Draft folds into ⋯.
         phoneMenuItems={[{ label: submitting ? "Saving..." : "Save as Draft", onClick: () => handleSubmit("DRAFT"), disabled: submitting || isSaved }]}
         publishLabel="Publish"
         onPublishClick={() => setConfirmPublish(true)}

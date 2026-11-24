@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 // B-175 (memo page, direction B "Dossier"). Placeholder data only.
-const look = vi.hoisted(() => ({ v2: true }));
-vi.mock("@/lib/use-new-look", () => ({ useNewLook: () => look.v2 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
   usePathname: () => "/admin/memos/m1",

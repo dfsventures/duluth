@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
-// PLAN-1, WS162. The Team Board and Memo board in the new look. useNewLook is mocked so both looks
-// render on the server (the real hook reads localStorage after hydration).
-const look = vi.hoisted(() => ({ v2: true }));
-vi.mock("@/lib/use-new-look", () => ({ useNewLook: () => look.v2 }));
+// PLAN-1, WS162. The Team Board and Memo board in the new look (the only look since WS168).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   usePathname: () => "/admin/board",
@@ -72,7 +69,6 @@ function tile(c: BoardCardData, extra: Partial<React.ComponentProps<typeof Board
 
 describe("Team Board tile", () => {
   it("new look: a blocked tile carries the red dog-ear and the Blocked marker", () => {
-    look.v2 = true;
     const html = tile(card({ status: "BLOCKED" }));
     expect(html).toContain("before:right-0");
     expect(html).toContain("--color-stuck");
@@ -81,14 +77,12 @@ describe("Team Board tile", () => {
   });
 
   it("new look: a plain tile has no dog-ear and no marker line", () => {
-    look.v2 = true;
     const html = tile(card());
     expect(html).not.toContain("before:right-0");
     expect(html).not.toContain(">Blocked<");
   });
 
   it("new look: no left-edge bar and no border on any tile", () => {
-    look.v2 = true;
     for (const status of ["TODO", "IN_PROGRESS", "BLOCKED", "DONE"] as const) {
       const html = tile(card({ status }));
       expect(html).not.toMatch(/border-l-|before:left-0|border-border/);
@@ -96,14 +90,12 @@ describe("Team Board tile", () => {
   });
 
   it("new look: the cursor is the Sky underscore block on the lower edge, shown on focus", () => {
-    look.v2 = true;
     const html = tile(card());
     expect(html).toContain("after:bg-mark");
     expect(html).toContain("focus-within:after:block");
   });
 
   it("new look: owners are discs, the title is up to 3 lines, overdue reads Overdue", () => {
-    look.v2 = true;
     const html = tile(card({ dueDate: "2020-01-01T00:00:00.000Z" }));
     expect(html).toContain("rounded-full");
     expect(html).toContain("line-clamp-3");
@@ -111,7 +103,6 @@ describe("Team Board tile", () => {
   });
 
   it("new look: drag, title button and the card menu are all still there", () => {
-    look.v2 = true;
     const html = tile(card());
     expect(html).toContain('draggable="true"');
     expect(html).toContain("data-card-title");
@@ -119,22 +110,12 @@ describe("Team Board tile", () => {
   });
 
   it("new look on touch keeps the Move-to select and arrows", () => {
-    look.v2 = true;
     const html = tile(card(), { desktop: false });
     expect(html).toContain("Move to…");
     expect(html).toContain('&quot; up"');
     expect(html).toContain('&quot; down"');
   });
 
-  it("old look is unchanged: bordered, no dog-ear, no Overdue word, old title size", () => {
-    look.v2 = false;
-    const html = tile(card({ status: "BLOCKED", dueDate: "2020-01-01T00:00:00.000Z" }));
-    expect(html).toContain("border border-border bg-card");
-    expect(html).toContain("text-sm text-foreground hover:underline");
-    expect(html).not.toContain("before:right-0");
-    expect(html).not.toContain("data-blocked");
-    expect(html).toContain("Overdue ");
-  });
 });
 
 describe("Team Board column", () => {
