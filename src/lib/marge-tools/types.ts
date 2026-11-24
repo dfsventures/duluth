@@ -47,6 +47,7 @@ export interface MargePreview {
     | "Create memo"
     | "Edit memo section"
     | "Link memo to company"
+    | "Edit memo details"
     | "Add update"
     | "Record metric"
     | "Create company"

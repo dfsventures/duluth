@@ -30,7 +30,9 @@ import {
   validateCitations,
   validateIdempotencyKey,
   validateIntroCalls,
+  validateMemoAsk,
   validateMemoMeta,
+  validateMemoRound,
   validateSections,
   validateTags,
   validateTitle,
@@ -173,6 +175,8 @@ export async function createMemo(actor: Actor, body: Record<string, unknown>, vi
     introDate: m.introDate,
     websiteUrl: m.websiteUrl,
     introCalls: m.introCalls as object[],
+    round: m.round,
+    ask: m.ask,
     templateVersion: template.version,
     createKey,
     sections: {
@@ -325,7 +329,7 @@ export async function importMemo(actor: Actor, draft: NotionMemoDraft, opts: { s
 
 // ── metadata, status, visibility, archive ─────────────────────────────────────────────────
 
-const META_KEYS = ["title", "source", "decision", "tags", "introDate", "websiteUrl", "introCalls", "companyNamePending"] as const;
+const META_KEYS = ["title", "source", "decision", "tags", "introDate", "websiteUrl", "introCalls", "companyNamePending", "round", "ask"] as const;
 export const isMetaBody = (b: Record<string, unknown>) => META_KEYS.some((k) => k in b);
 
 export async function updateMemoMeta(actor: Actor, id: string, body: Record<string, unknown>): Promise<MemoResult<{ id: string; version: number }>> {
@@ -383,6 +387,16 @@ export async function updateMemoMeta(actor: Actor, id: string, body: Record<stri
     if (n.length > MEMO_LIMITS.title) return fail(400, MEMO_ERRORS.title);
     data.companyNamePending = n || null;
   }
+  if ("round" in body) {
+    const v = validateMemoRound(body.round);
+    if (!v.ok) return fail(400, v.error);
+    data.round = v.value;
+  }
+  if ("ask" in body) {
+    const v = validateMemoAsk(body.ask);
+    if (!v.ok) return fail(400, v.error);
+    data.ask = v.value;
+  }
   const fields = Object.keys(data);
   if (!fields.length) return fail(400, MEMO_MESSAGES.nothing);
 
@@ -394,6 +408,50 @@ export async function updateMemoMeta(actor: Actor, id: string, body: Record<stri
     metadata: { memoId: id, version: body.version + 1, fields },
   });
   return { ok: true, value: { id, version: body.version + 1 } };
+}
+
+/**
+ * B-176. Marge's only metadata write: the memo's round and ask, nothing else (the general details save,
+ * updateMemoMeta, stays out of Marge's reach). A key that is absent is unchanged; null or "" clears it.
+ * Version-checked on `expectedVersion` like the link writes; an apply bumps the memo version. Audited
+ * as MEMO_ROUND_ASK_CHANGED with the field names (never the values) and the `via` marker.
+ */
+export async function setMemoRoundAsk(
+  actor: Actor,
+  id: string,
+  body: { expectedVersion: unknown; round?: unknown; ask?: unknown },
+  via?: Via
+): Promise<MemoResult<{ id: string; version: number; round: string | null; ask: string | null }>> {
+  const memo = await loadVisible(actor.id, id, { ...HEAD, version: true, round: true, ask: true });
+  if (!memo) return fail(404, MEMO_MESSAGES.notFound);
+  if (!canEditMemo(memo as never, actor.id)) return fail(403, MEMO_MESSAGES.ownerOnly);
+  if (!isVersion(body.expectedVersion)) return fail(400, MEMO_MESSAGES.expectedVersion);
+  const data: { round?: string | null; ask?: string | null } = {};
+  if (body.round !== undefined) {
+    const v = validateMemoRound(body.round);
+    if (!v.ok) return fail(400, v.error);
+    if (v.value !== memo.round) data.round = v.value;
+  }
+  if (body.ask !== undefined) {
+    const v = validateMemoAsk(body.ask);
+    if (!v.ok) return fail(400, v.error);
+    if (v.value !== memo.ask) data.ask = v.value;
+  }
+  if (memo.version !== body.expectedVersion) return fail(409, MEMO_MESSAGES.staleMemo);
+  const fields = Object.keys(data);
+  if (!fields.length) return fail(400, MEMO_MESSAGES.nothing);
+  const r = await db.memo.updateMany({ where: { id, version: body.expectedVersion }, data: { ...data, version: { increment: 1 } } });
+  if (r.count === 0) return fail(409, MEMO_MESSAGES.staleMemo);
+  const version = body.expectedVersion + 1;
+  await logAdminAction(actor, "MEMO_ROUND_ASK_CHANGED", {
+    targetType: "Memo",
+    targetId: id,
+    metadata: { memoId: id, version, fields, ...viaMeta(via) },
+  });
+  return {
+    ok: true,
+    value: { id, version, round: "round" in data ? data.round ?? null : memo.round ?? null, ask: "ask" in data ? data.ask ?? null : memo.ask ?? null },
+  };
 }
 
 export async function setMemoStatus(actor: Actor, id: string, status: unknown): Promise<MemoResult<{ id: string; status: MemoStatus; version: number }>> {

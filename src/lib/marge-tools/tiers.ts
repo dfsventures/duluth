@@ -33,6 +33,7 @@ export const MARGE_MEMO_TOOLS = {
   memo_create: "dm_write",
   memo_update_section: "dm_write",
   memo_link_company: "dm_write",
+  memo_update_meta: "dm_write", // B-176: round and ask only
 } as const satisfies Record<string, Tier>;
 export type MargeMemoToolName = keyof typeof MARGE_MEMO_TOOLS;
 /** Read at call time, so flipping the variable and redeploying is the whole off switch. */

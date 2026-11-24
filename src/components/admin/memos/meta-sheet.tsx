@@ -10,13 +10,15 @@ import { toast } from "@/lib/toast";
 import { MEMO_LIMITS, MEMO_SOURCES } from "@/lib/memos";
 import { readError, type MemoIntroCall, type MemoView } from "./types";
 
-/** Edit the memo's details (title, source, tags, intro date, website, intro calls). Carries the memo `version`; a 409 says so. */
+/** Edit the memo's details (title, source, round, ask, tags, intro date, website, intro calls). Carries the memo `version`; a 409 says so. */
 export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose: () => void; onSaved: () => void }) {
   const [title, setTitle] = useState(memo.title);
   const [source, setSource] = useState(memo.source ?? "");
   const [tags, setTags] = useState(memo.tags.join(", "));
   const [introDate, setIntroDate] = useState(memo.introDate ?? "");
   const [websiteUrl, setWebsiteUrl] = useState(memo.websiteUrl ?? "");
+  const [round, setRound] = useState(memo.round ?? "");
+  const [ask, setAsk] = useState(memo.ask ?? "");
   const [pending, setPending] = useState(memo.companyNamePending ?? "");
   const [calls, setCalls] = useState<MemoIntroCall[]>(memo.introCalls);
   const [saving, setSaving] = useState(false);
@@ -43,6 +45,8 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
           .filter(Boolean),
         introDate: introDate || null,
         websiteUrl: websiteUrl.trim() || null,
+        round: round.trim() || null,
+        ask: ask.trim() || null,
         introCalls: calls.map((c) => ({ ...c, label: c.label.trim() })),
       };
       if (showPending) body.companyNamePending = pending;
@@ -86,6 +90,8 @@ export function MetaSheet({ memo, onClose, onSaved }: { memo: MemoView; onClose:
             </option>
           ))}
         </Select>
+        <Input id="meta-round" label="Round" value={round} maxLength={MEMO_LIMITS.round} onChange={(e) => setRound(e.target.value)} placeholder="e.g. Seed" />
+        <Input id="meta-ask" label="Ask" value={ask} maxLength={MEMO_LIMITS.ask} onChange={(e) => setAsk(e.target.value)} placeholder="e.g. $X on a SAFE" />
         <Input id="meta-tags" label="Tags (comma separated)" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. AI, Infrastructure" />
         <Input id="meta-intro" label="Intro date" type="date" value={introDate} onChange={(e) => setIntroDate(e.target.value)} />
         <Input

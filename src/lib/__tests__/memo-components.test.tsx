@@ -205,6 +205,8 @@ const memoView = (over: Partial<MemoView> = {}): MemoView => ({
   tags: [],
   introDate: null,
   websiteUrl: null,
+  round: null,
+  ask: null,
   introCalls: [],
   version: 1,
   updatedAt: "2026-10-01T10:00:00.000Z",

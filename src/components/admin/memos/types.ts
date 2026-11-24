@@ -62,6 +62,8 @@ export interface MemoView {
   tags: string[];
   introDate: string | null; // YYYY-MM-DD
   websiteUrl: string | null;
+  round: string | null; // B-176
+  ask: string | null; // B-176
   introCalls: MemoIntroCall[];
   version: number;
   updatedAt: string;

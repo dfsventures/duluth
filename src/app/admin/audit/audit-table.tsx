@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<string, string> = {
 // (docs/design/admin-audit-v1-copy.md, Audit Log overrides).
 const ACTION_OVERRIDES: Record<string, string> = {
   MEMO_DECISION_CHANGED: "Memo stage changed",
+  MEMO_ROUND_ASK_CHANGED: "Memo round or ask changed",
   BROADCAST_PUBLISHED: "Broadcast sent",
   BROADCAST_RETRIED: "Broadcast retried for unsent contacts",
   BOARD_CARD_CREATED: "Board item created",

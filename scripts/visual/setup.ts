@@ -464,6 +464,7 @@ async function main() {
           title, status, decision, visibility, ownerId: sam.id,
           source: "Founder Intro", tags: ["fintech", "africa"], introDate: dateOnly(40),
           websiteUrl: "https://memo-target.example.com",
+          round: "Seed", ask: "$X on a SAFE", // B-176 placeholders
           sections: {
             create: [
               { key: "summary", title: "Summary", markdown: "Placeholder summary of the opportunity.", position: 0 },

@@ -197,6 +197,13 @@ export const MEMO_TOOL_DEFS: ToolDef[] = [
     tier: MARGE_MEMO_TOOLS.memo_link_company,
     fn: w(memos.memoLinkCompany),
   },
+  {
+    name: "memo_update_meta",
+    description: "Set or clear the round and ask on the requester's own memo, as written in the deck (round up to 40 characters, ask up to 80; null clears, omitted leaves it). Needs expectedVersion (the memo version from memo_get). dryRun defaults to true. DM only.",
+    inputSchema: memos.memoUpdateMetaInput,
+    tier: MARGE_MEMO_TOOLS.memo_update_meta,
+    fn: w(memos.memoUpdateMeta),
+  },
 ];
 
 // Part 45 (WS150, JC-FU-J). Registered only while MARGE_PORTCO_TOOLS=on (five tools); company_create needs

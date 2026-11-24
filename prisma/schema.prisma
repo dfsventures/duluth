@@ -1152,6 +1152,8 @@ model Memo {
   tags               String[]  @default([])
   introDate          DateTime? // date-only, 00:00 UTC (BoardCard.dueDate convention)
   websiteUrl         String?
+  round              String? // B-176: the round as written in the deck, 1-40 chars, one line (validateMemoRound)
+  ask                String? // B-176: the ask as written in the deck, 1-80 chars, one line (validateMemoAsk)
   introCalls         Json      @default("[]") // MemoIntroCall[] { label, date?, url? }
   templateVersion    Int?
   version            Int       @default(1) // metadata version, optimistic concurrency

@@ -61,6 +61,8 @@ export const MEMO_LIMITS = {
   tagLength: 40,
   introCalls: 20,
   keyLength: 40,
+  round: 40,
+  ask: 80,
 } as const;
 
 export interface MemoCitation {
@@ -96,6 +98,8 @@ export interface MemoMetaValue {
   introDate: Date | null;
   websiteUrl: string | null;
   introCalls: MemoIntroCall[];
+  round: string | null;
+  ask: string | null;
 }
 
 export const MEMO_ERRORS = {
@@ -119,6 +123,12 @@ export const MEMO_ERRORS = {
   badCall: "Each intro call needs a label of 1-200 characters.",
   badMarkdown: "Section text must be text.",
   badIdempotency: "idempotencyKey must be 8-100 letters, digits, - or _.",
+  roundTooLong: "Round is limited to 40 characters.",
+  askTooLong: "Ask is limited to 80 characters.",
+  roundOneLine: "Round must be one line of plain text, with no line breaks or control characters.",
+  askOneLine: "Ask must be one line of plain text, with no line breaks or control characters.",
+  roundNotText: "Round must be text.",
+  askNotText: "Ask must be text.",
 } as const;
 
 export type Validated<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -272,6 +282,34 @@ export function validateIntroCalls(raw: unknown): Validated<MemoIntroCall[]> {
   return { ok: true, value: out };
 }
 
+// B-176: C0/C1 control characters (line breaks and tabs included) and the Unicode line/paragraph separators.
+// eslint-disable-next-line no-control-regex
+const CONTROL_RE = /[\u0000-\u001F\u007F-\u009F]/;
+// U+2028 and U+2029 (line and paragraph separators), by code point so the file holds no raw separator.
+const SEPARATOR_RE = new RegExp(`[${String.fromCharCode(0x2028)}${String.fromCharCode(0x2029)}]`);
+
+function validateOneLine(
+  raw: unknown,
+  max: number,
+  errors: { tooLong: string; oneLine: string; notText: string }
+): Validated<string | null> {
+  if (raw === undefined || raw === null) return { ok: true, value: null };
+  if (typeof raw !== "string") return bad(errors.notText);
+  const v = raw.trim(); // outer whitespace (a trailing line break included) is trimmed; anything inside is checked
+  if (!v) return { ok: true, value: null };
+  if (CONTROL_RE.test(v) || SEPARATOR_RE.test(v)) return bad(errors.oneLine);
+  if (v.length > max) return bad(errors.tooLong);
+  return { ok: true, value: v };
+}
+
+/** B-176: the round as written in the deck. Trimmed; empty or absent is null; 1-40 characters on one line. */
+export const validateMemoRound = (raw: unknown): Validated<string | null> =>
+  validateOneLine(raw, MEMO_LIMITS.round, { tooLong: MEMO_ERRORS.roundTooLong, oneLine: MEMO_ERRORS.roundOneLine, notText: MEMO_ERRORS.roundNotText });
+
+/** B-176: the ask as written in the deck. Trimmed; empty or absent is null; 1-80 characters on one line. */
+export const validateMemoAsk = (raw: unknown): Validated<string | null> =>
+  validateOneLine(raw, MEMO_LIMITS.ask, { tooLong: MEMO_ERRORS.askTooLong, oneLine: MEMO_ERRORS.askOneLine, notText: MEMO_ERRORS.askNotText });
+
 /** Memo metadata (everything but the sections). Hand-written allowlist: unknown keys are ignored. */
 export function validateMemoMeta(raw: unknown): Validated<MemoMetaValue> {
   if (!isObj(raw)) return bad(MEMO_ERRORS.title);
@@ -301,6 +339,10 @@ export function validateMemoMeta(raw: unknown): Validated<MemoMetaValue> {
   }
   const calls = validateIntroCalls(raw.introCalls);
   if (!calls.ok) return calls;
+  const round = validateMemoRound(raw.round);
+  if (!round.ok) return round;
+  const ask = validateMemoAsk(raw.ask);
+  if (!ask.ok) return ask;
   return {
     ok: true,
     value: {
@@ -312,6 +354,8 @@ export function validateMemoMeta(raw: unknown): Validated<MemoMetaValue> {
       introDate,
       websiteUrl,
       introCalls: calls.value,
+      round: round.value,
+      ask: ask.value,
     },
   };
 }

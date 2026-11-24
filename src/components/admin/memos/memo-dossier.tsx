@@ -55,7 +55,7 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
   const team = memo.visibility === "TEAM";
   const updated = new Date(memo.updatedAt).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
 
-  // Facts that exist today. Round and Ask will be two more rows here once the memo has fields for them.
+  // The facts. Round and Ask (B-176) are rows only when set.
   const rows: { label: string; value: ReactNode }[] = [];
   rows.push({
     label: MEMO_DECISION_NOUN,
@@ -100,6 +100,8 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
       </button>
     ),
   });
+  if (memo.round) rows.push({ label: "Round", value: memo.round });
+  if (memo.ask) rows.push({ label: "Ask", value: memo.ask });
   if (memo.source) rows.push({ label: "Source", value: memo.source });
   if (memo.introDate)
     rows.push({
@@ -248,6 +250,18 @@ export function MemoDossier({ memo, linked, banner, onOpenShare, onArchive, onCh
 
       {/* Print shows the facts as plain lines, as the old Details box did. */}
       <dl className="mt-4 hidden gap-x-6 gap-y-1 text-sm print:grid print:grid-cols-[110px_1fr]">
+        {memo.round && (
+          <>
+            <dt>Round</dt>
+            <dd>{memo.round}</dd>
+          </>
+        )}
+        {memo.ask && (
+          <>
+            <dt>Ask</dt>
+            <dd>{memo.ask}</dd>
+          </>
+        )}
         {memo.source && (
           <>
             <dt>Source</dt>

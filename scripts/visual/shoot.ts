@@ -749,6 +749,25 @@ async function main() {
             console.warn("  no details toggle found on /updates/new");
           }
         }
+        // B-176: the memo's Details sheet (round and ask), opened from the ⋯ menu.
+        if (ok && key === "memo") {
+          const more = page.getByRole("button", { name: "More actions" }).first();
+          if ((await more.count()) > 0) {
+            await more.click();
+            const item = page.getByRole("menuitem", { name: "Edit details" });
+            if ((await item.count()) > 0) {
+              await item.click();
+              await page.locator("#meta-round").waitFor({ timeout: 5000 }).catch(() => {});
+              await page.locator("#meta-round").scrollIntoViewIfNeeded().catch(() => {});
+              await page.waitForTimeout(300);
+              await snap(page, `memo-details__${tag}.png`, false);
+            } else {
+              console.warn("  no Edit details item in the memo's ⋯ menu");
+            }
+          } else {
+            console.warn("  no More actions button on the memo page");
+          }
+        }
         if (ok && v.look === "new" && v.theme === "light" && vpKey !== "phone" && PAGE_TYPE[key]) {
           const { m, shape } = await measure(page).catch(() => ({ m: {} as Marks, shape: "error" }));
           alignRows.push({ vp: vpKey, key, type: PAGE_TYPE[key], shape, m });

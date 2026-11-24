@@ -106,7 +106,7 @@ describe("limits and the contract sentences", () => {
   it("ignores keys outside the allowlist (no spread)", () => {
     const r = validateMemoMeta({ title: "T", visibility: "TEAM", status: "FINAL", ownerId: "u2", shareLinks: [1] });
     expect(r.ok && Object.keys(r.value).sort()).toEqual(
-      ["companyId", "companyNamePending", "introCalls", "introDate", "source", "tags", "title", "websiteUrl"].sort()
+      ["companyId", "companyNamePending", "introCalls", "introDate", "source", "tags", "title", "websiteUrl", "round", "ask"].sort()
     );
   });
 

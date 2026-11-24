@@ -15,6 +15,7 @@ describe("audit actionLabel (new look)", () => {
   it("uses the words the screens use", () => {
     expect(actionLabel("MEMO_DECISION_CHANGED")).toBe("Memo stage changed");
     expect(actionLabel("MEMO_STATUS_CHANGED")).toBe("Memo status changed");
+    expect(actionLabel("MEMO_ROUND_ASK_CHANGED")).toBe("Memo round or ask changed");
     expect(actionLabel("BROADCAST_PUBLISHED")).toBe("Broadcast sent");
     expect(actionLabel("MARK_CREATED")).toBe("Valuation added");
     expect(actionLabel("COMPANY_DILIGENCE_PROMOTED")).toBe("Company moved out of diligence");

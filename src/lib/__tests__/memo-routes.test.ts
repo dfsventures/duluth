@@ -792,6 +792,26 @@ describe("decision and source (Part 41, WS132)", () => {
   });
 });
 
+describe("round and ask in Details (B-176)", () => {
+  it("PATCH sets, trims, clears with empty or null, bumps the version, rejects bad values with the sentence", async () => {
+    const patch = (body: Row) => onePATCH(req("PATCH", body), ctx("team"));
+    const memo = () => state.memos.find((m) => m.id === "team")!;
+    expect((await patch({ round: " Seed ", ask: "$X", version: 1 })).status).toBe(200);
+    expect(memo()).toMatchObject({ round: "Seed", ask: "$X", version: 2 });
+    expect(audit.logAdminAction.mock.calls.some((c) => c[1] === "MEMO_UPDATED" && c[2].metadata.fields.includes("round") && c[2].metadata.fields.includes("ask"))).toBe(true);
+    expect(JSON.stringify(audit.logAdminAction.mock.calls)).not.toContain("Seed");
+    expect((await patch({ round: "", ask: null, version: 2 })).status).toBe(200);
+    expect(memo()).toMatchObject({ round: null, ask: null, version: 3 });
+    const long = await patch({ round: "x".repeat(41), version: 3 });
+    expect(long.status).toBe(400);
+    expect((await json(long)).error).toBe(MEMO_ERRORS.roundTooLong);
+    const twoLines = await patch({ ask: "a\nb", version: 3 });
+    expect(twoLines.status).toBe(400);
+    expect((await json(twoLines)).error).toBe(MEMO_ERRORS.askOneLine);
+    expect((await patch({ round: "Seed", version: 1 })).status).toBe(409);
+  });
+});
+
 describe("decision move (Part 43)", () => {
   const stamp = new Date("2026-03-01T10:00:00Z");
   const find = (id: string) => state.memos.find((m) => m.id === id)!;

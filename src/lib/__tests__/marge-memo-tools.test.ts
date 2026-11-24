@@ -240,9 +240,10 @@ const createArgs = (over: Record<string, unknown> = {}) => ({
 });
 
 describe("the contract: six tools, tiers, flags", () => {
-  it("MARGE_MEMO_TOOLS names exactly the six, with the contract tiers; MARGE_TOOLS is still the 13", () => {
+  it("MARGE_MEMO_TOOLS names exactly the seven (B-176 added memo_update_meta), with the contract tiers; MARGE_TOOLS is still the 13", () => {
     expect(MARGE_MEMO_TOOLS).toEqual({
       memo_template_get: "team", memo_list: "dm", memo_get: "dm", memo_create: "dm_write", memo_update_section: "dm_write", memo_link_company: "dm_write",
+      memo_update_meta: "dm_write",
     });
     expect(Object.keys(MARGE_TOOLS)).toHaveLength(13);
     expect(Object.keys(MARGE_TOOLS)).not.toContain("memo_get");
@@ -304,6 +305,7 @@ describe("DM-only (Q115-A)", () => {
       ["memo_list", {}], ["memo_get", { memoId: "own" }],
       ["memo_create", createArgs()], ["memo_update_section", { memoId: "own", sectionKey: "team", expectedVersion: 3, markdown: "x" }],
       ["memo_link_company", { memoId: "own", expectedVersion: 1, company: "Acme" }],
+      ["memo_update_meta", { memoId: "own", expectedVersion: 1, round: "Seed" }],
     ] as [string, Record<string, unknown>][]) {
       expect(await sentence(await post(callBody(name, args), team)), name).toBe("That's DM-only. Ask me in a DM.");
     }
@@ -312,7 +314,7 @@ describe("DM-only (Q115-A)", () => {
     expect(state.memos).toHaveLength(5);
     expect(await sentence(await post(callBody("memo_template_get"), team))).toMatch(/Memo template, version 1/);
     const denied = audit.logAdminAction.mock.calls.filter((c) => c[1] === "MARGE_DENIED");
-    expect(denied.length).toBe(6);
+    expect(denied.length).toBe(7);
     expect(denied[0][2].metadata).toEqual({ via: "marge", tool: "memo_list", reason: "tier", ctx: "team" });
   });
 });
@@ -407,6 +409,7 @@ describe("a dry run never writes", () => {
     await tools.memoCreate(tools.memoCreateInput.parse(createArgs()), P, DRY);
     await tools.memoUpdateSection(tools.memoUpdateSectionInput.parse({ memoId: "own", sectionKey: "team", expectedVersion: 3, markdown: "New text" }), P, DRY);
     await tools.memoLinkCompany(tools.memoLinkCompanyInput.parse({ memoId: "own", expectedVersion: 1, company: "Acme" }), P, DRY);
+    await tools.memoUpdateMeta(tools.memoUpdateMetaInput.parse({ memoId: "own", expectedVersion: 1, round: "Seed", ask: "$X" }), P, DRY);
     expect(state.writes).toBe(0);
     for (const model of ["memo", "memoSection", "memoSectionRevision"]) {
       const m = (await import("@/lib/db")).db as unknown as Row;
@@ -610,6 +613,175 @@ describe("memo_link_company", () => {
   });
 });
 
+// B-176: round and ask. Placeholder values only.
+describe("round and ask: validation", () => {
+  it("trims, turns empty into null, caps round at 40 and ask at 80, and rejects line breaks and control characters", async () => {
+    const { validateMemoRound, validateMemoAsk, validateMemoMeta } = await import("@/lib/memos");
+    expect(validateMemoRound("  Seed  ")).toEqual({ ok: true, value: "Seed" });
+    expect(validateMemoRound("   ")).toEqual({ ok: true, value: null });
+    expect(validateMemoRound("")).toEqual({ ok: true, value: null });
+    expect(validateMemoRound(undefined)).toEqual({ ok: true, value: null });
+    expect(validateMemoRound(null)).toEqual({ ok: true, value: null });
+    expect(validateMemoRound("x".repeat(40))).toEqual({ ok: true, value: "x".repeat(40) });
+    expect(validateMemoRound("x".repeat(41))).toEqual({ ok: false, error: "Round is limited to 40 characters." });
+    expect(validateMemoAsk("x".repeat(80)).ok).toBe(true);
+    expect(validateMemoAsk("x".repeat(81))).toEqual({ ok: false, error: "Ask is limited to 80 characters." });
+    expect(validateMemoRound("Seed\n")).toEqual({ ok: true, value: "Seed" }); // outer whitespace is trimmed
+    for (const bad of ["Pre\nseed", "Pre\rseed", "Pre\tseed", "Pre\u0000seed", "Pre\u007fseed", `Pre${String.fromCharCode(0x2028)}seed`, `Pre${String.fromCharCode(0x2029)}seed`]) {
+      expect(validateMemoRound(bad), JSON.stringify(bad)).toEqual({ ok: false, error: "Round must be one line of plain text, with no line breaks or control characters." });
+    }
+    expect(validateMemoAsk("$X\non a SAFE")).toEqual({ ok: false, error: "Ask must be one line of plain text, with no line breaks or control characters." });
+    expect(validateMemoRound(5)).toEqual({ ok: false, error: "Round must be text." });
+    expect(validateMemoAsk(["$X"])).toEqual({ ok: false, error: "Ask must be text." });
+    // In the shared meta validator (web create and Marge create).
+    const m = validateMemoMeta({ title: "T", round: " Seed ", ask: "" });
+    expect(m.ok && m.value).toMatchObject({ round: "Seed", ask: null });
+    const none = validateMemoMeta({ title: "T" });
+    expect(none.ok && none.value).toMatchObject({ round: null, ask: null });
+    expect(validateMemoMeta({ title: "T", ask: "x".repeat(81) })).toEqual({ ok: false, error: "Ask is limited to 80 characters." });
+  });
+});
+
+describe("memo_create with round and ask", () => {
+  it("without them: the preview and the stored memo are as before (no Round or Ask, nulls stored)", async () => {
+    const out = await tools.memoCreate(tools.memoCreateInput.parse(createArgs()), P, DRY);
+    const labels = ((out.structured.preview as Row).fields as Row[]).map((f) => f.label);
+    expect(labels).toEqual(["Title", "Company", "Owner", "Sections", "Citations", "Status", "Visibility"]);
+    await tools.memoCreate(tools.memoCreateInput.parse(createArgs()), P, APPLY);
+    expect(state.memos.at(-1)).toMatchObject({ round: null, ask: null });
+  });
+
+  it("with them: trimmed into the preview and the memo", async () => {
+    const args = createArgs({ round: "  Seed ", ask: "$X on a SAFE" });
+    const out = await tools.memoCreate(tools.memoCreateInput.parse(args), P, DRY);
+    const f = Object.fromEntries(((out.structured.preview as Row).fields as Row[]).map((x) => [x.label, x.after]));
+    expect(f.Round).toBe("Seed");
+    expect(f.Ask).toBe("$X on a SAFE");
+    await tools.memoCreate(tools.memoCreateInput.parse(args), P, APPLY);
+    expect(state.memos.at(-1)).toMatchObject({ round: "Seed", ask: "$X on a SAFE" });
+    expect(JSON.stringify(audit.logAdminAction.mock.calls)).not.toContain("$X on a SAFE");
+  });
+
+  it("rejects a bad round or ask before anything is written", async () => {
+    const t = (over: Record<string, unknown>) => tools.memoCreate(tools.memoCreateInput.parse(createArgs(over)), P, APPLY);
+    await expect(t({ round: "x".repeat(41) })).rejects.toThrow("Round is limited to 40 characters.");
+    await expect(t({ ask: "line one\nline two" })).rejects.toThrow("Ask must be one line of plain text, with no line breaks or control characters.");
+    expect(state.writes).toBe(0);
+  });
+
+  it("describes the inputs as written in the deck, with the limits", () => {
+    expect(tools.memoCreateInput.shape.round.description).toBe("the round, as written in the deck, up to 40 characters");
+    expect(tools.memoCreateInput.shape.ask.description).toBe("the ask, as written in the deck, up to 80 characters");
+  });
+});
+
+describe("memo_get round and ask", () => {
+  it("are null when unset, and no extra text line", async () => {
+    const out = await tools.memoGet({ memoId: "own" }, P);
+    expect(out.structured.memo).toMatchObject({ round: null, ask: null });
+    expect(out.text).not.toContain("Round:");
+  });
+  it("are returned when set, in structured and in text", async () => {
+    Object.assign(state.memos[0], { round: "Seed", ask: "$X" });
+    const out = await tools.memoGet({ memoId: "own" }, P);
+    expect(out.structured.memo).toMatchObject({ round: "Seed", ask: "$X" });
+    expect(out.text).toContain("Round: Seed · Ask: $X");
+  });
+});
+
+describe("memo_update_meta", () => {
+  const meta = (over: Record<string, unknown> = {}) => tools.memoUpdateMetaInput.parse({ memoId: "own", expectedVersion: 1, ...over });
+
+  it("dry run: a preview with before and after, echoes the memo version, writes nothing", async () => {
+    const out = await tools.memoUpdateMeta(meta({ round: "Seed", ask: "$X" }), P, DRY);
+    expect(out.structured.preview).toEqual({
+      action: "Edit memo details",
+      target: "Acme: seed",
+      fields: [
+        { label: "Round", before: "not set", after: "Seed" },
+        { label: "Ask", before: "not set", after: "$X" },
+      ],
+      warnings: [],
+      expectedVersion: 1,
+    });
+    expect(state.writes).toBe(0);
+    expect(state.memos[0].version).toBe(1);
+    expect(audit.logAdminAction).not.toHaveBeenCalled();
+  });
+
+  it("apply: sets both, bumps the memo version, audits field names only with via marge", async () => {
+    const out = await tools.memoUpdateMeta(meta({ round: " Seed ", ask: "$X" }), P, APPLY);
+    expect(out.structured).toEqual({ memoId: "own", round: "Seed", ask: "$X", version: 2, url: "https://molly.dfs.vc/admin/memos/own" });
+    expect(out.text).toBe("Updated round and ask on “Acme: seed”. https://molly.dfs.vc/admin/memos/own");
+    expect(state.memos[0]).toMatchObject({ round: "Seed", ask: "$X", version: 2 });
+    expect(audit.logAdminAction).toHaveBeenCalledWith(P, "MEMO_ROUND_ASK_CHANGED", {
+      targetType: "Memo",
+      targetId: "own",
+      metadata: { memoId: "own", version: 2, fields: ["round", "ask"], via: "marge", margeActionId: "act1" },
+    });
+    expect(JSON.stringify(audit.logAdminAction.mock.calls)).not.toContain("Seed");
+  });
+
+  it("omitted leaves a field alone; null clears it", async () => {
+    Object.assign(state.memos[0], { round: "Seed", ask: "$X" });
+    const out = await tools.memoUpdateMeta(meta({ round: null }), P, APPLY);
+    expect(out.structured).toMatchObject({ round: null, ask: "$X", version: 2 });
+    expect(state.memos[0]).toMatchObject({ round: null, ask: "$X" });
+    const pv = await tools.memoUpdateMeta(meta({ expectedVersion: 2, ask: null }), P, DRY);
+    expect((pv.structured.preview as Row).fields).toEqual([{ label: "Ask", before: "$X", after: "not set" }]);
+    expect(audit.logAdminAction.mock.calls[0][2].metadata.fields).toEqual(["round"]);
+  });
+
+  it("a stale expectedVersion is the conflict sentence (409) for a dry run and an apply, and writes nothing", async () => {
+    for (const opts of [DRY, APPLY]) {
+      const err = await tools.memoUpdateMeta(meta({ expectedVersion: 7, round: "Seed" }), P, opts).catch((e) => e);
+      expect(err).toBeInstanceOf(ToolError);
+      expect(err.message).toBe("This memo changed since I showed it to you. Ask me again.");
+      expect(err.code).toBe("conflict");
+    }
+    expect(state.writes).toBe(0);
+  });
+
+  it("a race (version moved after the preview) is the same conflict and no change", async () => {
+    const db = (await import("@/lib/db")).db as unknown as Row;
+    const orig = db.memo.findFirst.getMockImplementation() as (a: unknown) => Promise<Row | null>;
+    let calls = 0;
+    db.memo.findFirst.mockImplementation(async (a: unknown) => {
+      const r = await orig(a);
+      if (++calls === 2) state.memos[0].version = 2; // someone saved Details in Molly between the tool's check and the action's
+      return r;
+    });
+    await expect(tools.memoUpdateMeta(meta({ round: "Seed" }), P, APPLY)).rejects.toThrow("This memo changed since I showed it to you. Ask me again.");
+    db.memo.findFirst.mockImplementation(orig);
+    expect(state.memos[0].round ?? null).toBeNull();
+    expect(audit.logAdminAction.mock.calls.filter((c) => c[1] === "MEMO_ROUND_ASK_CHANGED")).toHaveLength(0);
+  });
+
+  it("sentences: nothing to change, bad values, owner only, not found, archived", async () => {
+    await expect(tools.memoUpdateMeta(meta(), P, DRY)).rejects.toThrow("Nothing to change: say what to edit.");
+    await expect(tools.memoUpdateMeta(meta({ round: "" }), P, DRY)).rejects.toThrow("Nothing to change: say what to edit."); // already empty
+    await expect(tools.memoUpdateMeta(meta({ round: "x".repeat(41) }), P, DRY)).rejects.toThrow("Round is limited to 40 characters.");
+    await expect(tools.memoUpdateMeta(meta({ ask: "a\tb" }), P, DRY)).rejects.toThrow("Ask must be one line of plain text, with no line breaks or control characters.");
+    await expect(tools.memoUpdateMeta(meta({ memoId: "team", round: "Seed" }), P, APPLY)).rejects.toThrow("Only the memo's owner can change it from Slack.");
+    await expect(tools.memoUpdateMeta(meta({ memoId: "priv", round: "Seed" }), P, APPLY)).rejects.toThrow("No memo with that id.");
+    await expect(tools.memoUpdateMeta(meta({ memoId: "arch", round: "Seed" }), P, APPLY)).rejects.toThrow("That memo is archived.");
+    expect(state.writes).toBe(0);
+  });
+
+  it("through the route: listed, DM write tier, and the token is bound to the exact arguments", async () => {
+    const list = await json(await post(rpc("tools/list", {})));
+    const tool = (list.result.tools as { name: string; description: string }[]).find((t) => t.name === "memo_update_meta")!;
+    expect(tool.description).toMatch(/dryRun defaults to true/);
+    const args = { memoId: "own", expectedVersion: 1, round: "Seed" };
+    expect(await sentence(await applyCall("memo_update_meta", { ...args, round: "Series A" }, { hashOf: args }))).toBe("That change wasn't confirmed, so nothing was changed.");
+    expect(state.memos[0].round ?? null).toBeNull();
+    const ok = await result(await applyCall("memo_update_meta", args));
+    expect(ok.isError).toBeUndefined();
+    expect(ok.structuredContent).toMatchObject({ round: "Seed", version: 2 });
+    expect(audit.logAdminAction.mock.calls.find((c) => c[1] === "MEMO_ROUND_ASK_CHANGED")![2].metadata).toMatchObject({ via: "marge", margeActionId: "act-77" });
+  });
+});
+
 describe("deal-ledger companies (Part 42, WS138)", () => {
   const link = (over: Record<string, unknown> = {}) => tools.memoLinkCompanyInput.parse({ memoId: "own", expectedVersion: 1, company: "Globex", ...over });
   beforeEach(() => {
@@ -699,7 +871,10 @@ describe("no tool or argument can change visibility, status, share links, archiv
     const create = tools.memoCreateInput.parse(createArgs({ ...smuggled, sections: [{ key: "a", title: "A", markdown: "m", ...smuggled }] }));
     const update = tools.memoUpdateSectionInput.parse({ memoId: "own", sectionKey: "team", expectedVersion: 3, markdown: "x", ...smuggled });
     const link = tools.memoLinkCompanyInput.parse({ memoId: "own", expectedVersion: 1, company: "Acme", ...smuggled });
-    for (const parsed of [create, update, link, tools.memoGetInput.parse({ memoId: "own", ...smuggled })] as Row[]) {
+    const meta = tools.memoUpdateMetaInput.parse({ memoId: "own", expectedVersion: 1, round: "Seed", title: "New title", decision: "INVESTED", ...smuggled }) as Row;
+    expect(meta).not.toHaveProperty("title");
+    expect(meta).not.toHaveProperty("decision");
+    for (const parsed of [create, update, link, meta, tools.memoGetInput.parse({ memoId: "own", ...smuggled })] as Row[]) {
       for (const k of Object.keys(smuggled)) expect(parsed, k).not.toHaveProperty(k);
     }
     // memo_list takes `status` as a read-only FILTER (never a change); everything else is stripped
@@ -731,8 +906,8 @@ describe("no tool or argument can change visibility, status, share links, archiv
 
   it("the tools module offers no way to create, list or revoke share links, archive, restore, or change the template", async () => {
     const exported = Object.keys(tools).filter((k) => typeof (tools as Row)[k] === "function").sort();
-    expect(exported).toEqual(["memoCreate", "memoGet", "memoLinkCompany", "memoList", "memoTemplateGet", "memoUpdateSection"]);
-    expect(Object.keys(MARGE_MEMO_TOOLS)).toHaveLength(6);
+    expect(exported).toEqual(["memoCreate", "memoGet", "memoLinkCompany", "memoList", "memoTemplateGet", "memoUpdateMeta", "memoUpdateSection"]);
+    expect(Object.keys(MARGE_MEMO_TOOLS)).toHaveLength(7);
     const src = (await import("node:fs")).readFileSync("src/lib/marge-tools/memos.ts", "utf8");
     for (const banned of ["createShareLink", "revokeShareLink", "listShareLinks", "archiveMemo", "setMemoVisibility", "setMemoStatus", "restoreSection", "saveTemplate", "removeSection", "addSection", "reorderSections", "updateMemoMeta", "setMemoDecision"]) {
       expect(src, banned).not.toMatch(new RegExp(`\\b${banned}\\b`));

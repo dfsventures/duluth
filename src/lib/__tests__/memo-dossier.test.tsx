@@ -34,6 +34,8 @@ function makeMemo(over: Partial<MemoView> = {}): MemoView {
     tags: ["Fintech", "Seed"],
     introDate: "2026-10-14",
     websiteUrl: "https://example.com",
+    round: null,
+    ask: null,
     introCalls: [{ label: "Intro call", url: "https://example.com/call", date: "2026-10-06" }],
     version: 3,
     updatedAt: "2026-11-01T10:00:00.000Z",
@@ -114,6 +116,24 @@ describe("dossier layout", () => {
     const html = render();
     expect(html).not.toContain("Round");
     expect(html).not.toContain(">Ask<");
+  });
+
+  it("B-176: shows Round and Ask as panel rows (and print lines) when set, in that order after Access", () => {
+    const html = render(makeMemo({ round: "Seed", ask: "$X on a SAFE" }));
+    const panel = html.slice(html.indexOf('aria-label="Deal facts"'), html.indexOf('aria-label="Sections"'));
+    expect(panel).toContain('<dt class="pt-0.5 text-meta text-muted-foreground">Round</dt><dd class="min-w-0 break-words">Seed</dd>');
+    expect(panel).toContain('<dt class="pt-0.5 text-meta text-muted-foreground">Ask</dt><dd class="min-w-0 break-words">$X on a SAFE</dd>');
+    expect(panel.indexOf(">Access<")).toBeLessThan(panel.indexOf(">Round<"));
+    expect(panel.indexOf(">Round<")).toBeLessThan(panel.indexOf(">Ask<"));
+    expect(panel.indexOf(">Ask<")).toBeLessThan(panel.indexOf(">Source<"));
+    expect(html).toContain("<dt>Round</dt><dd>Seed</dd>");
+    expect(html).toContain("<dt>Ask</dt><dd>$X on a SAFE</dd>");
+  });
+
+  it("B-176: shows only the one that is set", () => {
+    const html = render(makeMemo({ round: null, ask: "$X" }));
+    expect(html).not.toContain(">Round<");
+    expect(html).toContain(">Ask<");
   });
 
   it("has no left-edge bar on the contents list, and marks the active section with an underscore", () => {

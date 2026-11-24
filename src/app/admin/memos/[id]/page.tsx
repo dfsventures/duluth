@@ -45,6 +45,8 @@ export default async function MemoPage({ params }: { params: Promise<{ id: strin
     tags: memo.tags,
     introDate: memo.introDate ? memo.introDate.toISOString().slice(0, 10) : null,
     websiteUrl: memo.websiteUrl,
+    round: memo.round,
+    ask: memo.ask,
     introCalls: readIntroCalls(memo.introCalls),
     version: memo.version,
     updatedAt: memo.updatedAt.toISOString(),

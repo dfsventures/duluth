@@ -123,7 +123,7 @@ describe("the contract: tools, tiers, flags", () => {
     expect(MARGE_PORTCO_TOOLS).toEqual({ updates_list: "team", metrics_list: "team", company_match: "dm", update_create: "dm_write", metric_value_set: "dm_write" });
     expect(MARGE_COMPANY_TOOLS).toEqual({ company_create: "dm_write" });
     expect(Object.keys(MARGE_TOOLS)).toHaveLength(13);
-    expect(Object.keys(MARGE_MEMO_TOOLS)).toHaveLength(6);
+    expect(Object.keys(MARGE_MEMO_TOOLS)).toHaveLength(7); // B-176 added memo_update_meta
     expect(C.MARGE_PORTCO_FLAG).toBe("MARGE_PORTCO_TOOLS");
     expect(C.MARGE_COMPANY_CREATE_FLAG).toBe("MARGE_COMPANY_CREATE");
   });

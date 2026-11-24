@@ -5,8 +5,9 @@
 //
 // What Marge can never do here, by design (Q115-Q117): change visibility or status, create, list or
 // revoke share links, archive or delete, edit the template, restore, add/remove/reorder sections,
-// or edit metadata after creation. Those inputs do not exist (zod strips unknown keys) and the
-// shared actions are called with only the fields below.
+// or edit metadata after creation other than round and ask (B-176: memo_update_meta, which calls the
+// narrow setMemoRoundAsk, never the general details save). Those inputs do not exist (zod strips
+// unknown keys) and the shared actions are called with only the fields below.
 //
 // Memo text is untrusted for Marge: it may quote call notes and decks. It is returned in a labelled block.
 // No email address is ever returned, in text or in `structured`.
@@ -20,6 +21,7 @@ import {
   loadLinkCandidates,
   loadPortfolioCompany,
   saveSection,
+  setMemoRoundAsk,
   suggestCompany,
 } from "@/lib/memo-actions";
 import { currentTemplate } from "@/lib/memo-template";
@@ -39,7 +41,9 @@ import {
   readIntroCalls,
   validateCitations,
   validateIdempotencyKey,
+  validateMemoAsk,
   validateMemoMeta,
+  validateMemoRound,
   validateSections,
   type MemoCitation,
   type MemoStatus,
@@ -103,6 +107,8 @@ export const memoCreateInput = z.object({
   introDate: z.string().optional().describe("YYYY-MM-DD"),
   websiteUrl: z.string().optional(),
   introCalls: z.array(introCallInput).optional(),
+  round: z.string().optional().describe("the round, as written in the deck, up to 40 characters"),
+  ask: z.string().optional().describe("the ask, as written in the deck, up to 80 characters"),
   sections: z.array(sectionInput),
   idempotencyKey: z.string().describe("8-100 letters, digits, - or _; reuse the same key when retrying the same memo"),
   dryRun: z.boolean().default(true),
@@ -120,6 +126,14 @@ export const memoLinkCompanyInput = z.object({
   memoId: z.string().min(1).max(100),
   expectedVersion: z.number().int(),
   company: z.string().min(1).max(200).describe("company id, deal-ledger id, or exact name"),
+  dryRun: z.boolean().default(true),
+});
+// B-176: round and ask only. Omitted = unchanged; null clears.
+export const memoUpdateMetaInput = z.object({
+  memoId: z.string().min(1).max(100),
+  expectedVersion: z.number().int(),
+  round: z.string().nullable().optional().describe("the round, as written in the deck, up to 40 characters; null clears it; omit to leave it"),
+  ask: z.string().nullable().optional().describe("the ask, as written in the deck, up to 80 characters; null clears it; omit to leave it"),
   dryRun: z.boolean().default(true),
 });
 
@@ -306,6 +320,8 @@ export async function memoGet(input: z.infer<typeof memoGetInput>, p: Principal)
     tags: true,
     introDate: true,
     websiteUrl: true,
+    round: true,
+    ask: true,
     introCalls: true,
     templateVersion: true,
     sections: {
@@ -349,6 +365,8 @@ export async function memoGet(input: z.infer<typeof memoGetInput>, p: Principal)
     tags: memo.tags,
     introDate: isoDate(memo.introDate),
     websiteUrl: memo.websiteUrl,
+    round: memo.round ?? null,
+    ask: memo.ask ?? null,
     introCalls: calls,
     templateVersion: memo.templateVersion,
     version: memo.version,
@@ -369,6 +387,8 @@ export async function memoGet(input: z.infer<typeof memoGetInput>, p: Principal)
     `Company: ${header.company} · Status: ${MEMO_STATUS_LABELS[header.status as MemoStatus] ?? header.status} · ${header.visibility === "TEAM" ? "Shared with team" : "Private"} · Owner: ${header.owner}${header.ownerIsYou ? " (you)" : ""} · Memo version ${header.version}${header.draftedByMarge ? " · Drafted by Marge" : ""}`,
     `Source: ${header.source ?? "not set"} · Stage: ${header.decision ?? "not set"} · Tags: ${header.tags.length ? header.tags.join(", ") : "none"} · Intro date: ${header.introDate ?? "not set"} · Website: ${header.websiteUrl ?? "not set"}`,
   ];
+  // B-176: one more line only when either is set, so a memo without them reads as before.
+  if (header.round || header.ask) lines.push(`Round: ${header.round ?? "not set"} · Ask: ${header.ask ?? "not set"}`);
   if (calls.length) lines.push(`Intro calls: ${calls.map((c) => [c.label, c.date, c.url].filter(Boolean).join(" · ")).join("; ")}`);
   lines.push(`Link: ${header.url}`);
   for (const s of sections) {
@@ -407,6 +427,8 @@ export async function memoCreate(input: z.infer<typeof memoCreateInput>, p: Prin
     introDate: input.introDate,
     websiteUrl: input.websiteUrl,
     introCalls: input.introCalls,
+    round: input.round,
+    ask: input.ask,
   });
   if (!meta.ok) throw new ToolError(meta.error);
   const sections = validateSections(input.sections);
@@ -428,6 +450,8 @@ export async function memoCreate(input: z.infer<typeof memoCreateInput>, p: Prin
   if (input.introDate) body.introDate = input.introDate;
   if (meta.value.websiteUrl) body.websiteUrl = meta.value.websiteUrl;
   if (meta.value.introCalls.length) body.introCalls = meta.value.introCalls;
+  if (meta.value.round) body.round = meta.value.round;
+  if (meta.value.ask) body.ask = meta.value.ask;
 
   if (opts.dryRun) {
     const template = await currentTemplate();
@@ -452,6 +476,9 @@ export async function memoCreate(input: z.infer<typeof memoCreateInput>, p: Prin
       fields: [
         { label: "Title", after: meta.value.title },
         { label: "Company", after: company?.name ?? (meta.value.companyNamePending ? pendingLabel(meta.value.companyNamePending) : "none") },
+        // B-176: shown only when given, so a preview without them reads exactly as before.
+        ...(meta.value.round ? [{ label: "Round", after: meta.value.round }] : []),
+        ...(meta.value.ask ? [{ label: "Ask", after: meta.value.ask }] : []),
         { label: "Owner", after: "you" },
         {
           label: "Sections",
@@ -600,6 +627,54 @@ export async function memoLinkCompany(
     text: `Linked “${memo.title}” to ${company.name}. ${url}`,
     // JC-ML-G: `companyId` for a Company, `portfolioCompanyId` instead of it for a ledger row.
     structured: { memoId: memo.id, ...("companyId" in r.value ? { companyId: r.value.companyId } : { portfolioCompanyId: r.value.portfolioCompanyId }), version: r.value.version, url },
+    count: 1,
+  };
+}
+
+// ── memo_update_meta (B-176) ──────────────────────────────────────────────────────────────
+/** Round and ask only. Omitted = unchanged, null (or empty) clears. Owner only, version-checked, bumps the memo version. */
+export async function memoUpdateMeta(input: z.infer<typeof memoUpdateMetaInput>, p: Principal, opts: WriteOpts): Promise<ToolOutput> {
+  const memo = await loadVisibleMemo(input.memoId, p, { round: true, ask: true });
+  if (memo.ownerId !== p.id) throw new ToolError(MEMO_SENTENCES.ownerOnly);
+  if (memo.version !== input.expectedVersion) throw new ToolError(MEMO_SENTENCES.staleMemo, "conflict");
+
+  const before = { round: memo.round ?? null, ask: memo.ask ?? null };
+  const body: { expectedVersion: number; round?: string | null; ask?: string | null } = { expectedVersion: input.expectedVersion };
+  const fields: MargePreview["fields"] = [];
+  const shown = (v: string | null) => v ?? "not set";
+  if (input.round !== undefined) {
+    const v = validateMemoRound(input.round);
+    if (!v.ok) throw new ToolError(v.error);
+    if (v.value !== before.round) {
+      body.round = v.value;
+      fields.push({ label: "Round", before: shown(before.round), after: shown(v.value) });
+    }
+  }
+  if (input.ask !== undefined) {
+    const v = validateMemoAsk(input.ask);
+    if (!v.ok) throw new ToolError(v.error);
+    if (v.value !== before.ask) {
+      body.ask = v.value;
+      fields.push({ label: "Ask", before: shown(before.ask), after: shown(v.value) });
+    }
+  }
+  if (!fields.length) throw new ToolError(MEMO_SENTENCES.nothing);
+
+  if (opts.dryRun) {
+    return previewOutput({ action: "Edit memo details", target: memo.title, fields, warnings: [], expectedVersion: memo.version });
+  }
+
+  const r = await setMemoRoundAsk(p, memo.id, body, requireVia(opts));
+  if (!r.ok) {
+    if (r.status === 409) throw new ToolError(MEMO_SENTENCES.staleMemo, "conflict");
+    if (r.status === 403) throw new ToolError(MEMO_SENTENCES.ownerOnly);
+    if (r.status === 404) throw new ToolError(MEMO_SENTENCES.notFound);
+    throw new ToolError(r.error);
+  }
+  const url = memoUrl(memo.id);
+  return {
+    text: `Updated ${fields.map((f) => f.label.toLowerCase()).join(" and ")} on “${memo.title}”. ${url}`,
+    structured: { memoId: memo.id, round: r.value.round, ask: r.value.ask, version: r.value.version, url },
     count: 1,
   };
 }
