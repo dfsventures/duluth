@@ -444,6 +444,30 @@ async function main() {
         views: { create: [{ email: "lp-one@example.com" }, { email: "lp-two@example.com" }] },
       },
     });
+    // B-249: a link with two selected updates — the newest has attached files, the next has none.
+    // The internal and archived files and the unattached company file must never show on it.
+    // (Rows only: nothing is in storage, so a download from this seed redirects to a missing object.)
+    const [acmeNewest, acmeNext] = updateIds["Acme Robotics"];
+    const acmeFile = (name: string, mimeType: string, size: number, updateId: string | null, extra: Record<string, unknown> = {}) =>
+      db.document.create({
+        data: {
+          companyId: companyIds["Acme Robotics"], updateId, uploadedById: jane.id, name, mimeType, size,
+          s3Key: `documents/visual/${name.replace(/\s+/g, "-")}`, ...extra,
+        },
+      });
+    await acmeFile("Q3 board deck.pdf", "application/pdf", 2_400_000, acmeNewest);
+    await acmeFile("Revenue model with a deliberately long file name to test wrapping on phones.xlsx",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 86_000, acmeNewest);
+    await acmeFile("Internal note.pdf", "application/pdf", 12_000, acmeNewest, { isInternal: true });
+    await acmeFile("Old draft.pdf", "application/pdf", 9_000, acmeNewest, { archivedAt: ago(1) });
+    await acmeFile("Company one-pager.pdf", "application/pdf", 40_000, null);
+    await db.shareableLink.create({
+      data: {
+        token: "visual-token-files", label: "Acme Robotics updates", createdById: sam.id, expiresAt: new Date(NOW + 20 * DAY),
+        companies: { create: [{ companyId: companyIds["Acme Robotics"] }] },
+        selectedUpdates: { create: [{ updateId: acmeNewest }, { updateId: acmeNext }] },
+      },
+    });
     await db.shareableLink.create({
       data: {
         token: "visual-token-expired", label: null, createdById: sam.id, expiresAt: ago(10),

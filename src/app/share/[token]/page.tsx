@@ -11,13 +11,16 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Download,
+  FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogBody, DialogContent } from "@/components/ui/dialog";
 import { LogoMark } from "@/components/ui/logo-mark";
-import { formatDate, formatPeriod } from "@/lib/utils";
+import { formatDate, formatFileSize, formatPeriod } from "@/lib/utils";
+import { attachmentTypeLabel, shareAttachmentPath, type ShareAttachment } from "@/lib/share-attachments";
 import { ORG_NAME } from "@/lib/org";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -63,6 +66,8 @@ interface UpdateItem {
     date: string;
     metricDefinition: { name: string; unit: string | null };
   }[];
+  /** B-249: files attached to this update (never internal or archived). */
+  attachments?: ShareAttachment[];
 }
 
 interface ShareData {
@@ -400,6 +405,49 @@ export default function SharePage() {
                             className={cn("prose prose-sm max-w-none", uTheme && "co-body")}
                             dangerouslySetInnerHTML={{ __html: sanitizeUpdateHtml(update.body) }}
                           />
+
+                          {/* B-249: files the founder attached to this update */}
+                          {(update.attachments?.length ?? 0) > 0 && (
+                            <div className="mt-5">
+                              <h3 className={cn("mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground", uTheme && "co-label")}>
+                                Attachments
+                              </h3>
+                              <ul>
+                                {update.attachments!.map((file) => {
+                                  const meta = [attachmentTypeLabel(file.name, file.mimeType), formatFileSize(file.size)]
+                                    .filter(Boolean)
+                                    .join(" · ");
+                                  return (
+                                    <li key={file.id} className="border-b last:border-0">
+                                      <a
+                                        href={shareAttachmentPath(token, file.id)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label={`Download ${file.name}`}
+                                        className={cn(
+                                          "group flex min-h-11 items-center gap-3 rounded py-2 focus-visible:outline-none",
+                                          uTheme ? "co-focus" : "focus-visible:ring-2 focus-visible:ring-ring"
+                                        )}
+                                      >
+                                        <FileText aria-hidden className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        <span className="min-w-0 flex-1">
+                                          <span className="block truncate text-sm font-medium">{file.name}</span>
+                                          <span className="block text-xs text-muted-foreground">{meta}</span>
+                                        </span>
+                                        <Download
+                                          aria-hidden
+                                          className={cn(
+                                            "h-4 w-4 shrink-0",
+                                            uTheme ? "co-chevron" : "text-muted-foreground group-hover:text-primary"
+                                          )}
+                                        />
+                                      </a>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       )}
                     </CardContent>

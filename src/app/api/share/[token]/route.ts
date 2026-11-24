@@ -2,7 +2,13 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
-import { buildMetricDateFilter, buildMetricSummary, endOfDayUTC } from "@/lib/share-metrics";
+import { buildMetricDateFilter, buildMetricSummary } from "@/lib/share-metrics";
+import {
+  SHARE_ATTACHMENT_SELECT,
+  SHARE_ATTACHMENT_WHERE,
+  groupAttachmentsByUpdate,
+  shareUpdatesWhere,
+} from "@/lib/share-attachments";
 import { rewriteDocumentUrls } from "@/lib/share-docs";
 import { normalizeLogoPlate, themeForStored } from "@/lib/brand-theme";
 import { logoPublicPath } from "@/lib/company-logo";
@@ -79,35 +85,23 @@ export async function GET(
       },
     } as const;
 
-    let updates: Prisma.UpdateGetPayload<{ select: typeof updateSelect }>[];
-    if (link.selectedUpdates.length > 0) {
-      // New-style link: fetch the explicitly selected updates
-      updates = await db.update.findMany({
-        where: { id: { in: link.selectedUpdates.map((u) => u.updateId) } },
-        select: updateSelect,
-        orderBy: { sentAt: "desc" },
-      });
-    } else if (link.periodStart && link.periodEnd) {
-      // Legacy link: filter by company + period range
-      const periodEndInclusive = endOfDayUTC(link.periodEnd);
-      updates = await db.update.findMany({
-        where: {
-          companyId: { in: companyIds },
-          status: "SENT",
-          sentAt: { gte: link.periodStart, lte: periodEndInclusive },
-          // Part 45 (Q140 A, WS152): an update Marge files after this link was
-          // made does not appear on it. Written as an explicit OR because
-          // Prisma's NOT would also drop rows where filedAt is null (every
-          // ordinary update).
-          OR: [{ filedAt: null }, { filedAt: { lte: link.createdAt } }],
-        },
-        select: updateSelect,
-        orderBy: { sentAt: "desc" },
-      });
-    } else {
-      // Legacy link with no period range and no explicit selection — nothing to show
-      updates = [];
-    }
+    // Which updates this link shows: selected updates, or company + period for legacy links.
+    // The rule lives in src/lib/share-attachments.ts so the attachment download route uses the same one.
+    const updatesWhere = shareUpdatesWhere(link);
+    const updates: Prisma.UpdateGetPayload<{ select: typeof updateSelect }>[] = updatesWhere
+      ? await db.update.findMany({ where: updatesWhere, select: updateSelect, orderBy: { sentAt: "desc" } })
+      : [];
+
+    // B-249: files attached to the shown updates (never internal or archived; never s3Key).
+    const attachmentsByUpdate = groupAttachmentsByUpdate(
+      updates.length > 0
+        ? await db.document.findMany({
+            where: { updateId: { in: updates.map((u) => u.id) }, ...SHARE_ATTACHMENT_WHERE },
+            select: SHARE_ATTACHMENT_SELECT,
+            orderBy: { createdAt: "asc" },
+          })
+        : []
+    );
 
     // Metric summary: latest value per metric across the relevant companies.
     // Scoping rules live in src/lib/share-metrics.ts (pure, unit-tested).
@@ -171,6 +165,7 @@ export async function GET(
       updates: updates.map((u) => ({
         ...u,
         body: sanitizeUpdateHtml(rewriteDocumentUrls(u.body, token)),
+        attachments: attachmentsByUpdate.get(u.id) ?? [],
       })),
     });
   } catch (err) {

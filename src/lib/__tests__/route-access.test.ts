@@ -24,6 +24,7 @@ describe("decideRoute — public routes", () => {
     "/brand/dfs-logo-primary.png",
     "/api/share/abc123",
     "/api/share/abc123/view",
+    "/api/share/abc123/attachment/ckdoc123", // B-249: the route checks the token itself
     "/lp",
     "/lp/reports/abc123",
     "/api/lp/auth/request",

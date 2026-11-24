@@ -90,11 +90,14 @@ const PAGES: Record<string, string> = {
   "lp-report": "/lp", // the library, then the first report (also shot with print styles)
   // WS168: pages that keep their own look (they must not change when the new look becomes the default)
   share: "/share/visual-token-active", // the seeded active investor link (setup.ts)
+  // B-249: the seeded link with two selected updates, one with attached files; shot past the
+  // email gate with both updates opened (share-files-open__*.png).
+  "share-files": "/share/visual-token-files",
   investors: "/investors",
 };
 
 // WS166: pages shot with no admin or founder session, and the LP pages (the LP's own cookie).
-const SIGNED_OUT = new Set(["home", "login", "signup", "set-password", "lp-signin", "share", "investors"]);
+const SIGNED_OUT = new Set(["home", "login", "signup", "set-password", "lp-signin", "share", "share-files", "investors"]);
 const AS_LP = new Set(["lp", "lp-report"]);
 const LP_COOKIE = "lp_session"; // keep in step with src/lib/lp-auth.ts
 const LP_SESSION_TOKEN = "local-visual-lp-session"; // keep in step with setup.ts
@@ -748,6 +751,20 @@ async function main() {
           } else {
             console.warn("  no details toggle found on /updates/new");
           }
+        }
+        // B-249: past the email gate (the page's own localStorage key), then every update opened.
+        if (ok && key === "share-files") {
+          await page.evaluate(() => localStorage.setItem("share_viewer_visual-token-files", "viewer@example.com"));
+          await page.reload({ waitUntil: "networkidle" }).catch(() => {});
+          await page.waitForTimeout(400);
+          const headers = page.locator("section button").filter({ hasText: /update, \d{4}-\d{2}/ }); // seeded titles
+          const n = await headers.count();
+          for (let i = 0; i < n; i++) {
+            await headers.nth(i).click();
+            await page.waitForTimeout(150);
+          }
+          if (n === 0) console.warn("  no update headers found on the share-files page");
+          await snap(page, `share-files-open__${tag}.png`);
         }
         // B-176: the memo's Details sheet (round and ask), opened from the ⋯ menu.
         if (ok && key === "memo") {

@@ -13,6 +13,7 @@ vi.mock("@/lib/db", () => ({
     shareableLinkView: { create: vi.fn(async () => void state.views++) },
     update: { findMany: (...a: unknown[]) => mockUpdates(...a) },
     metricValue: { findMany: vi.fn(async () => []) },
+    document: { findMany: vi.fn(async () => []) }, // B-249 attachments
     rateLimitCounter: {
       upsert: vi.fn(async ({ where }: { where: { key_windowStart: { key: string } } }) => {
         const key = where.key_windowStart.key;
@@ -71,9 +72,9 @@ describe("GET /api/share/[token]", () => {
     expect(body).toContain("<strong>investors</strong>");
     expect(body).toContain('<a href="https://example.com" target="_blank" rel="noopener noreferrer">good</a>');
     expect(body).toContain('<img src="/api/share/tok%2Fen/doc/ckabc123" alt="chart" class="max-w-full rounded-md my-4">');
-    // response shape unchanged
+    // response shape unchanged (B-249 added "attachments" per update; nothing removed or renamed)
     expect(Object.keys(json).sort()).toEqual(["companies", "expiresAt", "id", "label", "periodEnd", "periodStart", "theme", "updates"]);
-    expect(Object.keys(json.updates[0]).sort()).toEqual(["body", "company", "companyId", "createdAt", "id", "metricValues", "period", "sentAt", "title"]);
+    expect(Object.keys(json.updates[0]).sort()).toEqual(["attachments", "body", "company", "companyId", "createdAt", "id", "metricValues", "period", "sentAt", "title"]);
   });
 
   it("rate limit: 240 an hour per IP, the 241st is a 429; another IP is unaffected", async () => {

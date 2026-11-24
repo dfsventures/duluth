@@ -13,6 +13,7 @@ vi.mock("@/lib/db", () => ({
     shareableLink: { findUnique: (...a: unknown[]) => mockLink(...a) },
     update: { findMany: (...a: unknown[]) => mockUpdates(...a) },
     metricValue: { findMany: (...a: unknown[]) => mockMetrics(...a) },
+    document: { findMany: async () => [] }, // B-249 attachments
   },
 }));
 
