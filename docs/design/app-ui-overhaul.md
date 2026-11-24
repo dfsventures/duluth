@@ -29,6 +29,8 @@ Recommended scope: phases 1 to 4 (about 3 to 4 weeks of Alvin time) get roughly 
 
 ## 2. Assumptions (flagged, since Joseph was not available)
 
+> **Superseded 2026-11-23 by [`redesign-v1.md`](./redesign-v1.md) (PLAN-1, WS168).** Assumption 2 ("light theme only") no longer holds: the app has light and dark themes, and each person's choice is kept. The other assumptions here describe the October 2026 work and are kept as history.
+
 1. **Typography is Space Grotesk (display), IBM Plex Sans (body), JetBrains Mono (labels).** The brief said Archivo. The code (`src/app/layout.tsx`) and the brand skill both say otherwise. I am designing against what ships. If Archivo is a planned brand change, that is a separate decision (Decision 8), not folded into this.
 2. **Light theme only.** The brand skill and the Part 37 spec commit to light. No dark mode in this proposal. Tokens are structured so one could be added later.
 3. **Admins are daily users on desktop; founders are occasional users, often on a phone; LPs read a few reports a year.** So density and keyboard speed go to admin; clarity and touch targets go to founder and LP.
@@ -329,6 +331,8 @@ Testing posture (no localhost): each phase gets pure-helper unit tests where log
 ---
 
 ## 11. Direction B: colour and rounded corners
+
+> **Superseded 2026-11-23 by [`redesign-v1.md`](./redesign-v1.md) (PLAN-1, WS168).** The app (admin, founder, LP and sign-in pages) now has one look, the redesign. Direction B's tokens remain in `globals.css` only because the investor share pages (`/share/[token]`, `/share/m/[token]`) and `/investors` still use them; those pages were kept unchanged on purpose. Do not build new app screens against this section.
 
 Added 2026-10-10 at Joseph's request ("colours and rounded corners, not too far off our identity"). Direction A (sections 4 to 10) stays the baseline. B is a different **skin** on the same behaviour: toasts, Undo, DataTable, Cmd+K, board drag, skeletons, URL tabs, density all apply unchanged. The mockup's top toggle switches Before, After A and After B on every screen at once: https://claude.ai/artifact/QAQugTLN61T3FVkETz6EhB
 

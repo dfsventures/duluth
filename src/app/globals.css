@@ -142,7 +142,7 @@
    which reads the two blocks below; keep the marker comments. */
 html[data-theme] [data-v2-scope],
 html[data-theme] body[data-v2-scope] {
-  /* Type: Inter for every sans use inside the scope (share pages and the preview frame keep Plex) */
+  /* Type: Inter for every sans use inside the scope (share pages and /investors keep Plex) */
   --font-sans: var(--font-inter);
   --font-display: var(--font-inter);
 
